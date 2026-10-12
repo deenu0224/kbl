@@ -25,6 +25,7 @@ import {
   FENCE_H,
   FENCE_R,
   FENCE_XMAX,
+  OLD_FAN_PHI,
   HX,
   HY,
   MOUND,
@@ -41,6 +42,7 @@ import {
   YK,
   buildSeats,
   clampLv,
+  fenceTopY,
   hash2,
   ofRowR,
   ofRowZ,
@@ -60,6 +62,9 @@ export interface StaticLayers {
   seats: Seat[];
   groups: Seat[][]; // 색 인덱스별 좌석
   flags: Pt[]; // 지붕 위 깃대 끝(동적 깃발 위치)
+  wavers: Seat[]; // 큰 응원 깃발을 흔드는 자리(cheerLv 2+)
+  oldFan: Pt; // 외야의 오랜 팬(좌상단 2×2 좌석 기준)
+  oldFanOnGrass: boolean; // 외야석이 없어 잔디 언덕에 앉는다
   lv: { seats: number; food: number; training: number };
 }
 
@@ -296,10 +301,7 @@ export function buildStatic(fac: Facilities, homeHex: string, home2Hex: string):
   }
 
   // 3) 외야 펜스 (카메라를 향한 안쪽 면)
-  const fenceTop = (sx: number): number => {
-    const x = sx - HX + 0.5;
-    return Math.round(HY - YK * Math.sqrt(FENCE_R * FENCE_R - x * x)) - FENCE_H;
-  };
+  const fenceTop = fenceTopY;
   const adCols = [0xffffff, 0xe5564a, 0x3f7fd6, 0xffd23f, 0xf08a1c, 0xffffff];
   for (let sx = Math.ceil(HX - FENCE_XMAX); sx < HX + FENCE_XMAX; sx++) {
     const top = fenceTop(sx);
@@ -388,6 +390,23 @@ export function buildStatic(fac: Facilities, homeHex: string, home2Hex: string):
   const groups: Seat[][] = [[], [], [], [], [], [], [], []];
   for (const s of seats) groups[s.ci].push(s);
 
+  // 큰 깃발 기수: 앞자리(관중이 적어도 차는 자리) 위주로 고르게
+  const wavers = seats.filter((s) => s.rank < 0.7 && hash2(s.x * 3 + s.ph, s.y) < 1 / 34);
+
+  // 오랜 팬: 외야석이 있으면 좌중간의 정해진 좌석, 없으면 잔디 언덕
+  const fx = HX - 303 * Math.sin(OLD_FAN_PHI);
+  const fy = HY - YK * 303 * Math.cos(OLD_FAN_PHI);
+  let oldFan: Pt = { x: Math.round(fx) - 1, y: Math.round(fy) - 3 };
+  let best = 1e9;
+  for (const s of seats) {
+    if (s.sec !== 2) continue;
+    const dd = Math.abs(s.x - fx) + Math.abs(s.y - (fy - 12)) * 2;
+    if (dd < best) {
+      best = dd;
+      oldFan = { x: s.x, y: s.y };
+    }
+  }
+
   return {
     key: staticKey(fac, homeHex, home2Hex),
     base: b.toCanvas(),
@@ -395,6 +414,9 @@ export function buildStatic(fac: Facilities, homeHex: string, home2Hex: string):
     seats,
     groups,
     flags,
+    wavers,
+    oldFan,
+    oldFanOnGrass: best === 1e9,
     lv: { seats: lv, food: foodLv, training: trainLv },
   };
 }

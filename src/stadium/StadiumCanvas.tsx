@@ -34,7 +34,8 @@ export default function StadiumCanvas(props: { scene: StadiumScene; className?: 
     let fxStart = 0;
 
     const tick = (now: number) => {
-      if (!alive) return;
+      raf = 0;
+      if (!alive || document.hidden) return; // 탭이 가려지면 루프를 쉰다
       raf = requestAnimationFrame(tick);
       if (now - last < FRAME_MS) return;
       last = now;
@@ -52,10 +53,15 @@ export default function StadiumCanvas(props: { scene: StadiumScene; className?: 
       }
       drawFrame({ ctx, scene, layers, t: now / 1000, fxT: (now - fxStart) / 1000, night });
     };
-    raf = requestAnimationFrame(tick);
+    const onVisibility = () => {
+      if (!document.hidden && alive && raf === 0) raf = requestAnimationFrame(tick);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    if (!document.hidden) raf = requestAnimationFrame(tick);
 
     return () => {
       alive = false;
+      document.removeEventListener('visibilitychange', onVisibility);
       cancelAnimationFrame(raf);
       layers = null;
       night = null;
