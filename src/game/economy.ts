@@ -2,30 +2,31 @@ import type { Core, Facilities, FacilityKind, Ledger, Player, Team, Weather } fr
 import { clamp } from './rng';
 import { GAMES } from './schedule';
 import { activeBuffs } from './campaign';
+import { isFranchise } from './franchise';
 
 // ── 시설 단계 (cost = 그 단계로 올리는 비용, upkeep = 만원/경기) ──
 export const SEAT_LV: { cap: number; cost: number; upkeep: number; name: string; desc: string }[] = [
   { cap: 6000, cost: 0, upkeep: 300, name: '동네 야구장', desc: '6,000석 · 낡은 내야 스탠드' },
-  { cap: 9000, cost: 100000, upkeep: 420, name: '확장 내야석', desc: '9,000석 · 내야 스탠드 확장' },
-  { cap: 13000, cost: 220000, upkeep: 580, name: '지붕 스탠드', desc: '13,000석 · 지붕 덮인 내야석' },
-  { cap: 18000, cost: 400000, upkeep: 800, name: '외야석 개장', desc: '18,000석 · 외야 관중석 신설' },
-  { cap: 24000, cost: 700000, upkeep: 1100, name: '2층 스타디움', desc: '24,000석 · 복층 대형 구장' },
+  { cap: 9000, cost: 100000, upkeep: 460, name: '확장 내야석', desc: '9,000석 · 내야 스탠드 확장' },
+  { cap: 13000, cost: 220000, upkeep: 900, name: '지붕 스탠드', desc: '13,000석 · 지붕 덮인 내야석 (비 오는 날에도 덜 빠진다)' },
+  { cap: 18000, cost: 450000, upkeep: 1800, name: '외야석 개장', desc: '18,000석 · 외야 관중석 신설' },
+  { cap: 24000, cost: 850000, upkeep: 3500, name: '2층 스타디움', desc: '24,000석 · 복층 대형 구장' },
 ];
 
 export const FOOD_LV: { spend: number; sat: number; cost: number; upkeep: number; name: string; desc: string }[] = [
   { spend: 0.22, sat: 0, cost: 0, upkeep: 80, name: '포장마차', desc: '객단가 2,200원 · 어묵과 컵라면' },
-  { spend: 0.38, sat: 4, cost: 35000, upkeep: 150, name: '간이 매점', desc: '객단가 3,800원 · 만족도 +4' },
-  { spend: 0.58, sat: 8, cost: 80000, upkeep: 260, name: '차양 매장', desc: '객단가 5,800원 · 만족도 +8' },
-  { spend: 0.82, sat: 12, cost: 160000, upkeep: 420, name: '파라솔 푸드코트', desc: '객단가 8,200원 · 만족도 +12' },
-  { spend: 1.1, sat: 16, cost: 300000, upkeep: 650, name: '네온 푸드홀', desc: '객단가 11,000원 · 만족도 +16' },
+  { spend: 0.32, sat: 4, cost: 35000, upkeep: 170, name: '간이 매점', desc: '객단가 3,200원 · 만족도 +4' },
+  { spend: 0.4, sat: 8, cost: 80000, upkeep: 340, name: '차양 매장', desc: '객단가 4,000원 · 만족도 +8' },
+  { spend: 0.48, sat: 12, cost: 160000, upkeep: 600, name: '파라솔 푸드코트', desc: '객단가 4,800원 · 만족도 +12' },
+  { spend: 0.56, sat: 16, cost: 380000, upkeep: 1000, name: '네온 푸드홀', desc: '객단가 5,600원 · 만족도 +16 · 비가 와도 매출 유지' },
 ];
 
 export const TRAIN_LV: { grow: number; inj: number; cost: number; upkeep: number; name: string; desc: string }[] = [
   { grow: 0.04, inj: 1.0, cost: 0, upkeep: 0, name: '공터', desc: '훈련 시설 없음' },
-  { grow: 0.1, inj: 0.9, cost: 40000, upkeep: 120, name: '배팅 케이지', desc: '주간 성장 10% · 부상 -10%' },
-  { grow: 0.16, inj: 0.8, cost: 90000, upkeep: 240, name: '불펜 마운드', desc: '주간 성장 16% · 부상 -20%' },
-  { grow: 0.23, inj: 0.65, cost: 180000, upkeep: 420, name: '실내 훈련장', desc: '주간 성장 23% · 부상 -35%' },
-  { grow: 0.31, inj: 0.5, cost: 350000, upkeep: 700, name: '퍼포먼스 센터', desc: '주간 성장 31% · 부상 -50%' },
+  { grow: 0.12, inj: 0.9, cost: 40000, upkeep: 120, name: '배팅 케이지', desc: '주간 성장 12% · 부상 -10%' },
+  { grow: 0.2, inj: 0.8, cost: 90000, upkeep: 280, name: '불펜 마운드', desc: '주간 성장 20% · 부상 -20%' },
+  { grow: 0.28, inj: 0.65, cost: 180000, upkeep: 550, name: '실내 훈련장', desc: '주간 성장 28% · 부상 -35%' },
+  { grow: 0.36, inj: 0.5, cost: 450000, upkeep: 1000, name: '퍼포먼스 센터', desc: '주간 성장 36% · 부상 -50%' },
 ];
 
 export const LOAN_LIMIT = 500000; // 50억
@@ -36,14 +37,33 @@ export const MIN_BATTERS = 10;
 export const MIN_PITCHERS = 8;
 
 // ── 수요·수입 밸런스 상수 ──
-export const DEMAND_K = 0.79; // 팬층 대비 기본 내장률
+export const DEMAND_K = 0.83; // 팬층 대비 기본 내장률
 export const PRICE_ELASTICITY = 1.3;
+export const PRICE_ELASTICITY_OVER = 2.0; // 적정가보다 비싼 표는 더 가파르게 빠진다
 export const DOW_MULT = [1, 1, 1, 1.1, 1.3, 1.25]; // 화 수 목 금 토 일
-export const WEATHER_MULT: Record<Weather, number> = { sunny: 1, cloudy: 0.95, rain: 0.6 };
+export const WEATHER_MULT: Record<Weather, number> = { sunny: 1, cloudy: 0.95, rain: 0.6 }; // rain = 지붕 없는 구장
+export const RAIN_ROOF = 0.85; // 지붕(관중석 Lv3+) 있는 구장의 비 오는 날 수요
+export const ROOF_SEATS = 2; // facilities.seats 가 이 값 이상이면 지붕
+export const RAIN_PRICE_EXP = 0.9; // 비 오는 날은 적정가보다 비싼 표가 더 빠진다
+export const LOYAL_BASE = 0.35; // 충성 팬: 성적 계수와 무관하게 오는 비율
+export const LOYAL_MAX = 0.5;
+export const LOYAL_PER_FAN = 1 / 150000; // 팬 1명당 충성 비율 증가 (START_FANS 초과분)
+export const LOYAL_PER_SEASON = 0.012;
+export const LOYAL_FAN_REF = 5200;
+export const OPENING_GAMES = 3; // 개막 효과: 시즌 첫 홈 3연전
+export const OPENING_MULT = 1.15;
+export const FRANCHISE_MULT = 1.3; // 프랜차이즈 스타의 팬 효과
 export const STAR_BASE = 0.8; // 스타 계수 = STAR_BASE + (상위 3명 star 합) / STAR_DIV
-export const STAR_DIV = 340;
-export const OPS_COST = 1050; // 구단 운영비 (만원/경기)
-export const LEAGUE_BASE = 2020; // 리그 분배금·스폰서 기본 (만원/경기)
+export const STAR_DIV = 420;
+export const OPS_COST = 1050; // 구단 운영비 기본 (만원/경기)
+export const OPS_FAN2 = 1.8e-5; // 팬 규모에 따라 커지는 운영비: (팬 − OPS_FAN_FREE)² × 이 값 (만원/경기) — 프런트·안전·홍보 인력. 큰 구단일수록 가파르다
+export const OPS_FAN_FREE = 5200;
+export const SALARY_INFLATION = 0.07; // 리그 연봉 인플레 (시즌당, 스타급일수록 크게 — season.ts develop)
+export const SALARY_INFLATION_MAX = 0.8;
+// 재계약 프리미엄: 가을야구를 한 팀의 선수는 비싸진다. 최근 3시즌의 성적별 가산을 더한다 (유저 구단 연봉에만)
+export const RENEW_PREMIUM: Record<string, number> = { none: 0, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.12 };
+export const RENEW_SEASONS = 3;
+export const LEAGUE_BASE = 2100; // 리그 분배금·스폰서 기본 (만원/경기)
 export const LEAGUE_PER_FAN = 0.04;
 export const LEAGUE_PER_RANK = 45; // 순위 한 계단당
 export const MERCH_K = 0.03; // 팬 1명 × 스타합/100 당 (만원/경기)
@@ -56,7 +76,7 @@ const LEVELS: Record<FacilityKind, { cost: number }[]> = { seats: SEAT_LV, food:
 
 /** 적정 티켓가(만원). 구장이 좋아질수록 더 받을 수 있다. */
 export function refPrice(f: Facilities): number {
-  return Math.round((1.1 + f.seats * 0.12 + f.food * 0.06) * 100) / 100;
+  return Math.round((1.1 + f.seats * 0.03 + f.food * 0.03) * 100) / 100;
 }
 
 export function payroll(t: Team): number {
@@ -83,10 +103,43 @@ export function upgradeCost(kind: FacilityKind, f: Facilities): number | null {
   return next ? next.cost : null;
 }
 
-/** 간판 선수 상위 3명의 스타성 합 */
-export function starPower(t: Team): number {
+/** 구단 운영비 (만원/경기). 팬 규모가 커질수록 프런트가 커진다 */
+export function opsCost(core: Pick<Core, 'fans'>): number {
+  const over = Math.max(0, core.fans - OPS_FAN_FREE);
+  return Math.round(OPS_COST + over * over * OPS_FAN2);
+}
+
+/** 연봉 인플레 배율 (시즌 1 = 1.0) */
+export function salaryInflation(season: number): number {
+  return 1 + Math.min(SALARY_INFLATION_MAX, Math.max(0, season - 1) * SALARY_INFLATION);
+}
+
+/** 충성 팬 비율: 져도 오는 팬. 팬 규모와 시즌 수에 따라 자란다 */
+export function loyalShare(core: Pick<Core, 'fans' | 'season'>): number {
+  return clamp(LOYAL_BASE + Math.max(0, core.fans - LOYAL_FAN_REF) * LOYAL_PER_FAN + (core.season - 1) * LOYAL_PER_SEASON, LOYAL_BASE, LOYAL_MAX);
+}
+
+export function hasRoof(f: Facilities): boolean {
+  return f.seats >= ROOF_SEATS;
+}
+
+/** 날씨 수요 계수: 비 × 지붕 × 표값 */
+export function weatherMult(core: Pick<Core, 'facilities' | 'finance'>, weather: Weather, priceMult = 1): number {
+  if (weather !== 'rain') return WEATHER_MULT[weather];
+  const base = hasRoof(core.facilities) ? RAIN_ROOF : WEATHER_MULT.rain;
+  const over = (core.finance.ticketPrice * priceMult) / refPrice(core.facilities);
+  return base * (over > 1 ? clamp(Math.pow(1 / over, RAIN_PRICE_EXP), 0.5, 1) : 1);
+}
+
+/** 비 오는 날 매점 계수 (푸드홀 Lv5 는 감소 없음) */
+export function rainFood(f: Facilities, weather: Weather): number {
+  return weather === 'rain' && f.food < FOOD_LV.length - 1 ? RAIN_FOOD : 1;
+}
+
+/** 간판 선수 상위 3명의 스타성 합. season 을 주면 프랜차이즈 스타(5시즌+ · star 60+)는 ×1.3 */
+export function starPower(t: Team, season?: number): number {
   return t.roster
-    .map((p) => p.star)
+    .map((p) => (season !== undefined && isFranchise(p, season) ? p.star * FRANCHISE_MULT : p.star))
     .sort((a, b) => b - a)
     .slice(0, 3)
     .reduce((s, v) => s + v, 0);
@@ -114,11 +167,15 @@ export function calcDemand(core: Core, c: DemandCtx): number {
   const pct = l10.length ? l10.reduce((s, v) => s + v, 0) / l10.length : 0.5;
   let perf = 0.75 + 0.5 * pct;
   if (t.rec.streak >= 3) perf *= 1 + 0.02 * Math.min(t.rec.streak, 6);
-  const star = STAR_BASE + starPower(t) / STAR_DIV;
+  const loyal = loyalShare(core);
+  perf = loyal + (1 - loyal) * perf; // 충성 팬은 성적과 무관하게 온다
+  const star = STAR_BASE + starPower(t, core.season) / STAR_DIV;
+  const opening = core.phase === 'season' && core.attHistory.length < OPENING_GAMES ? OPENING_MULT : 1;
   const opp = 0.9 + 0.26 * clamp(c.oppPop, 0, 1);
-  const price = clamp(Math.pow(refPrice(core.facilities) / Math.max(0.1, core.finance.ticketPrice * fx.price), PRICE_ELASTICITY), 0.2, 2.5);
+  const ratio = refPrice(core.facilities) / Math.max(0.1, core.finance.ticketPrice * fx.price);
+  const price = clamp(Math.pow(ratio, ratio < 1 ? PRICE_ELASTICITY_OVER : PRICE_ELASTICITY), 0.2, 2.5);
   const sat = 0.8 + core.fanSat / 250;
-  const v = core.fans * DEMAND_K * perf * star * opp * DOW_MULT[c.dow % 6] * WEATHER_MULT[c.weather] * price * sat * c.noise * fx.demand * (c.mult ?? 1);
+  const v = core.fans * DEMAND_K * perf * star * opp * DOW_MULT[c.dow % 6] * weatherMult(core, c.weather, fx.price) * price * sat * c.noise * fx.demand * opening * (c.mult ?? 1);
   return Math.max(0, Math.round(v));
 }
 

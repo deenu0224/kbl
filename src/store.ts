@@ -13,8 +13,9 @@ import {
   repay as repayLoan,
   nextSeason,
 } from './game/season';
-import { autoLineup, fixLineup } from './game/lineup';
-import { ensureObjectives, fillObjectivesMut } from './game/campaign';
+import { autoLineup, fixLineup, managerLineup } from './game/lineup';
+import { ensureObjectives, fillObjectivesMut, stopReason } from './game/campaign';
+import { CHARACTERS, OVER_LABEL } from './game/story';
 import { maybeDrawEvent, resolveEvent as resolveEventFn } from './game/events';
 import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
 import { postMatch } from './game/postseason';
@@ -190,15 +191,25 @@ export const useStore = create<Store>()(
           if (s.playback || s.summary) return;
           let core = pickCore(s);
           const reports: DayReport[] = [];
+          let stopped: string | null = null;
           for (let i = 0; i < n; i++) {
             if (playBlock(core)) break;
             const r = advanceDay(core, rng);
             core = maybeDrawEvent(r.core, rng);
             reports.push(r.report);
-            if (core.campaign.event) break; // 이벤트 카드가 뜨면 멈춘다
+            // 이벤트 카드 · 전/결 구간의 시작 · 중간 점검 · 주전 부상에서 멈춘다
+            stopped = stopReason(core, r.report);
+            if (stopped) break;
           }
           if (!reports.length) return;
-          set({ ...pickCore(core), summary: reports, lastReport: reports[reports.length - 1], fx: null });
+          const early = stopped && reports.length < n && !playBlock({ ...core, campaign: { ...core.campaign, event: null } });
+          set({
+            ...pickCore(core),
+            summary: reports,
+            lastReport: reports[reports.length - 1],
+            fx: null,
+            ...(early ? { toast: mkToast(`진행 정지 — ${stopped}`, 'info') } : {}),
+          });
         },
         closeSummary() {
           set({ summary: null });
@@ -284,7 +295,12 @@ export const useStore = create<Store>()(
         },
         auto() {
           if (locked()) return;
-          set({ teams: withUserTeam(get(), (t) => autoLineup(t)), toast: mkToast('자동 편성 완료', 'info') });
+          // 0장을 넘기기 전(감독이 승복하기 전)의 자동 편성은 "감독에게 맡기기"다
+          const yielded = !!get().campaign.managerYielded;
+          set({
+            teams: withUserTeam(get(), (t) => (yielded ? autoLineup(t) : managerLineup(t))),
+            toast: mkToast(yielded ? '자동 편성 완료' : `${CHARACTERS.manager.name} 감독에게 편성을 맡겼습니다`, 'info'),
+          });
         },
 
         startNextSeason() {
@@ -295,7 +311,7 @@ export const useStore = create<Store>()(
             return;
           }
           if (s.phase === 'over') {
-            set({ toast: mkToast('해임되었습니다 — 새 게임을 시작하세요', 'bad') });
+            set({ toast: mkToast(`${OVER_LABEL}이 확정되었습니다 — 새 게임을 시작하세요`, 'bad') });
             return;
           }
           if (s.phase !== 'draft') return;
@@ -342,7 +358,7 @@ export const useStore = create<Store>()(
             lastReport: null,
             leftTab: 'lineup',
             rightTab: 'league',
-            toast: mkToast('새 구단으로 시작합니다', 'info'),
+            toast: mkToast('단장으로 부임했습니다', 'info'),
           });
         },
         clearHint(tab) {
@@ -363,7 +379,7 @@ export const useStore = create<Store>()(
     },
     {
       name: 'kbl-save-v1',
-      version: 2,
+      version: 3,
       partialize: (s) => pickCore(s),
       migrate: (persisted, version) => migrateSave(persisted, version) as unknown as Store,
     },
@@ -400,7 +416,7 @@ export function userMatch(
 
 // ───────── 세이브 마이그레이션 ─────────
 
-/** v1 → v2: campaign/post/draft 필드와 타격 스탯 d3/sb/cs 기본값 채우기 */
+/** v1 → v2: campaign/post/draft 필드와 타격 스탯 d3/sb/cs 기본값 채우기. v2 → v3: 캠페인 v3 재편 */
 export function migrateSave(persisted: unknown, version: number): Core {
   const st = (persisted ?? {}) as Partial<Core> & Record<string, unknown>;
   if (version < 2) {
@@ -415,7 +431,20 @@ export function migrateSave(persisted: unknown, version: number): Core {
     (st.freeAgents ?? []).forEach(fix);
   }
   const core = st as Core;
-  if (core.teams?.length && core.campaign && !core.campaign.objectives.length && (core.phase === 'season' || core.phase === 'post')) {
+  if (version < 3 && core.campaign) {
+    // v2 → v3: 장 테이블·목표·업적 체계가 바뀌었다. 장은 유지하고 목표·별·대본은 새로 깐다.
+    const c = core.campaign;
+    c.objectives = [];
+    c.achievements = [];
+    c.eventsSeen = [];
+    c.event = null;
+    c.buffs = (c.buffs ?? []).filter((b) => b.kind !== 'pledge');
+    c.beats = undefined;
+    c.hints = {};
+    c.retired = c.retired ?? [];
+    c.managerYielded = c.managerYielded ?? c.stage > 0;
+  }
+  if (core.teams?.length && core.campaign && (core.phase === 'season' || core.phase === 'post') && (!core.campaign.objectives.length || !core.campaign.beats)) {
     fillObjectivesMut(core, rng);
   }
   return core;

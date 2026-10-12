@@ -26,11 +26,18 @@ function best<T>(arr: T[], score: (x: T) => number): T | undefined {
   return top;
 }
 
-function buildBatting(t: Team): void {
+// ── 감독의 편성 (LEVEL_DESIGN 3절): 나이·연봉(이름값)에 가중치를 둔다 ──
+const MGR_AGE = 3.0; // 27세 기준 1살당 가산
+const MGR_SALARY = 1.5; // 연봉 1억당 가산
+type Bias = (p: Player) => number;
+const noBias: Bias = () => 0;
+const mgrBias: Bias = (p) => (p.age - 27) * MGR_AGE + (p.salary / 10000) * MGR_SALARY;
+
+function buildBatting(t: Team, bias: Bias = noBias): void {
   const pool = t.roster.filter((p) => p.kind === 'B');
   const chosen: { p: Player; pos: BatPos }[] = [];
   const take = (pos: BatPos) => {
-    const p = best(pool, (x) => slotValue(x, pos));
+    const p = best(pool, (x) => slotValue(x, pos) + bias(x));
     if (!p) return;
     pool.splice(pool.indexOf(p), 1);
     chosen.push({ p, pos });
@@ -47,18 +54,18 @@ function buildBatting(t: Team): void {
     return x;
   };
   const order: ({ p: Player; pos: BatPos } | undefined)[] = new Array(9).fill(undefined);
-  order[2] = pull((x) => batValue(x.p));
-  order[3] = pull((x) => x.p.pow * 0.6 + x.p.con * 0.4);
+  order[2] = pull((x) => batValue(x.p) + bias(x.p));
+  order[3] = pull((x) => x.p.pow * 0.6 + x.p.con * 0.4 + bias(x.p));
   order[0] = pull((x) => x.p.eye * 0.4 + x.p.con * 0.3 + x.p.spd * 0.3);
-  for (const i of [1, 4, 5, 6, 7, 8]) order[i] = pull((x) => batValue(x.p));
+  for (const i of [1, 4, 5, 6, 7, 8]) order[i] = pull((x) => batValue(x.p) + bias(x.p));
   t.lineup = order
     .filter((x): x is { p: Player; pos: BatPos } => !!x)
     .map((x): LineupSlot => ({ pid: x.p.id, pos: x.pos }));
 }
 
-function buildPitching(t: Team): void {
+function buildPitching(t: Team, bias: Bias = noBias): void {
   const pool = t.roster.filter((p) => p.kind === 'P');
-  const byOvr = (a: Player, b: Player) => b.ovr - a.ovr;
+  const byOvr = (a: Player, b: Player) => b.ovr + bias(b) - (a.ovr + bias(a));
   const sp = pool.filter((p) => p.pos === 'SP').sort(byOvr);
   const others = pool.filter((p) => p.pos !== 'SP');
   const rot = sp.slice(0, 5);
@@ -70,7 +77,7 @@ function buildPitching(t: Team): void {
     rot.push(p);
   }
   const closer =
-    best(rest.filter((p) => p.pos === 'CP'), (p) => p.ovr) ?? (rest.length > 1 ? best(rest, (p) => p.stf * 0.6 + p.ctl * 0.4) : undefined);
+    best(rest.filter((p) => p.pos === 'CP'), (p) => p.ovr + bias(p)) ?? (rest.length > 1 ? best(rest, (p) => p.stf * 0.6 + p.ctl * 0.4) : undefined);
   if (closer) rest = rest.filter((p) => p !== closer);
   t.rotation = rot.map((p) => p.id);
   t.closer = closer ? closer.id : null;
@@ -78,10 +85,77 @@ function buildPitching(t: Team): void {
   t.nextStarter = t.rotation.length ? t.nextStarter % t.rotation.length : 0;
 }
 
+/** 타선만 최적으로 재구성 */
+export function autoBatting(t: Team): void {
+  buildBatting(t);
+}
+
+/** 선발·불펜·마무리만 최적으로 재구성 */
+export function autoPitching(t: Team): void {
+  buildPitching(t);
+}
+
 /** 타선·선발·불펜·마무리를 처음부터 재구성 */
 export function autoLineup(t: Team): void {
   buildBatting(t);
   buildPitching(t);
+}
+
+/** 감독에게 맡기기: 나이·연봉에 가중치를 둔 편성 (0장 클리어 전 유저 팀의 [자동 편성]) */
+export function managerLineup(t: Team): void {
+  // 타선: 자리는 제대로 채우되, 같은 포지션(또는 지명타자)에 이름값이 더 큰 선수가 있으면 그를 쓴다
+  buildBatting(t);
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const used = new Set(t.lineup.map((s) => s.pid));
+  for (const slot of t.lineup) {
+    const cur = byId.get(slot.pid);
+    if (!cur) continue;
+    const cands = t.roster.filter((p) => p.kind === 'B' && !used.has(p.id) && (p.pos === slot.pos || slot.pos === 'DH'));
+    const sub = best(cands, (p) => slotValue(p, slot.pos) + mgrBias(p));
+    if (sub && slotValue(sub, slot.pos) + mgrBias(sub) > slotValue(cur, slot.pos) + mgrBias(cur)) {
+      used.delete(cur.id);
+      used.add(sub.id);
+      slot.pid = sub.id;
+    }
+  }
+  buildPitching(t, mgrBias);
+}
+
+/**
+ * 0장의 "고장 난 타순": 전임 체제의 유산. 감독의 편성에서 한 번 더 어긋나게 만든다.
+ * 팀 최고 타자가 벤치 · 최약 타자가 4번 · 포지션 불일치 1명 · 최고 선발이 불펜. 고치는 건 무료·가역.
+ */
+export function breakLineup(t: Team): void {
+  managerLineup(t);
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const inLineup = () => t.lineup.map((s) => byId.get(s.pid)).filter((p): p is Player => !!p);
+  // 1) 최고 타자 → 벤치. 대신 포지션이 안 맞는 벤치 최고령이 그 자리를 맡는다
+  const top = best(inLineup(), (p) => batValue(p));
+  const used = new Set(t.lineup.map((s) => s.pid));
+  const bench = t.roster.filter((p) => p.kind === 'B' && !used.has(p.id));
+  if (top && bench.length) {
+    const slot = t.lineup.find((s) => s.pid === top.id)!;
+    const sub = best(bench, (p) => (p.pos !== slot.pos && slot.pos !== 'DH' ? 100 : 0) + p.age)!;
+    slot.pid = sub.id;
+  }
+  // 2) 최약 타자 → 4번
+  const worst = best(inLineup(), (p) => -batValue(p));
+  if (worst && t.lineup.length >= 4) {
+    const i = t.lineup.findIndex((s) => s.pid === worst.id);
+    if (i >= 0 && i !== 3) [t.lineup[i], t.lineup[3]] = [t.lineup[3], t.lineup[i]];
+  }
+  // 3) 최고 선발 ↔ 불펜 최고령
+  {
+    const rot = t.rotation.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.pos === 'SP');
+    const pen = t.bullpen.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.pos !== 'SP');
+    const ace = best(rot, (p) => p.ovr);
+    const old = best(pen, (p) => p.age - p.sta * 0.1);
+    if (ace && old) {
+      t.rotation[t.rotation.indexOf(ace.id)] = old.id;
+      t.bullpen[t.bullpen.indexOf(old.id)] = ace.id;
+    }
+  }
+  t.nextStarter = 0;
 }
 
 /** 로스터 변동 후 무효 항목 정리 + 빈칸 채움. 유효한 기존 항목은 그대로 둔다. */

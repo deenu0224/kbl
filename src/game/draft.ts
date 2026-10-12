@@ -1,4 +1,4 @@
-// 신인 드래프트 (스토브리그). docs/LEVEL_DESIGN.md 5절.
+// 신인 드래프트 (스토브리그). docs/LEVEL_DESIGN.md 9절.
 import type { BatPos, Core, DraftState, PitchRole, Player, Team } from './types';
 import { clamp, gauss, pick, randInt, type Rng } from './rng';
 import { calcOvr, MIN_SALARY } from './ratings';
@@ -21,7 +21,8 @@ const ORIGINS: { w: number; age: [number, number]; ovr: [number, number]; pot: [
   { w: 0.25, age: [20, 21], ovr: [47, 56], pot: [64, 80], tag: '얼리 드래프트' },
   { w: 0.35, age: [22, 22], ovr: [53, 62], pot: [55, 72], tag: '대졸 즉전감' },
 ];
-const SCOUT_NOISE = 5; // 스카우트 등급 산정 시 잠재력 노이즈(표준편차)
+const SCOUT_NOISE = 5; // 스카우트 등급 산정 시 잠재력 노이즈(표준편차) — 스카우트 팀장의 옛날 눈
+const ANALYST_NOISE = 1.5; // 데이터 분석원을 채용하면
 const SCOUT_CUT: [number, 'A' | 'B' | 'C' | 'D'][] = [
   [80, 'A'],
   [70, 'B'],
@@ -48,15 +49,15 @@ export function shiftOvr(p: Player, target: number): void {
   p.ovr = calcOvr(p);
 }
 
-export function scoutGrade(pot: number, rng: Rng): 'A' | 'B' | 'C' | 'D' {
-  const v = pot + gauss(rng) * SCOUT_NOISE;
+export function scoutGrade(pot: number, rng: Rng, noise = SCOUT_NOISE): 'A' | 'B' | 'C' | 'D' {
+  const v = pot + gauss(rng) * noise;
   for (const [cut, g] of SCOUT_CUT) if (v >= cut) return g;
   return 'D';
 }
 
 const SCOUT_EST: Record<'A' | 'B' | 'C' | 'D', number> = { A: 84, B: 74, C: 65, D: 57 };
 
-function genProspect(ctx: GenCtx, rng: Rng, quality: number): Player {
+function genProspect(ctx: GenCtx, rng: Rng, quality: number, noise: number): Player {
   const r = rng();
   let acc = 0;
   let o = ORIGINS[ORIGINS.length - 1];
@@ -74,7 +75,7 @@ function genProspect(ctx: GenCtx, rng: Rng, quality: number): Player {
   p.pot = clamp(Math.max(p.ovr + 3, randInt(rng, o.pot[0], o.pot[1]) + quality), p.ovr, 99);
   p.salary = MIN_SALARY;
   p.star = clamp(Math.round((p.pot - 60) * 0.8 + gauss(rng) * 6), 0, 60);
-  p.scout = scoutGrade(p.pot, rng);
+  p.scout = scoutGrade(p.pot, rng, noise);
   return p;
 }
 
@@ -84,7 +85,8 @@ function genPool(core: Core, rng: Rng): Player[] {
   const ctx = makeCtx(rng, `${DRAFT_ID_PREFIX}${core.season}-`, names);
   const quality = activeBuffs(core).youth;
   const pool: Player[] = [];
-  for (let i = 0; i < DRAFT_POOL; i++) pool.push(genProspect(ctx, rng, quality));
+  const noise = core.campaign.analyst ? ANALYST_NOISE : SCOUT_NOISE;
+  for (let i = 0; i < DRAFT_POOL; i++) pool.push(genProspect(ctx, rng, quality, noise));
   return pool.sort((a, b) => SCOUT_EST[b.scout!] + b.ovr - (SCOUT_EST[a.scout!] + a.ovr));
 }
 
@@ -123,6 +125,7 @@ function takePlayer(core: Core, t: Team, p: Player, round: number): void {
   slotNewcomer(t, p);
   d.log.push({ round, teamId: t.id, pid: p.id, name: p.name, pos: p.pos });
   if (t.id === core.userId) {
+    p.since = core.season + 1; // 다음 시즌 데뷔
     const bonus = DRAFT_BONUS[round - 1] ?? DRAFT_BONUS[DRAFT_BONUS.length - 1];
     core.finance.cash -= bonus;
     core.finance.ledger.signing += bonus;

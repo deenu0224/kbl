@@ -5,12 +5,13 @@ import { slotValue } from './lineup';
 import { fmtIp } from './format';
 import { KBO_AVG } from './kbo';
 
+// (연투 피로 도입으로 불펜 유효 구위가 평균 2 안팎 내려간 만큼 BB/K/BABIP 를 다시 맞췄다)
 // ── 보정 계수: 능력치 분포가 비대칭이라 "평균 능력치의 확률" ≠ "리그 평균 확률". balance 스크립트로 맞춘 값 ──
 const CAL = {
-  BB: 1.0,
-  K: 1.0,
-  HR: 0.83,
-  BABIP: -0.009,
+  BB: 0.975,
+  K: 1.025,
+  HR: 0.82,
+  BABIP: -0.012,
   D2: 0.95,
   D3: 0.92,
 };
@@ -61,12 +62,16 @@ export const SIM = {
   TWO_OUT_RUN: 0.15, // 2사 후 스타트 보너스
   SP_LIMIT_BASE: 11, // 선발 한계 타자 수 = BASE + 체력 × STA (평균 5⅓이닝 안팎, 체력 좋은 에이스는 더 길게)
   SP_LIMIT_STA: 0.19,
+  RP_AS_SP: 0.55, // 구원 전문(RP·CP)이 선발 등판할 때의 한계 타자 수 배율
   RP_LIMIT_BASE: 4,
   RP_LIMIT_STA: 0.1,
   FAT_STF: 2.2, // 한계 초과 타자 1명당 구위 하락
   FAT_CTL: 2.0,
   SP_HOOK_RUNS: 6, // 선발 즉시 강판 실점
   RP_HOOK_RUNS: 3,
+  TIRED_1: 4, // 연투 피로: 전날 던진 불펜 구위 하락
+  TIRED_2: 9, // 2일 연속 던진 뒤 (3연투째)
+  CLOSER_MAX_TIRED: 2, // 마무리는 3연투까지만 (그 이상은 쉰다)
   INJ_RATE: 0.0035,
   MAX_INNINGS: 12,
   MAX_EVENTS: 10,
@@ -84,6 +89,7 @@ interface PState {
   limit: number;
   starter: boolean;
   entryLead: number;
+  tiredPen: number; // 연투 피로로 깎이는 구위
 }
 interface Runner {
   b: Player;
@@ -151,7 +157,13 @@ function gameOrder(t: Team): { p: Player; pos: BatPos }[] {
   return order;
 }
 
-function makeSide(t: Team, isHome: boolean): Side {
+/** 연투 피로에 따른 구위 페널티 (tired = 오늘 이전의 연속 등판 일수) */
+export function tiredPenalty(tired: number | undefined): number {
+  const n = tired ?? 0;
+  return n >= 2 ? SIM.TIRED_2 : n === 1 ? SIM.TIRED_1 : 0;
+}
+
+function makeSide(t: Team, isHome: boolean, rest?: Set<string>): Side {
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const order = gameOrder(t);
   const fielders = order.filter((s) => s.pos !== 'DH');
@@ -159,30 +171,26 @@ function makeSide(t: Team, isHome: boolean): Side {
   const catcher = order.find((s) => s.pos === 'C');
   const cDef = catcher ? effDef(catcher.p, 'C') : SIM.REF - 15;
 
-  // 선발: 로테이션 순번에서 건강한 첫 투수
+  // 선발: 로테이션 순번대로. 그 순번의 선발이 부상인데 자리를 바꿔 주지 않았으면 불펜 끝의 팔이 임시 선발로 나선다
   const rot = t.rotation.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.kind === 'P');
   let starter: Player | undefined;
   if (rot.length) {
-    const start = t.nextStarter % rot.length;
-    for (let k = 0; k < rot.length; k++) {
-      const i = (start + k) % rot.length;
-      if (rot[i].injury === 0) {
-        starter = rot[i];
-        t.nextStarter = (i + 1) % rot.length;
-        break;
-      }
-    }
+    const i = t.nextStarter % rot.length;
+    t.nextStarter = (i + 1) % rot.length;
+    if (rot[i].injury === 0) starter = rot[i];
   }
   const pitchers = t.roster.filter((p) => p.kind === 'P');
-  let pen = t.bullpen.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.kind === 'P' && p.injury === 0);
+  const canPitch = (p: Player | undefined): p is Player => !!p && p.kind === 'P' && p.injury === 0 && !rest?.has(p.id);
+  let pen = t.bullpen.map((id) => byId.get(id)).filter(canPitch);
   if (!starter) {
-    // 로테이션 전멸: 체력 좋은 불펜이 대체 선발
-    starter = pen.slice().sort((a, b) => b.sta - a.sta)[0] ?? pitchers.find((p) => p.injury === 0) ?? pitchers[0] ?? t.roster[0];
+    // 임시 선발: 추격조(불펜 뒤쪽) 중 체력이 좋은 팔. 불펜도 없으면 건강한 아무 투수
+    const back = pen.slice(Math.floor(pen.length / 2));
+    starter = (back.length ? back : pen).slice().sort((a, b) => b.sta - a.sta)[0] ?? rot.find((p) => p.injury === 0) ?? pitchers.find((p) => p.injury === 0) ?? pitchers[0] ?? t.roster[0];
     if (!starter) throw new Error(`${t.id}: 투수가 없습니다`);
   }
   pen = pen.filter((p) => p !== starter);
   const cl = t.closer ? byId.get(t.closer) : undefined;
-  const closer = cl && cl.injury === 0 && cl !== starter ? cl : null;
+  const closer = canPitch(cl) && cl !== starter && (cl.tired ?? 0) <= SIM.CLOSER_MAX_TIRED ? cl : null;
 
   const side: Side = {
     team: t, isHome, order, idx: 0,
@@ -198,8 +206,11 @@ function makeSide(t: Team, isHome: boolean): Side {
 }
 
 function enter(side: Side, p: Player, starter: boolean, lead: number): void {
-  const limit = starter ? SIM.SP_LIMIT_BASE + p.sta * SIM.SP_LIMIT_STA : SIM.RP_LIMIT_BASE + p.sta * SIM.RP_LIMIT_STA;
-  const ps: PState = { p, bf: 0, outs: 0, runs: 0, so: 0, limit, starter, entryLead: lead };
+  // 선발 수업을 받지 않은 구원 투수가 선발로 나서면 금방 지친다
+  const limit = starter
+    ? (SIM.SP_LIMIT_BASE + p.sta * SIM.SP_LIMIT_STA) * (p.pos === 'SP' ? 1 : SIM.RP_AS_SP)
+    : SIM.RP_LIMIT_BASE + p.sta * SIM.RP_LIMIT_STA;
+  const ps: PState = { p, bf: 0, outs: 0, runs: 0, so: 0, limit, starter, entryLead: lead, tiredPen: starter ? 0 : tiredPenalty(p.tired) };
   p.pit.g++;
   if (starter) p.pit.gs++;
   side.cur = ps;
@@ -227,8 +238,12 @@ function manage(fld: Side, bat: Side, inning: number, atStart: boolean): void {
   if (!need) return;
   let next: Player | undefined;
   if (fld.pen.length) {
-    // 접전 후반은 필승조부터, 그 외에는 추격조부터
-    next = inning >= 7 && lead >= -2 ? fld.pen.shift() : fld.pen.pop();
+    // 접전 후반은 필승조부터, 그 외에는 추격조부터. 연투한 팔은 되도록 건너뛴다
+    const key = inning >= 7 && lead >= -2;
+    const order = key ? fld.pen : fld.pen.slice().reverse();
+    const tired = (p: Player) => p.tired ?? 0;
+    next = (key ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2) ?? order[0];
+    fld.pen.splice(fld.pen.indexOf(next), 1);
   } else if (fld.closer) {
     next = fld.closer;
     fld.closer = null;
@@ -242,10 +257,10 @@ export function simulateGame(
   home: Team,
   away: Team,
   rng: Rng,
-  opts: { track: boolean; injMult?: Record<string, number>; focusId?: string },
+  opts: { track: boolean; injMult?: Record<string, number>; focusId?: string; rest?: Set<string> },
 ): GameResult {
-  const H = makeSide(home, true);
-  const A = makeSide(away, false);
+  const H = makeSide(home, true, opts.rest);
+  const A = makeSide(away, false, opts.rest);
   const track = opts.track;
   const cands: Cand[] = [];
   let seq = 0;
@@ -328,7 +343,7 @@ export function simulateGame(
 
       // ── 타석 확률 ──
       const fat = Math.max(0, ps.bf - ps.limit);
-      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF);
+      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - ps.tiredPen);
       const stf = norm(stfRaw);
       const ctl = norm(Math.max(20, ps.p.ctl - fat * SIM.FAT_CTL));
       const pBB = clamp((SIM.BB * Math.pow(norm(b.eye), SIM.BB_EYE)) / Math.pow(ctl, SIM.BB_CTL), 0.02, 0.28);
@@ -630,6 +645,16 @@ export function simulateGame(
         p.injury = games;
         result.injuries.push({ pid: p.id, name: p.name, teamId: side.team.id, games });
       }
+    }
+  }
+
+  // ── 연투 피로 갱신: 오늘 구원 등판한 투수는 +1, 나머지는 회복 ──
+  for (const side of [A, H]) {
+    const relieved = new Set(side.used.filter((u) => !u.starter).map((u) => u.p.id));
+    for (const p of side.team.roster) {
+      if (p.kind !== 'P') continue;
+      if (relieved.has(p.id)) p.tired = (p.tired ?? 0) + 1;
+      else if (p.tired) delete p.tired;
     }
   }
 

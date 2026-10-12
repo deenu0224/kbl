@@ -1,17 +1,23 @@
-// 시즌 중 의사결정 이벤트 카드. docs/LEVEL_DESIGN.md 4절.
+// 사건은 생긴다 (docs/LEVEL_DESIGN.md 5절). 카드는 무작위 덱이 아니라 지금 상태의 결과다.
+// 카드마다 when(core)·우선순위·인물이 있고, 매 경기 후 검사해 1장을 낸다.
 // 카드 id 는 "기본id" 또는 "기본id|payload…" 형태 (eventsSeen 에는 기본id 만 기록).
-import type { Buff, Core, EventCard, Player } from './types';
+import type { BatPos, Buff, CharId, Core, EventCard, Player } from './types';
 import { clamp, pick, randInt, type Rng } from './rng';
-import { calcOvr, calcSalary } from './ratings';
-import { fixLineup, slotNewcomer } from './lineup';
+import { calcOvr } from './ratings';
+import { fixLineup, slotNewcomer, slotValue } from './lineup';
 import { ROSTER_MAX, userTeam } from './economy';
-import { genPlayer, makeCtx } from './generate';
 import { fmtMoney } from './format';
 import { addNews } from './season';
-import { shiftOvr } from './draft';
+import { flagOnTrack, hintMut, stageOf } from './campaign';
+import { beatOn, MID_DAY } from './script';
+import { memoGet, memoNum, memoSet, seenCards } from './memo';
+import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
+import { batLeaders, era, ops, pitLeaders } from './leaders';
+import { isFranchise } from './franchise';
 
 // ── 튜닝 상수 ──
-export const EVENT_DAYS = [9, 21, 33, 45, 57, 69]; // 이 경기 수를 치른 직후 1장
+export const EVENT_GAP = 8; // 카드 간 최소 경기 수
+export const EVENT_MAX = 5; // 시즌 최대 장수 (중간 점검·장의 대본 카드는 따로)
 export const FOREIGN_MAX = 3;
 const STAGE_SCALE = 0.3; // 금액 스케일 = 1 + stage × 0.3 + fans / FAN_SCALE
 const FAN_SCALE = 40000;
@@ -19,49 +25,60 @@ const BUFF_GAMES = 6;
 const BUFF_LONG = 12;
 
 const N = {
-  sponsorCash: 20000,
-  sponsorSat: -3,
-  keepSat: 4,
-  fanDayCost: 5000,
-  fanDayFans: 250,
-  fanDaySat: 5,
-  campCost: 8000,
-  campGain: [3, 5] as [number, number],
-  raiseRate: 0.2,
-  refuseStar: -10,
-  refuseAbil: -2,
-  refuseFans: -200,
-  typhoonCost: 12000,
-  typhoonCap: 0.85,
-  docuFans: 400,
-  docuFocus: -3,
-  foreignCost: 50000,
-  foreignOvr: [78, 84] as [number, number],
+  vetGames: 12, // 베테랑 복귀: 고정 출전 경기 수
+  vetFocus: 1,
+  holdSat: -6,
+  holdFocus: -2,
+  analystCost: 30000,
+  trustYouth: 2, // 팀장을 믿어 주면 다음 드래프트 풀 품질
+  coldYouth: -2, // 팀장과 서먹해지면
+  crackCost: 3000,
+  crackSat: 4,
+  crackFans: 100,
+  ignoreSat: -5,
+  hikeStep: 0.2,
+  hikeSat: -3,
   meetTicket: 0.8,
   meetSat: 8,
   silentSat: -6,
   goodsCost: 6000,
   goodsMult: 1.5,
-  tourDemand: 1.2,
-  pledgeRate: 0.55, // 남은 경기 중 이 승률 이상
-  holdTrust: -3,
-  youthCost: 4000,
-  youthFans: 150,
-  youthQuality: 4,
+  goodsStar: 70,
+  tourDemand: 1.15, // 관광객 패키지
+  tourTicket: 0.9,
+  tourSat: -3,
+  weekendFill: 0.8,
+  raiseRate: 0.2,
+  refuseStar: -10,
+  refuseAbil: -2,
+  refuseFans: -200,
+  tradeBench: 65,
+  tradeWeak: 55,
+  earlyGames: 5,
   reinjury: 0.3,
-  marketFood: 1.25,
-  marketSat: 2,
-  marketUpkeep: 60,
-  halfFans: 150,
-  dinnerCost: 3000,
-  dinnerFocus: 2,
-  seasonTixCash: 15000,
-  seasonTixRate: 0.88,
+  pushGain: 3,
+  pushSlump: -3,
+  benchSat: -2,
+  restGames: 3,
+  armInjury: 0.25,
+  retireDemand: 1.2,
+  retireAge: 35,
+  retireStar: 60,
+  quietSat: -3,
+  typhoonTired: 2,
+  typhoonFocus: -3,
+  typhoonGames: 3,
+  domeTrust: 10,
+  domeCash: 200000,
+  dealTrust: -25,
+  dealSat: -10,
 };
 
 interface CardDef {
   id: string;
-  cond: (core: Core) => boolean;
+  prio: number; // 높을수록 먼저
+  forced?: boolean; // 중간 점검·장의 대본 카드: 간격·상한 예외
+  when: (core: Core) => boolean;
   make: (core: Core, rng: Rng) => EventCard | null;
   resolve: (core: Core, idx: number, card: EventCard, rng: Rng) => string;
 }
@@ -77,7 +94,10 @@ const spend = (core: Core, v: number) => {
 const addBuff = (core: Core, b: Buff) => core.campaign.buffs.push(b);
 const findUser = (core: Core, pid?: string) => (pid ? userTeam(core).roster.find((p) => p.id === pid) : undefined);
 const parts = (card: EventCard) => card.id.split('|');
-const foreignCount = (core: Core) => userTeam(core).roster.filter((p) => p.foreign).length;
+const sgn = (v: number) => (v >= 0 ? `+${v}` : `${v}`);
+const pctTxt = (m: number) => `${m >= 1 ? '+' : '−'}${Math.abs(Math.round((m - 1) * 100))}%`;
+/** 방금 치른 경기일 */
+const lastDay = (core: Core) => core.day - 1;
 
 type AbilKey = 'con' | 'pow' | 'eye' | 'spd' | 'def' | 'stf' | 'ctl' | 'sta';
 const keysOf = (p: Player): AbilKey[] => (p.kind === 'B' ? ['con', 'pow', 'eye', 'spd', 'def'] : ['stf', 'ctl', 'sta']);
@@ -91,270 +111,403 @@ function bump(p: Player, rng: Rng, d: number, n: number): void {
   p.pot = Math.max(p.pot, p.ovr);
 }
 
+/** 카드 공통 필드: 인물·대사는 story.ts 에서 */
+function card(id: string, lineKey: string | null, o: Omit<EventCard, 'id' | 'who' | 'line'> & { who?: CharId; line?: string }): EventCard {
+  const l = lineKey ? CARD_LINES[lineKey] : undefined;
+  return { id, ...o, ...(o.who ?? l?.who ? { who: o.who ?? l!.who } : {}), ...(o.line ?? l?.line ? { line: o.line ?? l!.line } : {}) };
+}
+
+const lineupIds = (core: Core) => new Set(userTeam(core).lineup.map((s) => s.pid));
+const keyIds = (core: Core) => {
+  const t = userTeam(core);
+  return new Set([...t.lineup.map((s) => s.pid), ...t.rotation, ...(t.closer ? [t.closer] : [])]);
+};
+const benchBatters = (core: Core) => {
+  const ids = lineupIds(core);
+  return userTeam(core).roster.filter((p) => p.kind === 'B' && !ids.has(p.id) && p.injury === 0);
+};
+
+// ── 카드별 보조 ──
+
+/** 베테랑 복귀 요구의 대상: 벤치의 30세 이상 타자 중 이름값이 가장 큰 선수와, 그가 밀어낼 자리 */
+function veteranCase(core: Core): { vet: Player; slot: number; out: Player } | null {
+  const t = userTeam(core);
+  const vets = benchBatters(core).filter((p) => p.age >= 30);
+  if (!vets.length) return null;
+  const vet = vets.reduce((a, b) => (a.age + a.salary / 10000 >= b.age + b.salary / 10000 ? a : b));
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const cands = t.lineup.map((s, i) => ({ i, s, p: byId.get(s.pid) })).filter((x): x is { i: number; s: { pid: string; pos: BatPos }; p: Player } => !!x.p);
+  if (!cands.length) return null;
+  const same = cands.filter((x) => x.s.pos === vet.pos || x.s.pos === 'DH');
+  const tgt = (same.length ? same : cands).reduce((a, b) => (a.p.age <= b.p.age ? a : b));
+  // 감독이 미는 건 이름값이다 — 실력이 더 나은 선수를 벤치에 둔 경우(전임 체제의 유산)는 이 갈등이 아니다
+  if (slotValue(vet, tgt.s.pos) >= slotValue(tgt.p, tgt.s.pos)) return null;
+  return { vet, slot: tgt.i, out: tgt.p };
+}
+
+/** 스카우트 팀장이 고른 선수의 상태 */
+function scoutPickCase(core: Core): { p: Player; state: 'unsigned' | 'slump' } | null {
+  const pid = memoGet(core, 'scoutPick');
+  if (!pid) return null;
+  const fa = core.freeAgents.find((p) => p.id === pid);
+  if (fa) return { p: fa, state: 'unsigned' };
+  const mine = findUser(core, pid);
+  if (!mine) return null;
+  const slump = mine.kind === 'B' ? mine.bat.pa >= 30 && ops(mine) < 0.66 : mine.pit.outs >= 30 && era(mine) > 5.0;
+  return slump ? { p: mine, state: 'slump' } : null;
+}
+
+function recentSellouts(core: Core): number {
+  return (memoGet(core, 'so') ?? '').slice(-5).split('').filter((ch) => ch === '1').length;
+}
+
+/** 간판(star 최고) 선수가 타이틀 3위 이내인가 */
+function titleRace(core: Core): Player | null {
+  const t = userTeam(core);
+  if (!t.roster.length) return null;
+  const p = t.roster.reduce((a, b) => (a.star >= b.star ? a : b));
+  if (p.star < 55) return null;
+  const top3 = (rows: { pid: string }[]) => rows.some((r) => r.pid === p.id);
+  const hit =
+    p.kind === 'B'
+      ? (['avg', 'hr', 'rbi', 'sb'] as const).some((c) => top3(batLeaders(core, c, 3)))
+      : (['era', 'w', 'sv', 'so'] as const).some((c) => top3(pitLeaders(core, c, 3)));
+  return hit ? p : null;
+}
+
+function tradeCase(core: Core): { me: Player; slot: number; weak: Player } | null {
+  const t = userTeam(core);
+  const bench = benchBatters(core).filter((p) => p.ovr >= N.tradeBench);
+  if (!bench.length) return null;
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  let slot = -1;
+  let weak: Player | null = null;
+  t.lineup.forEach((s, i) => {
+    const p = byId.get(s.pid);
+    if (p && s.pos !== 'DH' && (!weak || p.ovr < weak.ovr)) {
+      weak = p;
+      slot = i;
+    }
+  });
+  if (!weak || (weak as Player).ovr >= N.tradeWeak) return null;
+  return { me: bench.reduce((a, b) => (a.ovr >= b.ovr ? a : b)), slot, weak };
+}
+
+const hurtStarters = (core: Core) => {
+  const ids = keyIds(core);
+  return userTeam(core).roster.filter((p) => ids.has(p.id) && p.injury >= N.earlyGames);
+};
+
+/** 세대교체 구간에서 새로 주전에 오른 23세 이하 */
+function promotedYoung(core: Core): Player | null {
+  const before = new Set((memoGet(core, 'lu48') ?? '').split(','));
+  if (before.size <= 1) return null;
+  const t = userTeam(core);
+  const ids = lineupIds(core);
+  return t.roster.find((p) => ids.has(p.id) && p.age <= 23 && !before.has(p.id)) ?? null;
+}
+
+const overworked = (core: Core) => userTeam(core).roster.filter((p) => p.kind === 'P' && (p.tired ?? 0) >= 3 && p.injury === 0);
+const retiree = (core: Core) =>
+  userTeam(core)
+    .roster.filter((p) => p.age >= N.retireAge && p.star >= N.retireStar)
+    .sort((a, b) => b.star - a.star)[0];
+
 export const CARDS: CardDef[] = [
+  // ───────── 중간 점검 (42경기 직후, 매 시즌, 조합장) ─────────
   {
-    id: 'sponsor',
-    cond: () => true,
-    make: (c) => ({
-      id: 'sponsor',
-      title: '지역 스폰서 제안',
-      icon: '🪧',
-      body: '제주 감귤 농협이 외야 펜스 전체를 광고판으로 덮자고 제안했습니다. 팬들은 바다가 보이는 지금의 외야를 좋아합니다.',
-      choices: [
-        { label: '광고판 설치', desc: `현금 +${fmtMoney(money(c, N.sponsorCash))} · 만족도 ${N.sponsorSat}` },
-        { label: '팬 친화 구장 유지', desc: `만족도 +${N.keepSat}` },
-      ],
-    }),
+    id: 'midcheck',
+    prio: 100,
+    forced: true,
+    when: (c) => c.day >= MID_DAY && c.day < MID_DAY + 6,
+    make: (c) => {
+      const ahead = flagOnTrack(c);
+      const st = stageOf(c);
+      const story = STAGE_STORY[clamp(c.campaign.stage, 0, STAGE_STORY.length - 1)];
+      const flag = c.campaign.objectives.find((o) => o.main)?.text ?? st.name;
+      return card(`midcheck|${ahead ? 'ahead' : 'behind'}`, null, {
+        title: '조합장 면담',
+        icon: '🍊',
+        who: 'chair',
+        line: ahead ? story.midAhead : story.midBehind,
+        body: ahead ? `시즌 절반. 지금 페이스면 「${flag}」에 닿습니다.` : `시즌 절반. 지금 페이스로는 「${flag}」에 닿지 못합니다.`,
+        choices: ahead
+          ? [
+              { label: '목표 상향을 약속한다', desc: `깃발 달성 시 지원금 2배 (${fmtMoney(st.reward.cash)} → ${fmtMoney(st.reward.cash * 2)}) · 실패 시 ${TRUST_LABEL} 추가 −5` },
+              { label: '사양한다', desc: '변화 없음' },
+            ]
+          : [
+              { label: '조합원 특별 출자를 받는다', desc: `현금 +${fmtMoney(st.midCash)} · 깃발 실패 시 ${TRUST_LABEL} 추가 −5` },
+              { label: '지금대로 간다', desc: '변화 없음' },
+            ],
+      });
+    },
+    resolve: (c, i, cd) => {
+      const ahead = parts(cd)[1] === 'ahead';
+      if (i !== 0) return ahead ? '약속은 아껴 두었습니다' : '조합원들의 주머니는 건드리지 않았습니다';
+      if (ahead) {
+        memoSet(c, 'mid', 'up');
+        return '조합장에게 더 높은 곳을 약속했습니다';
+      }
+      const v = stageOf(c).midCash;
+      c.finance.cash += v;
+      c.finance.ledger.league += v;
+      memoSet(c, 'mid', 'loan');
+      hintMut(c, 'finance');
+      return `조합원 특별 출자 — 현금 +${fmtMoney(v)}`;
+    },
+  },
+
+  // ───────── 장의 대본 카드 ─────────
+  {
+    id: 'dome',
+    prio: 95,
+    forced: true,
+    when: (c) => c.campaign.stage === 4 && !!beatOn(c, c.day, 'dome'),
+    make: () =>
+      card('dome', 'dome', {
+        title: '돔구장의 제안',
+        icon: '🏟️',
+        body: '육지의 한 도시가 신축 돔구장과 이전 지원금을 내밀었습니다. 우승을 눈앞에 둔 지금.',
+        choices: [
+          { label: '거절한다', desc: `${TRUST_LABEL} ${sgn(N.domeTrust)}` },
+          { label: '협상 테이블에 앉는다', desc: `현금 +${fmtMoney(N.domeCash)} · ${TRUST_LABEL} ${N.dealTrust} · 팬 만족 ${N.dealSat}` },
+        ],
+      }),
     resolve: (c, i) => {
       if (i === 0) {
-        const v = money(c, N.sponsorCash);
-        c.finance.cash += v;
-        c.finance.ledger.league += v;
-        sat(c, N.sponsorSat);
-        return `외야 광고판 설치 — 현금 +${fmtMoney(v)}`;
+        c.campaign.trust = clamp(c.campaign.trust + N.domeTrust, 0, 100);
+        return '"이 팀은 섬의 것입니다" — 제안을 돌려보냈습니다';
       }
-      sat(c, N.keepSat);
-      return '바다가 보이는 외야를 지켰습니다 — 만족도 상승';
+      c.finance.cash += N.domeCash;
+      c.finance.ledger.league += N.domeCash;
+      c.campaign.trust = clamp(c.campaign.trust + N.dealTrust, 0, 100);
+      c.campaign.dealt = true;
+      sat(c, N.dealSat);
+      return '협상 테이블에 앉았습니다 — 소문은 하루 만에 섬을 돌았습니다';
     },
   },
   {
-    id: 'fanday',
-    cond: () => true,
+    id: 'veteran',
+    prio: 90,
+    forced: true,
+    when: (c) => c.campaign.stage === 0 && !c.campaign.managerYielded && !!beatOn(c, lastDay(c), 'road-trip') && userTeam(c).rec.streak <= -3 && !!veteranCase(c),
     make: (c) => {
-      const cost = money(c, N.fanDayCost);
-      return {
-        id: 'fanday',
-        title: '팬 감사 데이',
-        icon: '🎉',
-        body: '홈 팬들을 위한 사인회와 경품 추첨 행사를 열자는 의견이 나왔습니다.',
+      const v = veteranCase(c);
+      if (!v) return null;
+      return card(`veteran|${v.slot}`, 'veteran', {
+        title: '베테랑 복귀 요구',
+        icon: '🧓',
+        pid: v.vet.id,
+        body: `원정 ${-userTeam(c).rec.streak}연패. 감독이 벤치의 ${v.vet.name}(${v.vet.age}세, OVR ${v.vet.ovr})을 ${v.out.name}(${v.out.age}세, OVR ${v.out.ovr}) 자리에 쓰겠다고 합니다.`,
         choices: [
-          { label: '개최', desc: `비용 ${fmtMoney(cost)} → 팬 +${N.fanDayFans} · 만족도 +${N.fanDaySat}`, disabled: cashGate(c, cost) },
-          { label: '거절', desc: '변화 없음' },
+          { label: '복귀시킨다', desc: `${v.vet.name} ${N.vetGames}경기 고정 출전 · ${BUFF_GAMES}경기 집중력 ${sgn(N.vetFocus)}` },
+          { label: '지금 타순을 고수한다', desc: `팬 만족 ${N.holdSat} · ${BUFF_GAMES}경기 집중력 ${N.holdFocus} · 이후 감독이 편성에서 손을 뗀다` },
         ],
-      };
+      });
     },
-    resolve: (c, i) => {
-      if (i !== 0) return '팬 감사 데이는 다음 기회로';
-      spend(c, money(c, N.fanDayCost));
-      c.fans += N.fanDayFans;
-      sat(c, N.fanDaySat);
-      return `팬 감사 데이 성황 — 팬 +${N.fanDayFans}`;
-    },
-  },
-  {
-    id: 'camp',
-    cond: (c) => userTeam(c).roster.some((p) => p.age <= 25 && p.ovr < p.pot),
-    make: (c) => {
-      const p = userTeam(c)
-        .roster.filter((x) => x.age <= 25 && x.ovr < x.pot)
-        .sort((a, b) => b.pot - b.ovr - (a.pot - a.ovr))[0];
-      const cost = money(c, N.campCost);
-      return {
-        id: 'camp',
-        title: '유망주 집중 캠프',
-        icon: '🏋️',
-        pid: p.id,
-        body: `코치진이 ${p.name}(${p.age}세, 잠재력 높음)을 위한 특별 캠프를 건의했습니다.`,
-        choices: [
-          { label: '캠프 보내기', desc: `비용 ${fmtMoney(cost)} → 능력치 +${N.campGain[0]}~${N.campGain[1]}`, disabled: cashGate(c, cost) },
-          { label: '거절', desc: '변화 없음' },
-        ],
-      };
-    },
-    resolve: (c, i, card, rng) => {
-      const p = findUser(c, card.pid);
-      if (i !== 0 || !p) return '캠프는 보류했습니다';
-      spend(c, money(c, N.campCost));
-      const before = p.ovr;
-      const n = randInt(rng, N.campGain[0], N.campGain[1]);
-      bump(p, rng, 1, n * 2);
-      return `${p.name} 캠프 성과 — OVR ${before} → ${p.ovr}`;
-    },
-  },
-  {
-    id: 'raise',
-    cond: (c) => userTeam(c).roster.some((p) => p.star >= 55),
-    make: (c) => {
-      const p = userTeam(c).roster.slice().sort((a, b) => b.star - a.star)[0];
-      return {
-        id: 'raise',
-        title: '간판스타 연봉 인상 요구',
-        icon: '💼',
-        pid: p.id,
-        body: `${p.name}의 에이전트가 연봉 ${Math.round(N.raiseRate * 100)}% 인상을 요구합니다. 거절하면 선수와 팬 모두 서운해할 겁니다.`,
-        choices: [
-          { label: '수락', desc: `연봉 ${fmtMoney(p.salary)} → ${fmtMoney(Math.round(p.salary * (1 + N.raiseRate)))}` },
-          { label: '거절', desc: `스타성 ${N.refuseStar} · 컨디션 하락 · 팬 ${N.refuseFans}` },
-        ],
-      };
-    },
-    resolve: (c, i, card, rng) => {
-      const p = findUser(c, card.pid);
-      if (!p) return '협상이 흐지부지되었습니다';
+    resolve: (c, i, cd) => {
+      const t = userTeam(c);
+      const vet = findUser(c, cd.pid);
       if (i === 0) {
-        p.salary = Math.round(p.salary * (1 + N.raiseRate));
-        return `${p.name} 연봉 인상 합의 — ${fmtMoney(p.salary)}`;
+        const slot = t.lineup[Number(parts(cd)[1])];
+        if (vet && slot && !t.lineup.some((s) => s.pid === vet.id)) slot.pid = vet.id;
+        if (vet) addBuff(c, { kind: 'fixed', value: 1, until: c.day + N.vetGames, label: `${vet.name} 고정 출전`, pid: vet.id });
+        addBuff(c, { kind: 'focus', value: N.vetFocus, until: c.day + BUFF_GAMES, label: `라커룸 안정 집중력 ${sgn(N.vetFocus)}` });
+        hintMut(c, 'lineup');
+        return `${vet?.name ?? '베테랑'} 선발 복귀 — 감독의 얼굴이 폈습니다`;
       }
-      p.star = clamp(p.star + N.refuseStar, 0, 100);
-      bump(p, rng, N.refuseAbil, 1);
-      c.fans = Math.max(1000, c.fans + N.refuseFans);
-      return `${p.name} 인상 거절 — 불만이 쌓입니다`;
+      sat(c, N.holdSat);
+      addBuff(c, { kind: 'focus', value: N.holdFocus, until: c.day + BUFF_GAMES, label: `라커룸 동요 집중력 ${N.holdFocus}` });
+      c.campaign.managerYielded = true;
+      addNews(c, NEWS.managerYield, 'info');
+      return '타순을 지켰습니다 — 감독은 말없이 수첩을 덮었습니다';
     },
   },
   {
-    id: 'trade',
-    cond: (c) => userTeam(c).roster.some((p) => p.ovr >= 55),
-    make: (c, rng) => {
-      const u = userTeam(c);
-      const top3 = u.roster.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 3).map((p) => p.id);
-      const mine = u.roster.filter((p) => p.ovr >= 55 && !top3.includes(p.id));
-      if (!mine.length) return null;
-      const me = pick(rng, mine);
-      const ais = c.teams.filter((t) => t.id !== c.userId);
-      const cands = ais.flatMap((t) => t.roster.filter((p) => p.kind === me.kind && p.ovr >= me.ovr - 6 && p.ovr <= me.ovr + 2 && !p.foreign).map((p) => ({ t, p })));
-      if (!cands.length) return null;
-      const { t, p } = pick(rng, cands);
-      const cash = Math.max(0, Math.round(((me.ovr - p.ovr) * 2500 + 5000) * scale(c) / 1000) * 1000);
-      return {
-        id: `trade|${t.id}|${p.id}|${cash}`,
-        title: '트레이드 제안',
-        icon: '🔄',
-        pid: me.id,
-        body: `${t.city} ${t.name}이(가) ${me.name}(${me.pos} OVR${me.ovr}, ${me.age}세, 연봉 ${fmtMoney(me.salary)})을 원합니다. 대가로 ${p.name}(${p.pos} OVR${p.ovr}, ${p.age}세, 연봉 ${fmtMoney(p.salary)})${cash ? ` + 현금 ${fmtMoney(cash)}` : ''}을(를) 제시했습니다.`,
+    id: 'notyet',
+    prio: 90,
+    forced: true,
+    when: (c) => c.campaign.stage === 2 && !!beatOn(c, lastDay(c), 'gen-change') && !!promotedYoung(c),
+    make: (c) => {
+      const p = promotedYoung(c);
+      if (!p) return null;
+      return card('notyet', 'notyet', {
+        title: '아직 이릅니다',
+        icon: '🌱',
+        pid: p.id,
+        body: `${p.name}(${p.age}세, OVR ${p.ovr} · 잠재력 ${p.pot})이 주전 명단에 올랐습니다. 2군 코치가 찾아왔습니다.`,
         choices: [
-          { label: '수락', desc: `${me.name} ↔ ${p.name}${cash ? ` + ${fmtMoney(cash)}` : ''}` },
-          { label: '거절', desc: '현 전력 유지' },
+          { label: '밀어붙인다', desc: `50% 능력치 +${N.pushGain} 성장 / 50% ${BUFF_LONG}경기 슬럼프(능력치 ${N.pushSlump})` },
+          { label: '내린다', desc: `${p.name} 벤치로 · 팬 만족 ${N.benchSat}` },
         ],
-      };
+      });
     },
-    resolve: (c, i, card) => {
-      if (i !== 0) return '트레이드 제안을 거절했습니다';
-      const [, tid, aid, cashS] = parts(card);
-      const u = userTeam(c);
-      const t = c.teams.find((x) => x.id === tid);
-      const me = findUser(c, card.pid);
-      const ap = t?.roster.find((x) => x.id === aid);
-      if (!t || !me || !ap) return '상대 구단 사정으로 트레이드가 무산되었습니다';
-      u.roster = u.roster.filter((x) => x.id !== me.id);
-      t.roster = t.roster.filter((x) => x.id !== ap.id);
-      u.roster.push(ap);
-      t.roster.push(me);
-      fixLineup(u);
-      slotNewcomer(u, ap);
-      fixLineup(t);
-      slotNewcomer(t, me);
-      const cash = Number(cashS) || 0;
-      c.finance.cash += cash;
-      c.finance.ledger.sales += cash;
-      addNews(c, `트레이드: ${me.name} ↔ ${ap.name}(${t.name})${cash ? ` + ${fmtMoney(cash)}` : ''}`, 'info');
-      return `트레이드 성사 — ${ap.name} 합류`;
+    resolve: (c, i, cd, rng) => {
+      const p = findUser(c, cd.pid);
+      if (!p) return '없던 일이 되었습니다';
+      if (i === 0) {
+        if (rng() < 0.5) {
+          const before = p.ovr;
+          bump(p, rng, 1, N.pushGain * 2);
+          return `${p.name}, 1군 무대에서 껍질을 깼습니다 — OVR ${before} → ${p.ovr}`;
+        }
+        addBuff(c, { kind: 'slump', value: N.pushSlump, until: c.day + BUFF_LONG, label: `${p.name} 슬럼프`, pid: p.id });
+        return `${p.name}, 1군의 벽에 부딪혔습니다 — ${BUFF_LONG}경기 슬럼프`;
+      }
+      const t = userTeam(c);
+      const slot = t.lineup.find((s) => s.pid === p.id);
+      const bench = benchBatters(c);
+      if (slot && bench.length) slot.pid = bench.reduce((a, b) => (slotValue(a, slot.pos) >= slotValue(b, slot.pos) ? a : b)).id;
+      sat(c, N.benchSat);
+      return `${p.name}을(를) 벤치로 내렸습니다`;
+    },
+  },
+  {
+    id: 'arm',
+    prio: 85,
+    forced: true,
+    when: (c) => c.campaign.stage >= 3 && overworked(c).length > 0,
+    make: (c) => {
+      const p = overworked(c).sort((a, b) => b.ovr - a.ovr)[0];
+      if (!p) return null;
+      return card('arm', 'arm', {
+        title: '팔은 소모품이 아니다',
+        icon: '💪',
+        pid: p.id,
+        body: `${p.name}(${p.pos}, OVR ${p.ovr})이 사흘 연속 마운드에 올랐습니다.`,
+        choices: [
+          { label: '휴식을 보장한다', desc: `${p.name} ${N.restGames}경기 등판 불가` },
+          { label: '강행한다', desc: `부상 위험 ${Math.round(N.armInjury * 100)}% (8~15경기 결장)` },
+        ],
+      });
+    },
+    resolve: (c, i, cd, rng) => {
+      const p = findUser(c, cd.pid);
+      if (!p) return '없던 일이 되었습니다';
+      if (i === 0) {
+        addBuff(c, { kind: 'rest', value: 1, until: c.day + N.restGames, label: `${p.name} 휴식 보장`, pid: p.id });
+        delete p.tired;
+        return `${p.name}에게 ${N.restGames}경기 휴식을 주었습니다`;
+      }
+      if (rng() < N.armInjury) {
+        p.injury = randInt(rng, 8, 15);
+        hintMut(c, 'pitchers');
+        return `${p.name}, 팔꿈치를 잡고 내려왔습니다 — ${p.injury}경기 결장`;
+      }
+      return `${p.name}은(는) 오늘도 불펜에서 몸을 풉니다`;
     },
   },
   {
     id: 'typhoon',
-    cond: () => true,
-    make: (c) => {
-      const cost = money(c, N.typhoonCost);
-      return {
-        id: 'typhoon',
-        title: '태풍 피해',
-        icon: '🌀',
-        body: '태풍이 제주를 지나가며 관중석 일부가 파손되었습니다.',
-        choices: [
-          { label: '긴급 보수', desc: `비용 ${fmtMoney(cost)}`, disabled: cashGate(c, cost) },
-          { label: '방치', desc: `다음 ${BUFF_GAMES} 홈경기 수용 인원 −${Math.round((1 - N.typhoonCap) * 100)}%` },
-        ],
-      };
+    prio: 80,
+    forced: true,
+    when: (c) => {
+      const b = beatOn(c, c.day, 'rainy');
+      return !!b && c.day >= b.from + 2;
     },
+    make: () =>
+      card('typhoon', null, {
+        title: '태풍 결항',
+        icon: '🌀',
+        body: '태풍으로 육지행 비행기가 전부 결항되었습니다. 다음 원정 경기를 어떻게든 치러야 합니다.',
+        choices: [
+          { label: '경기를 연기한다', desc: '더블헤더 편성 — 불펜 전원 2연투 피로 상태' },
+          { label: '배편으로 강행한다', desc: `${N.typhoonGames}경기 집중력 ${N.typhoonFocus}` },
+        ],
+      }),
     resolve: (c, i) => {
       if (i === 0) {
-        spend(c, money(c, N.typhoonCost));
-        return '관중석 긴급 보수 완료';
+        const t = userTeam(c);
+        const ids = new Set([...t.bullpen, ...(t.closer ? [t.closer] : [])]);
+        for (const p of t.roster) if (ids.has(p.id)) p.tired = Math.max(p.tired ?? 0, N.typhoonTired);
+        hintMut(c, 'pitchers');
+        return '경기 연기 — 더블헤더로 불펜이 바닥났습니다';
       }
-      addBuff(c, { kind: 'capacity', value: N.typhoonCap, until: 9999, left: BUFF_GAMES, label: `태풍 피해 수용 −${Math.round((1 - N.typhoonCap) * 100)}%` });
-      return `파손된 좌석 폐쇄 — ${BUFF_GAMES} 홈경기 동안 수용 인원 감소`;
+      addBuff(c, { kind: 'focus', value: N.typhoonFocus, until: c.day + N.typhoonGames, label: `뱃멀미 집중력 ${N.typhoonFocus}` });
+      return '밤배를 탔습니다 — 선수단 얼굴이 하얗습니다';
     },
   },
   {
-    id: 'docu',
-    cond: () => true,
-    make: () => ({
-      id: 'docu',
-      title: '방송국 다큐 제안',
-      icon: '🎥',
-      body: '공중파 다큐 팀이 "섬 구단의 도전"을 밀착 취재하고 싶어 합니다. 카메라가 더그아웃까지 들어옵니다.',
-      choices: [
-        { label: '수락', desc: `팬 +${N.docuFans} · 다음 ${BUFF_GAMES}경기 집중력 ${N.docuFocus}` },
-        { label: '거절', desc: '변화 없음' },
-      ],
-    }),
-    resolve: (c, i) => {
-      if (i !== 0) return '선수단 집중을 위해 취재를 거절했습니다';
-      c.fans += N.docuFans;
-      addBuff(c, { kind: 'focus', value: N.docuFocus, until: c.day + BUFF_GAMES, label: `다큐 촬영 집중력 ${N.docuFocus}` });
-      return `다큐 방영 확정 — 팬 +${N.docuFans}`;
-    },
-  },
-  {
-    id: 'foreign',
-    cond: () => true,
+    id: 'oldeye',
+    prio: 75,
+    forced: true,
+    when: (c) => c.campaign.stage === 0 && c.day >= 24 && c.day < MID_DAY && !!scoutPickCase(c),
     make: (c) => {
-      const cost = money(c, N.foreignCost);
-      const u = userTeam(c);
-      const dis =
-        foreignCount(c) >= FOREIGN_MAX
-          ? `외국인 보유 한도 ${FOREIGN_MAX}명`
-          : u.roster.length >= ROSTER_MAX
-            ? '로스터가 가득 찼습니다'
-            : cashGate(c, cost);
-      return {
-        id: 'foreign',
-        title: '외인 교체 시장',
-        icon: '✈️',
-        body: `해외 리그에서 방출된 OVR ${N.foreignOvr[0]}~${N.foreignOvr[1]}급 외국인 선수를 잡을 기회입니다. 연봉은 별도입니다.`,
-        choices: [
-          { label: '즉시 영입', desc: `이적료 ${fmtMoney(cost)} + 연봉`, disabled: dis },
-          { label: '패스', desc: '변화 없음' },
-        ],
-      };
+      const s = scoutPickCase(c);
+      if (!s) return null;
+      const { p } = s;
+      const t = userTeam(c);
+      const hired = !!c.campaign.analyst;
+      // 선택지: 믿어 준다 / (데이터 분석원 채용) / 사양한다 — 마지막은 항상 고를 수 있다
+      const decline = { label: '사양한다', desc: `팀장과 서먹 — 다음 드래프트 풀 품질 ${N.coldYouth}` };
+      const second = hired
+        ? [decline]
+        : [{ label: '데이터 분석원을 채용한다', desc: `비용 ${fmtMoney(N.analystCost)} · 드래프트 등급이 정확해진다 · 팀장과 서먹(다음 드래프트 풀 품질 ${N.coldYouth})`, disabled: cashGate(c, N.analystCost) }, decline];
+      if (s.state === 'unsigned') {
+        const dis = t.roster.length >= ROSTER_MAX ? '로스터가 가득 찼습니다' : undefined;
+        return card('oldeye|unsigned', 'oldeyeUnsigned', {
+          title: '옛날 눈',
+          icon: '📓',
+          pid: p.id,
+          body: `팀장이 명단 맨 위에 올린 ${p.name}(${p.pos}, ${p.age}세, OVR ${p.ovr}, 스타성 ${p.star})은 아직 시장에 있습니다.`,
+          choices: [{ label: '믿어 준다', desc: `${p.name} 영입 (계약금 면제 · 연봉 ${fmtMoney(p.salary)}) · 다음 드래프트 풀 품질 ${sgn(N.trustYouth)}`, disabled: dis }, ...second],
+        });
+      }
+      return card('oldeye|slump', 'oldeyeSlump', {
+        title: '옛날 눈',
+        icon: '📓',
+        pid: p.id,
+        body: `팀장이 민 ${p.name}(${p.age}세, OVR ${p.ovr})이 부진합니다.`,
+        choices: [{ label: '믿어 준다', desc: `${p.name} ${N.vetGames}경기 고정 출전 · 다음 드래프트 풀 품질 ${sgn(N.trustYouth)}` }, ...second],
+      });
     },
-    resolve: (c, i, _card, rng) => {
-      if (i !== 0) return '외인 시장은 지켜만 봤습니다';
-      const u = userTeam(c);
-      const names = c.teams.flatMap((t) => t.roster.map((p) => p.name));
-      const ctx = makeCtx(rng, `ev${c.season}-${c.day}-`, names);
-      const pos = pick(rng, ['1B', 'LF', 'RF', '3B', 'SP', 'SP'] as const);
-      const p = genPlayer(ctx, pos, 80, { foreign: true, age: randInt(rng, 27, 32), tag: '시즌 중 영입 외인' });
-      shiftOvr(p, randInt(rng, N.foreignOvr[0], N.foreignOvr[1]));
-      p.pot = Math.max(p.pot, p.ovr);
-      p.salary = calcSalary(p);
-      p.star = clamp(Math.max(p.star, 60), 0, 100);
-      const cost = money(c, N.foreignCost);
-      c.finance.cash -= cost;
-      c.finance.ledger.signing += cost;
-      u.roster.push(p);
-      const role = slotNewcomer(u, p);
-      addNews(c, `외인 영입: ${p.name}(${p.pos} OVR${p.ovr}) — ${role}`, 'good');
-      return `${p.name} 입단 (${role})`;
+    resolve: (c, i, cd) => {
+      const t = userTeam(c);
+      if (i === 0) {
+        addBuff(c, { kind: 'youth', value: N.trustYouth, until: 9999, label: '스카우트 팀장의 신뢰 (드래프트 품질↑)' });
+        if (parts(cd)[1] === 'unsigned') {
+          const p = c.freeAgents.find((x) => x.id === cd.pid);
+          if (!p) return '그 사이 다른 팀이 데려갔습니다';
+          c.freeAgents = c.freeAgents.filter((x) => x.id !== p.id);
+          p.since = c.season;
+          t.roster.push(p);
+          const role = slotNewcomer(t, p);
+          c.fans += p.star * 2;
+          hintMut(c, 'lineup');
+          return `${p.name} 입단 (${role}) — 팀장이 오랜만에 웃었습니다`;
+        }
+        const p = findUser(c, cd.pid);
+        if (p) addBuff(c, { kind: 'fixed', value: 1, until: c.day + N.vetGames, label: `${p.name} 고정 출전`, pid: p.id });
+        return '한 번 더 믿어 보기로 했습니다';
+      }
+      addBuff(c, { kind: 'youth', value: N.coldYouth, until: 9999, label: '스카우트 팀장과 서먹 (드래프트 품질↓)' });
+      if (c.campaign.analyst || i === cd.choices.length - 1) return '팀장의 수첩을 조용히 밀어냈습니다';
+      spend(c, N.analystCost);
+      c.campaign.analyst = true;
+      return '데이터 분석원 채용 — 드래프트 보고서의 등급이 정확해집니다';
     },
   },
+
+  // ───────── 상태가 만드는 카드 (카드 간 8경기, 시즌 5장) ─────────
   {
     id: 'meeting',
-    cond: (c) => userTeam(c).rec.streak <= -5,
-    make: (c) => ({
-      id: 'meeting',
-      title: '연패 중 팬 간담회',
-      icon: '🙇',
-      body: `${-userTeam(c).rec.streak}연패에 성난 팬들이 간담회를 요구합니다.`,
-      choices: [
-        { label: '사과 + 할인', desc: `${BUFF_GAMES} 홈경기 입장 수입 −${Math.round((1 - N.meetTicket) * 100)}% · 만족도 +${N.meetSat}` },
-        { label: '침묵', desc: `만족도 ${N.silentSat}` },
-      ],
-    }),
+    prio: 60,
+    when: (c) => userTeam(c).rec.streak <= -5,
+    make: (c) =>
+      card('meeting', 'meeting', {
+        title: '팬 간담회',
+        icon: '🙇',
+        body: `${-userTeam(c).rec.streak}연패. 팬들이 간담회를 요구합니다.`,
+        choices: [
+          { label: '사과 + 할인', desc: `${BUFF_GAMES} 홈경기 입장 수입 ${pctTxt(N.meetTicket)} · 팬 만족 ${sgn(N.meetSat)}` },
+          { label: '침묵', desc: `팬 만족 ${N.silentSat}` },
+        ],
+      }),
     resolve: (c, i) => {
       if (i === 0) {
         sat(c, N.meetSat);
-        addBuff(c, { kind: 'ticket', value: N.meetTicket, until: 9999, left: BUFF_GAMES, label: `사과 할인 입장 수입 −${Math.round((1 - N.meetTicket) * 100)}%` });
+        addBuff(c, { kind: 'ticket', value: N.meetTicket, until: 9999, left: BUFF_GAMES, label: `사과 할인 입장 수입 ${pctTxt(N.meetTicket)}` });
         return '진심 어린 사과 — 팬심이 조금 누그러졌습니다';
       }
       sat(c, N.silentSat);
@@ -362,123 +515,61 @@ export const CARDS: CardDef[] = [
     },
   },
   {
-    id: 'goods',
-    cond: (c) => userTeam(c).rec.streak >= 4,
+    id: 'scalper',
+    prio: 55,
+    when: (c) => recentSellouts(c) >= 4,
     make: (c) => {
-      const cost = money(c, N.goodsCost);
-      return {
-        id: 'goods',
-        title: '연승 굿즈 콜라보',
-        icon: '🧢',
-        body: '연승 분위기를 타고 캐릭터 브랜드가 한정판 굿즈 콜라보를 제안했습니다.',
+      const cost = money(c, N.crackCost);
+      const now = c.finance.ticketPrice;
+      const next = Math.min(4, Math.round((now + N.hikeStep) * 10) / 10);
+      return card('scalper', 'scalper', {
+        title: '암표 소동',
+        icon: '🎟️',
+        body: '매진이 이어지자 게이트 앞에 암표상이 나타났습니다.',
         choices: [
-          { label: '투자', desc: `비용 ${fmtMoney(cost)} → ${BUFF_LONG}경기 굿즈 ×${N.goodsMult}`, disabled: cashGate(c, cost) },
-          { label: '패스', desc: '변화 없음' },
+          { label: '단속한다', desc: `비용 ${fmtMoney(cost)} · 팬 만족 ${sgn(N.crackSat)} · 팬 +${N.crackFans}`, disabled: cashGate(c, cost) },
+          { label: '방치한다', desc: `팬 만족 ${N.ignoreSat}` },
+          { label: '가격을 올린다', desc: `티켓값 ${now.toFixed(1)}만 → ${next.toFixed(1)}만 · 팬 만족 ${N.hikeSat}` },
         ],
-      };
+      });
     },
     resolve: (c, i) => {
-      if (i !== 0) return '콜라보는 패스했습니다';
-      spend(c, money(c, N.goodsCost));
-      addBuff(c, { kind: 'merch', value: N.goodsMult, until: c.day + BUFF_LONG, label: `굿즈 콜라보 ×${N.goodsMult}` });
-      return '한정판 굿즈 출시!';
-    },
-  },
-  {
-    id: 'tour',
-    cond: (c) => userTeam(c).roster.some((p) => p.age >= 35),
-    make: (c) => {
-      const p = userTeam(c).roster.filter((x) => x.age >= 35).sort((a, b) => b.star - a.star)[0];
-      return {
-        id: 'tour',
-        title: '베테랑 은퇴 투어',
-        icon: '🎖️',
-        pid: p.id,
-        body: `${p.name}(${p.age}세)의 마지막 시즌일지 모릅니다. 기념 경기를 열어 줄까요?`,
-        choices: [
-          { label: '기념 경기', desc: `${BUFF_GAMES} 홈경기 관중 수요 +${Math.round((N.tourDemand - 1) * 100)}% · ${p.name} 고정 출전` },
-          { label: '조용히', desc: '변화 없음' },
-        ],
-      };
-    },
-    resolve: (c, i, card) => {
-      const p = findUser(c, card.pid);
-      if (i !== 0 || !p) return '조용히 시즌을 이어갑니다';
-      addBuff(c, { kind: 'demand', value: N.tourDemand, until: 9999, left: BUFF_GAMES, label: `${p.name} 은퇴 투어`, pid: p.id });
-      return `${p.name} 은퇴 투어 시작 — 관중 수요 상승`;
-    },
-  },
-  {
-    id: 'owner',
-    cond: (c) => c.campaign.trust <= 40,
-    make: (c) => {
-      const u = userTeam(c);
-      const remain = Math.max(0, c.schedule.length - c.day);
-      const target = u.rec.w + Math.ceil(remain * N.pledgeRate);
-      return {
-        id: `owner|${target}`,
-        title: '구단주 호출',
-        icon: '☎️',
-        body: `신임이 바닥난 구단주가 단장을 불렀습니다. "올 시즌 ${target}승은 하겠다고 약속할 수 있나?"`,
-        choices: [
-          { label: '공약 걸기', desc: `시즌 ${target}승 달성 시 신임 +15, 실패 시 −10` },
-          { label: '버티기', desc: '신임 −3' },
-        ],
-      };
-    },
-    resolve: (c, i, card) => {
       if (i === 0) {
-        const target = Number(parts(card)[1]) || 0;
-        addBuff(c, { kind: 'pledge', value: target, until: 9999, label: `구단주 공약 ${target}승` });
-        return `공약: 시즌 ${target}승`;
+        spend(c, money(c, N.crackCost));
+        sat(c, N.crackSat);
+        c.fans += N.crackFans;
+        return '암표 단속 — 정가에 표를 산 팬들이 박수를 보냅니다';
       }
-      c.campaign.trust = clamp(c.campaign.trust + N.holdTrust, 0, 100);
-      return '말을 아꼈습니다 — 신임 소폭 하락';
-    },
-  },
-  {
-    id: 'youth',
-    cond: () => true,
-    make: (c) => {
-      const cost = money(c, N.youthCost);
-      return {
-        id: 'youth',
-        title: '지역 유소년 야구 후원',
-        icon: '🧒',
-        body: '제주 리틀야구단이 장비 후원을 요청했습니다. 섬의 야구 꿈나무를 키우면 언젠가 돌아올지도 모릅니다.',
-        choices: [
-          { label: '후원', desc: `비용 ${fmtMoney(cost)} → 다음 드래프트 풀 품질↑ · 팬 +${N.youthFans}`, disabled: cashGate(c, cost) },
-          { label: '거절', desc: '변화 없음' },
-        ],
-      };
-    },
-    resolve: (c, i) => {
-      if (i !== 0) return '후원은 다음에';
-      spend(c, money(c, N.youthCost));
-      c.fans += N.youthFans;
-      addBuff(c, { kind: 'youth', value: N.youthQuality, until: 9999, label: '유소년 후원 (드래프트 품질↑)' });
-      return `유소년 후원 — 팬 +${N.youthFans}`;
+      if (i === 1) {
+        sat(c, N.ignoreSat);
+        return '암표상이 활개 칩니다 — 팬들의 불만이 쌓입니다';
+      }
+      c.finance.ticketPrice = Math.min(4, Math.round((c.finance.ticketPrice + N.hikeStep) * 10) / 10);
+      sat(c, N.hikeSat);
+      hintMut(c, 'stadium');
+      return `티켓값 인상 — ${c.finance.ticketPrice.toFixed(1)}만원`;
     },
   },
   {
     id: 'early',
-    cond: (c) => userTeam(c).roster.some((p) => p.injury >= 4),
+    prio: 50,
+    when: (c) => hurtStarters(c).length > 0,
     make: (c) => {
-      const p = userTeam(c).roster.filter((x) => x.injury >= 4).sort((a, b) => b.ovr - a.ovr)[0];
-      return {
-        id: 'early',
-        title: '부상 선수 조기 복귀',
+      const p = hurtStarters(c).sort((a, b) => b.ovr - a.ovr)[0];
+      if (!p) return null;
+      return card('early', 'early', {
+        title: '조기 복귀',
         icon: '🩹',
         pid: p.id,
-        body: `${p.name}(OVR${p.ovr})이 ${p.injury}경기 남은 재활을 건너뛰고 뛰겠다고 합니다.`,
+        body: `${p.name}(OVR ${p.ovr})이 ${p.injury}경기 남은 재활을 건너뛰고 뛰겠다고 합니다.`,
         choices: [
-          { label: '강행', desc: `즉시 복귀 · 재부상 위험 ${Math.round(N.reinjury * 100)}%` },
-          { label: '대기', desc: '재활 계속' },
+          { label: '강행', desc: `즉시 복귀 · 재부상 위험 ${Math.round(N.reinjury * 100)}% (4~10경기 추가)` },
+          { label: '대기', desc: `재활 계속 (${p.injury}경기 결장)` },
         ],
-      };
+      });
     },
-    resolve: (c, i, card, rng) => {
-      const p = findUser(c, card.pid);
+    resolve: (c, i, cd, rng) => {
+      const p = findUser(c, cd.pid);
       if (i !== 0 || !p) return '재활을 끝까지 마치기로 했습니다';
       const left = p.injury;
       if (rng() < N.reinjury) {
@@ -491,117 +582,201 @@ export const CARDS: CardDef[] = [
     },
   },
   {
-    id: 'market',
-    cond: () => true,
-    make: (c) => ({
-      id: 'market',
-      title: '주차장 야시장',
-      icon: '🏮',
-      body: '경기 날 주차장에 야시장을 열자는 상인회 제안. 먹거리는 늘지만 관리 비용이 듭니다.',
-      choices: [
-        {
-          label: '야시장 개장',
-          desc: `${BUFF_LONG} 홈경기 매점 +${Math.round((N.marketFood - 1) * 100)}% · 만족도 +${N.marketSat} · 유지비 +${fmtMoney(money(c, N.marketUpkeep))}/홈경기`,
-        },
-        { label: '거절', desc: '변화 없음' },
-      ],
-    }),
-    resolve: (c, i) => {
-      if (i !== 0) return '야시장은 열지 않았습니다';
-      sat(c, N.marketSat);
-      addBuff(c, { kind: 'food', value: N.marketFood, until: 9999, left: BUFF_LONG, label: `야시장 매점 +${Math.round((N.marketFood - 1) * 100)}%` });
-      addBuff(c, { kind: 'upkeep', value: money(c, N.marketUpkeep), until: 9999, left: BUFF_LONG, label: '야시장 관리비' });
-      return '야시장 개장 — 주차장이 북적입니다';
-    },
-  },
-  {
-    id: 'rival',
-    cond: () => true,
-    make: () => ({
-      id: 'rival',
-      title: '라이벌전 특별 프로모션',
-      icon: '⚔️',
-      body: '다음 홈 3연전을 "반값 라이벌전"으로 홍보하자는 마케팅팀 제안입니다.',
-      choices: [
-        { label: '반값 행사', desc: `3 홈경기 티켓 반값 (관중↑ 수입↓) · 팬 +${N.halfFans}` },
-        { label: '정상가', desc: '변화 없음' },
-      ],
-    }),
-    resolve: (c, i) => {
-      if (i !== 0) return '정상가로 갑니다';
-      c.fans += N.halfFans;
-      addBuff(c, { kind: 'halfPrice', value: 0.5, until: 9999, left: 3, label: '반값 라이벌전' });
-      return `반값 라이벌전 확정 — 팬 +${N.halfFans}`;
-    },
-  },
-  {
-    id: 'dinner',
-    cond: () => true,
+    id: 'goods',
+    prio: 45,
+    when: (c) => userTeam(c).rec.streak >= 4 && userTeam(c).roster.some((p) => p.star >= N.goodsStar),
     make: (c) => {
-      const cost = money(c, N.dinnerCost);
-      return {
-        id: 'dinner',
-        title: '선수단 회식',
-        icon: '🍖',
-        body: '주장이 흑돼지 회식으로 분위기를 바꿔 보자고 합니다.',
+      const cost = money(c, N.goodsCost);
+      return card('goods', 'goods', {
+        title: '굿즈 콜라보',
+        icon: '🧢',
+        body: `${userTeam(c).rec.streak}연승. 캐릭터 브랜드가 한정판 굿즈 콜라보를 제안했습니다.`,
         choices: [
-          { label: '회식 지원', desc: `비용 ${fmtMoney(cost)} → ${BUFF_GAMES}경기 집중력 +${N.dinnerFocus}`, disabled: cashGate(c, cost) },
-          { label: '거절', desc: '변화 없음' },
+          { label: '투자', desc: `비용 ${fmtMoney(cost)} → ${BUFF_LONG}경기 굿즈 ×${N.goodsMult}`, disabled: cashGate(c, cost) },
+          { label: '패스', desc: '변화 없음' },
         ],
-      };
+      });
     },
     resolve: (c, i) => {
-      if (i !== 0) return '회식은 각자 알아서';
-      spend(c, money(c, N.dinnerCost));
-      addBuff(c, { kind: 'focus', value: N.dinnerFocus, until: c.day + BUFF_GAMES, label: `회식 효과 집중력 +${N.dinnerFocus}` });
-      return '선수단 분위기 상승!';
+      if (i !== 0) return '콜라보는 패스했습니다';
+      spend(c, money(c, N.goodsCost));
+      addBuff(c, { kind: 'merch', value: N.goodsMult, until: c.day + BUFF_LONG, label: `굿즈 콜라보 ×${N.goodsMult}` });
+      return '한정판 굿즈 출시!';
     },
   },
   {
-    id: 'seasontix',
-    cond: (c) => c.day <= 45,
-    make: (c) => ({
-      id: 'seasontix',
-      title: '후반기 시즌권 조기 판매',
-      icon: '🎫',
-      body: '후반기 시즌권을 할인가로 미리 팔면 당장 현금이 들어오지만, 이후 입장 수입은 줄어듭니다.',
-      choices: [
-        { label: '조기 판매', desc: `현금 +${fmtMoney(money(c, N.seasonTixCash))} · ${BUFF_LONG} 홈경기 입장 수입 −${Math.round((1 - N.seasonTixRate) * 100)}%` },
-        { label: '보류', desc: '변화 없음' },
-      ],
-    }),
+    id: 'trade',
+    prio: 40,
+    when: (c) => !!tradeCase(c),
+    make: (c, rng) => {
+      const tc = tradeCase(c);
+      if (!tc) return null;
+      const { me, slot, weak } = tc;
+      const pos = userTeam(c).lineup[slot].pos;
+      const cands = c.teams
+        .filter((t) => t.id !== c.userId)
+        .flatMap((t) => t.roster.filter((p) => p.kind === 'B' && p.pos === pos && !p.foreign && p.ovr >= weak.ovr + 6 && p.ovr <= me.ovr + 2).map((p) => ({ t, p })));
+      if (!cands.length) return null;
+      const { t, p } = pick(rng, cands);
+      const cash = Math.max(0, Math.round((((me.ovr - p.ovr) * 2500 + 3000) * scale(c)) / 1000) * 1000);
+      return card(`trade|${t.id}|${p.id}|${cash}`, 'trade', {
+        title: '트레이드 제안',
+        icon: '🔄',
+        pid: me.id,
+        body: `${t.city} ${t.name}이(가) 벤치의 ${me.name}(${me.pos} OVR ${me.ovr}, ${me.age}세, 연봉 ${fmtMoney(me.salary)})을 원합니다. 대가는 ${p.name}(${p.pos} OVR ${p.ovr}, ${p.age}세, 연봉 ${fmtMoney(p.salary)})${cash ? ` + 현금 ${fmtMoney(cash)}` : ''}.`,
+        choices: [
+          { label: '수락', desc: `${me.name} ↔ ${p.name}${cash ? ` + ${fmtMoney(cash)}` : ''} · 연봉 ${sgn(Math.round((p.salary - me.salary) / 100) / 100)}억` },
+          { label: '거절', desc: '현 전력 유지' },
+        ],
+      });
+    },
+    resolve: (c, i, cd) => {
+      if (i !== 0) return '트레이드 제안을 거절했습니다';
+      const [, tid, aid, cashS] = parts(cd);
+      const u = userTeam(c);
+      const t = c.teams.find((x) => x.id === tid);
+      const me = findUser(c, cd.pid);
+      const ap = t?.roster.find((x) => x.id === aid);
+      if (!t || !me || !ap) return '상대 구단 사정으로 트레이드가 무산되었습니다';
+      if (isFranchise(me, c.season)) {
+        c.fans = Math.max(1000, c.fans - me.star * 8);
+        sat(c, -8);
+        addNews(c, NEWS.franchiseGone(me.name), 'bad');
+      }
+      u.roster = u.roster.filter((x) => x.id !== me.id);
+      t.roster = t.roster.filter((x) => x.id !== ap.id);
+      delete me.since;
+      ap.since = c.season;
+      u.roster.push(ap);
+      t.roster.push(me);
+      fixLineup(u);
+      slotNewcomer(u, ap);
+      fixLineup(t);
+      slotNewcomer(t, me);
+      const cash = Number(cashS) || 0;
+      c.finance.cash += cash;
+      c.finance.ledger.sales += cash;
+      addNews(c, `트레이드: ${me.name} ↔ ${ap.name}(${t.name})${cash ? ` + ${fmtMoney(cash)}` : ''}`, 'info');
+      hintMut(c, 'lineup');
+      return `트레이드 성사 — ${ap.name} 합류`;
+    },
+  },
+  {
+    id: 'tourist',
+    prio: 35,
+    when: (c) => {
+      const d = lastDay(c);
+      const m = c.schedule[d]?.find((g) => g.homeId === c.userId);
+      return !!m && d % 6 >= 4 && !!c.crowd && c.crowd.capacity > 0 && c.crowd.attendance / c.crowd.capacity < N.weekendFill;
+    },
+    make: () =>
+      card('tourist', 'tourist', {
+        title: '관광객 패키지',
+        icon: '🧳',
+        body: '여행사가 "야구장 포함 제주 패키지"를 제안했습니다.',
+        choices: [
+          { label: '여행사와 제휴한다', desc: `${BUFF_LONG} 홈경기 관중 수요 ${pctTxt(N.tourDemand)} · 입장 수입 ${pctTxt(N.tourTicket)} · 팬 만족 ${N.tourSat}` },
+          { label: '거절한다', desc: '변화 없음' },
+        ],
+      }),
     resolve: (c, i) => {
-      if (i !== 0) return '시즌권 판매는 보류했습니다';
-      const v = money(c, N.seasonTixCash);
-      c.finance.cash += v;
-      c.finance.ledger.ticket += v;
-      addBuff(c, { kind: 'ticket', value: N.seasonTixRate, until: 9999, left: BUFF_LONG, label: `시즌권 선판매 입장 −${Math.round((1 - N.seasonTixRate) * 100)}%` });
-      return `시즌권 선판매 — 현금 +${fmtMoney(v)}`;
+      if (i !== 0) return '도민의 야구장으로 남기로 했습니다';
+      sat(c, N.tourSat);
+      addBuff(c, { kind: 'demand', value: N.tourDemand, until: 9999, left: BUFF_LONG, label: `관광객 패키지 수요 ${pctTxt(N.tourDemand)}` });
+      addBuff(c, { kind: 'ticket', value: N.tourTicket, until: 9999, left: BUFF_LONG, label: `패키지 할인 입장 수입 ${pctTxt(N.tourTicket)}` });
+      return '관광버스가 주차장을 채우기 시작했습니다';
+    },
+  },
+  {
+    id: 'tour',
+    prio: 30,
+    when: (c) => c.day >= 60 && !!retiree(c),
+    make: (c) => {
+      const p = retiree(c);
+      if (!p) return null;
+      const fr = isFranchise(p, c.season);
+      return card('tour', 'tour', {
+        title: '은퇴 투어',
+        icon: '🎖️',
+        pid: p.id,
+        body: `${p.name}(${p.age}세)이 올해를 끝으로 유니폼을 벗겠다고 합니다.`,
+        choices: [
+          { label: '기념 경기', desc: `${BUFF_GAMES} 홈경기 관중 수요 ${pctTxt(N.retireDemand)} · ${p.name} 고정 출전 · 시즌 뒤 은퇴${fr ? ' (영구결번)' : ''}` },
+          { label: '조용히', desc: fr ? `팬 만족 ${N.quietSat} · 시즌 뒤 은퇴 (영구결번)` : '변화 없음' },
+        ],
+      });
+    },
+    resolve: (c, i, cd) => {
+      const p = findUser(c, cd.pid);
+      if (!p) return '조용히 시즌을 이어갑니다';
+      const fr = isFranchise(p, c.season);
+      if (i === 0) {
+        memoSet(c, 'retire', p.id);
+        addBuff(c, { kind: 'demand', value: N.retireDemand, until: 9999, left: BUFF_GAMES, label: `${p.name} 은퇴 투어`, pid: p.id });
+        return `${p.name} 은퇴 투어 시작 — 마지막을 보러 팬들이 모입니다`;
+      }
+      if (fr) {
+        memoSet(c, 'retire', p.id);
+        sat(c, N.quietSat);
+      }
+      return '조용히 시즌을 이어갑니다';
+    },
+  },
+  {
+    id: 'raise',
+    prio: 25,
+    when: (c) => c.day >= 30 && !!titleRace(c),
+    make: (c) => {
+      const p = titleRace(c);
+      if (!p) return null;
+      return card('raise', 'raise', {
+        title: '간판의 연봉 요구',
+        icon: '💼',
+        pid: p.id,
+        body: `타이틀 경쟁 중인 ${p.name}의 에이전트가 연봉 ${Math.round(N.raiseRate * 100)}% 인상을 요구합니다.`,
+        choices: [
+          { label: '인상', desc: `연봉 ${fmtMoney(p.salary)} → ${fmtMoney(Math.round(p.salary * (1 + N.raiseRate)))}` },
+          { label: '거절', desc: `스타성 ${N.refuseStar} · 능력치 ${N.refuseAbil} · 팬 ${N.refuseFans}` },
+        ],
+      });
+    },
+    resolve: (c, i, cd, rng) => {
+      const p = findUser(c, cd.pid);
+      if (!p) return '협상이 흐지부지되었습니다';
+      if (i === 0) {
+        p.salary = Math.round(p.salary * (1 + N.raiseRate));
+        hintMut(c, 'finance');
+        return `${p.name} 연봉 인상 합의 — ${fmtMoney(p.salary)}`;
+      }
+      p.star = clamp(p.star + N.refuseStar, 0, 100);
+      bump(p, rng, N.refuseAbil, 1);
+      c.fans = Math.max(1000, c.fans + N.refuseFans);
+      return `${p.name} 인상 거절 — 불만이 쌓입니다`;
     },
   },
 ];
 
 const baseId = (id: string) => id.split('|')[0];
+const DEF = new Map(CARDS.map((d) => [d.id, d]));
+const BY_PRIO = CARDS.slice().sort((a, b) => b.prio - a.prio);
 
-/** 이벤트 경기일이면 카드 1장을 뽑아 campaign.event 에 둔다. 해당 없으면 원본 반환. */
+/** 매 경기 후: 조건이 맞는 카드 중 우선순위가 가장 높은 1장을 campaign.event 에 둔다. 해당 없으면 원본 반환. */
 export function maybeDrawEvent(core0: Core, rng: Rng): Core {
-  if (core0.phase !== 'season' || core0.campaign.event) return core0;
-  const k = EVENT_DAYS.indexOf(core0.day);
-  if (k < 0 || core0.campaign.eventsSeen.length > k) return core0;
-  const seen = new Set(core0.campaign.eventsSeen);
-  const pool = CARDS.filter((d) => !seen.has(d.id) && d.cond(core0));
-  // 조건부 카드(상황 맞춤)를 조금 더 자주
-  const core = structuredClone(core0);
-  for (let guard = 0; guard < 6 && pool.length; guard++) {
-    const d = pick(rng, pool);
-    const card = d.make(core, rng);
-    if (card) {
-      core.campaign.event = card;
-      core.campaign.eventsSeen.push(d.id);
-      addNews(core, `${card.icon} 이벤트: ${card.title}`, 'info');
-      return core;
-    }
-    pool.splice(pool.indexOf(d), 1);
+  if (core0.phase !== 'season' || core0.campaign.event || core0.day >= core0.schedule.length) return core0;
+  const seen = new Set(seenCards(core0));
+  const normalSeen = [...seen].filter((id) => !DEF.get(id)?.forced).length;
+  const normalOk = core0.day - memoNum(core0, 'evDay', -99) >= EVENT_GAP && normalSeen < EVENT_MAX;
+  for (const d of BY_PRIO) {
+    if (seen.has(d.id) || (!d.forced && !normalOk) || !d.when(core0)) continue;
+    const core = structuredClone(core0);
+    const cd = d.make(core, rng);
+    if (!cd) continue;
+    core.campaign.event = cd;
+    core.campaign.eventsSeen.push(d.id);
+    memoSet(core, 'evDay', core.day);
+    const who = cd.who && cd.who !== 'player' ? `${CHARACTERS[cd.who].name} ${CHARACTERS[cd.who].title} — ` : '';
+    addNews(core, `${cd.icon} ${who}${cd.title}`, 'info');
+    return core;
   }
   return core0;
 }
@@ -612,15 +787,15 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   const ch = card0.choices[choiceIdx];
   if (!ch) return { core: core0, error: '잘못된 선택입니다', result: '' };
   if (ch.disabled) return { core: core0, error: ch.disabled, result: '' };
-  const def = CARDS.find((d) => d.id === baseId(card0.id));
+  const def = DEF.get(baseId(card0.id));
   const core = structuredClone(core0);
-  const card = core.campaign.event!;
+  const cd = core.campaign.event!;
   core.campaign.event = null;
-  const result = def ? def.resolve(core, choiceIdx, card, rng) : '이벤트가 지나갔습니다';
+  const result = def ? def.resolve(core, choiceIdx, cd, rng) : '이벤트가 지나갔습니다';
   core.fans = Math.max(1000, Math.round(core.fans));
-  addNews(core, `${card.icon} ${card.title}: ${result}`, 'info');
+  addNews(core, `${cd.icon} ${cd.title}: ${result}`, 'info');
   return { core, result };
 }
 
-/** 표시용: 이벤트 카드 풀 크기 */
+/** 표시용: 이벤트 카드 종류 수 */
 export const EVENT_POOL_SIZE = CARDS.length;

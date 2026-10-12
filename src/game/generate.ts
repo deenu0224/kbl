@@ -3,12 +3,21 @@ import { clamp, gauss, mulberry32, pick, randInt, shuffle, type Rng } from './rn
 import { calcOvr, calcSalary } from './ratings';
 import { autoLineup } from './lineup';
 import { buildSchedule } from './schedule';
+import { PREMISE_NEWS } from './story';
 
 // ── 밸런스 상수 ──
 const ABIL_SD = 7.5; // 능력치 편차
 const STARTER_BONUS = 1.5; // 주전 타자 중심값 보정
 const BENCH_PENALTY = 6; // 벤치 타자 중심값 보정
 const SP_OFFSETS = [3, 1, 0, -1, -3]; // 1~5선발
+// 유저 팀(전임 체제의 유산): 몇몇 포지션에 "왕년의 주전"과 그 뒤에서 기회를 기다리는 더 나은 선수가 겹쳐 있다.
+// 감독의 편성(나이·이름값 가중)은 왕년의 주전을 쓰고, 실력대로 짜면 뒤의 선수가 나온다.
+const LEGACY_N = 4; // 겹치는 포지션 수
+const LEGACY_VET = -6; // 왕년의 주전 중심값 (tier 기준)
+const LEGACY_VET_AGE: [number, number] = [33, 37];
+const LEGACY_VET_STAR = 16; // 이름값
+const LEGACY_NEXT = 3; // 뒤에서 기다리는 선수 중심값
+const LEGACY_NEXT_AGE: [number, number] = [23, 27];
 const RP_OFFSET = -1;
 const CP_OFFSET = 2;
 const ARCH_TIER_REF = 62; // 아키타입 능력치의 기준 tier
@@ -36,7 +45,7 @@ export const TEAM_DEFS: TeamDef[] = [
   { id: 'DGU', city: '대구', name: '썬더킹스', color: '#1e56c4', color2: '#ffd23f', tier: 59, pop: 0.7, stars: 3 },
   { id: 'GWJ', city: '광주', name: '레드폭스', color: '#d32f2f', color2: '#111111', tier: 60, pop: 0.8, stars: 4 },
   { id: 'ICN', city: '인천', name: '앵커스', color: '#b71c1c', color2: '#f5c518', tier: 57, pop: 0.6, stars: 3 },
-  { id: 'DJN', city: '대전', name: '팰컨스', color: '#f57c00', color2: '#212121', tier: 56, pop: 0.55, stars: 2 },
+  { id: 'DJN', city: '대전', name: '팰컨스', color: '#f57c00', color2: '#212121', tier: 54, pop: 0.55, stars: 2 },
   { id: USER_ID, city: '제주', name: '탠저린즈', color: '#f08a1c', color2: '#1f6b3a', tier: 55, pop: 0.25, stars: 1 },
 ];
 
@@ -241,23 +250,42 @@ interface Slot {
   pos: BatPos | PitchRole;
   center: number;
   starter: boolean;
+  age?: [number, number];
+  tag?: string;
+  starBonus?: number;
 }
 
-function rosterSlots(r: Rng, tier: number): Slot[] {
+function rosterSlots(r: Rng, tier: number, legacy = false): Slot[] {
   const starters: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
+  const pitchers: Slot[] = [
+    ...SP_OFFSETS.map((d): Slot => ({ pos: 'SP', center: tier + d, starter: true })),
+    ...[0, 1, 2, 3].map((): Slot => ({ pos: 'RP', center: tier + RP_OFFSET, starter: true })),
+    { pos: 'CP', center: tier + CP_OFFSET, starter: true },
+  ];
+  if (legacy) {
+    const dup = new Set(shuffle(r, ['1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as BatPos[]).slice(0, LEGACY_N));
+    const bat: Slot[] = [];
+    for (const pos of starters) {
+      if (!dup.has(pos)) {
+        bat.push({ pos, center: tier + STARTER_BONUS, starter: true });
+        continue;
+      }
+      bat.push({ pos, center: tier + LEGACY_VET, starter: true, age: LEGACY_VET_AGE, tag: '왕년의 주전', starBonus: LEGACY_VET_STAR });
+      bat.push({ pos, center: tier + LEGACY_NEXT, starter: false, age: LEGACY_NEXT_AGE });
+    }
+    return [...bat, ...pitchers];
+  }
   const bench: BatPos[] = ['C', pick(r, ['2B', 'SS', '3B'] as BatPos[]), pick(r, ['LF', 'CF', 'RF'] as BatPos[]), pick(r, ['1B', '3B', 'LF'] as BatPos[])];
   return [
     ...starters.map((pos): Slot => ({ pos, center: tier + STARTER_BONUS, starter: true })),
     ...bench.map((pos): Slot => ({ pos, center: tier - BENCH_PENALTY, starter: false })),
-    ...SP_OFFSETS.map((d): Slot => ({ pos: 'SP', center: tier + d, starter: true })),
-    ...[0, 1, 2, 3].map((): Slot => ({ pos: 'RP', center: tier + RP_OFFSET, starter: true })),
-    { pos: 'CP', center: tier + CP_OFFSET, starter: true },
+    ...pitchers,
   ];
 }
 
 function genTeam(ctx: GenCtx, def: TeamDef, archs: Arch[], prospect: boolean): Team {
   const r = ctx.rng;
-  const slots = rosterSlots(r, def.tier);
+  const slots = rosterSlots(r, def.tier, def.id === USER_ID);
   const roster: (Player | null)[] = slots.map(() => null);
   const shift = (def.tier - ARCH_TIER_REF) * 0.4;
 
@@ -286,7 +314,7 @@ function genTeam(ctx: GenCtx, def: TeamDef, archs: Arch[], prospect: boolean): T
     });
   }
   slots.forEach((s, i) => {
-    if (!roster[i]) roster[i] = genPlayer(ctx, s.pos, s.center);
+    if (!roster[i]) roster[i] = genPlayer(ctx, s.pos, s.center, { ...(s.age ? { age: randInt(r, s.age[0], s.age[1]) } : {}), tag: s.tag, starBonus: s.starBonus });
   });
 
   const team: Team = {
@@ -319,7 +347,8 @@ export function genFreeAgents(ctx: GenCtx): Player[] {
   const starPos: (BatPos | PitchRole)[] = [pick(r, ['1B', '3B', 'LF', 'RF', 'CF'] as BatPos[]), 'SP', anyPos()];
   for (const pos of starPos) {
     const foreign = r() < 0.35;
-    const p = genPlayer(ctx, pos, 80, { foreign, age: randInt(r, 27, 33), tag: foreign ? 'FA 대어 · 외인 스타' : 'FA 대어' });
+    // FA 자격은 늦게 온다: 대어는 전성기의 끝자락에 시장에 나온다
+    const p = genPlayer(ctx, pos, 80, { foreign, age: randInt(r, 30, 34), tag: foreign ? 'FA 대어 · 외인 스타' : 'FA 대어' });
     shiftToOvr(r, p, randInt(r, 78, 85));
     p.star = clamp(Math.max(p.star, randInt(r, 74, 90)), 0, 100);
     out.push(p);
@@ -390,10 +419,9 @@ export function newCore(seed: number): Core {
     crowd: null,
     attHistory: [],
     cashHistory: [START_CASH],
-    news: [
-      { id: 0, season: 1, day: 0, text: '제주 탠저린즈 창단 첫 시즌 개막! 작은 구장에서 큰 꿈을 시작합니다.', tone: 'info' },
-    ],
-    newsSeq: 1,
+    // 첫 뉴스: 부임 기사 + 지난 다섯 시즌 순위 (story.ts)
+    news: PREMISE_NEWS.map((text, i) => ({ id: PREMISE_NEWS.length - 1 - i, season: 1, day: 0, text, tone: 'info' as const })),
+    newsSeq: PREMISE_NEWS.length,
     campaign: campaignZero(),
     post: null,
     draft: null,
@@ -415,5 +443,10 @@ export function campaignZero(): Campaign {
     sellouts: 0,
     ending: false,
     verdict: null,
+    hints: {},
+    retired: [],
+    managerYielded: false,
+    analyst: false,
+    dealt: false,
   };
 }

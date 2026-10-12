@@ -1,10 +1,11 @@
 // 포스트시즌 (KBO 사다리식 8구단 축소판). docs/LEVEL_DESIGN.md 3절.
 import type { BatStats, Core, Crowd, DayReport, GameEvent, GameResult, PitStats, PostFinish, PostRound, PostSeries, Postseason, Team } from './types';
 import { clamp, gauss, randInt, type Rng } from './rng';
-import { FOOD_LV, OPS_COST, SEAT_LV, TRAIN_LV, LOAN_RATE, MERCH_K, RAIN_FOOD, calcDemand, starPower, userTeam } from './economy';
+import { FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_RATE, MERCH_K, calcDemand, opsCost, rainFood, starPower, userTeam } from './economy';
 import { fmtInt } from './format';
 import { addNews, playGame, rankOf, rollWeather, settleCash, standings } from './season';
-import { activeBuffs, concludeMut, refreshProgressMut, tickBuffs, checkAchievementsMut } from './campaign';
+import { activeBuffs, concludeMut, hintMut, refreshProgressMut, tickBuffs } from './campaign';
+import { memoAdd } from './memo';
 
 // ── 튜닝 상수 ──
 export const POST_TEAMS = 4;
@@ -29,6 +30,8 @@ const need = (s: PostSeries) => Math.floor(s.bestOf / 2) + 1;
 const done = (s: PostSeries) => s.winnerId !== null;
 
 export function startPostMut(core: Core): void {
+  // 정규시즌과 포스트시즌 사이의 휴식: 연투 피로는 풀린다
+  for (const t of core.teams) for (const p of t.roster) delete p.tired;
   const seeds = standings(core.teams)
     .slice(0, POST_TEAMS)
     .map((t) => t.id);
@@ -264,10 +267,18 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
     crowd = { attendance, capacity, demand, turnedAway: Math.max(0, demand - capacity), soldOut: demand >= capacity, weather };
   }
 
+  const tiredBefore = new Map(user.roster.map((p) => [p.id, p.tired ?? 0]));
   const { res } = playSeriesGame(core, idx, rng, true);
   const myRuns = m.isHome ? res.home : res.away;
   const oppRuns = m.isHome ? res.away : res.home;
   const won = myRuns > oppRuns;
+  // 연투 패전: 전날 던진 투수가 오늘 패전투수가 됐다
+  if (!won && res.lossP && (tiredBefore.get(res.lossP) ?? 0) >= 1) {
+    memoAdd(core, 'b2bLoss');
+    const lp = user.roster.find((p) => p.id === res.lossP);
+    if (lp) notes.push(`연투 패전: ${lp.name}`);
+    hintMut(core, 'pitchers');
+  }
 
   for (const j of res.injuries) {
     if (j.teamId !== core.userId) continue;
@@ -279,12 +290,12 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
   // ── 재정 (연봉·분배금 없음, 유지비·이자는 정산) ──
   const att = crowd ? crowd.attendance : 0;
   const ticket = Math.round(att * f.ticketPrice * TICKET_MULT * fx.ticket);
-  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * (crowd.weather === 'rain' ? RAIN_FOOD : 1)) : 0;
-  const merch = Math.round(core.fans * MERCH_K * (starPower(user) / 100) * (m.isHome ? 1.4 : 0.6) * fx.merch);
+  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather)) : 0;
+  const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (m.isHome ? 1.4 : 0.6) * fx.merch);
   const upkeep =
     (m.isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
     TRAIN_LV[core.facilities.training].upkeep +
-    OPS_COST;
+    opsCost(core);
   const interest = Math.round((f.debt * LOAN_RATE) / core.schedule.length);
   const net = ticket + food + merch - upkeep - interest;
   f.cash += net;
@@ -308,10 +319,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
   settleCash(core, notes);
   autoSimMut(core, rng);
   endPostIfDone(core, rng);
-  if (core.phase === 'post') {
-    refreshProgressMut(core);
-    checkAchievementsMut(core, false);
-  }
+  if (core.phase === 'post') refreshProgressMut(core);
   core.cashHistory.push(f.cash);
 
   return {

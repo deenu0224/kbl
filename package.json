@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "balance": "tsx scripts/balance.ts",
-    "campaign": "tsx scripts/campaign.ts"
+    "campaign": "tsx scripts/campaign.ts",
+    "verify": "tsx scripts/verify.ts"
   },
   "dependencies": {
     "galmuri": "^2.40.3",

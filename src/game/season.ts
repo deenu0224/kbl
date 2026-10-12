@@ -7,11 +7,15 @@ import { simulateGame } from './sim';
 import { fmtInt, fmtMoney } from './format';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
-  OPS_COST, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, RAIN_FOOD, FORCED_SALE_RATE,
-  calcDemand, capacityOf, opProfit, payroll, refPrice, releaseCost, signingBonus, starPower, upgradeCost, userTeam,
+  LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, FORCED_SALE_RATE, RENEW_PREMIUM, RENEW_SEASONS,
+  calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
-import { activeBuffs, checkAchievementsMut, fillObjectivesMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
+import { activeBuffs, fillObjectivesMut, hintMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
+import { JETLAG_FOCUS, beatById, jetLag, scriptTickMut, weatherFor } from './script';
+import { memoAdd, memoGet, memoSet } from './memo';
+import { NEWS, OVER_LABEL } from './story';
+import { isFranchise } from './franchise';
 import { afterRegularSeasonMut, playPostDayMut } from './postseason';
 import { isDraftDone } from './draft';
 import { FOREIGN_MAX } from './events';
@@ -33,6 +37,12 @@ const DECLINE_AGE = 33;
 const DECLINE_RATE = 0.06;
 const NEWS_MAX = 80;
 const RETIRE_AGE = 40;
+const FRANCHISE_LEAVE_FANS = 8; // 프랜차이즈 스타 방출·트레이드 시 팬 감소 = star × 이 값
+const FRANCHISE_LEAVE_SAT = -8;
+const ROOKIE_CAMP_DAYS = 12; // 2장 기: 지난 드래프트 신인의 훈련 성과 1회 확정 기한
+const PLAY_GROW = 1.6; // 주전으로 뛰는 젊은 선수의 주간 성장 확률 배율
+const PLAY_GROW_AGE = 25;
+const TIRED_HINT = 2; // 이 이상 연투한 투수가 생기면 투수 탭 배지
 const DOW_NAME = ['화', '수', '목', '금', '토', '일'];
 // 스토브리그 (AI 구단)
 const AI_ROSTER = 23; // AI 구단 로스터 정원 (초과분 방출)
@@ -135,14 +145,26 @@ export function settleCash(core: Core, notes: string[]): void {
 function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
   const t = userTeam(core);
   const grow = TRAIN_LV[core.facilities.training].grow;
+  // 2장 기: 지난 드래프트 신인은 첫 2주 안에 훈련 성과가 한 번은 난다
+  const camp = !!beatById(core, 'rookie-camp') && core.day < ROOKIE_CAMP_DAYS && memoGet(core, 'camp') === undefined;
+  if (camp) memoSet(core, 'camp', 1);
+  const playing = new Set([...t.lineup.map((x) => x.pid), ...t.rotation, ...(t.closer ? [t.closer] : [])]);
   for (const p of t.roster) {
     const keys = p.kind === 'B' ? BAT_KEYS : PIT_KEYS;
-    if (p.age <= TRAIN_MAX_AGE && p.ovr < p.pot && rng() < grow) {
+    const sure = camp && !!p.rookie && p.ovr < p.pot;
+    // 1군에서 뛰는 25세 이하는 더 빨리 자란다 (쓰면 지금 지고, 안 쓰면 내년에 진다)
+    const g = grow * (p.age <= PLAY_GROW_AGE && playing.has(p.id) ? PLAY_GROW : 1);
+    if (p.age <= TRAIN_MAX_AGE && p.ovr < p.pot && (rng() < g || sure)) {
+      memoAdd(core, 'grow');
       const k = pick(rng, keys);
       const d = randInt(rng, 1, 2);
       p[k] = clamp(p[k] + d, 20, 99);
       p.ovr = calcOvr(p);
-      const msg = `훈련 성과: ${p.name} ${ABIL_KO[k]}+${d}`;
+      // 한 번의 성과는 주 능력치 +1~2 와 다른 능력치 +1
+      const k2 = pick(rng, keys.filter((x) => x !== k));
+      p[k2] = clamp(p[k2] + 1, 20, 99);
+      p.ovr = calcOvr(p);
+      const msg = `훈련 성과: ${p.name} ${ABIL_KO[k]}+${d} · ${ABIL_KO[k2]}+1`;
       notes.push(msg);
       addNews(core, msg, 'good');
     } else if (p.age >= DECLINE_AGE && rng() < DECLINE_RATE) {
@@ -158,9 +180,9 @@ type AbilKeyAll = AbilKey;
 const ALL_KEYS: AbilKeyAll[] = [...BAT_KEYS, ...PIT_KEYS];
 
 /** 이벤트 집중력 버프: 경기 중에만 능력치를 가감하고 되돌리는 함수를 반환 */
-function applyFocus(t: Team, d: number): () => void {
+function applyFocus(t: Team, d: number, per: Record<string, number> = {}): () => void {
   const saved = t.roster.map((p) => ALL_KEYS.map((k) => p[k]));
-  for (const p of t.roster) for (const k of p.kind === 'B' ? BAT_KEYS : PIT_KEYS) p[k] = clamp(p[k] + d, 20, 99);
+  for (const p of t.roster) for (const k of p.kind === 'B' ? BAT_KEYS : PIT_KEYS) p[k] = clamp(p[k] + d + (per[p.id] ?? 0), 20, 99);
   return () => t.roster.forEach((p, i) => ALL_KEYS.forEach((k, j) => (p[k] = saved[i][j])));
 }
 
@@ -172,6 +194,11 @@ function forceStarter(t: Team, pid: string): void {
   if (slot) slot.pid = pid;
 }
 
+/** 유저 팀이 오늘 원정 6연전 뒤 첫 홈경기를 치르는가 (정규시즌만) */
+function userJetLag(core: Core, home: Team): boolean {
+  return core.phase === 'season' && home.id === core.userId && jetLag(core, core.day);
+}
+
 /**
  * 한 경기 시뮬 (정규시즌·포스트시즌 공용). core 가 있으면 유저 구단에 훈련장 부상 보정과
  * 이벤트 버프(집중력·고정 출전)를 적용한다. 팀/선수는 simulateGame 과 같이 mutate.
@@ -179,16 +206,19 @@ function forceStarter(t: Team, pid: string): void {
 export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, track: boolean): GameResult {
   const injMult: Record<string, number> = {};
   let restore: (() => void) | null = null;
+  let rest: Set<string> | undefined;
   if (core) {
     injMult[core.userId] = TRAIN_LV[core.facilities.training].inj;
     const ut = home.id === core.userId ? home : away.id === core.userId ? away : null;
     if (ut) {
       const fx = activeBuffs(core);
-      if (fx.fixedPid) forceStarter(ut, fx.fixedPid);
-      if (fx.focus) restore = applyFocus(ut, fx.focus);
+      for (const pid of fx.fixed) forceStarter(ut, pid);
+      const focus = fx.focus + (userJetLag(core, home) ? JETLAG_FOCUS : 0);
+      if (focus || Object.keys(fx.slump).length) restore = applyFocus(ut, focus, fx.slump);
+      if (fx.rest.length) rest = new Set(fx.rest);
     }
   }
-  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId });
+  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId, rest });
   restore?.();
   return res;
 }
@@ -224,7 +254,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   // ── 관중 (경기 전 상태 기준) ──
   let crowd: Crowd | null = null;
   if (isHome) {
-    const weather = rollWeather(rng);
+    const weather = weatherFor(core, day, rng);
     const demand = calcDemand(core, { dow, weather, oppPop: opp.pop, noise: clamp(1 + gauss(rng) * NOISE_SD, 0.8, 1.2) });
     const capacity = capacityOf(core);
     const attendance = Math.min(capacity, demand);
@@ -253,6 +283,8 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const myRuns = isHome ? res.home : res.away;
   const oppRuns = isHome ? res.away : res.home;
   const won = myRuns === oppRuns ? null : myRuns > oppRuns;
+  memoSet(core, 'wl', (memoGet(core, 'wl') ?? '') + (won === null ? 'T' : won ? 'W' : 'L'));
+  if (isHome && jetLag(core, day)) notes.push(NEWS.jetLag);
 
   // ── 부상 회복 / 신규 부상 ──
   for (const t of core.teams) {
@@ -271,6 +303,12 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     const msg = `부상: ${j.name} ${j.games}경기 결장`;
     notes.push(msg);
     addNews(core, msg, 'bad');
+    hintMut(core, user.roster.find((p) => p.id === j.pid)?.kind === 'P' ? 'pitchers' : 'lineup');
+  }
+  // 연투 피로가 쌓인 팔이 생기면 투수 탭에 배지 (한 주에 한 번)
+  if (user.roster.some((p) => (p.tired ?? 0) >= TIRED_HINT) && (core.campaign.hints?.pitchers ?? 0) < 2 && memoGet(core, 'tiredWeek') !== String(Math.floor(day / WEEK))) {
+    memoSet(core, 'tiredWeek', Math.floor(day / WEEK));
+    hintMut(core, 'pitchers');
   }
 
   // ── 재정 ──
@@ -278,14 +316,14 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const price = f.ticketPrice;
   const att = crowd ? crowd.attendance : 0;
   const ticket = Math.round(att * price * fx.ticket);
-  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * (crowd.weather === 'rain' ? RAIN_FOOD : 1)) : 0;
-  const merch = Math.round(core.fans * MERCH_K * (starPower(user) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
+  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather)) : 0;
+  const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
   const league = Math.round(LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rankNow) * LEAGUE_PER_RANK);
   const salary = Math.round(payroll(user) / core.schedule.length);
   const upkeep =
     (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
     TRAIN_LV[core.facilities.training].upkeep +
-    OPS_COST;
+    opsCost(core);
   const interest = Math.round((f.debt * LOAN_RATE) / core.schedule.length);
   const net = ticket + food + merch + league - salary - upkeep - interest;
   f.cash += net;
@@ -305,6 +343,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
       dFans += FAN_SELLOUT;
       core.campaign.sellouts++;
     }
+    memoSet(core, 'so', (memoGet(core, 'so') ?? '') + (crowd.soldOut ? '1' : '0'));
     dFans += (core.fanSat - 50) * FAN_SAT_K;
     const l10 = user.rec.last10;
     const form = l10.reduce((s, v) => s + v, 0) / Math.max(1, l10.length);
@@ -316,9 +355,10 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     core.crowd = crowd;
     core.attHistory.push(crowd.attendance);
     if (crowd.turnedAway > 0) {
-      const msg = `매진! 자리가 없어 ${fmtInt(crowd.turnedAway)}명이 발길을 돌렸습니다 — 관중석 증설을 검토하세요`;
+      const msg = `매진! 자리가 없어 ${fmtInt(crowd.turnedAway)}명이 발길을 돌렸습니다`;
       notes.push(msg);
       addNews(core, msg, 'info');
+      if ((core.campaign.hints?.stadium ?? 0) < 3) hintMut(core, 'stadium');
     } else if (crowd.soldOut) {
       notes.push('매진! 만원 관중이 들어찼습니다');
     }
@@ -342,7 +382,9 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   // ── 주간 훈련 ──
   if ((day + 1) % WEEK === 0) weeklyTraining(core, rng, notes);
 
+  const debtBefore = f.debt;
   settleCash(core, notes);
+  if (f.debt > debtBefore) hintMut(core, 'finance');
 
   // ── 마무리 ──
   core.day = day + 1;
@@ -356,10 +398,8 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     refreshProgressMut(core);
     afterRegularSeasonMut(core, rng); // 'post' 또는 (자동 시뮬 후) 'ended' + 결산
   }
-  if (core.phase === 'season' || core.phase === 'post') {
-    refreshProgressMut(core);
-    checkAchievementsMut(core, false);
-  }
+  if (core.phase === 'season') scriptTickMut(core, rng);
+  if (core.phase === 'season' || core.phase === 'post') refreshProgressMut(core);
   core.cashHistory.push(f.cash);
 
   const report: DayReport = {
@@ -397,6 +437,7 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
   core.freeAgents = core.freeAgents.filter((x) => x.id !== pid);
   core.finance.cash -= bonus;
   core.finance.ledger.signing += bonus;
+  p.since = core.season;
   t.roster.push(p);
   const role = slotNewcomer(t, p);
   if (p.star >= STAR_SIGN_MIN) {
@@ -423,6 +464,14 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   const t = userTeam(core);
   const p = t.roster.find((x) => x.id === pid)!;
   t.roster = t.roster.filter((x) => x.id !== pid);
+  if (isFranchise(p, core.season)) {
+    // 프랜차이즈 스타를 내보내면 팬이 등을 돌린다
+    core.fans = Math.max(1000, core.fans - p.star * FRANCHISE_LEAVE_FANS);
+    core.fanSat = clamp(core.fanSat + FRANCHISE_LEAVE_SAT, 0, 100);
+    addNews(core, NEWS.franchiseGone(p.name), 'bad');
+  }
+  delete p.since;
+  delete p.tired;
   core.freeAgents.push(p);
   core.finance.cash -= cost;
   core.finance.ledger.signing += cost;
@@ -476,9 +525,21 @@ export function repay(core0: Core): { core: Core; error?: string } {
 
 // ───────── 시즌 전환 ─────────
 
+/** 그 시즌의 시장 연봉: 리그 인플레는 스타급일수록 크게 붙는다 (OVR 60 이하는 1/4, OVR 80 이상은 전부) */
+export function marketSalary(p: Player, season: number): number {
+  const w = clamp((p.ovr - 60) / 20, 0.25, 1);
+  return Math.round((calcSalary(p) * (1 + (salaryInflation(season) - 1) * w)) / 100) * 100;
+}
+
+/** 재계약 프리미엄 배율: 최근 시즌의 가을야구 성적만큼 유저 구단 선수의 몸값이 오른다 */
+export function renewPremium(core: Pick<Core, 'campaign'>): number {
+  return 1 + core.campaign.history.slice(-RENEW_SEASONS).reduce((s, h) => s + (RENEW_PREMIUM[h.post] ?? 0), 0);
+}
+
 /** 나이 +1 과 그에 따른 성장/노쇠, 기록 리셋 */
-function develop(p: Player, rng: Rng): void {
+function develop(p: Player, rng: Rng, season: number): void {
   p.age++;
+  delete p.tired;
   const keys = p.kind === 'B' ? BAT_KEYS : PIT_KEYS;
   for (const k of keys) {
     let d: number;
@@ -491,7 +552,7 @@ function develop(p: Player, rng: Rng): void {
   }
   p.ovr = calcOvr(p);
   p.pot = Math.max(p.pot, p.ovr);
-  p.salary = calcSalary(p);
+  p.salary = marketSalary(p, season);
   p.star = clamp(Math.round(p.star * 0.75 + (baseStar(p.ovr) + 6) * 0.25), 0, 100);
   p.injury = 0;
   p.bat = batZero();
@@ -535,10 +596,12 @@ function aiStoveLeague(core: Core, rng: Rng): void {
 }
 
 export function nextSeason(core0: Core, rng: Rng): Core {
-  if (core0.phase === 'over') throw new Error('해임되어 더 이상 시즌을 진행할 수 없습니다');
+  if (core0.phase === 'over') throw new Error(`${OVER_LABEL}이 확정되어 더 이상 시즌을 진행할 수 없습니다`);
   if (core0.phase === 'draft' && !isDraftDone(core0)) throw new Error('드래프트가 아직 끝나지 않았습니다');
   const core = structuredClone(core0);
   const drafted = new Set((core.draft?.log ?? []).map((l) => l.pid));
+  const tourPid = memoGet(core, 'retire'); // 은퇴 투어를 한 선수는 나이와 무관하게 유니폼을 벗는다
+  const endedSeason = core.season;
   core.season++;
   core.day = 0;
   core.phase = 'season';
@@ -546,6 +609,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   const names = [...core.teams.flatMap((t) => t.roster.map((p) => p.name)), ...core.freeAgents.map((p) => p.name)];
   const ctx = makeCtx(rng, `s${core.season}-`, names);
   const retired: string[] = [];
+  const premium = renewPremium(core);
   for (const t of core.teams) {
     t.roster = t.roster.map((p) => {
       if (drafted.has(p.id)) {
@@ -555,11 +619,21 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       }
       delete p.rookie;
       delete p.scout;
-      develop(p, rng);
-      if (p.age < RETIRE_AGE) return p;
-      // 은퇴 → 같은 포지션 신인으로 충원
-      if (t.id === core.userId) retired.push(p.name);
-      return genPlayer(ctx, p.pos, 50, { age: randInt(rng, 19, 22), tag: '신인' });
+      const franchise = t.id === core.userId && isFranchise(p, endedSeason);
+      develop(p, rng, core.season);
+      if (t.id === core.userId) p.salary = Math.round((p.salary * premium) / 100) * 100;
+      if (p.age < RETIRE_AGE && !(t.id === core.userId && p.id === tourPid)) return p;
+      // 은퇴 → 같은 포지션 신인으로 충원. 프랜차이즈 스타는 영구결번
+      if (t.id === core.userId) {
+        retired.push(p.name);
+        if (franchise) {
+          core.campaign.retired = [...(core.campaign.retired ?? []), { name: p.name, season: endedSeason, pos: p.pos }];
+          addNews(core, NEWS.retiredNumber(p.name), 'good');
+        }
+      }
+      const nw = genPlayer(ctx, p.pos, 50, { age: randInt(rng, 19, 22), tag: '신인' });
+      if (t.id === core.userId) nw.since = core.season;
+      return nw;
     });
     t.rec = recZero();
     t.nextStarter = 0;
@@ -567,9 +641,10 @@ export function nextSeason(core0: Core, rng: Rng): Core {
     else autoLineup(t);
   }
   // 지난 시즌 남은 FA 로 AI 스토브리그 → 새 FA 시장
-  for (const p of core.freeAgents) develop(p, rng);
+  for (const p of core.freeAgents) develop(p, rng, core.season);
   aiStoveLeague(core, rng);
   core.freeAgents = genFreeAgents(ctx);
+  for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
   core.schedule = buildSchedule(core.teams.map((t) => t.id), rng);
   core.finance.ledger = ledgerZero();
   core.attHistory = [];
@@ -577,9 +652,9 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   core.fanSat = Math.round((core.fanSat * 0.7 + 50 * 0.3) * 10) / 10;
   core.post = null;
   core.draft = null;
-  resetSeasonCampaignMut(core, rng);
   for (const n of retired) addNews(core, `${n} 은퇴 — 신인 선수가 자리를 채웁니다`, 'info');
-  addNews(core, `시즌 ${core.season} 개막! 연봉이 재산정되고 새 FA 시장이 열렸습니다`, 'info');
+  addNews(core, NEWS.seasonOpen(core.season), 'info');
+  resetSeasonCampaignMut(core, rng);
   return core;
 }
 
@@ -620,7 +695,7 @@ export function seasonAwards(core: Core): {
   if (avgAtt / cap >= 0.9) pts += 1;
   const grade = pts >= 9 ? 'S' : pts >= 7 ? 'A' : pts >= 4 ? 'B' : pts >= 2 ? 'C' : 'D';
   const comment = {
-    S: '우승 경쟁에 흑자 경영까지 — 구단주가 더 바랄 게 없습니다.',
+    S: '우승 경쟁에 흑자 경영까지 — 조합원들이 더 바랄 게 없습니다.',
     A: '성적과 살림 모두 훌륭한 시즌. 팬들이 내년을 기다립니다.',
     B: '가능성을 보여준 시즌. 한두 군데만 더 보강하면 가을야구가 보입니다.',
     C: '아직 갈 길이 멉니다. 간판스타와 구장 투자 중 하나에 집중해 보세요.',
