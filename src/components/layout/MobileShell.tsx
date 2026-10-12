@@ -5,6 +5,7 @@ import { MobileActionBar } from '../BottomBar';
 import GameSummary from '../GameSummary';
 import { LineupTab, MarketTab, PitchersTab } from '../LeftPanel';
 import EventCardModal from '../EventCardModal';
+import OrderSheet from '../OrderSheet';
 import { FinanceTab, LeagueTab, NewsTab, StadiumTab, useHintTabs } from '../RightPanel';
 import StadiumView from '../StadiumView';
 import { MobileTopBar } from '../TopBar';
@@ -92,6 +93,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
         </div>
         <GameSummary sheet />
         <EventCardModal sheet />
+        <OrderSheet />
       </div>
     );
   }
@@ -109,6 +111,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
       <MobileNav placement="bottom" />
       <GameSummary sheet />
       <EventCardModal sheet />
+        <OrderSheet />
     </div>
   );
 }

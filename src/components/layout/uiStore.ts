@@ -15,6 +15,7 @@ interface UiState {
   campaignOpen: boolean; // 캠페인 시트
   eventHidden: string | null; // 잠시 접어 둔 이벤트 카드 id (선수단을 살펴보고 다시 연다)
   draftPeek: boolean; // 드래프트 중 구단 화면 살펴보기
+  orderOpen: boolean; // 개막전 오더지 (시즌이 바뀌면 다시 열린다)
   setTab(tab: MobileTab): void;
   setRosterSub(s: RosterSub): void;
   setClubSub(s: ClubSub): void;
@@ -23,6 +24,7 @@ interface UiState {
   setCampaignOpen(v: boolean): void;
   setEventHidden(id: string | null): void;
   setDraftPeek(v: boolean): void;
+  setOrderOpen(v: boolean): void;
 }
 
 /** 화면 전용 UI 상태 (저장하지 않음). 게임 상태는 src/store.ts 에. */
@@ -35,6 +37,7 @@ export const useUi = create<UiState>()((set) => ({
   campaignOpen: false,
   eventHidden: null,
   draftPeek: false,
+  orderOpen: true,
   setTab: (tab) => set({ tab }),
   setRosterSub: (rosterSub) => set({ rosterSub }),
   setClubSub: (clubSub) => set({ clubSub }),
@@ -43,4 +46,5 @@ export const useUi = create<UiState>()((set) => ({
   setCampaignOpen: (campaignOpen) => set({ campaignOpen }),
   setEventHidden: (eventHidden) => set({ eventHidden }),
   setDraftPeek: (draftPeek) => set({ draftPeek }),
+  setOrderOpen: (orderOpen) => set({ orderOpen }),
 }));

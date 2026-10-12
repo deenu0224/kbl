@@ -8,6 +8,7 @@ import BottomBar from './components/BottomBar';
 import SeasonEnd from './components/SeasonEnd';
 import DraftScreen from './components/DraftScreen';
 import GameOver from './components/GameOver';
+import OrderSheet from './components/OrderSheet';
 import { CampaignSheet } from './components/Campaign';
 import Toast from './components/Toast';
 import MobileShell from './components/layout/MobileShell';
@@ -59,6 +60,8 @@ export default function App() {
           <div className="absolute inset-0">
             <StadiumView />
           </div>
+          {/* 야구장 그림은 비율이 고정이라, 오더지는 가운데 칸 전체 높이를 쓴다 */}
+          <OrderSheet />
         </div>
         <div className="w-[330px] shrink-0 max-[1279px]:w-[clamp(280px,25.8vw,330px)]">
           <RightPanel />
