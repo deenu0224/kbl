@@ -6,18 +6,25 @@ import {
   B2,
   B3,
   BANNER_X,
+  BANNER_X_NEW,
   BANNER_Y,
   DEG,
   FIELDERS,
+  GATE_Y,
   HOTSPOTS,
   HX,
   HY,
   MOUND,
+  OLD_BANNER_X,
   PARK_SLOTS,
+  RETIRED_X,
+  RETIRED_Y,
   STADIUM_H,
   STADIUM_W,
   TOWERS,
   YK,
+  fenceTopY,
+  gateX,
   hash2,
   type Pt,
   type Seat,
@@ -109,34 +116,116 @@ function jumpOf(s: Seat, f: number, cheer: number): number {
   return ((f >> 1) + s.ph) % 29 === 0 ? 1 : 0;
 }
 
-function drawCrowd(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number, cheer: number): void {
+const UMBRELLAS = ['#e5393a', '#ffd23f', '#3f7fd6', '#f4f6fa', '#3fb86a', '#ff8fc0', '#7a5cd6', '#22b5c8'];
+
+/** 응원 물결의 마루 위치(0~1, Seat.u 와 같은 축). 지금 지나가는 물결이 없으면 빈 배열 */
+function waveCrests(t: number, lv: number): number[] {
+  if (lv <= 0) return [];
+  if (lv >= 4) {
+    const c = (t / 2.6) % 1;
+    return [c, (c + 0.5) % 1];
+  }
+  const ph = (t % 6.5) / 3.4;
+  return ph < 1 ? [ph] : [];
+}
+
+const WAVE_HALF = 0.05;
+
+/** 물결에 들어간 관중이 일어서는 높이(px). 0 이면 물결 밖 */
+function waveLift(u: number, crests: number[]): number {
+  let best = 0;
+  for (let i = 0; i < crests.length; i++) {
+    let d = Math.abs(u - crests[i]);
+    if (d > 0.5) d = 1 - d;
+    if (d < WAVE_HALF) best = Math.max(best, d < WAVE_HALF * 0.5 ? 3 : 2);
+  }
+  return best;
+}
+
+/**
+ * cheer: fx 로 인한 순간 환호(0~2). cheerLv: 응원 문화 유효 단계(0~4, fx 중에는 한 단계 위).
+ * 비 오는 날 지붕 없는 자리는 일부가 자리를 뜨고 남은 사람은 우산을 쓴다.
+ */
+function drawCrowd(
+  ctx: Ctx,
+  L: StaticLayers,
+  scene: StadiumScene,
+  t: number,
+  f: number,
+  cheer: number,
+  cheerLv: number,
+): void {
   const fill = clamp01(scene.fill);
   if (fill <= 0) return;
+  const rain = scene.weather === 'rain';
   const h2 = lum(col(scene.homeColor2)) < 45 ? mix(scene.homeColor, '#ffffff', 0.45) : scene.homeColor2;
   const pal = [scene.homeColor, h2, scene.awayColor, ...FAN_EXTRA];
+  const seats = L.seats;
+  // 비를 맞는 자리의 4분의 1 남짓은 비어 보인다(자리를 뜸)
+  const here = (s: Seat): boolean => s.rank < fill && !(rain && !s.cov && s.ph % 7 < 2);
+  const wet = (s: Seat): boolean => rain && !s.cov && s.ph % 5 !== 0;
+
   for (let ci = 0; ci < L.groups.length; ci++) {
     const g = L.groups[ci];
     ctx.fillStyle = pal[ci] ?? '#ffffff';
     for (let i = 0; i < g.length; i++) {
       const s = g[i];
-      if (s.rank >= fill) continue;
+      if (!here(s)) continue;
       ctx.fillRect(s.x, s.y - jumpOf(s, f, cheer), 2, 2);
     }
   }
-  const seats = L.seats;
   for (let tone = 0; tone < 2; tone++) {
     ctx.fillStyle = tone ? PAL.skin2 : PAL.skin;
     for (let i = 0; i < seats.length; i++) {
       const s = seats[i];
-      if (s.rank >= fill || (s.ph & 1) !== tone) continue;
+      if ((s.ph & 1) !== tone || !here(s)) continue;
       ctx.fillRect(s.x, s.y - jumpOf(s, f, cheer) - 1, 2, 1);
     }
   }
+
+  // 응원 물결: 홈팀 색으로 일어서는 띠가 구장을 돈다
+  const crests = waveCrests(t, cheerLv);
+  if (crests.length > 0) {
+    const hi = shade(scene.homeColor, 0.4);
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.fillStyle = pass ? hi : scene.homeColor;
+      for (let i = 0; i < seats.length; i++) {
+        const s = seats[i];
+        if (!here(s)) continue;
+        const lift = waveLift(s.u, crests);
+        if (lift === 0) continue;
+        if (pass === 0) ctx.fillRect(s.x - 1, s.y - lift, 4, lift + 2);
+        else if (lift === 3) ctx.fillRect(s.x - 1, s.y - lift - 1, 4, 2);
+      }
+    }
+  }
+
+  if (rain) {
+    // 우산: 4×3 색 덩어리
+    for (let k = 0; k < UMBRELLAS.length; k++) {
+      const c = UMBRELLAS[k];
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.fillStyle = pass ? shade(c, -0.28) : c;
+        for (let i = 0; i < seats.length; i++) {
+          const s = seats[i];
+          if ((s.ph >> 3) % UMBRELLAS.length !== k || !here(s) || !wet(s)) continue;
+          const y = s.y - jumpOf(s, f, cheer) - waveLift(s.u, crests);
+          if (pass === 0) {
+            ctx.fillRect(s.x - 1, y - 2, 4, 2);
+            ctx.fillRect(s.x, y - 3, 2, 1);
+          } else {
+            ctx.fillRect(s.x - 1, y, 4, 1);
+          }
+        }
+      }
+    }
+  }
+
   if (cheer === 2) {
     // 깃발·응원봉
     for (let i = 0; i < seats.length; i++) {
       const s = seats[i];
-      if (s.rank >= fill) continue;
+      if (!here(s)) continue;
       const m = s.ph % 19;
       if (m === 0) {
         const w = (f + s.ph) & 2 ? 1 : 0;
@@ -147,6 +236,170 @@ function drawCrowd(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number, ch
         const dy = jumpOf(s, f, cheer);
         R(ctx, s.x + ((f + s.ph) & 1 ? -1 : 2), s.y - dy - 3, 1, 2, m === 1 ? '#ffe45c' : scene.homeColor);
       }
+    }
+  }
+
+  // 큰 깃발 흔들기 (응원 문화 2+)
+  if (cheerLv >= 2) {
+    const stripe = lum(col(h2)) > 150 ? h2 : '#ffffff';
+    for (let i = 0; i < L.wavers.length; i++) {
+      const s = L.wavers[i];
+      if (!here(s)) continue;
+      const p = ((cheerLv >= 4 ? f : f >> 1) + s.ph) & 3;
+      const y = s.y - 12 - waveLift(s.u, crests);
+      R(ctx, s.x + 1, y, 1, 12, '#f4f6fa');
+      const wide = p === 0 || p === 2;
+      const w = wide ? 8 : 5;
+      const x = p < 2 ? s.x + 2 : s.x + 1 - w;
+      const yy = wide ? y : y + 1;
+      R(ctx, x, yy, w, 6, scene.homeColor);
+      R(ctx, x, yy + 2, w, 2, stripe);
+      R(ctx, x, yy + 6, w, 1, 'rgba(20,30,50,0.35)');
+    }
+  }
+}
+
+/** 외야의 오랜 팬: 관중이 없어도 늘 같은 자리에. 다른 관중보다 1px 크고 작은 깃발을 든다 */
+function drawOldFan(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number): void {
+  const { x, y } = L.oldFan;
+  if (L.oldFanOnGrass) {
+    // 잔디 언덕에 깐 돗자리
+    R(ctx, x - 3, y + 1, 10, 3, '#f4f6fa');
+    R(ctx, x - 3, y + 3, 10, 1, '#b9c4d2');
+    R(ctx, x + 4, y + 1, 2, 2, '#5ec8ff');
+  } else {
+    R(ctx, x - 1, y + 2, 5, 1, 'rgba(20,40,30,0.3)');
+  }
+  R(ctx, x, y - 1, 3, 3, scene.homeColor);
+  R(ctx, x, y - 3, 3, 2, PAL.skin);
+  R(ctx, x, y - 4, 3, 1, '#e9ecf1');
+  // 작은 깃발: 천천히 좌우로
+  const w = (f >> 3) & 1;
+  R(ctx, x + 3, y - 11, 1, 11, '#f4f6fa');
+  R(ctx, x + 4, y - 11 + w, 6 - w, 4, scene.homeColor);
+  R(ctx, x + 4, y - 10 + w, 6 - w, 1, '#ffffff');
+  if (scene.weather === 'rain') {
+    R(ctx, x - 3, y - 7, 6, 2, '#ffd23f');
+    R(ctx, x - 2, y - 8, 4, 1, '#ffd23f');
+    R(ctx, x - 3, y - 5, 6, 1, '#c99a1c');
+  }
+}
+
+// ───────── 게이트 / 대기 줄 ─────────
+
+const QUEUE_ROWS = 3;
+const QUEUE_COLS = 20;
+
+/** 게이트(매표 문)와 그 밖으로 늘어선 줄. gateQueue 가 정의돼 있을 때만 문을 세운다 */
+function drawGate(ctx: Ctx, L: StaticLayers, scene: StadiumScene, t: number, f: number): void {
+  if (scene.gateQueue === undefined) return;
+  // 문은 벽에서 살짝 안쪽으로 물려 세운다(하단 조명탑에 가리지 않게)
+  const gx = gateX(L.lv.seats) + 5;
+  const y = GATE_Y;
+  R(ctx, gx - 14, y, 17, 2, 'rgba(40,40,60,0.22)');
+  R(ctx, gx - 12, y - 9, 12, 9, '#26304a');
+  R(ctx, gx - 14, y - 11, 3, 11, '#f4f6fa');
+  R(ctx, gx - 1, y - 11, 3, 11, '#f4f6fa');
+  R(ctx, gx - 1, y - 11, 1, 11, '#c3c9d1');
+  R(ctx, gx - 15, y - 15, 19, 5, scene.homeColor);
+  R(ctx, gx - 15, y - 15, 19, 1, shade(scene.homeColor, 0.4));
+  R(ctx, gx - 15, y - 11, 19, 1, shade(scene.homeColor, -0.35));
+  R(ctx, gx - 9, y - 14, 7, 2, PAL.gold);
+  R(ctx, gx - 10, y - 4, 8, 1, '#ffd23f');
+  const q = clamp01(scene.gateQueue);
+  const n = Math.round(q * QUEUE_ROWS * QUEUE_COLS);
+  if (n <= 0) return;
+  // 세 줄로 선 사람들: 값이 클수록 왼쪽(주차장 쪽)으로 길어진다
+  const cols = Math.ceil(n / QUEUE_ROWS);
+  const x0 = gx - 20;
+  const len = cols * 4 + 3;
+  // 줄 세우는 띠(위·아래)와 말뚝
+  R(ctx, x0 - len + 4, y - 19, len, 1, '#b3262a');
+  R(ctx, x0 - len + 4, y + 1, len, 1, '#b3262a');
+  for (const px of [x0 + 3, x0 - len + 4]) {
+    R(ctx, px, y - 21, 1, 4, '#3a3f4b');
+    R(ctx, px, y - 1, 1, 4, '#3a3f4b');
+  }
+  const cs = [scene.homeColor, ...FAN_EXTRA, scene.homeColor, scene.homeColor2];
+  const rain = scene.weather === 'rain';
+  for (let row = 0; row < QUEUE_ROWS; row++) {
+    for (let c = cols - 1; c >= 0; c--) {
+      const i = c * QUEUE_ROWS + row;
+      if (i >= n) continue;
+      // 조금씩 앞으로 당겨졌다 밀리며 꿈틀거린다
+      const crawl = Math.round(Math.sin(t * 2.2 - c * 0.55 + row));
+      const snake = Math.round(Math.sin(c * 0.5 + t * 1.1 + row * 0.6));
+      const px = x0 - c * 4 + crawl - (row & 1) * 2;
+      const py = y - 12 + row * 6 + snake;
+      const up = ((f >> 2) + i * 5) % 17 === 0 ? 1 : 0;
+      person(ctx, px, py, cs[(i * 7 + 3) % cs.length], up);
+      if (rain && i % 3 !== 1) {
+        const uc = UMBRELLAS[(i * 5) % UMBRELLAS.length];
+        R(ctx, px - 1, py - 8 - up, 4, 2, uc);
+        R(ctx, px - 1, py - 6 - up, 4, 1, shade(uc, -0.28));
+      }
+    }
+  }
+}
+
+// ───────── 영구결번 / 대형 현수막 ─────────
+
+function drawRetired(ctx: Ctx, scene: StadiumScene): void {
+  const n = Math.max(0, Math.min(RETIRED_X.length, Math.round(scene.retiredNums || 0)));
+  if (n <= 0) return;
+  const xs = RETIRED_X.slice(0, n).map((x) => x + (RETIRED_X.length - n) * 9);
+  const ink = shade(scene.homeColor, -0.15);
+  for (const cx of xs) {
+    const y = RETIRED_Y;
+    // 원판(지름 13) + 홈팀 색 테
+    R(ctx, cx - 3, y - 6, 7, 13, ink);
+    R(ctx, cx - 5, y - 5, 11, 11, ink);
+    R(ctx, cx - 6, y - 3, 13, 7, ink);
+    R(ctx, cx - 2, y - 5, 5, 11, '#ffffff');
+    R(ctx, cx - 4, y - 4, 9, 9, '#ffffff');
+    R(ctx, cx - 5, y - 2, 11, 5, '#ffffff');
+    // 등번호 자리의 색 막대(숫자는 그리지 않는다)
+    R(ctx, cx - 2, y - 2, 5, 5, scene.homeColor);
+  }
+}
+
+const BIG_BANNER_SPANS: [number, number][] = [
+  [126, 246],
+  [394, 514],
+];
+
+/** 외야 펜스 위에 걸린 대형 현수막(홈팀 색 띠). 바람에 물결친다 */
+function drawBigBanner(ctx: Ctx, scene: StadiumScene, t: number, wild: boolean): void {
+  const home = scene.homeColor;
+  const hi = shade(home, 0.35);
+  const dk = shade(home, -0.3);
+  const sp = wild ? 9 : 4;
+  for (const [x0, x1] of BIG_BANNER_SPANS) {
+    for (let sx = x0; sx < x1; sx += 2) {
+      const rip = Math.round(Math.sin(sx * 0.14 - t * sp) * (wild ? 1.6 : 1));
+      const y = fenceTopY(sx) - 6 + rip;
+      const k = (sx - x0) % 30;
+      ctx.fillStyle = home;
+      ctx.fillRect(sx, y, 2, 9);
+      ctx.fillStyle = hi;
+      ctx.fillRect(sx, y, 2, 1);
+      ctx.fillStyle = dk;
+      ctx.fillRect(sx, y + 8, 2, 1);
+      // 흰 글자 덩어리 느낌의 무늬
+      if (k >= 6 && k < 24 && k % 6 < 4) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(sx, y + 3, 2, 3);
+      }
+    }
+    R(ctx, x0 - 1, fenceTopY(x0) - 9, 1, 12, '#f4f6fa');
+    R(ctx, x1, fenceTopY(x1) - 9, 1, 12, '#f4f6fa');
+  }
+  if (wild) {
+    const fl = Math.floor(t * 10);
+    for (let i = 0; i < 6; i++) {
+      const [x0, x1] = BIG_BANNER_SPANS[i & 1];
+      const sx = Math.round(x0 + hash2(i, fl) * (x1 - x0 - 4));
+      sparkle(ctx, sx, fenceTopY(sx) - 2, false, '#ffffff');
     }
   }
 }
@@ -268,9 +521,11 @@ function flag(ctx: Ctx, x: number, y: number, c: string, f: number, seed: number
 }
 
 function drawBanners(ctx: Ctx, scene: StadiumScene, f: number): void {
-  const n = Math.max(0, Math.min(BANNER_X.length, Math.round(scene.banners || 0)));
+  const old = scene.oldBanner === true;
+  const slots = old ? BANNER_X_NEW : BANNER_X;
+  const n = Math.max(0, Math.min(slots.length, Math.round(scene.banners || 0)));
   for (let i = 0; i < n; i++) {
-    const x = BANNER_X[i] + 1;
+    const x = slots[i] + 1;
     const y = BANNER_Y;
     const w = ((f >> 2) + i) & 1;
     R(ctx, x - 1, y - 2, 1, 62, PAL.steelDk);
@@ -285,6 +540,45 @@ function drawBanners(ctx: Ctx, scene: StadiumScene, f: number): void {
     R(ctx, x + 7, y, 1, 8, '#e0b020');
     R(ctx, x + 7 + w, y + 8, 1, 7, '#e0b020');
   }
+  if (!old) return;
+  if (n === 0) {
+    // 아직 아무것도 걸리지 않은 빈 깃대: 가로대와, 깃발이 걸릴 자리의 빈 테두리
+    const x = slots[0] + 1;
+    const y = BANNER_Y;
+    R(ctx, x - 1, y - 2, 1, 62, PAL.steelDk);
+    R(ctx, x - 2, y - 3, 3, 2, '#aab3c2');
+    R(ctx, x - 1, y - 1, 10, 1, PAL.steelDk);
+    for (let k = 0; k < 16; k += 4) {
+      R(ctx, x, y + k, 1, 2, '#9aa3b3');
+      R(ctx, x + 7, y + k + 2, 1, 2, '#9aa3b3');
+    }
+    R(ctx, x + 1, y + 16, 2, 1, '#9aa3b3');
+    R(ctx, x + 5, y + 16, 2, 1, '#9aa3b3');
+  }
+  // 바랜 옛 우승 깃발: 같은 모양, 빠진 색, 해진 끝. 거의 흔들리지 않는다
+  const x = OLD_BANNER_X + 1;
+  const y = BANNER_Y;
+  const w = (f >> 4) % 5 === 0 ? 1 : 0;
+  const cloth = '#9d967f';
+  const dk = '#5f5a4b';
+  const band = mix(scene.homeColor, '#7f7a6c', 0.6);
+  R(ctx, x - 1, y - 2, 1, 62, '#6b6352');
+  R(ctx, x - 2, y - 3, 3, 2, '#8c7d5c');
+  // 어두운 테두리로 밝은 광장 바닥에서 떼어낸다
+  R(ctx, x - 1, y - 1, 10, 10, dk);
+  R(ctx, x - 1 + w, y + 8, 10, 6, dk);
+  R(ctx, x - 1 + w, y + 14, 4, 3, dk);
+  R(ctx, x + 4 + w, y + 14, 4, 2, dk);
+  R(ctx, x, y, 8, 8, cloth);
+  R(ctx, x + w, y + 8, 8, 5, cloth);
+  R(ctx, x, y + 2, 8, 3, band);
+  R(ctx, x + 3 + w, y + 8, 2, 2, '#c4bda6');
+  // 해진 끝: 길이가 제각각인 올
+  R(ctx, x + w, y + 13, 2, 3, cloth);
+  R(ctx, x + 5 + w, y + 13, 2, 2, cloth);
+  // 좀먹은 구멍
+  R(ctx, x + 5, y + 5, 2, 2, dk);
+  R(ctx, x + 1 + w, y + 10, 1, 2, dk);
 }
 
 // ───────── 선수 ─────────
@@ -758,11 +1052,18 @@ export function drawFrame(inp: FrameInput): void {
   const f = Math.floor(t * 14);
   const cheer = cheerLevel(scene, fxT);
   const night = !!scene.night;
+  // 응원 문화: fx 로 환호하는 동안은 한 단계 더 격렬하게
+  const baseLv = Math.max(0, Math.min(3, Math.round(scene.cheerLv || 0)));
+  const cheerLv = baseLv > 0 && cheer > 0 ? baseLv + 1 : baseLv;
 
   ctx.globalAlpha = 1;
   ctx.drawImage(L.base, 0, 0);
   drawCars(ctx, scene, t);
-  drawCrowd(ctx, L, scene, f, cheer);
+  drawRetired(ctx, scene);
+  if (cheerLv >= 3) drawBigBanner(ctx, scene, t, cheerLv >= 4);
+  drawCrowd(ctx, L, scene, t, f, cheer, cheerLv);
+  drawOldFan(ctx, L, scene, f);
+  drawGate(ctx, L, scene, t, f);
   ctx.drawImage(L.over, 0, 0);
   for (let i = 0; i < L.flags.length; i++) {
     flag(ctx, L.flags[i].x, L.flags[i].y, i % 3 === 1 ? scene.homeColor2 : scene.homeColor, f, i);
