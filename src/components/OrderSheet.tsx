@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { play } from '../audio/sfx';
 import { CHARACTERS } from '../game/story';
-import { useStore, userMatch, useUserTeam } from '../store';
+import { winChance } from '../game/forecast';
+import { pickCore, useStore, userMatch, useUserTeam } from '../store';
 import { AutoButton, LineupTab, PitchersTab, TeamBar, orderIssues } from './LeftPanel';
 import PixelFace from './PixelFace';
 import { useIsMobile } from './layout/useLayout';
@@ -22,6 +23,56 @@ const safe = {
 
 /** 세그먼트 배지: 문제 수, 없으면 ✓ */
 const mark = (n: number) => (n > 0 ? <Badge n={n} /> : <span className="text-good">✓</span>);
+
+const CHANCE_N = 400; // 화면용 표본 수 (오차 ±2%p 남짓)
+const CHANCE_MS = 2000;
+const idle = (fn: () => void): (() => void) => {
+  if (typeof requestIdleCallback === 'function') {
+    const id = requestIdleCallback(fn, { timeout: 300 });
+    return () => cancelIdleCallback(id);
+  }
+  const id = setTimeout(fn, 30);
+  return () => clearTimeout(id);
+};
+
+/** 오더지의 중심 숫자: 개막전 승리 확률. 편성을 바꾸면 "31% → 44%"가 잠깐 보인다. 계산은 미뤄서 하고 그동안은 이전 값을 둔다. */
+function WinChance({ fixable }: { fixable: boolean }) {
+  const team = useUserTeam();
+  const [pct, setPct] = useState<number | null>(null);
+  const [from, setFrom] = useState<number | null>(null);
+  const last = useRef<number | null>(null);
+  useEffect(
+    () =>
+      idle(() => {
+        const v = Math.round(winChance(pickCore(useStore.getState()), CHANCE_N) * 100);
+        if (last.current !== null && last.current !== v) setFrom(last.current);
+        last.current = v;
+        setPct(v);
+      }),
+    [team],
+  );
+  useEffect(() => {
+    if (from === null) return;
+    const id = setTimeout(() => setFrom(null), CHANCE_MS);
+    return () => clearTimeout(id);
+  }, [from, pct]);
+  const tone = from === null || pct === null ? 'text-hi' : pct > from ? 'text-good' : 'text-bad';
+  const bar = from === null || pct === null ? 'bg-hi' : pct > from ? 'bg-good' : 'bg-bad';
+  return (
+    <div className="shrink-0 px-2 pt-2" data-testid="win-chance">
+      <div className="flex items-baseline justify-between gap-2 whitespace-nowrap">
+        <span className="text-[12px] text-white/75 mob:text-[13px]">개막전 승리 확률</span>
+        <span className={`font-pixel-lg text-[24px] leading-none ${tone}`} style={{ textShadow: '1px 1px 0 #0f1420' }}>
+          {pct === null ? '…' : from === null ? `${pct}%` : `${from}% → ${pct}%`}
+        </span>
+      </div>
+      <div className="mt-1 h-[6px] bg-white/10">
+        <div className={`h-full ${bar}`} style={{ width: `${pct ?? 0}%`, transition: 'width .3s' }} />
+      </div>
+      {fixable && <div className="mt-1 text-[11px] text-white/70 mob:text-[12px]">오더를 고치면 이길 확률이 오릅니다.</div>}
+    </div>
+  );
+}
 
 /**
  * 개막전 오더지: 시즌 첫 경기를 치르기 전, 감독이 내민 오더가 첫 화면이 된다.
@@ -86,6 +137,7 @@ export default function OrderSheet() {
         </div>
       </div>
 
+      <WinChance fixable={issues.lineup + issues.pitchers > 0} />
       <TeamBar team={team} />
       <div className="shrink-0 px-1.5 pt-1.5">
         <TabBar
