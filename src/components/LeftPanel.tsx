@@ -7,6 +7,7 @@ import { slotNewcomer } from '../game/lineup';
 import { betterArms, betterBats, homeSwap, offPos, orderIssues } from '../game/fixes';
 import { effDef, teamParts, type TeamParts } from '../game/ratings';
 import PlayerCard from './PlayerCard';
+import { FirstTip } from './Briefing';
 import { useHintTabs } from './RightPanel';
 import Sheet from './layout/Sheet';
 import { useIsMobile } from './layout/useLayout';
@@ -579,6 +580,7 @@ export function MarketTab() {
 
   return (
     <>
+      <FirstTip id="market" />
       <div className="flex shrink-0 items-center gap-1 px-1.5 pt-1.5 text-[10px]">
         {(
           [

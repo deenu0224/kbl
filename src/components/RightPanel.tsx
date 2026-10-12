@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { FirstTip } from './Briefing';
 import type { Core, FacilityKind, HintTab, Ledger } from '../game/types';
 import { useCore, useStore, useUserTeam, userMatch, type RightTab } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
@@ -270,6 +271,9 @@ export function StadiumTab() {
 
   return (
     <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
+      <div className="-mx-1.5 -mt-1.5 mb-1.5 empty:hidden">
+        <FirstTip id="stadium" />
+      </div>
       <SectionTitle>티켓 가격</SectionTitle>
       <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
         <div className="flex items-center gap-1.5">
@@ -392,6 +396,9 @@ export function FinanceTab() {
 
   return (
     <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
+      <div className="-mx-1.5 -mt-1.5 mb-1.5 empty:hidden">
+        <FirstTip id="finance" />
+      </div>
       <SectionTitle>시즌 누적 장부</SectionTitle>
       <LedgerBars ledger={finance.ledger} />
 

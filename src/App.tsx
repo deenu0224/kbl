@@ -10,6 +10,7 @@ import DraftScreen from './components/DraftScreen';
 import GameOver from './components/GameOver';
 import OrderSheet from './components/OrderSheet';
 import { CampaignSheet } from './components/Campaign';
+import BriefingSheet from './components/Briefing';
 import Toast from './components/Toast';
 import MobileShell from './components/layout/MobileShell';
 import { useLayout } from './components/layout/useLayout';
@@ -42,6 +43,7 @@ export default function App() {
     return (
       <>
         <MobileShell orientation={layout} />
+        <BriefingSheet />
         <CampaignSheet />
         <PhaseScreens />
         <Toast />
@@ -68,6 +70,7 @@ export default function App() {
         </div>
       </div>
       <BottomBar />
+      <BriefingSheet />
       <CampaignSheet />
       <PhaseScreens />
       <Toast />

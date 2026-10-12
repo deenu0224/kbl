@@ -17,6 +17,7 @@ import {
 } from '../src/game/economy';
 import { ensureObjectives, STAGES } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent, FOREIGN_MAX } from '../src/game/events';
+import { closeBriefing, drawBriefing } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../src/game/draft';
 import { autoBatting, autoPitching, slotValue } from '../src/game/lineup';
 import { fmtMoney } from '../src/game/format';
@@ -382,6 +383,14 @@ interface Run {
   crash: string | null;
 }
 
+// 주간 브리핑 실측: 시즌당 유저에게 오는 결정 수 (브리핑 제안 + 이벤트 카드)
+const BRIEF = { seasons: 0, briefs: 0, offers: 0, byWho: {} as Record<string, { seasons: number; offers: number; cards: number }> };
+process.on('exit', () => {
+  if (!BRIEF.seasons) return;
+  console.log(`\n주간 브리핑(전부 넘김): 시즌당 브리핑 ${(BRIEF.briefs / BRIEF.seasons).toFixed(1)}회 · 제안 ${(BRIEF.offers / BRIEF.seasons).toFixed(1)}장`);
+  for (const [k, v] of Object.entries(BRIEF.byWho)) console.log(`  ${k}: 시즌당 제안 ${(v.offers / v.seasons).toFixed(1)}장 + 카드 ${(v.cards / v.seasons).toFixed(1)}장 = 결정 ${((v.offers + v.cards) / v.seasons).toFixed(1)}회 (${v.seasons}시즌)`);
+});
+
 /** 한 시즌(정규 + 포스트시즌)을 끝까지. 결산이 끝난 Core 를 돌려준다 */
 function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
   let c = bot.preseason(c0);
@@ -393,18 +402,30 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
       const r = resolveEvent(c, bot.event(c, card), rng);
       if (r.error) throw new Error(`이벤트 해소 실패: ${card.id} ${r.error}`);
       c = r.core;
+      (BRIEF.byWho[bot.name] = BRIEF.byWho[bot.name] ?? { seasons: 0, offers: 0, cards: 0 }).cards++;
       if (run) {
         run.events++;
         run.cards[baseId(card)] = (run.cards[baseId(card)] ?? 0) + 1;
       }
       continue;
     }
+    // 주간 브리핑: 봇은 제안을 전부 넘긴다 (브리핑은 로직 수치를 바꾸지 않는다)
+    if (c.campaign.briefing) {
+      BRIEF.briefs++;
+      BRIEF.offers += c.campaign.briefing.offers.length;
+      BRIEF.byWho[bot.name] = BRIEF.byWho[bot.name] ?? { seasons: 0, offers: 0, cards: 0 };
+      BRIEF.byWho[bot.name].offers += c.campaign.briefing.offers.length;
+      c = closeBriefing(c);
+      continue;
+    }
     if (c.phase === 'season') c = bot.daily(c);
     const r = advanceDay(c, rng);
     if (run && r.report.post) run.postGames++;
     if (run && r.report.notes.some((n) => n.includes('강제 매각'))) run.forcedSale = true;
-    c = maybeDrawEvent(r.core, rng);
+    c = drawBriefing(maybeDrawEvent(r.core, rng));
   }
+  BRIEF.seasons++;
+  (BRIEF.byWho[bot.name] = BRIEF.byWho[bot.name] ?? { seasons: 0, offers: 0, cards: 0 }).seasons++;
   return c;
 }
 
