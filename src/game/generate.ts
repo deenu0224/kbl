@@ -28,14 +28,15 @@ interface TeamDef {
   stars: number; // 아키타입 스타 수
 }
 
+// tier: KBO 기준으로 시뮬 민감도를 키운 만큼 구단 간 격차가 벌어지지 않도록 AI 구단을 한두 단계 낮췄다 (유저 팀 연봉·경제 밸런스는 그대로)
 export const TEAM_DEFS: TeamDef[] = [
-  { id: 'SEL', city: '서울', name: '스카이라인즈', color: '#c2185b', color2: '#1b2233', tier: 66, pop: 0.95, stars: 4 },
-  { id: 'HAN', city: '한강', name: '그리폰즈', color: '#1a3a8f', color2: '#ffffff', tier: 64, pop: 0.85, stars: 4 },
-  { id: 'BUS', city: '부산', name: '씨호크스', color: '#0e7fb8', color2: '#f26a1b', tier: 62, pop: 0.9, stars: 3 },
-  { id: 'DGU', city: '대구', name: '썬더킹스', color: '#1e56c4', color2: '#ffd23f', tier: 61, pop: 0.7, stars: 3 },
-  { id: 'GWJ', city: '광주', name: '레드폭스', color: '#d32f2f', color2: '#111111', tier: 63, pop: 0.8, stars: 4 },
-  { id: 'ICN', city: '인천', name: '앵커스', color: '#b71c1c', color2: '#f5c518', tier: 59, pop: 0.6, stars: 3 },
-  { id: 'DJN', city: '대전', name: '팰컨스', color: '#f57c00', color2: '#212121', tier: 57, pop: 0.55, stars: 2 },
+  { id: 'SEL', city: '서울', name: '스카이라인즈', color: '#c2185b', color2: '#1b2233', tier: 63, pop: 0.95, stars: 4 },
+  { id: 'HAN', city: '한강', name: '그리폰즈', color: '#1a3a8f', color2: '#ffffff', tier: 61, pop: 0.85, stars: 4 },
+  { id: 'BUS', city: '부산', name: '씨호크스', color: '#0e7fb8', color2: '#f26a1b', tier: 59, pop: 0.9, stars: 3 },
+  { id: 'DGU', city: '대구', name: '썬더킹스', color: '#1e56c4', color2: '#ffd23f', tier: 59, pop: 0.7, stars: 3 },
+  { id: 'GWJ', city: '광주', name: '레드폭스', color: '#d32f2f', color2: '#111111', tier: 60, pop: 0.8, stars: 4 },
+  { id: 'ICN', city: '인천', name: '앵커스', color: '#b71c1c', color2: '#f5c518', tier: 57, pop: 0.6, stars: 3 },
+  { id: 'DJN', city: '대전', name: '팰컨스', color: '#f57c00', color2: '#212121', tier: 56, pop: 0.55, stars: 2 },
   { id: USER_ID, city: '제주', name: '탠저린즈', color: '#f08a1c', color2: '#1f6b3a', tier: 55, pop: 0.25, stars: 1 },
 ];
 

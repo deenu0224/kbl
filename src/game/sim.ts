@@ -3,33 +3,55 @@ import { clamp, randInt, type Rng } from './rng';
 import { effDef } from './ratings';
 import { slotValue } from './lineup';
 import { fmtIp } from './format';
+import { KBO_AVG } from './kbo';
 
-// ── 밸런스 상수 (능력치 REF = 리그 평균 수준에서 아래 기본 확률이 나온다) ──
+// ── 보정 계수: 능력치 분포가 비대칭이라 "평균 능력치의 확률" ≠ "리그 평균 확률". balance 스크립트로 맞춘 값 ──
+const CAL = {
+  BB: 1.0,
+  K: 1.0,
+  HR: 0.83,
+  BABIP: -0.009,
+  D2: 0.95,
+  D3: 0.92,
+};
+// 안타 종류는 홈런을 뺀 인플레이 안타 중 비율로 굴린다
+const D2_OF_BIP_HITS = KBO_AVG.d2OfHits / (1 - KBO_AVG.hrOfHits);
+const D3_OF_BIP_HITS = KBO_AVG.d3OfHits / (1 - KBO_AVG.hrOfHits);
+
+// ── 밸런스 상수 (능력치 REF = 리그 평균 수준에서 아래 기본 확률이 나온다). 기준값은 KBO 2022~2025 평균 (kbo.ts) ──
 export const SIM = {
   REF: 60, // 리그 평균 능력치
-  SKILL: 0.55, // 능력치 차이의 반영 강도
-  BB: 0.088,
+  SKILL: 0.5, // 능력치 차이의 반영 강도
+  BB: KBO_AVG.walkPct * CAL.BB, // 볼넷+사구 / 타석 (시뮬은 사구를 볼넷으로 기록)
   BB_EYE: 0.9,
   BB_CTL: 1.0,
-  K: 0.18,
-  K_CON: 0.9,
-  K_STF: 1.0,
-  HR: 0.024,
-  HR_POW: 2.5,
-  HR_STF: 0.6,
-  BABIP: 0.303,
-  BABIP_CON: 0.0019,
+  K: KBO_AVG.kPct * CAL.K, // 삼진 / 타석
+  K_CON: 1.1,
+  K_STF: 1.3, // 에이스 탈삼진·평균자책 1위 규모를 KBO 수준으로
+  HR: KBO_AVG.hrPct * CAL.HR, // 홈런 / 타석
+  HR_POW: 4.3, // 거포에 홈런을 몰아준다 (리그 HR% 는 CAL.HR 로 유지, 홈런왕 규모는 KBO 84경기 환산치)
+  HR_STF: 1.0,
+  BABIP: KBO_AVG.babip + CAL.BABIP, // 인플레이 타구 안타 확률
+  BABIP_CON: 0.0045, // 컨택 차이 → 타율 분산 (3할 타자 수·타격왕 규모)
   BABIP_SPD: 0.0006,
-  BABIP_STF: 0.0013,
+  BABIP_STF: 0.0018,
   BABIP_DEF: 0.0013,
   HOME_EDGE: 0.006, // 홈팀 BABIP 가산
-  D2: 0.2, // 안타 중 2루타 비중
+  D2: D2_OF_BIP_HITS * CAL.D2, // 인플레이 안타 중 2루타
   D2_POW: 0.0022,
-  D3: 0.016,
+  D3: D3_OF_BIP_HITS * CAL.D3, // 인플레이 안타 중 3루타
   D3_SPD: 0.0008,
+  ROE: 0.03, // 인플레이 아웃 → 실책 출루 (비자책 실점의 원천. KBO 총실점/자책 ≈ 1.12 에 맞춤, 팀 경기당 약 0.55개)
   GB: 0.45, // 인플레이 아웃 중 땅볼
   FB: 0.35, // 뜬공
-  DP: 0.27, // 1루 주자 + 2사 미만 땅볼의 병살 확률 (인플레이 아웃의 약 12%)
+  DP: 0.37, // 1루 주자 + 2사 미만 땅볼의 병살 확률
+  // 도루: 1루(2루 빈 상황) 주자가 타석마다 시도할 확률 = SBA × exp((주력−REF)/SBA_SPD)
+  SBA: 0.078,
+  SBA_SPD: 28,
+  SBA_3B: 0.2, // 3루 도루는 2루 도루 시도율의 이 비율
+  SB_SUCC: 0.75, // 평균 주자 vs 평균 포수 성공률
+  SB_SUCC_SPD: 0.006,
+  SB_SUCC_DEF: 0.005,
   SAC_FLY: 0.6,
   GB_SCORE: 0.5, // 땅볼 때 3루 주자 득점
   GB_ADV: 0.55,
@@ -37,8 +59,8 @@ export const SIM = {
   FIRST_TO_3RD: 0.28,
   SCORE_1ST_2B: 0.42, // 2루타에 1루 주자 득점
   TWO_OUT_RUN: 0.15, // 2사 후 스타트 보너스
-  SP_LIMIT_BASE: 17,
-  SP_LIMIT_STA: 0.14,
+  SP_LIMIT_BASE: 11, // 선발 한계 타자 수 = BASE + 체력 × STA (평균 5⅓이닝 안팎, 체력 좋은 에이스는 더 길게)
+  SP_LIMIT_STA: 0.19,
   RP_LIMIT_BASE: 4,
   RP_LIMIT_STA: 0.1,
   FAT_STF: 2.2, // 한계 초과 타자 1명당 구위 하락
@@ -49,6 +71,9 @@ export const SIM = {
   MAX_INNINGS: 12,
   MAX_EVENTS: 10,
 };
+
+/** 스탯 필드가 없는 사건 집계 (balance 스크립트 측정용, 게임 로직은 읽지 않는다) */
+export const SIM_TALLY = { dp: 0, roe: 0 };
 
 interface PState {
   p: Player;
@@ -63,6 +88,7 @@ interface PState {
 interface Runner {
   b: Player;
   ps: PState;
+  ue?: boolean; // 실책으로 출루 → 득점해도 비자책
 }
 interface BLine {
   ab: number;
@@ -82,6 +108,7 @@ interface Side {
   pen: Player[]; // 아직 안 쓴 불펜 (앞이 필승조)
   closer: Player | null;
   def: number;
+  cDef: number; // 포수 수비 (도루 저지)
   runs: number;
   hits: number;
   line: number[];
@@ -129,6 +156,8 @@ function makeSide(t: Team, isHome: boolean): Side {
   const order = gameOrder(t);
   const fielders = order.filter((s) => s.pos !== 'DH');
   const def = fielders.length ? fielders.reduce((s, x) => s + effDef(x.p, x.pos), 0) / fielders.length : SIM.REF;
+  const catcher = order.find((s) => s.pos === 'C');
+  const cDef = catcher ? effDef(catcher.p, 'C') : SIM.REF - 15;
 
   // 선발: 로테이션 순번에서 건강한 첫 투수
   const rot = t.rotation.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.kind === 'P');
@@ -158,7 +187,7 @@ function makeSide(t: Team, isHome: boolean): Side {
   const side: Side = {
     team: t, isHome, order, idx: 0,
     cur: undefined as unknown as PState,
-    used: [], pen, closer, def, runs: 0, hits: 0, line: [], lines: new Map(),
+    used: [], pen, closer, def, cDef, runs: 0, hits: 0, line: [], lines: new Map(),
   };
   for (const s of order) {
     s.p.bat.g++;
@@ -232,9 +261,37 @@ export function simulateGame(
     let outs = 0;
     let bases: (Runner | null)[] = [null, null, null];
     const halfTxt = `${inning}회${half ? '말' : '초'}`;
+    // 실책을 아웃으로 쳤을 때 이미 3아웃이면 이후 실점은 전부 비자책 (자책점 재구성 규칙의 근사)
+    let ueRest = false;
+    let errs = 0;
 
     while (outs < 3 && !over) {
       manage(fld, bat, inning, false);
+
+      // ── 도루: 다음 주자가 빈 베이스 앞에 있을 때 타석마다 시도 판정 ──
+      {
+        const from = bases[0] && !bases[1] ? 0 : !bases[0] && bases[1] && !bases[2] ? 1 : -1;
+        const rn = from >= 0 ? bases[from] : null;
+        if (rn) {
+          const att = SIM.SBA * Math.exp((rn.b.spd - SIM.REF) / SIM.SBA_SPD) * (from === 1 ? SIM.SBA_3B : 1);
+          if (rng() < att) {
+            const succ = clamp(SIM.SB_SUCC + (rn.b.spd - SIM.REF) * SIM.SB_SUCC_SPD - (fld.cDef - SIM.REF) * SIM.SB_SUCC_DEF, 0.4, 0.95);
+            bases[from] = null;
+            if (rng() < succ) {
+              rn.b.bat.sb++;
+              bases[from + 1] = rn;
+            } else {
+              rn.b.bat.cs++;
+              outs++;
+              if (outs + errs >= 3) ueRest = true;
+              fld.cur.outs++;
+              fld.cur.p.pit.outs++;
+              if (outs >= 3) break;
+            }
+          }
+        }
+      }
+
       const b = bat.order[bat.idx % bat.order.length].p;
       bat.idx++;
       const bl = bat.lines.get(b.id)!;
@@ -252,7 +309,7 @@ export function simulateGame(
         const rl = bat.lines.get(rn.b.id);
         if (rl) rl.r++;
         rn.ps.runs++;
-        rn.ps.p.pit.er++;
+        if (!rn.ue && !ueRest) rn.ps.p.pit.er++;
         if (credit) rbi++;
         if (before === 0) {
           winP = bat.cur;
@@ -264,6 +321,7 @@ export function simulateGame(
       };
       const out = (n: number): void => {
         outs += n;
+        if (outs + errs >= 3) ueRest = true;
         ps.outs += n;
         ps.p.pit.outs += n;
       };
@@ -286,7 +344,7 @@ export function simulateGame(
 
       b.bat.pa++;
       const x = rng();
-      let kind: 'bb' | 'k' | 'hr' | '1b' | '2b' | '3b' | 'out' | 'sf' = 'out';
+      let kind: 'bb' | 'k' | 'hr' | '1b' | '2b' | '3b' | 'out' | 'sf' | 'roe' = 'out';
 
       if (x < pBB) {
         kind = 'bb';
@@ -349,6 +407,15 @@ export function simulateGame(
           }
           bases = [me, second, third];
         }
+      } else if (rng() < SIM.ROE) {
+        // 실책 출루: 주자 전원 한 베이스씩, 이 플레이의 득점과 타자 주자는 비자책
+        kind = 'roe';
+        SIM_TALLY.roe++;
+        errs++;
+        if (outs + errs >= 3) ueRest = true;
+        const [r1, r2, r3] = bases;
+        if (r3) plate({ ...r3, ue: true }, false);
+        bases = [{ b, ps, ue: true }, r1, r2];
       } else {
         // 인플레이 아웃
         const t = rng();
@@ -357,6 +424,7 @@ export function simulateGame(
             const r2 = bases[1];
             const r3 = bases[2];
             out(2);
+            SIM_TALLY.dp++;
             bases = [null, null, null];
             if (outs < 3) {
               if (r3) plate(r3, false);
@@ -399,7 +467,7 @@ export function simulateGame(
 
       // ── 기록 ──
       const isHit = kind === '1b' || kind === '2b' || kind === '3b' || kind === 'hr';
-      if (kind === 'out') {
+      if (kind === 'out' || kind === 'roe') {
         b.bat.ab++;
         bl.ab++;
       } else if (isHit) {
@@ -410,6 +478,7 @@ export function simulateGame(
         bat.hits++;
         ps.p.pit.h++;
         if (kind === '2b') b.bat.d2++;
+        if (kind === '3b') b.bat.d3++;
         if (kind === 'hr') {
           b.bat.hr++;
           bl.hr++;
@@ -434,7 +503,7 @@ export function simulateGame(
         if (walkoff) {
           type = 'walkoff';
           const how =
-            kind === 'hr' ? `${HR_NAME[n - 1] ?? ''} 홈런`.trim() : isHit ? hitName : kind === 'bb' ? '밀어내기 볼넷' : kind === 'sf' ? '희생플라이' : '결승타';
+            kind === 'hr' ? `${HR_NAME[n - 1] ?? ''} 홈런`.trim() : isHit ? hitName : kind === 'bb' ? '밀어내기 볼넷' : kind === 'sf' ? '희생플라이' : kind === 'roe' ? '실책 출루' : '결승타';
           text = `${b.name} 끝내기 ${how}!`;
           sub = kind === 'hr' ? `${halfTxt} · 시즌 ${b.bat.hr}호 · 경기 종료` : `${halfTxt} · 경기 종료`;
         } else if (kind === 'hr') {
@@ -451,7 +520,7 @@ export function simulateGame(
           sub = `${halfTxt} · ${hitName}${rbi > 0 ? ` · ${rbi}타점` : ''}`;
         } else if (!isHit && goAhead) {
           type = 'score';
-          const how = kind === 'bb' ? '밀어내기 볼넷' : kind === 'sf' ? '희생플라이' : '내야 땅볼';
+          const how = kind === 'bb' ? '밀어내기 볼넷' : kind === 'sf' ? '희생플라이' : kind === 'roe' ? '상대 실책' : '내야 땅볼';
           text = `${b.name} ${how}${leadBefore < 0 ? '로 역전' : '로 균형을 깼다'}!`;
           sub = `${halfTxt} · ${leadBefore < 0 ? '역전' : '리드'} 득점`;
         }

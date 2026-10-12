@@ -7,8 +7,11 @@ import { advanceDay, rankOf, signPlayer, upgradeFacility } from '../src/game/sea
 import { opProfit, payroll, previewDemand, signingBonus, userTeam } from '../src/game/economy';
 import { fmtMoney } from '../src/game/format';
 import { teamStrength } from '../src/game/ratings';
+import { SIM_TALLY } from '../src/game/sim';
+import { KBO_AVG, scaleToSeason, scaleToTeams } from '../src/game/kbo';
+import { batLeaders, pitLeaders, qualPA } from '../src/game/leaders';
 
-const N_SEEDS = Number(process.argv[2]) || 8;
+const N_SEEDS = Number(process.argv[2]) || 16;
 const QUAL_PA = 260; // 규정타석 (84경기 × 3.1)
 
 interface Summary {
@@ -36,6 +39,61 @@ interface Summary {
   fanSat: number;
   userStr: number;
   rankOrder: string;
+  kbo: Record<string, number>;
+}
+
+/** 시즌 종료 Core → KBO 비교 지표 (tally = 이 시즌의 병살·실책 출루 수) */
+function kboMetrics(end: Core, tally: { dp: number; roe: number }): Record<string, number> {
+  const all: Player[] = end.teams.flatMap((t) => t.roster);
+  const sum = (f: (p: Player) => number) => all.reduce((s, p) => s + f(p), 0);
+  const pa = sum((p) => p.bat.pa), ab = sum((p) => p.bat.ab), h = sum((p) => p.bat.h), bb = sum((p) => p.bat.bb);
+  const d2 = sum((p) => p.bat.d2), d3 = sum((p) => p.bat.d3), hr = sum((p) => p.bat.hr), so = sum((p) => p.bat.so);
+  const sb = sum((p) => p.bat.sb), cs = sum((p) => p.bat.cs);
+  const sf = pa - ab - bb;
+  const outs = sum((p) => p.pit.outs), er = sum((p) => p.pit.er), ph = sum((p) => p.pit.h), pbb = sum((p) => p.pit.bb);
+  const teamGames = end.teams.reduce((s, t) => s + t.rec.w + t.rec.l + t.rec.t, 0);
+  const runs = end.teams.reduce((s, t) => s + t.rec.rs, 0);
+  const ties = end.teams.reduce((s, t) => s + t.rec.t, 0) / 2;
+  const obp = (h + bb) / (ab + bb + sf);
+  const slg = (h + d2 + 2 * d3 + 3 * hr) / ab;
+  const bat = all.filter((p) => p.kind === 'B');
+  const pit = all.filter((p) => p.kind === 'P');
+  const qpa = qualPA(end);
+  const qual = bat.filter((p) => p.bat.pa >= qpa);
+  const top = (xs: number[]) => Math.max(0, ...xs);
+  return {
+    avg: h / ab,
+    obp,
+    slg,
+    ops: obp + slg,
+    rpg: runs / teamGames,
+    era: (er * 27) / outs,
+    whipHbp: ((ph + pbb) * 3) / outs,
+    walkPct: bb / pa,
+    kPct: so / pa,
+    hrPct: hr / pa,
+    babip: (h - hr) / (ab - so - hr + sf),
+    d2OfHits: d2 / h,
+    d3OfHits: d3 / h,
+    hrPerGame: hr / teamGames,
+    sbaPerGame: (sb + cs) / teamGames,
+    sbPct: sb / (sb + cs),
+    gdpPerGame: tally.dp / teamGames,
+    runsPerEr: runs / er,
+    tieRate: ties / (teamGames / 2),
+    avgTop: batLeaders(end, 'avg', 1)[0]?.value ?? 0,
+    hrTop: top(bat.map((p) => p.bat.hr)),
+    rbiTop: top(bat.map((p) => p.bat.rbi)),
+    sbTop: top(bat.map((p) => p.bat.sb)),
+    wTop: top(pit.map((p) => p.pit.w)),
+    eraTop: pitLeaders(end, 'era', 1)[0]?.value ?? 0,
+    svTop: top(pit.map((p) => p.pit.sv)),
+    soTop: top(pit.map((p) => p.pit.so)),
+    n300: qual.filter((p) => p.bat.h / p.bat.ab >= 0.3).length,
+    n20hr: bat.filter((p) => p.bat.hr >= Math.ceil(scaleToSeason(20))).length,
+    n10w: pit.filter((p) => p.pit.w >= Math.ceil(scaleToSeason(10))).length,
+    qualBat: qual.length,
+  };
 }
 
 function summarize(start: Core, end: Core): Summary {
@@ -83,6 +141,7 @@ function summarize(start: Core, end: Core): Summary {
       .sort((a, b) => rankOf(end.teams, a.id) - rankOf(end.teams, b.id))
       .map((t) => `${t.id}${t.rec.w}`)
       .join(' '),
+    kbo: {},
   };
 }
 
@@ -92,6 +151,8 @@ function play(core: Core, seed: number, start: Core = core): Summary {
   let c = core;
   let sellouts = 0;
   let turnedAway = 0;
+  SIM_TALLY.dp = 0;
+  SIM_TALLY.roe = 0;
   while (c.phase === 'season') {
     const { core: next, report } = advanceDay(c, rng);
     if (report.crowd?.soldOut) sellouts++;
@@ -101,6 +162,7 @@ function play(core: Core, seed: number, start: Core = core): Summary {
   const s = summarize(start, c);
   s.sellouts = sellouts;
   s.turnedAway = turnedAway;
+  s.kbo = kboMetrics(c, SIM_TALLY);
   return s;
 }
 
@@ -127,6 +189,81 @@ console.log(
 );
 console.log('홈런왕:', base.map((s) => `${s.hrTopName} ${s.hrTop}`).join(' / '));
 console.log('최종 순위 예시(seed 1):', base[0].rankOrder);
+
+// ── KBO 실제 vs 시뮬 ──
+// 비율 지표 ±5%, 타이틀 규모 ±15% (84경기·8구단 환산). '참고' 행은 판정에서 제외.
+type Cmp = { key: string; label: string; kbo: number; tol: number | null; fmt: (v: number) => string };
+const T = KBO_AVG.titles;
+const r3 = (v: number) => v.toFixed(3);
+const r2 = (v: number) => v.toFixed(2);
+const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+const r1 = (v: number) => v.toFixed(1);
+const RATE = 0.05;
+const TITLE = 0.15;
+const CMP: { group: string; rows: Cmp[] }[] = [
+  {
+    group: '리그 환경 (비율 ±5%)',
+    rows: [
+      { key: 'avg', label: '타율', kbo: KBO_AVG.avg, tol: RATE, fmt: r3 },
+      { key: 'obp', label: '출루율', kbo: KBO_AVG.obp, tol: RATE, fmt: r3 },
+      { key: 'slg', label: '장타율', kbo: KBO_AVG.slg, tol: RATE, fmt: r3 },
+      { key: 'ops', label: 'OPS', kbo: KBO_AVG.ops, tol: RATE, fmt: r3 },
+      { key: 'rpg', label: '팀 경기당 득점', kbo: KBO_AVG.rpg, tol: RATE, fmt: r2 },
+      { key: 'era', label: '평균자책', kbo: KBO_AVG.era, tol: RATE, fmt: r2 },
+      { key: 'whipHbp', label: 'WHIP(사구 포함)', kbo: KBO_AVG.whipHbp, tol: RATE, fmt: r2 },
+      { key: 'walkPct', label: '볼넷+사구 / 타석', kbo: KBO_AVG.walkPct, tol: RATE, fmt: pct },
+      { key: 'kPct', label: '삼진 / 타석', kbo: KBO_AVG.kPct, tol: RATE, fmt: pct },
+      { key: 'hrPct', label: '홈런 / 타석', kbo: KBO_AVG.hrPct, tol: RATE, fmt: pct },
+      { key: 'babip', label: 'BABIP', kbo: KBO_AVG.babip, tol: RATE, fmt: r3 },
+      { key: 'd2OfHits', label: '안타 중 2루타', kbo: KBO_AVG.d2OfHits, tol: RATE, fmt: pct },
+      { key: 'd3OfHits', label: '안타 중 3루타', kbo: KBO_AVG.d3OfHits, tol: RATE, fmt: pct },
+      { key: 'hrPerGame', label: '팀 경기당 홈런', kbo: KBO_AVG.hrPerGame, tol: RATE, fmt: r2 },
+      { key: 'sbaPerGame', label: '팀 경기당 도루 시도', kbo: KBO_AVG.sbaPerGame, tol: RATE, fmt: r2 },
+      { key: 'sbPct', label: '도루 성공률', kbo: KBO_AVG.sbPct, tol: RATE, fmt: pct },
+      { key: 'gdpPerGame', label: '팀 경기당 병살', kbo: KBO_AVG.gdpPerGame, tol: RATE, fmt: r2 },
+      { key: 'runsPerEr', label: '총실점 / 자책점', kbo: KBO_AVG.runsPerEr, tol: RATE, fmt: r3 },
+      { key: 'tieRate', label: '무승부 비율 (참고)', kbo: KBO_AVG.tieRate, tol: null, fmt: pct },
+    ],
+  },
+  {
+    group: '타이틀 규모 (84경기 환산, ±15% · 타율 1위는 비율이라 ±5%)',
+    rows: [
+      { key: 'avgTop', label: '타율 1위', kbo: T.avgTop, tol: RATE, fmt: r3 },
+      { key: 'hrTop', label: '홈런 1위', kbo: scaleToSeason(T.hrTop), tol: TITLE, fmt: r1 },
+      { key: 'rbiTop', label: '타점 1위', kbo: scaleToSeason(T.rbiTop), tol: TITLE, fmt: r1 },
+      { key: 'sbTop', label: '도루 1위', kbo: scaleToSeason(T.sbTop), tol: TITLE, fmt: r1 },
+      { key: 'wTop', label: '다승 1위', kbo: scaleToSeason(T.wTop), tol: TITLE, fmt: r1 },
+      { key: 'eraTop', label: '평균자책 1위', kbo: T.eraTop, tol: TITLE, fmt: r2 },
+      { key: 'svTop', label: '세이브 1위', kbo: scaleToSeason(T.svTop), tol: TITLE, fmt: r1 },
+      { key: 'soTop', label: '탈삼진 1위', kbo: scaleToSeason(T.soTop), tol: TITLE, fmt: r1 },
+    ],
+  },
+  {
+    group: '분포 (8구단 환산 인원, ±15%)',
+    rows: [
+      { key: 'n300', label: '규정타석 3할 타자', kbo: scaleToTeams(T.n300), tol: TITLE, fmt: r1 },
+      { key: 'n20hr', label: `20홈런급 타자 (≥${Math.ceil(scaleToSeason(20))}개)`, kbo: scaleToTeams(T.n20hr), tol: TITLE, fmt: r1 },
+      // 우리 구단 투수는 10명뿐(KBO 는 시즌 중 20명 이상 등판) → 승리가 소수에 몰려 인원 비교가 구조적으로 불가
+      { key: 'n10w', label: `10승급 투수 (≥${Math.ceil(scaleToSeason(10))}승, 참고)`, kbo: scaleToTeams(T.n10w), tol: null, fmt: r1 },
+      { key: 'qualBat', label: '규정타석 타자 수 (참고)', kbo: scaleToTeams(T.qualBat), tol: null, fmt: r1 },
+    ],
+  },
+];
+console.log(`\n=== KBO 실제(2022~2025 평균) vs 시뮬(${N_SEEDS}시드 평균) ===`);
+const wide = (str: string, n: number) => str + ' '.repeat(Math.max(0, n - [...str].reduce((w, ch) => w + (ch.charCodeAt(0) > 0x2e80 ? 2 : 1), 0)));
+let fails = 0;
+for (const g of CMP) {
+  console.log(`-- ${g.group}`);
+  console.log(`${wide('지표', 30)} ${'KBO'.padStart(8)} ${'시뮬'.padStart(7)} ${'오차'.padStart(8)}  판정`);
+  for (const c of g.rows) {
+    const sim = mean(base.map((s) => s.kbo[c.key]));
+    const err = (sim - c.kbo) / c.kbo;
+    const ok = c.tol === null ? '-' : Math.abs(err) <= c.tol ? '✓' : '✗';
+    if (ok === '✗') fails++;
+    console.log(`${wide(c.label, 30)} ${c.fmt(c.kbo).padStart(8)} ${c.fmt(sim).padStart(8)} ${((err >= 0 ? '+' : '') + (err * 100).toFixed(1) + '%').padStart(8)}  ${ok}`);
+  }
+}
+console.log(fails ? `허용오차 밖 지표 ${fails}개` : '모든 판정 지표가 허용오차 안');
 
 // ── 개입 시나리오: 개막 전 스타 FA 1명 영입 (+ 관중석 1단계 증설) ──
 console.log(`\n=== 개입 시나리오 × ${N_SEEDS} 시드 (A 무개입 / B 스타 FA 영입 / C 스타 FA + 관중석 증설) ===`);
