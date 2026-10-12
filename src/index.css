@@ -1,0 +1,131 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-pixel: 'Galmuri11', 'Galmuri9', ui-monospace, monospace;
+  --font-pixel-sm: 'Galmuri9', 'Galmuri11', ui-monospace, monospace;
+  --font-pixel-lg: 'Galmuri14', 'Galmuri11', ui-monospace, monospace;
+  --color-ink: #1b2233;
+  --color-panel: #232c42;
+  --color-panel-2: #2d3855;
+  --color-edge: #0f1420;
+  --color-hi: #ffd84a;
+  --color-good: #6ee07a;
+  --color-bad: #ff6b6b;
+  --color-sky: #7fd3ff;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #141a29;
+  color: #eef2ff;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  -webkit-font-smoothing: none;
+}
+
+canvas.pixel {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* 픽셀 테두리 패널 */
+.px-panel {
+  background: var(--color-panel);
+  box-shadow:
+    0 -2px 0 0 var(--color-edge),
+    0 2px 0 0 var(--color-edge),
+    -2px 0 0 0 var(--color-edge),
+    2px 0 0 0 var(--color-edge),
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.px-btn {
+  font-family: var(--font-pixel);
+  padding: 4px 10px;
+  background: #3d4c75;
+  color: #fff;
+  cursor: pointer;
+  box-shadow:
+    0 -2px 0 0 var(--color-edge),
+    0 2px 0 0 var(--color-edge),
+    -2px 0 0 0 var(--color-edge),
+    2px 0 0 0 var(--color-edge),
+    inset 0 -3px 0 0 rgba(0, 0, 0, 0.3),
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.18);
+}
+.px-btn:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.px-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.px-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.px-btn.primary {
+  background: #e2572e;
+}
+.px-btn.gold {
+  background: #d9a514;
+  color: #1b2233;
+}
+.px-btn.green {
+  background: #2f9e4f;
+}
+
+.px-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.px-scroll::-webkit-scrollbar-thumb {
+  background: #47557f;
+}
+.px-scroll::-webkit-scrollbar-track {
+  background: #1a2133;
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.anim-pop {
+  animation: pop-in 0.35s steps(6) both;
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-28px);
+    opacity: 0;
+  }
+}
+.anim-float {
+  animation: float-up 1.6s steps(12) both;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+.anim-blink {
+  animation: blink 0.8s steps(2) infinite;
+}

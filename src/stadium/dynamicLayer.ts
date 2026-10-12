@@ -1,0 +1,788 @@
+// 동적 레이어: 관중·차량·선수·fx·날씨. 매 프레임(약 14fps) 정적 레이어 위에 다시 그린다.
+import type { StadiumScene } from '../game/types';
+import { DOME_FLAG, NEON, parasolSpots, queueSpots, trainActors, type TrainActor } from './buildings';
+import {
+  B1,
+  B2,
+  B3,
+  BANNER_X,
+  BANNER_Y,
+  DEG,
+  FIELDERS,
+  HOTSPOTS,
+  HX,
+  HY,
+  MOUND,
+  PARK_SLOTS,
+  STADIUM_H,
+  STADIUM_W,
+  TOWERS,
+  YK,
+  hash2,
+  type Pt,
+  type Seat,
+} from './geometry';
+import { CAR_COLORS, FAN_EXTRA, FIREWORK_COLORS, PAL, col, lum, mix, shade } from './palette';
+import type { StaticLayers } from './staticLayer';
+
+type Ctx = CanvasRenderingContext2D;
+
+export interface FrameInput {
+  ctx: Ctx;
+  scene: StadiumScene;
+  layers: StaticLayers;
+  t: number; // 초
+  fxT: number; // fx 시작 후 경과 초
+  night: HTMLCanvasElement | null;
+}
+
+function R(ctx: Ctx, x: number, y: number, w: number, h: number, c: string): void {
+  ctx.fillStyle = c;
+  ctx.fillRect(Math.round(x), Math.round(y), w, h);
+}
+
+const X = (wx: number): number => Math.round(HX + wx);
+const Y = (wy: number, z = 0): number => Math.round(HY + wy * YK - z);
+const clamp01 = (v: number): number => (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0);
+const lerp = (a: number, b: number, p: number): number => a + (b - a) * p;
+
+interface Kit {
+  j: string;
+  c: string;
+  p: string;
+}
+function kit(color: string, home: boolean): Kit {
+  return { j: color, c: shade(color, -0.4), p: home ? '#ffffff' : '#cdd3dc' };
+}
+
+/** 선수 스프라이트 4×6. (x, y) = 발 중앙. pose: 0 서기, 1 달리기, 2 점프(팔 올림) */
+function sprite(ctx: Ctx, x: number, y: number, k: Kit, pose: 0 | 1 | 2, f: number): void {
+  R(ctx, x - 2, y, 5, 1, 'rgba(20,50,20,0.28)');
+  const up = pose === 2 && (f & 1) ? 2 : pose === 1 && (f & 1) ? 1 : 0;
+  const yy = y - up;
+  R(ctx, x - 1, yy - 6, 2, 1, k.c);
+  R(ctx, x - 1, yy - 5, 2, 1, PAL.skin);
+  R(ctx, x - 2, yy - 4, 4, 2, k.j);
+  R(ctx, x - 1, yy - 2, 2, 1, k.p);
+  if (pose === 1 && (f & 1)) {
+    R(ctx, x - 2, yy - 1, 1, 1, k.p);
+    R(ctx, x + 1, yy - 1, 1, 1, k.p);
+  } else {
+    R(ctx, x - 1, yy - 1, 2, 1, k.p);
+  }
+  if (pose === 2) {
+    R(ctx, x - 3, yy - 6, 1, 2, PAL.skin);
+    R(ctx, x + 2, yy - 6, 1, 2, PAL.skin);
+  }
+}
+
+function person(ctx: Ctx, x: number, y: number, c: string, up: number): void {
+  const yy = y - up;
+  R(ctx, x, yy - 1, 2, 1, '#3a3f4b');
+  R(ctx, x, yy - 3, 2, 2, c);
+  R(ctx, x, yy - 5, 2, 2, PAL.skin);
+  R(ctx, x, yy - 5, 2, 1, '#5a3b22');
+}
+
+function ball(ctx: Ctx, x: number, y: number, gy: number): void {
+  R(ctx, x - 1, gy, 3, 1, 'rgba(0,0,0,0.25)');
+  R(ctx, x, y, 2, 2, '#ffffff');
+}
+
+function sparkle(ctx: Ctx, x: number, y: number, big: boolean, c = '#ffe45c'): void {
+  if (big) {
+    R(ctx, x - 2, y, 5, 1, c);
+    R(ctx, x, y - 2, 1, 5, c);
+    R(ctx, x - 1, y - 1, 3, 3, '#ffffff');
+  } else {
+    R(ctx, x - 1, y, 3, 1, c);
+    R(ctx, x, y - 1, 1, 3, c);
+    R(ctx, x, y, 1, 1, '#ffffff');
+  }
+}
+
+// ───────── 관중 ─────────
+
+function jumpOf(s: Seat, f: number, cheer: number): number {
+  if (cheer === 2) return s.ph % 10 < 8 ? [0, 1, 2, 1][(f + s.ph) & 3] : 0;
+  if (cheer === 1) return s.ph % 10 < 4 && ((f + s.ph) & 3) === 0 ? 1 : 0;
+  return ((f >> 1) + s.ph) % 29 === 0 ? 1 : 0;
+}
+
+function drawCrowd(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number, cheer: number): void {
+  const fill = clamp01(scene.fill);
+  if (fill <= 0) return;
+  const h2 = lum(col(scene.homeColor2)) < 45 ? mix(scene.homeColor, '#ffffff', 0.45) : scene.homeColor2;
+  const pal = [scene.homeColor, h2, scene.awayColor, ...FAN_EXTRA];
+  for (let ci = 0; ci < L.groups.length; ci++) {
+    const g = L.groups[ci];
+    ctx.fillStyle = pal[ci] ?? '#ffffff';
+    for (let i = 0; i < g.length; i++) {
+      const s = g[i];
+      if (s.rank >= fill) continue;
+      ctx.fillRect(s.x, s.y - jumpOf(s, f, cheer), 2, 2);
+    }
+  }
+  const seats = L.seats;
+  for (let tone = 0; tone < 2; tone++) {
+    ctx.fillStyle = tone ? PAL.skin2 : PAL.skin;
+    for (let i = 0; i < seats.length; i++) {
+      const s = seats[i];
+      if (s.rank >= fill || (s.ph & 1) !== tone) continue;
+      ctx.fillRect(s.x, s.y - jumpOf(s, f, cheer) - 1, 2, 1);
+    }
+  }
+  if (cheer === 2) {
+    // 깃발·응원봉
+    for (let i = 0; i < seats.length; i++) {
+      const s = seats[i];
+      if (s.rank >= fill) continue;
+      const m = s.ph % 19;
+      if (m === 0) {
+        const w = (f + s.ph) & 2 ? 1 : 0;
+        const dy = jumpOf(s, f, cheer);
+        R(ctx, s.x + 2, s.y - dy - 5, 1, 5, '#f4f6fa');
+        R(ctx, s.x + 3 - w * 4, s.y - dy - 5, 3, 2, s.ph & 32 ? scene.homeColor : '#ffffff');
+      } else if (m === 1 || m === 2) {
+        const dy = jumpOf(s, f, cheer);
+        R(ctx, s.x + ((f + s.ph) & 1 ? -1 : 2), s.y - dy - 3, 1, 2, m === 1 ? '#ffe45c' : scene.homeColor);
+      }
+    }
+  }
+}
+
+// ───────── 차량 ─────────
+
+function carV(ctx: Ctx, x: number, y: number, c: string, flip: boolean): void {
+  R(ctx, x, y + 1, 7, 11, 'rgba(0,0,0,0.18)');
+  R(ctx, x, y, 7, 11, c);
+  R(ctx, x, y + 10, 7, 1, shade(c, -0.3));
+  R(ctx, x + 1, y + 3, 5, 5, shade(c, 0.22));
+  R(ctx, x + 1, flip ? y + 8 : y + 2, 5, 2, '#bfe3f7');
+  R(ctx, x + 1, flip ? y + 2 : y + 8, 5, 1, '#8fb6cc');
+}
+
+function carH(ctx: Ctx, x: number, y: number, c: string, dir: 1 | -1): void {
+  R(ctx, x, y, 13, 6, c);
+  R(ctx, x, y + 5, 13, 1, shade(c, -0.3));
+  R(ctx, x + 3, y + 1, 7, 4, shade(c, 0.22));
+  R(ctx, dir > 0 ? x + 8 : x + 3, y + 1, 2, 4, '#bfe3f7');
+  R(ctx, dir > 0 ? x + 3 : x + 9, y + 1, 1, 4, '#8fb6cc');
+  R(ctx, dir > 0 ? x + 12 : x, y + 1, 1, 1, '#fff6c8');
+  R(ctx, dir > 0 ? x + 12 : x, y + 4, 1, 1, '#fff6c8');
+}
+
+function drawCars(ctx: Ctx, scene: StadiumScene, t: number): void {
+  const n = Math.min(PARK_SLOTS.length, Math.round(2 + (PARK_SLOTS.length - 2) * clamp01(scene.fill * 1.05)));
+  for (let i = 0; i < n; i++) {
+    const p = PARK_SLOTS[i];
+    carV(ctx, p.x, p.y, CAR_COLORS[Math.floor(hash2(i, 33) * CAR_COLORS.length)], hash2(i, 34) < 0.5);
+  }
+  const xa = ((t * 34) % 820) - 80;
+  carH(ctx, Math.round(xa), 1, CAR_COLORS[Math.floor(t * 34 / 820) % CAR_COLORS.length], 1);
+  const xb = 720 - ((t * 27 + 310) % 900);
+  carH(ctx, Math.round(xb), 10, CAR_COLORS[(Math.floor((t * 27 + 310) / 900) + 3) % CAR_COLORS.length], -1);
+}
+
+// ───────── 매점 손님 / 훈련장 ─────────
+
+const spotCache = new Map<number, { q: Pt[]; p: Pt[] }>();
+const actorCache = new Map<number, TrainActor[]>();
+
+function drawCustomers(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number): void {
+  const lv = L.lv.food;
+  let sp = spotCache.get(lv);
+  if (!sp) {
+    sp = { q: queueSpots(lv), p: parasolSpots(lv) };
+    spotCache.set(lv, sp);
+  }
+  const k = clamp01(scene.fill * 1.1) * (scene.weather === 'rain' ? 0.7 : 1);
+  const cols = [scene.homeColor, ...FAN_EXTRA, scene.homeColor];
+  const np = Math.round(sp.p.length * k);
+  for (let i = 0; i < np; i++) {
+    const p = sp.p[(i * 3) % sp.p.length];
+    person(ctx, p.x, p.y, cols[(i * 5 + 2) % cols.length], 0);
+  }
+  const nq = Math.round(sp.q.length * k);
+  for (let i = 0; i < nq; i++) {
+    const p = sp.q[i];
+    const up = ((f >> 2) + i * 7) % 13 === 0 ? 1 : 0;
+    person(ctx, p.x, p.y, cols[(i * 3 + 1) % cols.length], up);
+  }
+}
+
+function drawTraining(ctx: Ctx, L: StaticLayers, scene: StadiumScene, t: number, f: number): void {
+  const lv = L.lv.training;
+  let acts = actorCache.get(lv);
+  if (!acts) {
+    acts = trainActors(lv);
+    actorCache.set(lv, acts);
+  }
+  const k = kit(scene.homeColor, true);
+  acts.forEach((a, i) => {
+    if (a.kind === 'jog') {
+      const len = Math.abs(a.b.x - a.a.x);
+      const u = (t * 13 + i * 9) % (len * 2);
+      const x = a.a.x + (u < len ? u : len * 2 - u);
+      sprite(ctx, Math.round(x), a.a.y, k, 1, f);
+      return;
+    }
+    const ph = ((t + i * 0.7) % 2) / 2;
+    if (a.kind === 'bat') {
+      sprite(ctx, a.b.x, a.b.y, k, 0, f);
+      const swing = ph > 0.3 && ph < 0.42;
+      if (swing) R(ctx, a.b.x - 6, a.b.y - 4, 4, 1, '#8a5a34');
+      else R(ctx, a.b.x - 3, a.b.y - 8, 1, 4, '#8a5a34');
+      if (ph < 0.3) {
+        const p = ph / 0.3;
+        R(ctx, lerp(a.a.x, a.b.x - 5, p), a.b.y - 4, 1, 1, '#ffffff');
+      } else if (ph < 0.55) {
+        const p = (ph - 0.3) / 0.25;
+        R(ctx, lerp(a.b.x - 5, a.a.x, p), a.b.y - 4 - Math.sin(p * Math.PI) * 9, 1, 1, '#ffffff');
+      }
+      return;
+    }
+    // pitch
+    sprite(ctx, a.a.x, a.a.y, k, 0, f);
+    sprite(ctx, a.b.x, a.b.y, k, 0, f);
+    if (ph < 0.3) {
+      const p = ph / 0.3;
+      R(ctx, lerp(a.a.x, a.b.x, p), lerp(a.a.y, a.b.y, p) - 4, 1, 1, '#ffffff');
+    } else if (ph > 0.5 && ph < 0.9) {
+      const p = (ph - 0.5) / 0.4;
+      R(ctx, lerp(a.b.x, a.a.x, p), lerp(a.b.y, a.a.y, p) - 4 - Math.sin(p * Math.PI) * 7, 1, 1, '#ffffff');
+    }
+  });
+  if (lv === 4) flag(ctx, DOME_FLAG.x, DOME_FLAG.y, scene.homeColor, f, 3);
+}
+
+function flag(ctx: Ctx, x: number, y: number, c: string, f: number, seed: number): void {
+  if (((f >> 2) + seed) & 1) {
+    R(ctx, x, y, 5, 3, c);
+    R(ctx, x, y, 5, 1, shade(c, 0.3));
+  } else {
+    R(ctx, x, y, 3, 3, c);
+    R(ctx, x + 3, y + 1, 2, 3, c);
+    R(ctx, x, y, 3, 1, shade(c, 0.3));
+  }
+}
+
+function drawBanners(ctx: Ctx, scene: StadiumScene, f: number): void {
+  const n = Math.max(0, Math.min(BANNER_X.length, Math.round(scene.banners || 0)));
+  for (let i = 0; i < n; i++) {
+    const x = BANNER_X[i] + 1;
+    const y = BANNER_Y;
+    const w = ((f >> 2) + i) & 1;
+    R(ctx, x - 1, y - 2, 1, 62, PAL.steelDk);
+    R(ctx, x - 2, y - 3, 3, 2, PAL.gold);
+    R(ctx, x, y, 8, 8, PAL.gold);
+    R(ctx, x + w, y + 8, 8, 7, PAL.gold);
+    R(ctx, x, y + 2, 8, 3, scene.homeColor);
+    R(ctx, x + 3 + w, y + 8, 2, 2, '#ffffff');
+    R(ctx, x + 2 + w, y + 9, 4, 1, '#ffffff');
+    R(ctx, x + w, y + 15, 3, 2, PAL.gold);
+    R(ctx, x + 5 + w, y + 15, 3, 2, PAL.gold);
+    R(ctx, x + 7, y, 1, 8, '#e0b020');
+    R(ctx, x + 7 + w, y + 8, 1, 7, '#e0b020');
+  }
+}
+
+// ───────── 선수 ─────────
+
+const BASE_PATH: Pt[] = [{ x: 0, y: 0 }, B1, B2, B3, { x: 0, y: 0 }];
+
+function pathPos(p: number): Pt {
+  const u = clamp01(p) * 4;
+  const i = Math.min(3, Math.floor(u));
+  const a = BASE_PATH[i];
+  const b = BASE_PATH[i + 1];
+  return { x: lerp(a.x, b.x, u - i), y: lerp(a.y, b.y, u - i) };
+}
+
+function drawPlayers(ctx: Ctx, scene: StadiumScene, t: number, fxT: number, f: number): void {
+  const fx = scene.fx.kind;
+  const homeKit = kit(scene.homeColor, true);
+  const awayKit = kit(scene.awayColor, false);
+  const playing = scene.playing;
+  const fieldKit = playing ? (scene.homeBatting ? awayKit : homeKit) : homeKit;
+  const batKit = playing ? (scene.homeBatting ? homeKit : awayKit) : homeKit;
+  const celebrate = (fx === 'win' || fx === 'walkoff') && fxT < 14;
+  const fxBusy = (fx === 'hr' || fx === 'score' || fx === 'walkoff' || fx === 'win' || fx === 'injury') && fxT < 6;
+
+  type Sp = { x: number; y: number; k: Kit; pose: 0 | 1 | 2; bat?: 0 | 1 };
+  const list: Sp[] = [];
+
+  // 수비
+  const winGather = fx === 'win' && celebrate;
+  FIELDERS.forEach((p, i) => {
+    let x = p.x;
+    let y = p.y;
+    let pose: 0 | 1 | 2 = 0;
+    if (winGather) {
+      const g = clamp01(fxT / 1.6);
+      const tx = MOUND.x + Math.cos(i * 0.7) * 12;
+      const ty = MOUND.y + 8 + Math.sin(i * 0.7) * 9;
+      x = lerp(p.x, tx, g);
+      y = lerp(p.y, ty, g);
+      pose = g < 1 ? 1 : 2;
+    } else if (fx === 'walkoff' && celebrate) {
+      // 끝내기를 맞은 수비는 고개 숙이고 퇴장
+      const g = clamp01((fxT - 1) / 5);
+      x = lerp(p.x, -70, g * 0.5);
+      y = lerp(p.y, p.y + 20, g * 0.5);
+    } else if (((f >> 3) + i * 3) % 9 === 0) {
+      x += i % 2 ? 1 : -1;
+    }
+    list.push({ x, y, k: fx === 'win' ? homeKit : fieldKit, pose });
+  });
+
+  if (playing) {
+    // 심판
+    list.push({ x: 0, y: 16, k: { j: '#2b3350', c: '#1b2233', p: '#3a4563' }, pose: 0 });
+    if (fx === 'hr' && fxT < 6.2) {
+      const p = pathPos((fxT - 0.35) / 5.6);
+      list.push({ x: p.x, y: p.y, k: batKit, pose: 1 });
+    } else if ((fx === 'score' || fx === 'walkoff') && fxT < 6) {
+      const g = clamp01(fxT / 1.1);
+      list.push({ x: lerp(B3.x, -3, g), y: lerp(B3.y, -2, g), k: batKit, pose: g < 1 ? 1 : 2 });
+      const g2 = clamp01(fxT / 1.4);
+      list.push({ x: lerp(B1.x, B2.x, g2), y: lerp(B1.y, B2.y, g2), k: batKit, pose: g2 < 1 ? 1 : 0 });
+      list.push({ x: lerp(-9, B1.x, g2), y: lerp(-1, B1.y, g2), k: batKit, pose: g2 < 1 ? 1 : 0 });
+      if (fx === 'walkoff' && fxT > 0.9) {
+        for (let i = 0; i < 7; i++) {
+          const g3 = clamp01((fxT - 0.9 - i * 0.08) / 0.9);
+          const tx = Math.cos(i * 0.9) * 13;
+          const ty = -6 + Math.sin(i * 0.9) * 9;
+          list.push({ x: lerp(56, tx, g3), y: lerp(-30, ty, g3), k: batKit, pose: g3 < 1 ? 1 : 2 });
+        }
+      }
+    } else if (fx !== 'win') {
+      const ph = (t % 2.8) / 2.8;
+      list.push({ x: -9, y: -1, k: batKit, pose: 0, bat: ph > 0.3 && ph < 0.4 ? 1 : 0 });
+    }
+  } else {
+    // 연습: 펑고 코치 + 러닝
+    if (!celebrate) list.push({ x: -9, y: -1, k: homeKit, pose: 0, bat: (t % 3.2) / 3.2 > 0.9 ? 1 : 0 });
+    for (let i = 0; i < 3; i++) {
+      const u = (t * 0.035 + i * 0.012) % 2;
+      const phi = lerp(14, 40, u < 1 ? u : 2 - u) * DEG;
+      list.push({ x: 264 * Math.sin(phi), y: -264 * Math.cos(phi), k: homeKit, pose: 1 });
+    }
+  }
+
+  list.sort((a, b) => a.y - b.y);
+  for (const s of list) {
+    const sx = X(s.x);
+    const sy = Y(s.y);
+    sprite(ctx, sx, sy, s.k, s.pose, f);
+    if (s.bat === 1) R(ctx, sx + 2, sy - 4, 4, 1, '#8a5a34');
+    else if (s.bat === 0) R(ctx, sx - 3, sy - 8, 1, 4, '#8a5a34');
+  }
+
+  // 공
+  if (playing && !fxBusy) {
+    const ph = (t % 2.8) / 2.8;
+    if (ph > 0.16 && ph < 0.3) {
+      const p = (ph - 0.16) / 0.14;
+      const wy = lerp(MOUND.y, 2, p);
+      ball(ctx, X(0), Y(wy, 4), Y(wy));
+    }
+  } else if (!playing && !celebrate) {
+    // 캐치볼
+    const pairs: [number, number][] = [
+      [2, 3],
+      [4, 5],
+      [6, 7],
+    ];
+    pairs.forEach(([a, b], i) => {
+      const u = (t / (1.3 + i * 0.4) + i * 0.37) % 2;
+      const p = u < 1 ? u : 2 - u;
+      const A = FIELDERS[a];
+      const B = FIELDERS[b];
+      const wx = lerp(A.x, B.x, p);
+      const wy = lerp(A.y, B.y, p);
+      const z = 5 + Math.sin(p * Math.PI) * (10 + i * 8);
+      R(ctx, X(wx), Y(wy), 2, 1, 'rgba(0,0,0,0.2)');
+      R(ctx, X(wx), Y(wy, z), 1, 1, '#ffffff');
+    });
+  }
+}
+
+// ───────── fx ─────────
+
+function cheerLevel(scene: StadiumScene, fxT: number): number {
+  const fx = scene.fx;
+  switch (fx.kind) {
+    case 'hr':
+      if (!fx.cheer) return 0;
+      return fxT > 1.25 && fxT < 6 ? 2 : fxT <= 1.25 ? 1 : 0;
+    case 'score':
+      return fx.cheer && fxT < 4 ? 2 : 0;
+    case 'walkoff':
+    case 'win':
+      return fxT < 16 ? 2 : 0;
+    default:
+      return 0;
+  }
+}
+
+function burst(ctx: Ctx, cx: number, cy: number, age: number, seed: number, big: boolean, f: number): void {
+  if (age < 0 || age > 1.5) return;
+  const cA = FIREWORK_COLORS[Math.floor(hash2(seed, 1) * FIREWORK_COLORS.length)];
+  const cB = FIREWORK_COLORS[Math.floor(hash2(seed, 2) * FIREWORK_COLORS.length)];
+  if (age < 0.28) {
+    const p = age / 0.28;
+    const y = cy + 46 * (1 - p);
+    R(ctx, cx, y, 1, 5, '#fff6c8');
+    R(ctx, cx, y + 5, 1, 4, cA);
+    return;
+  }
+  const te = age - 0.28;
+  if (te < 0.08) {
+    R(ctx, cx - 2, cy - 2, 5, 5, '#ffffff');
+    R(ctx, cx - 4, cy, 9, 1, '#ffffff');
+    R(ctx, cx, cy - 4, 1, 9, '#ffffff');
+  }
+  const n = big ? 30 : 20;
+  const rad = big ? 50 : 32;
+  const k = 1 - Math.pow(1 - Math.min(1, te / 0.9), 2.2);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + hash2(seed, 3) * 6;
+    const v = rad * (i % 2 ? 1 : 0.62) * (0.8 + 0.2 * hash2(seed * 31 + i, 4));
+    const x = Math.round(cx + Math.cos(a) * v * k);
+    const y = Math.round(cy + Math.sin(a) * v * k * 0.8 + te * te * 12);
+    if (te > 0.85 && (i + f) % 2 === 0) continue;
+    const c = i % 2 === 0 ? cB : cA;
+    const sz = te < 0.5 ? (big ? 3 : 2) : te < 0.95 ? 2 : 1;
+    R(ctx, x + 1, y + 1, sz, sz, 'rgba(40,30,70,0.4)');
+    R(ctx, x, y, sz, sz, c);
+    if (te > 0.12 && te < 0.7) {
+      const x2 = cx + Math.cos(a) * v * k * 0.72;
+      const y2 = cy + Math.sin(a) * v * k * 0.8 * 0.72 + te * te * 9;
+      R(ctx, x2, y2, 1, 1, '#ffffff');
+    }
+  }
+}
+
+function fireworks(ctx: Ctx, t0: number, key: number, n: number, gap: number, big: boolean, loop: number, f: number): void {
+  for (let i = 0; i < n; i++) {
+    let age = t0 - i * gap - hash2(key + i, 9) * 0.25;
+    let cyc = 0;
+    if (loop > 0 && age > 0) {
+      cyc = Math.floor(age / loop);
+      age = age % loop;
+    }
+    const seed = key * 13 + i * 7 + cyc * 101;
+    const cx = Math.round(80 + ((i + hash2(seed, 5)) / n) * 480);
+    const cy = Math.round(40 + hash2(seed, 6) * 150);
+    burst(ctx, cx, cy, age, seed, big, f);
+  }
+}
+
+function confetti(ctx: Ctx, fxT: number, key: number): void {
+  const n = fxT < 8 ? 90 : Math.max(0, Math.round(90 * (1 - (fxT - 8) / 4)));
+  for (let i = 0; i < n; i++) {
+    const sp = 34 + hash2(i, key) * 46;
+    const y = ((hash2(i, 71) * 460 + fxT * sp) % 460) - 20;
+    const x = hash2(i, 72) * STADIUM_W + Math.sin(fxT * 3 + i) * 5;
+    const c = FIREWORK_COLORS[i % FIREWORK_COLORS.length];
+    if ((Math.floor(fxT * 8) + i) & 1) R(ctx, x, y, 2, 1, c);
+    else R(ctx, x, y, 1, 2, c);
+  }
+}
+
+function hrTarget(key: number): { x: number; y: number } {
+  const side = hash2(key, 17) < 0.5 ? -1 : 1;
+  const phi = (16 + hash2(key, 18) * 22) * DEG * side;
+  const rho = 318;
+  return { x: rho * Math.sin(phi), y: -rho * Math.cos(phi) };
+}
+
+function drawFx(ctx: Ctx, L: StaticLayers, scene: StadiumScene, fxT: number, f: number): void {
+  const fx = scene.fx;
+  const key = scene.fxKey | 0;
+  switch (fx.kind) {
+    case 'hr': {
+      const T = 1.5;
+      const tg = hrTarget(key);
+      if (fxT < 0.22) sparkle(ctx, X(0), Y(0, 6), true, '#ffffff');
+      if (fxT < T) {
+        for (let k = 4; k >= 0; k--) {
+          const p = fxT / T - k * 0.035;
+          if (p < 0) continue;
+          const wx = tg.x * p;
+          const wy = tg.y * p;
+          const z = 4 + 4 * 92 * p * (1 - p);
+          const sx = X(wx);
+          const sy = Y(wy, z);
+          if (k === 0) {
+            R(ctx, sx - 1, Y(wy), 4, 2, 'rgba(0,0,0,0.28)');
+            R(ctx, sx - 1, sy, 4, 2, '#3a3320');
+            R(ctx, sx, sy - 1, 2, 4, '#3a3320');
+            R(ctx, sx, sy, 2, 2, '#ffffff');
+          } else {
+            R(ctx, sx, sy, k < 3 ? 2 : 1, k < 3 ? 2 : 1, k < 2 ? '#fff6c8' : '#ffe08a');
+          }
+        }
+      } else if (fxT < T + 0.7) {
+        const sx = X(tg.x);
+        const sy = Y(tg.y, 10);
+        const r = Math.round((fxT - T) * 16);
+        sparkle(ctx, sx, sy, true);
+        sparkle(ctx, sx - r, sy - (r >> 1), false);
+        sparkle(ctx, sx + r, sy - (r >> 1), false, '#ffffff');
+        sparkle(ctx, sx, sy - r, false);
+      }
+      if (fx.cheer && fxT > T - 0.1) fireworks(ctx, fxT - T + 0.1, key, 6, 0.42, false, 0, f);
+      break;
+    }
+    case 'score': {
+      if (fxT > 1.0 && fxT < 2.4) {
+        const r = Math.round((fxT - 1.0) * 14);
+        const sx = X(0);
+        const sy = Y(0, 8);
+        sparkle(ctx, sx, sy - r, true);
+        sparkle(ctx, sx - r - 3, sy - (r >> 1), false, '#ffffff');
+        sparkle(ctx, sx + r + 3, sy - (r >> 1), false);
+        if (fx.cheer) {
+          sparkle(ctx, sx - 2 * r, sy - r - 4, false, '#ff9d2e');
+          sparkle(ctx, sx + 2 * r, sy - r - 4, false, '#5ec8ff');
+        }
+      }
+      if (fx.cheer && fxT > 0.9) fireworks(ctx, fxT - 0.9, key, 2, 0.5, false, 0, f);
+      break;
+    }
+    case 'walkoff':
+      if (fxT < 14) {
+        fireworks(ctx, fxT - 0.6, key, 9, 0.33, true, 3.1, f);
+        if (fxT > 0.8) confetti(ctx, fxT - 0.8, key);
+      }
+      break;
+    case 'win':
+      if (fxT < 12) {
+        fireworks(ctx, fxT - 0.2, key, 7, 0.4, true, 3.0, f);
+        if (fxT > 0.5) confetti(ctx, fxT - 0.5, key);
+      }
+      break;
+    case 'injury': {
+      if (fxT > 8) break;
+      // 쓰러진 선수 + 달려오는 트레이너
+      const px = X(26);
+      const py = Y(-92);
+      const k = scene.homeBatting ? scene.awayColor : scene.homeColor;
+      R(ctx, px - 3, py, 8, 1, 'rgba(20,50,20,0.28)');
+      R(ctx, px - 3, py - 2, 2, 2, PAL.skin);
+      R(ctx, px - 1, py - 2, 4, 2, k);
+      R(ctx, px + 3, py - 2, 2, 2, '#ffffff');
+      const g = clamp01(fxT / 1.3);
+      const tx = lerp(X(74), px + 7, g);
+      const ty = lerp(Y(-40), py + 1, g);
+      sprite(ctx, Math.round(tx), Math.round(ty), { j: '#ffffff', c: PAL.red, p: '#34425e' }, g < 1 ? 1 : 0, f);
+      if (g >= 1) R(ctx, px + 9, py - 3, 3, 3, PAL.red);
+      // 적십자 점멸
+      const cx = 320;
+      const cy = 246;
+      const on = (f >> 2) & 1;
+      R(ctx, cx - 9, cy - 9, 19, 19, on ? '#b3262a' : '#d9a0a2');
+      R(ctx, cx - 8, cy - 8, 17, 17, '#ffffff');
+      const rc = on ? PAL.red : '#f3b0b1';
+      R(ctx, cx - 2, cy - 6, 5, 13, rc);
+      R(ctx, cx - 6, cy - 2, 13, 5, rc);
+      break;
+    }
+    case 'build': {
+      const D = 2.8;
+      if (fxT > D) break;
+      const slot = Math.floor(fxT * 7);
+      const amt = 1 - fxT / D;
+      if (fx.target === 'seats') {
+        const n = L.seats.length;
+        const cnt = Math.round(46 * amt) + 6;
+        for (let i = 0; i < cnt && n > 0; i++) {
+          const s = L.seats[Math.floor(hash2(i, slot + key * 7) * n)];
+          sparkle(ctx, s.x, s.y, i % 4 === 0, i % 3 ? '#ffe45c' : '#ffffff');
+        }
+        for (let i = 0; i < 12; i++) {
+          const s = L.seats[Math.floor(hash2(i, 991 + key) * n)];
+          if (!s) continue;
+          const up = (fxT * 14 + i * 3) % 12;
+          dust(ctx, s.x, s.y + 4 - up, amt);
+        }
+      } else {
+        const r = fx.target === 'food' ? HOTSPOTS.food : HOTSPOTS.training;
+        const cnt = Math.round(26 * amt) + 5;
+        for (let i = 0; i < cnt; i++) {
+          const x = r.x + 3 + hash2(i, slot + key * 7) * (r.w - 6);
+          const y = r.y + 2 + hash2(i, slot + 57 + key) * (r.h - 8);
+          sparkle(ctx, Math.round(x), Math.round(y), i % 3 === 0, i % 2 ? '#ffe45c' : '#ffffff');
+        }
+        for (let i = 0; i < 10; i++) {
+          const up = (fxT * 16 + i * 5) % 16;
+          dust(ctx, r.x + 6 + hash2(i, 13 + key) * (r.w - 16), r.y + r.h - 6 - up, amt);
+        }
+        if (fxT < 0.5 && (f & 1)) {
+          R(ctx, r.x, r.y, r.w, 1, '#ffe45c');
+          R(ctx, r.x, r.y + r.h - 1, r.w, 1, '#ffe45c');
+          R(ctx, r.x, r.y, 1, r.h, '#ffe45c');
+          R(ctx, r.x + r.w - 1, r.y, 1, r.h, '#ffe45c');
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function dust(ctx: Ctx, x: number, y: number, amt: number): void {
+  const a = (0.25 + 0.45 * amt).toFixed(2);
+  const c = `rgba(240,230,205,${a})`;
+  R(ctx, x, y, 5, 3, c);
+  R(ctx, x + 1, y - 1, 3, 5, c);
+}
+
+// ───────── 날씨 / 야간 ─────────
+
+function drawRain(ctx: Ctx, t: number): void {
+  ctx.fillStyle = 'rgba(214,234,255,0.72)';
+  for (let i = 0; i < 130; i++) {
+    const sp = 300 + hash2(i, 3) * 160;
+    const y = ((hash2(i, 5) * 460 + t * sp) % 460) - 20;
+    const x = ((hash2(i, 7) * 760 - y * 0.3 + 760) % 760) - 60;
+    ctx.fillRect(Math.round(x), Math.round(y), 1, 3);
+    ctx.fillRect(Math.round(x) - 1, Math.round(y) + 3, 1, 3);
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  const slot = Math.floor(t * 9);
+  for (let i = 0; i < 26; i++) {
+    const x = hash2(i, slot) * STADIUM_W;
+    const y = 120 + hash2(i, slot + 91) * 290;
+    ctx.fillRect(Math.round(x) - 1, Math.round(y), 3, 1);
+  }
+}
+
+function drawClouds(ctx: Ctx, t: number): void {
+  // 구름 그림자: 계단식 타원 두 겹
+  ctx.fillStyle = 'rgba(40,55,80,0.045)';
+  for (let i = 0; i < 3; i++) {
+    const cx = Math.round(((t * 7 + i * 300) % 1000) - 180);
+    const cy = 80 + i * 120;
+    for (const [rx, ry, ox] of [
+      [88, 30, 0],
+      [60, 20, 14],
+    ]) {
+      for (let dy = -ry; dy < ry; dy += 2) {
+        const hw = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry)));
+        ctx.fillRect(cx + ox - hw, cy + dy, hw * 2, 2);
+      }
+    }
+  }
+}
+
+/** 야간 틴트(알파 ≤ 0.24, 그라운드는 조명으로 밝게). Bayer 디더로 픽셀 느낌 유지. */
+export function buildNightTint(): HTMLCanvasElement {
+  const cv = document.createElement('canvas');
+  cv.width = STADIUM_W;
+  cv.height = STADIUM_H;
+  const ctx = cv.getContext('2d');
+  if (!ctx) return cv;
+  const img = ctx.createImageData(STADIUM_W, STADIUM_H);
+  const d = img.data;
+  const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  for (let y = 0; y < STADIUM_H; y++) {
+    for (let x = 0; x < STADIUM_W; x++) {
+      const ex = (x - 320) / 268;
+      const ey = (y - 262) / 152;
+      let l = Math.max(0, Math.min(1, (1.25 - Math.sqrt(ex * ex + ey * ey)) / 0.45));
+      for (const p of [
+        [82, 380],
+        [558, 380],
+        [56, 66],
+      ]) {
+        const dd = Math.hypot(x - p[0], (y - p[1]) * 1.3);
+        l = Math.max(l, Math.max(0, 1 - dd / 80) * 0.7);
+      }
+      const a = 0.24 - 0.16 * l;
+      const step = 0.04;
+      const q = Math.floor(a / step + (bayer[(y & 3) * 4 + (x & 3)] + 0.5) / 16) * step;
+      const i = (y * STADIUM_W + x) * 4;
+      d[i] = 14;
+      d[i + 1] = 24;
+      d[i + 2] = 84;
+      d[i + 3] = Math.round(Math.min(0.24, q) * 255);
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+
+function drawLampGlow(ctx: Ctx): void {
+  for (const tw of TOWERS) {
+    const top = tw.y - tw.h;
+    R(ctx, tw.x - 15, top - 17, 31, 25, 'rgba(255,244,180,0.16)');
+    R(ctx, tw.x - 12, top - 14, 25, 19, 'rgba(255,244,180,0.22)');
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) R(ctx, tw.x - 7 + c * 3, top - 9 + r * 3, 2, 2, '#ffffff');
+  }
+  // 전광판 위 전구
+  for (let x = 262; x < 378; x += 6) R(ctx, x, 53, 2, 1, '#ffffff');
+}
+
+function drawNeon(ctx: Ctx, f: number, night: boolean): void {
+  const s = NEON.strip;
+  for (let i = 0; i < 7; i++) {
+    const x = s.x + ((f * 2 + i * 14) % (s.w - 5));
+    R(ctx, x, s.y, 5, s.h, '#ffd6ea');
+  }
+  const on = (f >> 1) % NEON.side.n;
+  R(ctx, NEON.side.x, NEON.side.y + on * NEON.side.step, 4, 4, '#ffffff');
+  const g = NEON.sign;
+  const c = (f >> 3) & 1 ? '#4fe3ff' : '#c9f8ff';
+  R(ctx, g.x, g.y, g.w, 1, c);
+  R(ctx, g.x, g.y + g.h - 1, g.w, 1, c);
+  R(ctx, g.x, g.y, 1, g.h, c);
+  R(ctx, g.x + g.w - 1, g.y, 1, g.h, c);
+  for (let i = 0; i < 5; i++) {
+    const lit = ((f >> 2) + i) % 6 !== 0;
+    R(ctx, 48 + i * 8, 349, 6, 3, lit ? (i === 3 ? '#ffe566' : '#ff6bb3') : '#7a2f58');
+  }
+  if (night) {
+    R(ctx, g.x - 2, g.y - 2, g.w + 4, g.h + 4, 'rgba(79,227,255,0.14)');
+    R(ctx, s.x - 2, s.y - 2, s.w + 4, s.h + 4, 'rgba(255,79,163,0.16)');
+  }
+}
+
+// ───────── 프레임 ─────────
+
+export function drawFrame(inp: FrameInput): void {
+  const { ctx, scene, layers: L, t, fxT } = inp;
+  const f = Math.floor(t * 14);
+  const cheer = cheerLevel(scene, fxT);
+  const night = !!scene.night;
+
+  ctx.globalAlpha = 1;
+  ctx.drawImage(L.base, 0, 0);
+  drawCars(ctx, scene, t);
+  drawCrowd(ctx, L, scene, f, cheer);
+  ctx.drawImage(L.over, 0, 0);
+  for (let i = 0; i < L.flags.length; i++) {
+    flag(ctx, L.flags[i].x, L.flags[i].y, i % 3 === 1 ? scene.homeColor2 : scene.homeColor, f, i);
+  }
+  drawBanners(ctx, scene, f);
+  drawCustomers(ctx, L, scene, f);
+  drawTraining(ctx, L, scene, t, f);
+  drawPlayers(ctx, scene, t, fxT, f);
+
+  if (scene.weather === 'cloudy') {
+    R(ctx, 0, 0, STADIUM_W, STADIUM_H, 'rgba(96,108,128,0.11)');
+    drawClouds(ctx, t);
+  } else if (scene.weather === 'rain') {
+    R(ctx, 0, 0, STADIUM_W, STADIUM_H, 'rgba(70,92,128,0.15)');
+  }
+  if (night && inp.night) {
+    ctx.drawImage(inp.night, 0, 0);
+    drawLampGlow(ctx);
+  }
+  if (L.lv.food === 4) drawNeon(ctx, f, night);
+  drawFx(ctx, L, scene, fxT, f);
+  if (scene.weather === 'rain') drawRain(ctx, t);
+}

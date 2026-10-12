@@ -1,0 +1,279 @@
+import { useEffect, useMemo, type CSSProperties } from 'react';
+import type { FacilityKind, StadiumFx, StadiumScene } from '../game/types';
+import StadiumCanvas, { HOTSPOTS, STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
+import { useStore, useUserTeam, userMatch } from '../store';
+import { fmtInt, fmtMoney } from '../game/format';
+import { SEAT_LV, upgradeCost } from '../game/economy';
+import GameSummary from './GameSummary';
+import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
+
+const KINDS: FacilityKind[] = ['seats', 'food', 'training'];
+
+function rectStyle(r: { x: number; y: number; w: number; h: number }): CSSProperties {
+  return {
+    left: `${(r.x / STADIUM_W) * 100}%`,
+    top: `${(r.y / STADIUM_H) * 100}%`,
+    width: `${(r.w / STADIUM_W) * 100}%`,
+    height: `${(r.h / STADIUM_H) * 100}%`,
+  };
+}
+
+const chip: CSSProperties = {
+  background: 'rgba(27,34,51,.88)',
+  boxShadow: '0 0 0 0.25cqw #0f1420',
+  fontSize: '1.7cqw',
+  padding: '0.5cqw 1cqw',
+  lineHeight: 1.25,
+};
+
+export default function StadiumView() {
+  const playback = useStore((s) => s.playback);
+  const stepPlayback = useStore((s) => s.stepPlayback);
+  const skipPlayback = useStore((s) => s.skipPlayback);
+  const fxUp = useStore((s) => s.fx);
+  const summaryOpen = useStore((s) => !!s.summary);
+  const facilities = useStore((s) => s.facilities);
+  const crowd = useStore((s) => s.crowd);
+  const teams = useStore((s) => s.teams);
+  const userId = useStore((s) => s.userId);
+  const schedule = useStore((s) => s.schedule);
+  const day = useStore((s) => s.day);
+  const season = useStore((s) => s.season);
+  const phase = useStore((s) => s.phase);
+  const setTab = useStore((s) => s.setTab);
+  const user = useUserTeam();
+
+  const report = playback?.report ?? null;
+  const step = playback?.step ?? 0;
+  const ev = report ? (report.result.events[step] ?? null) : null;
+  const evType = ev?.type;
+
+  // ── 재생 드라이버: 이벤트마다 타이머 하나. cleanup 으로 지우므로 StrictMode 이중 실행에도 안전.
+  useEffect(() => {
+    if (!report) return;
+    const ms = evType === 'hr' || evType === 'walkoff' ? 2600 : 1800;
+    const id = window.setTimeout(stepPlayback, ms);
+    return () => window.clearTimeout(id);
+  }, [report, step, evType, stepPlayback]);
+
+  const next = useMemo(() => (phase === 'ended' ? null : userMatch({ schedule, userId }, day)), [schedule, userId, day, phase]);
+  const oppId = report ? report.oppId : next?.oppId;
+  const opp = teams.find((t) => t.id === oppId);
+  const cap = SEAT_LV[facilities.seats]?.cap ?? crowd?.capacity ?? 1;
+  const idleFill = crowd ? Math.min(1, crowd.attendance / Math.max(1, cap)) : 0;
+
+  const scene = useMemo<StadiumScene>(() => {
+    let fill = idleFill;
+    let fx: StadiumFx = { kind: 'none' };
+    let fxKey = 0;
+    let homeBatting = false;
+    if (report) {
+      fill = report.isHome && report.crowd ? Math.min(1, report.crowd.attendance / Math.max(1, report.crowd.capacity)) : idleFill * 0.15;
+      fxKey = (report.day + 1) * 100 + step;
+      if (ev) {
+        const mine = ev.teamId === userId;
+        const cheer = mine && report.isHome;
+        // 화면의 구장은 항상 우리 구장: "홈" = 유저 팀으로 매핑
+        homeBatting = report.isHome ? ev.half === 1 : ev.half === 0;
+        if (ev.type === 'hr') fx = { kind: 'hr', byHome: mine, cheer };
+        else if (ev.type === 'score') fx = { kind: 'score', cheer };
+        else if (ev.type === 'walkoff') fx = mine && report.isHome ? { kind: 'walkoff' } : { kind: 'score', cheer: false };
+        else if (ev.type === 'injury') fx = { kind: 'injury' };
+        else if (ev.type === 'final' && report.isHome && report.won === true) fx = { kind: 'win' };
+      }
+    } else if (fxUp) {
+      fx = { kind: 'build', target: fxUp.kind };
+      fxKey = fxUp.key;
+    }
+    return {
+      facilities,
+      homeColor: user.color,
+      homeColor2: user.color2,
+      awayColor: opp?.color ?? '#8892b0',
+      fill,
+      // 평소에는 맑게, 경기 중·요약 중에만 그날 날씨
+      weather: report ? (report.crowd?.weather ?? 'sunny') : summaryOpen ? (crowd?.weather ?? 'sunny') : 'sunny',
+      night: report ? report.night : false,
+      playing: !!report,
+      homeBatting,
+      fx,
+      fxKey,
+      banners: Math.max(0, Math.min(3, season - 1)),
+    };
+  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp?.color, idleFill, crowd?.weather, summaryOpen, userId, season]);
+
+  const star = useMemo(() => user.roster.reduce<(typeof user.roster)[number] | null>((a, p) => (!a || p.star > a.star ? p : a), null), [user.roster]);
+
+  // 관중 칩에 보여줄 값
+  const shownCrowd = report ? report.crowd : crowd;
+  const weather = scene.weather;
+
+  const awayTeam = report ? teams.find((t) => t.id === report.result.awayId) : undefined;
+  const homeTeam = report ? teams.find((t) => t.id === report.result.homeId) : undefined;
+  const mineEv = ev?.teamId === userId;
+
+  return (
+    <div className="flex h-full w-full items-center justify-center" style={{ containerType: 'size' }}>
+      <div
+        className="relative overflow-hidden"
+        style={{
+          width: `min(100cqw, calc(100cqh * ${STADIUM_W} / ${STADIUM_H}))`,
+          aspectRatio: `${STADIUM_W} / ${STADIUM_H}`,
+          containerType: 'inline-size',
+          boxShadow: '0 0 0 2px #0f1420',
+          background: '#7fc96b',
+        }}
+      >
+        <StadiumCanvas scene={scene} className="pixel absolute inset-0 block h-full w-full" />
+
+        {/* 전광판 */}
+        <div
+          className="pointer-events-none absolute flex flex-col items-center justify-center overflow-hidden text-center"
+          style={{ ...rectStyle(HOTSPOTS.scoreboard), color: '#ffd84a', lineHeight: 1.15, textShadow: '0 0 0.6cqw rgba(255,216,74,.6)' }}
+        >
+          {report && ev ? (
+            <>
+              <div style={{ fontSize: '1.35cqw', color: '#7fd3ff' }}>
+                {ev.type === 'final' ? '경기 종료' : ev.type === 'start' ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`}
+              </div>
+              <div className="font-pixel-lg flex items-center" style={{ fontSize: '2.6cqw', gap: '0.8cqw' }}>
+                <span style={{ fontSize: '1.5cqw', color: awayTeam?.id === userId ? '#fff' : '#b9c3e0' }}>{awayTeam?.id}</span>
+                <span key={`a${ev.away}`} className={step > 0 ? 'anim-pop' : ''}>
+                  {ev.away}
+                </span>
+                <span style={{ color: '#6b7694' }}>:</span>
+                <span key={`h${ev.home}`} className={step > 0 ? 'anim-pop' : ''}>
+                  {ev.home}
+                </span>
+                <span style={{ fontSize: '1.5cqw', color: homeTeam?.id === userId ? '#fff' : '#b9c3e0' }}>{homeTeam?.id}</span>
+              </div>
+            </>
+          ) : next && opp ? (
+            <>
+              <div style={{ fontSize: '1.25cqw', color: '#7fd3ff' }}>NEXT · {day + 1}차전</div>
+              <div className="font-pixel-lg w-full truncate" style={{ fontSize: '1.9cqw' }}>
+                vs {opp.name}
+              </div>
+              <div style={{ fontSize: '1.25cqw', color: '#fff' }}>
+                {next.isHome ? '홈' : '원정'} · {dowOf(day)}요일 {isNightDay(day) ? '야간' : '주간'}
+              </div>
+            </>
+          ) : (
+            <div className="font-pixel-lg" style={{ fontSize: '1.9cqw' }}>
+              시즌 종료
+            </div>
+          )}
+        </div>
+
+        {/* 시설 핫스팟 */}
+        {KINDS.map((k) => {
+          const cost = upgradeCost(k, facilities);
+          const built = fxUp?.kind === k && !report;
+          return (
+            <button
+              key={k}
+              className="group absolute cursor-pointer"
+              style={rectStyle(HOTSPOTS[k])}
+              onClick={() => setTab('right', 'stadium')}
+              title={`${FAC_KO[k]} — 누르면 구장 탭이 열립니다`}
+            >
+              <span className="absolute inset-0 opacity-0 group-hover:opacity-100" style={{ boxShadow: 'inset 0 0 0 0.3cqw #ffd84a', background: 'rgba(255,216,74,.12)' }} />
+              <span
+                className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap opacity-0 group-hover:opacity-100"
+                style={{ ...chip, bottom: '100%', marginBottom: '0.6cqw', color: '#fff', fontSize: '1.5cqw' }}
+              >
+                {FAC_KO[k]} Lv{facilities[k] + 1}{' '}
+                {cost != null ? <span style={{ color: '#ffd84a' }}>▲{fmtMoney(cost)}</span> : <span style={{ color: '#6ee07a' }}>MAX</span>}
+              </span>
+              {built && fxUp && (
+                <span
+                  key={fxUp.key}
+                  className="anim-float font-pixel-lg pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap"
+                  style={{ fontSize: '2.2cqw', color: '#ffd84a', textShadow: '0.2cqw 0.2cqw 0 #0f1420' }}
+                >
+                  ▲ Lv{facilities[k] + 1}!
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {/* 관중 칩 */}
+        <div className="pointer-events-none absolute flex items-center" style={{ ...chip, left: '1.2cqw', top: '1.2cqw', gap: '0.8cqw' }}>
+          <span title={WEATHER_KO[weather]}>{WEATHER_ICON[weather]}</span>
+          {report && !report.isHome ? (
+            <span className="text-white/80">원정 경기</span>
+          ) : shownCrowd ? (
+            <>
+              <span>
+                관중 <span className="text-hi">{fmtInt(shownCrowd.attendance)}</span>
+                <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>
+              </span>
+              {shownCrowd.soldOut && (
+                <span className="anim-blink font-pixel-lg" style={{ color: '#ff6b6b' }}>
+                  매진!
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-white/70">좌석 {fmtInt(cap)}석 · 개막 대기</span>
+          )}
+          {report?.night && <span className="text-sky">야간</span>}
+        </div>
+
+        {/* 간판스타 칩 */}
+        {star && (
+          <div className="pointer-events-none absolute" style={{ ...chip, right: '1.2cqw', top: '1.2cqw' }}>
+            <span className="text-white/55">간판스타 </span>
+            <span className="text-hi">★ {star.name}</span>
+          </div>
+        )}
+
+        {/* 하이라이트 배너 */}
+        {report && ev && (
+          <div className="pointer-events-none absolute inset-x-0 flex justify-center" style={{ top: '34%' }}>
+            <div
+              key={`${report.day}-${step}`}
+              className="anim-pop text-center"
+              style={{
+                background: 'rgba(15,20,32,.82)',
+                boxShadow: `0 0 0 0.3cqw ${mineEv ? user.color : '#0f1420'}, 0 0.8cqw 0 rgba(0,0,0,.25)`,
+                padding: '1.2cqw 3cqw',
+                maxWidth: '80%',
+              }}
+            >
+              <div
+                className="font-pixel-lg"
+                style={{
+                  fontSize: ev.type === 'hr' || ev.type === 'walkoff' ? '4.4cqw' : '3.4cqw',
+                  lineHeight: 1.15,
+                  color: ev.type === 'injury' ? '#ff6b6b' : mineEv ? '#ffd84a' : '#ffffff',
+                  textShadow: '0.3cqw 0.3cqw 0 #0f1420',
+                }}
+              >
+                {ev.text}
+              </div>
+              {ev.sub && <div style={{ fontSize: '1.8cqw', color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>}
+            </div>
+          </div>
+        )}
+
+        {/* 재생 진행 + 건너뛰기 */}
+        {report && (
+          <div className="absolute inset-x-0 flex items-center justify-center" style={{ bottom: '20%', gap: '1.2cqw' }}>
+            <div className="flex" style={{ gap: '0.4cqw' }}>
+              {report.result.events.map((_, i) => (
+                <span key={i} style={{ width: '1cqw', height: '1cqw', background: i <= step ? '#ffd84a' : 'rgba(15,20,32,.6)', boxShadow: '0 0 0 0.15cqw #0f1420' }} />
+              ))}
+            </div>
+            <button className="px-btn" style={{ fontSize: 'max(11px, 1.5cqw)' }} onClick={skipPlayback}>
+              건너뛰기 ▶▶
+            </button>
+          </div>
+        )}
+
+        <GameSummary />
+      </div>
+    </div>
+  );
+}
