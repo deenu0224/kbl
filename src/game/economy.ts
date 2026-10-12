@@ -1,6 +1,7 @@
 import type { Core, Facilities, FacilityKind, Ledger, Player, Team, Weather } from './types';
 import { clamp } from './rng';
 import { GAMES } from './schedule';
+import { activeBuffs } from './campaign';
 
 // ── 시설 단계 (cost = 그 단계로 올리는 비용, upkeep = 만원/경기) ──
 export const SEAT_LV: { cap: number; cost: number; upkeep: number; name: string; desc: string }[] = [
@@ -72,6 +73,11 @@ export function releaseCost(p: Player, core: Core): number {
   return Math.round(p.salary * remain * RELEASE_RATE);
 }
 
+/** 버프 반영 수용 인원 */
+export function capacityOf(core: Core): number {
+  return Math.round(SEAT_LV[core.facilities.seats].cap * activeBuffs(core).capacity);
+}
+
 export function upgradeCost(kind: FacilityKind, f: Facilities): number | null {
   const next = LEVELS[kind][f[kind] + 1];
   return next ? next.cost : null;
@@ -97,10 +103,12 @@ export interface DemandCtx {
   weather: Weather;
   oppPop: number;
   noise: number; // 1 = 노이즈 없음
+  mult?: number; // 추가 배율 (포스트시즌 열기 등)
 }
 
-/** 홈경기 관중 수요 (수용 인원과 무관한 "오고 싶어한" 인원) */
+/** 홈경기 관중 수요 (수용 인원과 무관한 "오고 싶어한" 인원). 이벤트 버프(수요·체감 가격)를 반영한다. */
 export function calcDemand(core: Core, c: DemandCtx): number {
+  const fx = activeBuffs(core);
   const t = userTeam(core);
   const l10 = t.rec.last10;
   const pct = l10.length ? l10.reduce((s, v) => s + v, 0) / l10.length : 0.5;
@@ -108,9 +116,9 @@ export function calcDemand(core: Core, c: DemandCtx): number {
   if (t.rec.streak >= 3) perf *= 1 + 0.02 * Math.min(t.rec.streak, 6);
   const star = STAR_BASE + starPower(t) / STAR_DIV;
   const opp = 0.9 + 0.26 * clamp(c.oppPop, 0, 1);
-  const price = clamp(Math.pow(refPrice(core.facilities) / Math.max(0.1, core.finance.ticketPrice), PRICE_ELASTICITY), 0.2, 2.5);
+  const price = clamp(Math.pow(refPrice(core.facilities) / Math.max(0.1, core.finance.ticketPrice * fx.price), PRICE_ELASTICITY), 0.2, 2.5);
   const sat = 0.8 + core.fanSat / 250;
-  const v = core.fans * DEMAND_K * perf * star * opp * DOW_MULT[c.dow % 6] * WEATHER_MULT[c.weather] * price * sat * c.noise;
+  const v = core.fans * DEMAND_K * perf * star * opp * DOW_MULT[c.dow % 6] * WEATHER_MULT[c.weather] * price * sat * c.noise * fx.demand * (c.mult ?? 1);
   return Math.max(0, Math.round(v));
 }
 

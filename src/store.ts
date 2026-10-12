@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
-import type { Core, DayReport, FacilityKind, Player, Team } from './game/types';
-import { newCore } from './game/generate';
+import type { Core, DayReport, FacilityKind, Player, PostRound, Team } from './game/types';
+import { campaignZero, newCore } from './game/generate';
 import {
   advanceDay,
   signPlayer,
@@ -14,6 +14,10 @@ import {
   nextSeason,
 } from './game/season';
 import { autoLineup, fixLineup } from './game/lineup';
+import { ensureObjectives, fillObjectivesMut } from './game/campaign';
+import { maybeDrawEvent, resolveEvent as resolveEventFn } from './game/events';
+import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
+import { postMatch } from './game/postseason';
 
 export type LeftTab = 'lineup' | 'pitchers' | 'market';
 export type RightTab = 'league' | 'stadium' | 'finance' | 'news';
@@ -42,7 +46,12 @@ export interface Store extends Core {
   substitute(slot: number, benchPid: string): void;
   swapPitchers(pidA: string, pidB: string): void;
   auto(): void;
-  startNextSeason(): void;
+  startNextSeason(): void; // 'ended' → 드래프트 시작, 드래프트 종료 후 → 다음 시즌
+  resolveEvent(i: number): void; // 대기 중인 이벤트 카드 선택
+  beginDraft(): void;
+  draftPick(pid: string): void;
+  draftSkip(): void;
+  finishDraft(): void; // 드래프트가 끝났으면 다음 시즌 개막 (= startNextSeason)
   newGame(): void;
   setTab(side: 'left', tab: LeftTab): void;
   setTab(side: 'right', tab: RightTab): void;
@@ -76,6 +85,14 @@ export function pickCore(s: Core): Core {
 }
 
 const rng = Math.random;
+const freshCore = (): Core => ensureObjectives(newCore(Date.now()), rng);
+/** 경기 진행이 가능한 상태인지 (불가하면 사유) */
+function playBlock(s: Core): string | null {
+  if (s.campaign?.event) return '이벤트 카드를 먼저 처리하세요';
+  if (s.phase === 'season') return s.day < s.schedule.length ? null : '정규시즌이 끝났습니다';
+  if (s.phase === 'post') return s.post && postMatch(s) ? null : '진행할 포스트시즌 경기가 없습니다';
+  return '지금은 경기를 진행할 수 없습니다';
+}
 let seq = 100000;
 const mkToast = (text: string, tone: Tone) => ({ text, tone, key: ++seq });
 
@@ -132,7 +149,7 @@ export const useStore = create<Store>()(
       };
 
       return {
-        ...newCore(Date.now()),
+        ...freshCore(),
         playback: null,
         summary: null,
         fx: null,
@@ -144,8 +161,14 @@ export const useStore = create<Store>()(
         playNext() {
           const s = get();
           if (s.playback || s.summary) return;
-          if (s.phase === 'ended' || s.day >= s.schedule.length) return;
-          const { core: next, report } = advanceDay(pickCore(s), rng);
+          const block = playBlock(s);
+          if (block) {
+            if (s.campaign?.event) set({ toast: mkToast(block, 'info') });
+            return;
+          }
+          const r = advanceDay(pickCore(s), rng);
+          const report = r.report;
+          const next = maybeDrawEvent(r.core, rng);
           if (!report.result.events.length) {
             set({ ...pickCore(next), playback: null, summary: [report], lastReport: report, fx: null });
             return;
@@ -167,10 +190,11 @@ export const useStore = create<Store>()(
           let core = pickCore(s);
           const reports: DayReport[] = [];
           for (let i = 0; i < n; i++) {
-            if (core.phase === 'ended' || core.day >= core.schedule.length) break;
+            if (playBlock(core)) break;
             const r = advanceDay(core, rng);
-            core = r.core;
+            core = maybeDrawEvent(r.core, rng);
             reports.push(r.report);
+            if (core.campaign.event) break; // 이벤트 카드가 뜨면 멈춘다
           }
           if (!reports.length) return;
           set({ ...pickCore(core), summary: reports, lastReport: reports[reports.length - 1], fx: null });
@@ -265,12 +289,52 @@ export const useStore = create<Store>()(
         startNextSeason() {
           const s = get();
           if (s.playback) return;
+          if (s.phase === 'ended') {
+            get().beginDraft();
+            return;
+          }
+          if (s.phase === 'over') {
+            set({ toast: mkToast('해임되었습니다 — 새 게임을 시작하세요', 'bad') });
+            return;
+          }
+          if (s.phase !== 'draft') return;
+          if (!isDraftDone(s)) {
+            set({ toast: mkToast('드래프트를 먼저 마치세요', 'info') });
+            return;
+          }
           const core = nextSeason(pickCore(s), rng);
           set({ ...pickCore(core), summary: null, playback: null, fx: null, lastReport: null, toast: mkToast(`${core.season}시즌 개막!`, 'good') });
         },
+        resolveEvent(i) {
+          const s = get();
+          if (s.playback || !s.campaign.event) return;
+          const r = resolveEventFn(pickCore(s), i, rng);
+          if (r.error) {
+            set({ toast: mkToast(r.error, 'bad') });
+            return;
+          }
+          set({ ...pickCore(r.core), toast: mkToast(r.result, 'info') });
+        },
+        beginDraft() {
+          const s = get();
+          if (s.playback) return;
+          const r = beginDraftFn(pickCore(s), rng);
+          if (applyResult(r)) set({ summary: null, toast: mkToast('신인 드래프트 개막!', 'good') });
+        },
+        draftPick(pid) {
+          const s = get();
+          const p = s.draft?.pool.find((x) => x.id === pid);
+          applyResult(draftPickFn(pickCore(s), pid, rng), p ? `${p.name} 지명!` : undefined);
+        },
+        draftSkip() {
+          applyResult(draftSkipFn(pickCore(get()), rng), '지명권 패스');
+        },
+        finishDraft() {
+          get().startNextSeason();
+        },
         newGame() {
           set({
-            ...newCore(Date.now()),
+            ...freshCore(),
             playback: null,
             summary: null,
             fx: null,
@@ -291,8 +355,9 @@ export const useStore = create<Store>()(
     },
     {
       name: 'kbl-save-v1',
-      version: 1,
+      version: 2,
       partialize: (s) => pickCore(s),
+      migrate: (persisted, version) => migrateSave(persisted, version) as unknown as Store,
     },
   ),
 );
@@ -313,10 +378,37 @@ export function findPlayer(s: Pick<Core, 'teams' | 'freeAgents'>, pid: string | 
   return s.freeAgents.find((x) => x.id === pid);
 }
 
-/** 해당 경기일의 유저 팀 대진. */
-export function userMatch(s: Pick<Core, 'schedule' | 'userId'>, day: number): { oppId: string; isHome: boolean } | null {
+/** 해당 경기일의 유저 팀 대진. phase/post 를 함께 넘기면 포스트시즌에는 다음 시리즈 경기를 돌려준다. */
+export function userMatch(
+  s: Pick<Core, 'schedule' | 'userId'> & Partial<Pick<Core, 'phase' | 'post'>>,
+  day: number,
+): { oppId: string; isHome: boolean; round?: PostRound; name?: string; gameNo?: number } | null {
+  if (s.phase === 'post' && s.post) return postMatch(s as Core);
   const m = s.schedule[day]?.find((x) => x.homeId === s.userId || x.awayId === s.userId);
   if (!m) return null;
   const isHome = m.homeId === s.userId;
   return { oppId: isHome ? m.awayId : m.homeId, isHome };
+}
+
+// ───────── 세이브 마이그레이션 ─────────
+
+/** v1 → v2: campaign/post/draft 필드와 타격 스탯 d3/sb/cs 기본값 채우기 */
+export function migrateSave(persisted: unknown, version: number): Core {
+  const st = (persisted ?? {}) as Partial<Core> & Record<string, unknown>;
+  if (version < 2) {
+    st.campaign = st.campaign ?? campaignZero();
+    st.post = st.post ?? null;
+    st.draft = st.draft ?? null;
+    if (!st.phase || !['season', 'post', 'ended', 'draft', 'over'].includes(st.phase)) st.phase = 'season';
+    const fix = (p: Player) => {
+      p.bat = { ...p.bat, d3: p.bat?.d3 ?? 0, sb: p.bat?.sb ?? 0, cs: p.bat?.cs ?? 0 };
+    };
+    for (const t of st.teams ?? []) t.roster.forEach(fix);
+    (st.freeAgents ?? []).forEach(fix);
+  }
+  const core = st as Core;
+  if (core.teams?.length && core.campaign && !core.campaign.objectives.length && (core.phase === 'season' || core.phase === 'post')) {
+    fillObjectivesMut(core, rng);
+  }
+  return core;
 }
