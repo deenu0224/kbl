@@ -8,7 +8,7 @@ import { fixLineup, slotNewcomer, slotValue } from './lineup';
 import { ROSTER_MAX, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { addNews } from './season';
-import { flagOnTrack, hintMut, MID_UP_FAIL_TRUST, stageOf } from './campaign';
+import { flagForecast, flagOnTrack, hintMut, MID_UP_FAIL_TRUST, stageOf } from './campaign';
 import { beatOn, MID_DAY, POS_NAME } from './script';
 import { memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
@@ -241,7 +241,7 @@ export const CARDS: CardDef[] = [
         icon: '🍊',
         who: 'chair',
         line: ahead ? story.midAhead : story.midBehind,
-        body: ahead ? `시즌 절반. 지금 페이스면 「${flag}」에 닿습니다.` : `시즌 절반. 지금 페이스로는 「${flag}」에 닿지 못합니다.`,
+        body: `${ahead ? `시즌 절반. 지금 페이스면 「${flag}」에 닿습니다.` : `시즌 절반. 지금 페이스로는 「${flag}」에 닿지 못합니다.`}${flagForecast(c).text === '—' ? '' : ` ${flagForecast(c).text}`}`,
         choices: ahead
           ? [
               { label: '목표 상향을 약속한다', desc: `깃발 달성 시 지원금 2배 (${fmtMoney(st.reward.cash)} → ${fmtMoney(st.reward.cash * 2)}) · 실패 시 ${TRUST_LABEL} 추가 −${MID_UP_FAIL_TRUST}` },

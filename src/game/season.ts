@@ -32,7 +32,7 @@ const SAT_BASE = 45;
 const SAT_CONVERGE = 0.15;
 const NOISE_SD = 0.06;
 const WEEK = 6;
-const TRAIN_MAX_AGE = 28;
+export const TRAIN_MAX_AGE = 28;
 const DECLINE_AGE = 33;
 const DECLINE_RATE = 0.06;
 const NEWS_MAX = 80;
@@ -40,8 +40,8 @@ const RETIRE_AGE = 40;
 const FRANCHISE_LEAVE_FANS = 8; // 프랜차이즈 스타 방출·트레이드 시 팬 감소 = star × 이 값
 const FRANCHISE_LEAVE_SAT = -8;
 const ROOKIE_CAMP_DAYS = 12; // 2장 기: 지난 드래프트 신인의 훈련 성과 1회 확정 기한
-const PLAY_GROW = 1.6; // 주전으로 뛰는 젊은 선수의 주간 성장 확률 배율
-const PLAY_GROW_AGE = 25;
+export const PLAY_GROW = 1.6; // 주전으로 뛰는 젊은 선수의 주간 성장 확률 배율
+export const PLAY_GROW_AGE = 25;
 const TIRED_HINT = 2; // 이 이상 연투한 투수가 생기면 투수 탭 배지
 const DOW_NAME = ['화', '수', '목', '금', '토', '일'];
 // 스토브리그 (AI 구단)

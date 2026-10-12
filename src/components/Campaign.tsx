@@ -1,6 +1,6 @@
 import type { Campaign, Core, Objective, SeasonRecord } from '../game/types';
 import { useCore, useStore } from '../store';
-import { STAGES, TRUST_MAX, objDisplay } from '../game/campaign';
+import { STAGES, TRUST_MAX, flagForecast, objDisplay } from '../game/campaign';
 import { PAST_RANKS, TITLE_YEARS_AGO } from '../game/story';
 import Dialog from './layout/Dialog';
 import { useUi } from './layout/uiStore';
@@ -96,6 +96,14 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
   const flag = main ? objDisplay(core, main) : null;
   const flagDone = !!flag?.met;
   const flagBar = <Bar ratio={flag?.ratio ?? 0} color={flagDone ? '#6ee07a' : '#ffd84a'} h={5} />;
+  // 깃발 예측: 칩에는 "6위 예상 ✓" 처럼 가운데 조각만
+  const fc = flagForecast(core);
+  const fcShort = fc.text === '—' ? null : fc.text.split(' · ').find((x) => x.includes('예상')) ?? null;
+  const pace = fcShort && (
+    <span className={`shrink-0 whitespace-nowrap text-[11px] ${fc.ok ? 'text-good' : 'text-bad'}`} data-testid="chip-forecast">
+      {fcShort.replace('지금 페이스: ', '').replace('시즌 평균 관중 ', '평균 ')} {fc.ok ? '✓' : '✗'}
+    </span>
+  );
   const title = (
     <span className="flex min-w-0 items-center gap-1">
       <Flag size={11} color={flagDone ? '#6ee07a' : '#ffd84a'} />
@@ -114,6 +122,7 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
       <button className={`flex min-h-10 w-full cursor-pointer items-center gap-2 px-2 text-left text-[13px] leading-tight short:min-h-9 ${className}`} onClick={() => open(true)} aria-label="캠페인">
         {title}
         <span className="min-w-6 flex-1">{flagBar}</span>
+        {pace}
         <StarRow objs={stars} core={core} size={13} />
         {trust}
       </button>
@@ -127,6 +136,7 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
       </span>
       <span className="flex w-full items-center gap-2">
         <span className="min-w-6 flex-1">{flagBar}</span>
+        {pace}
         {trust}
       </span>
     </button>
@@ -240,6 +250,11 @@ export function CampaignSheet() {
 
       <div className="mt-2 flex flex-col gap-[3px]">
         {main && <ObjRow o={main} core={core} flag />}
+        {main && flagForecast(core).text !== '—' && (
+          <div className={`px-1 text-[12px] leading-snug mob:text-[13px] ${flagForecast(core).ok ? 'text-good' : 'text-white/85'}`} data-testid="sheet-forecast">
+            {flagForecast(core).text}
+          </div>
+        )}
         {stars.map((o) => (
           <ObjRow key={o.id} o={o} core={core} />
         ))}
