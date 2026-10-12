@@ -1,0 +1,17 @@
+{
+  "name": "KBL 픽셀 야구 타이쿤",
+  "short_name": "KBL 타이쿤",
+  "description": "픽셀 야구 구단 경영 타이쿤",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#141a29",
+  "theme_color": "#141a29",
+  "icons": [
+    { "src": "icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

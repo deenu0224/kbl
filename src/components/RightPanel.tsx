@@ -193,14 +193,14 @@ export function StadiumTab() {
       <SectionTitle>티켓 가격</SectionTitle>
       <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
         <div className="flex items-center gap-1.5">
-          <button className="px-btn" disabled={price <= 0.5} onClick={() => setPrice(price - 0.1)}>
+          <button className="px-btn mob:min-w-12 mob:text-[20px]" disabled={price <= 0.5} onClick={() => setPrice(price - 0.1)} aria-label="가격 내리기">
             −
           </button>
           <div className="flex-1 text-center">
             <span className="font-pixel-lg text-[18px] text-hi">{fmtInt(Math.round(price * 10000))}</span>
             <span className="text-[11px] text-white/60">원</span>
           </div>
-          <button className="px-btn" disabled={price >= 4} onClick={() => setPrice(price + 0.1)}>
+          <button className="px-btn mob:min-w-12 mob:text-[20px]" disabled={price >= 4} onClick={() => setPrice(price + 0.1)} aria-label="가격 올리기">
             +
           </button>
         </div>
@@ -211,7 +211,7 @@ export function StadiumTab() {
           step={0.1}
           value={price}
           onChange={(e) => setPrice(Number(e.target.value))}
-          className="mt-1 w-full accent-[#ffd84a]"
+          className="mt-1 w-full accent-[#ffd84a] mob:my-1 mob:h-8"
         />
         <div className="flex justify-between text-[10px]">
           <span className="text-white/60">
@@ -348,6 +348,8 @@ export function FinanceTab() {
             상환 −{fmtMoney(Math.min(LOAN_STEP, finance.debt || LOAN_STEP))}
           </button>
         </div>
+        {/* 모바일엔 title 툴팁이 없으므로 상환 불가 사유를 보여준다 */}
+        {!canRepay && <div className="mt-1 hidden text-[10px] text-white/50 mob:block">상환 불가: {finance.debt <= 0 ? '갚을 부채가 없습니다' : '현금 부족'}</div>}
         {!canBorrow && <div className="mt-1 text-[10px] text-bad">한도까지 빌렸습니다. 한도를 넘기면 선수가 강제 매각됩니다</div>}
       </div>
 

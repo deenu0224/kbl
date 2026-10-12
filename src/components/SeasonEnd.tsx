@@ -55,9 +55,12 @@ export default function SeasonEnd() {
   const gc = GRADE_COLOR[awards.grade] ?? '#fff';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/95 p-4">
-      <div className="px-panel px-scroll flex max-h-full w-full max-w-[1100px] flex-col overflow-y-auto p-4">
-        <div className="flex items-center justify-between">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/95 p-4 mob:items-stretch mob:p-0"
+      style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      <div className="px-panel px-scroll flex max-h-full w-full max-w-[1100px] flex-col overflow-y-auto p-4 mob:p-3">
+        <div className="flex items-center justify-between mob:flex-col mob:items-stretch mob:gap-2">
           <div>
             <div className="text-[11px] text-sky">{core.season}시즌 종료</div>
             <div className="font-pixel-lg text-[26px] leading-tight" style={{ color: team.color, textShadow: '2px 2px 0 #0f1420' }}>
@@ -70,8 +73,8 @@ export default function SeasonEnd() {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="max-w-[300px] text-right">
+          <div className="flex items-center gap-3 mob:flex-row-reverse mob:justify-end">
+            <div className="max-w-[300px] text-right mob:max-w-none mob:text-left">
               <div className="text-[10px] text-white/50">구단주 평가</div>
               <div className="text-[12px] leading-snug text-white/90">{awards.comment}</div>
             </div>
@@ -84,7 +87,7 @@ export default function SeasonEnd() {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-3 gap-3 mob:grid-cols-2 por:grid-cols-1">
           {/* 순위표 */}
           <div>
             <div className="mb-1 text-[11px] text-sky">▸ 최종 순위</div>
@@ -153,7 +156,7 @@ export default function SeasonEnd() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-3">
+        <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
           <button
             className="px-btn !px-4 !py-1.5"
             onClick={() => {
@@ -164,7 +167,7 @@ export default function SeasonEnd() {
           >
             {armNew ? '정말 처음부터? (저장 삭제)' : '새 게임'}
           </button>
-          <button className="px-btn primary !px-6 !py-2 text-[14px]" onClick={startNextSeason}>
+          <button className="px-btn primary !px-6 !py-2 text-[14px] mob:flex-1" onClick={startNextSeason}>
             다음 시즌 ▶
           </button>
         </div>

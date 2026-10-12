@@ -4,6 +4,8 @@ import { useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, releaseCost, signingBonus } from '../game/economy';
 import PlayerCard from './PlayerCard';
+import Sheet from './layout/Sheet';
+import { useIsMobile } from './layout/useLayout';
 import { OvrBadge, POS_KO, SectionTitle, Stars, TabBar } from './ui';
 
 // ───────── 공용 행 ─────────
@@ -23,22 +25,23 @@ function Row({
   target: boolean; // 교체 모드에서 고를 수 있는 대상
   onClick: () => void;
 }) {
+  const mobile = useIsMobile();
   return (
     <button
       onClick={onClick}
-      className={`flex w-full cursor-pointer items-center gap-1.5 px-1 py-[3px] text-left text-[12px] ${
+      className={`flex w-full cursor-pointer items-center gap-1.5 px-1 py-[3px] text-left text-[12px] mob:min-h-10 mob:gap-2 mob:text-[13px] ${
         selected ? 'bg-hi/20' : target ? 'bg-good/10 hover:bg-good/25' : 'hover:bg-white/8'
       }`}
       style={selected ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : target ? { boxShadow: 'inset 2px 0 0 #6ee07a' } : undefined}
     >
       <span className="w-9 shrink-0 text-[10px] text-white/55">{lead}</span>
-      <OvrBadge ovr={p.ovr} size={18} />
+      <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
       <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : ''}`}>
         {p.name}
         {p.injury > 0 && <span className="ml-1 text-[10px]">✚{p.injury}</span>}
         {p.star >= 70 && <span className="ml-0.5 text-[10px] text-hi">★</span>}
       </span>
-      <span className="shrink-0 text-[10px] text-white/70">{stat}</span>
+      <span className="shrink-0 text-[10px] text-white/70 mob:text-[11px]">{stat}</span>
     </button>
   );
 }
@@ -57,8 +60,26 @@ const pitStat = (p: Player) => (
   </>
 );
 
-function Hint({ children }: { children: ReactNode }) {
-  return <div className="bg-good/15 px-2 py-1 text-[11px] text-good">{children}</div>;
+function Hint({ children, onCancel }: { children: ReactNode; onCancel: () => void }) {
+  const mobile = useIsMobile();
+  return (
+    <div className="flex shrink-0 items-center gap-2 bg-good/15 px-2 py-1 text-[11px] text-good mob:text-[12px]">
+      <span className="min-w-0 flex-1">{children}</span>
+      {/* 모바일에선 카드 시트가 닫혀 있으므로 여기서 취소 */}
+      {mobile && (
+        <button className="px-btn gold shrink-0" onClick={onCancel}>
+          취소
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** 선수 카드 자리: 데스크톱은 패널 아래에 붙고, 모바일은 바텀 시트로 뜬다. */
+function CardDock({ open, onClose, placeholder, children }: { open: boolean; onClose: () => void; placeholder: ReactNode; children: ReactNode }) {
+  const mobile = useIsMobile();
+  if (mobile) return open ? <Sheet onClose={onClose} label="선수 카드">{children}</Sheet> : null;
+  return open ? <>{children}</> : <div className="shrink-0 bg-panel-2/60 p-2 text-center text-[11px] text-white/45">{placeholder}</div>;
 }
 
 /** 방출 버튼 + 불가 사유 */
@@ -108,6 +129,7 @@ export function LineupTab() {
   const auto = useStore((s) => s.auto);
   const [sel, setSel] = useState<string | null>(null);
   const [swap, setSwap] = useState(false);
+  const mobile = useIsMobile();
 
   const byId = useMemo(() => new Map(team.roster.map((p) => [p.id, p])), [team.roster]);
   const inLineup = useMemo(() => new Set(team.lineup.map((l) => l.pid)), [team.lineup]);
@@ -136,6 +158,7 @@ export function LineupTab() {
         return;
       }
       setSwap(false);
+      if (mobile) setSel(null); // 모바일: 교체가 끝나면 시트를 다시 띄우지 않는다
       return;
     }
     setSwap(false);
@@ -148,7 +171,7 @@ export function LineupTab() {
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle
           right={
-            <button className="px-btn !px-1.5 !py-0.5 text-[10px]" onClick={auto} title="OVR 기준으로 타선·투수진을 다시 짭니다">
+            <button className="px-btn !px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]" onClick={auto} title="OVR 기준으로 타선·투수진을 다시 짭니다">
               자동 편성
             </button>
           }
@@ -180,17 +203,17 @@ export function LineupTab() {
         ))}
         {!bench.length && <div className="px-1 text-[10px] text-white/40">벤치 타자가 없습니다</div>}
       </div>
-      {swap && <Hint>↔ {selP?.name}와(과) 바꿀 선수를 고르세요</Hint>}
-      {selP ? (
-        <PlayerCard player={selP} team={team} roleLabel={selSlot >= 0 ? `${selSlot + 1}번 · ${POS_KO[team.lineup[selSlot].pos]}` : `벤치 · ${POS_KO[selP.pos]}`}>
-          <button className={`px-btn ${swap ? 'gold' : 'green'}`} onClick={() => setSwap((v) => !v)} title="타순 맞바꾸기 또는 벤치 선수와 교체">
-            {swap ? '취소' : '↔ 교체'}
-          </button>
-          <ReleaseButton player={selP} team={team} />
-        </PlayerCard>
-      ) : (
-        <div className="shrink-0 bg-panel-2/60 p-2 text-center text-[11px] text-white/45">선수를 누르면 카드가 열립니다</div>
-      )}
+      {swap && <Hint onCancel={() => setSwap(false)}>↔ {selP?.name}와(과) 바꿀 선수를 고르세요</Hint>}
+      <CardDock open={!!selP && !(mobile && swap)} onClose={() => setSel(null)} placeholder="선수를 누르면 카드가 열립니다">
+        {selP && (
+          <PlayerCard player={selP} team={team} roleLabel={selSlot >= 0 ? `${selSlot + 1}번 · ${POS_KO[team.lineup[selSlot].pos]}` : `벤치 · ${POS_KO[selP.pos]}`}>
+            <button className={`px-btn ${swap ? 'gold' : 'green'}`} onClick={() => setSwap((v) => !v)} title="타순 맞바꾸기 또는 벤치 선수와 교체">
+              {swap ? '취소' : '↔ 교체'}
+            </button>
+            <ReleaseButton player={selP} team={team} />
+          </PlayerCard>
+        )}
+      </CardDock>
     </>
   );
 }
@@ -203,6 +226,7 @@ export function PitchersTab() {
   const auto = useStore((s) => s.auto);
   const [sel, setSel] = useState<string | null>(null);
   const [swap, setSwap] = useState(false);
+  const mobile = useIsMobile();
 
   const byId = useMemo(() => new Map(team.roster.map((p) => [p.id, p])), [team.roster]);
   const assigned = useMemo(
@@ -230,6 +254,7 @@ export function PitchersTab() {
     if (swap && sel && pid !== sel) {
       swapPitchers(sel, pid);
       setSwap(false);
+      if (mobile) setSel(null);
       return;
     }
     setSwap(false);
@@ -249,7 +274,7 @@ export function PitchersTab() {
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle
           right={
-            <button className="px-btn !px-1.5 !py-0.5 text-[10px]" onClick={auto} title="OVR 기준으로 타선·투수진을 다시 짭니다">
+            <button className="px-btn !px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]" onClick={auto} title="OVR 기준으로 타선·투수진을 다시 짭니다">
               자동 편성
             </button>
           }
@@ -276,17 +301,17 @@ export function PitchersTab() {
           </>
         )}
       </div>
-      {swap && <Hint>↔ {selP?.name}와(과) 보직을 바꿀 투수를 고르세요</Hint>}
-      {selP ? (
-        <PlayerCard player={selP} team={team} roleLabel={roleOf(selP.id)}>
-          <button className={`px-btn ${swap ? 'gold' : 'green'}`} onClick={() => setSwap((v) => !v)} title="다른 투수와 보직 맞바꾸기">
-            {swap ? '취소' : '↔ 교체'}
-          </button>
-          <ReleaseButton player={selP} team={team} />
-        </PlayerCard>
-      ) : (
-        <div className="shrink-0 bg-panel-2/60 p-2 text-center text-[11px] text-white/45">투수를 누르면 카드가 열립니다</div>
-      )}
+      {swap && <Hint onCancel={() => setSwap(false)}>↔ {selP?.name}와(과) 보직을 바꿀 투수를 고르세요</Hint>}
+      <CardDock open={!!selP && !(mobile && swap)} onClose={() => setSel(null)} placeholder="투수를 누르면 카드가 열립니다">
+        {selP && (
+          <PlayerCard player={selP} team={team} roleLabel={roleOf(selP.id)}>
+            <button className={`px-btn ${swap ? 'gold' : 'green'}`} onClick={() => setSwap((v) => !v)} title="다른 투수와 보직 맞바꾸기">
+              {swap ? '취소' : '↔ 교체'}
+            </button>
+            <ReleaseButton player={selP} team={team} />
+          </PlayerCard>
+        )}
+      </CardDock>
     </>
   );
 }
@@ -320,7 +345,7 @@ export function MarketTab() {
             ['P', '투수'],
           ] as const
         ).map(([k, label]) => (
-          <button key={k} onClick={() => setFilter(k)} className={`cursor-pointer px-1.5 py-0.5 ${filter === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
+          <button key={k} onClick={() => setFilter(k)} className={`cursor-pointer px-1.5 py-0.5 mob:min-h-9 mob:px-3 ${filter === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
             {label}
           </button>
         ))}
@@ -336,12 +361,12 @@ export function MarketTab() {
             <button
               key={p.id}
               onClick={() => setSel(p.id === sel ? null : p.id)}
-              className={`mb-[3px] flex w-full cursor-pointer items-center gap-1.5 px-1 py-1 text-left ${sel === p.id ? 'bg-hi/20' : 'bg-ink/40 hover:bg-white/8'}`}
+              className={`mb-[3px] flex w-full cursor-pointer items-center gap-1.5 px-1 py-1 text-left mob:min-h-12 mob:gap-2 mob:px-1.5 ${sel === p.id ? 'bg-hi/20' : 'bg-ink/40 hover:bg-white/8'}`}
               style={sel === p.id ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
             >
               <OvrBadge ovr={p.ovr} size={22} />
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1 text-[12px]">
+                <span className="flex items-center gap-1 text-[12px] mob:text-[13px]">
                   <span className="truncate">{p.name}</span>
                   <span className="shrink-0 text-[10px] text-white/50">
                     {POS_KO[p.pos]} · {p.age}세
@@ -361,28 +386,26 @@ export function MarketTab() {
         })}
         {!list.length && <div className="p-2 text-center text-[11px] text-white/40">시장에 남은 선수가 없습니다</div>}
       </div>
-      {selP ? (
-        <PlayerCard
-          player={selP}
-          extra={
-            <div className="mt-1 flex justify-between bg-ink/60 px-1.5 py-1 text-[11px]">
-              <span>
-                계약금 <span className="text-hi">{fmtMoney(bonus)}</span>
-              </span>
-              <span className="text-white/60">연봉은 매 경기 분할 지급</span>
-            </div>
-          }
-        >
-          <button className="px-btn primary" disabled={!!reason} title={reason ?? '계약금을 내고 즉시 영입'} onClick={() => sign(selP.id)}>
-            영입
-          </button>
-          {reason && <span className="text-[10px] text-bad">{reason}</span>}
-        </PlayerCard>
-      ) : (
-        <div className="shrink-0 bg-panel-2/60 p-2 text-center text-[11px] text-white/45">
-          스타(★)를 영입하면 관중과 굿즈 매출이 늘어납니다
-        </div>
-      )}
+      <CardDock open={!!selP} onClose={() => setSel(null)} placeholder="스타(★)를 영입하면 관중과 굿즈 매출이 늘어납니다">
+        {selP && (
+          <PlayerCard
+            player={selP}
+            extra={
+              <div className="mt-1 flex justify-between bg-ink/60 px-1.5 py-1 text-[11px]">
+                <span>
+                  계약금 <span className="text-hi">{fmtMoney(bonus)}</span>
+                </span>
+                <span className="text-white/60">연봉은 매 경기 분할 지급</span>
+              </div>
+            }
+          >
+            <button className="px-btn primary" disabled={!!reason} title={reason ?? '계약금을 내고 즉시 영입'} onClick={() => sign(selP.id)}>
+              영입
+            </button>
+            {reason && <span className="text-[10px] text-bad">{reason}</span>}
+          </PlayerCard>
+        )}
+      </CardDock>
     </>
   );
 }

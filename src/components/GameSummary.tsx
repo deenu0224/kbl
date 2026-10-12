@@ -130,7 +130,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
         )}
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2 por:grid-cols-1">
         <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
           <div className="mb-1 text-[11px] text-sky">▸ 관중</div>
           {r.crowd ? (
@@ -233,7 +233,7 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
         })}
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2 por:grid-cols-1">
         <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
           <div className="mb-1 text-[11px] text-sky">▸ 홈 관중</div>
           <div className="text-[11px]">
@@ -258,19 +258,43 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
   );
 }
 
-/** 경기 후 요약 카드 — 야구장 영역 안에서만 뜬다. */
-export default function GameSummary() {
+/** 경기 후 요약 카드 — 데스크톱은 야구장 영역 안에서만, 모바일(sheet)은 전체 화면 스크롤 시트. */
+export default function GameSummary({ sheet = false }: { sheet?: boolean }) {
   const summary = useStore((s) => s.summary);
   const teams = useStore((s) => s.teams);
   const userId = useStore((s) => s.userId);
   const close = useStore((s) => s.closeSummary);
   const ended = useStore((s) => s.phase === 'ended');
   if (!summary || !summary.length) return null;
+  const body = summary.length === 1 ? <Single r={summary[0]} teams={teams} userId={userId} /> : <Multi rs={summary} teams={teams} />;
+
+  if (sheet) {
+    return (
+      <div
+        className="anim-sheet fixed inset-0 z-40 flex flex-col bg-panel"
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingLeft: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-right)',
+        }}
+      >
+        <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-3">
+          <div className="mx-auto max-w-[720px]">{body}</div>
+        </div>
+        <div className="shrink-0 bg-edge/60 p-2">
+          <button className="px-btn primary mx-auto block min-h-11 w-full max-w-[720px] text-[15px]" onClick={close} autoFocus>
+            {ended ? '시즌 결산 보기' : '확인'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-ink/70 p-3">
       <div className="px-panel px-scroll flex max-h-full w-full max-w-[560px] flex-col overflow-y-auto p-3">
-        {summary.length === 1 ? <Single r={summary[0]} teams={teams} userId={userId} /> : <Multi rs={summary} teams={teams} />}
+        {body}
         <div className="mt-2.5 flex justify-end">
           <button className="px-btn primary !px-5 !py-1.5 text-[13px]" onClick={close} autoFocus>
             {ended ? '시즌 결산 보기' : '확인'}

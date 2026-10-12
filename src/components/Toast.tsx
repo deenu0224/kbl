@@ -17,10 +17,10 @@ export default function Toast() {
 
   if (!toast || shownKey !== toast.key) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-14 z-[60] flex justify-center">
+    <div className="pointer-events-none fixed inset-x-0 top-14 z-[60] flex justify-center px-3 mob:top-[calc(env(safe-area-inset-top)+64px)]">
       <div
         key={toast.key}
-        className="anim-pop px-4 py-1.5 text-[13px] text-white"
+        className="anim-pop px-4 py-1.5 text-center text-[13px] text-white"
         style={{ background: BG[toast.tone], boxShadow: '0 0 0 2px #0f1420, 0 4px 0 rgba(0,0,0,.3)' }}
       >
         {toast.tone === 'bad' ? '✕ ' : toast.tone === 'good' ? '✓ ' : ''}
