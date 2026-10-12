@@ -241,7 +241,8 @@ export default function StadiumView() {
             <>
               <span>
                 관중 <span className="text-hi">{fmtInt(shownCrowd.attendance)}</span>
-                <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>
+                {/* 매진이면 정원은 생략한다 — 폰에서 "매진!"·🚶 숫자가 간판스타 칩과 겹치지 않게 */}
+                {!shownCrowd.soldOut && <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>}
               </span>
               {shownCrowd.soldOut && (
                 <span className="anim-blink font-pixel-lg shrink-0" style={{ color: '#ff6b6b' }}>
