@@ -97,14 +97,14 @@ export function orderIssues(team: Team): { lineup: number; pitchers: number } {
 // ───────── 한 번에 고치기 (주간 브리핑의 편성 제안 · 봇) ─────────
 
 type PLoc = { k: 'rot'; i: number } | { k: 'pen'; i: number } | { k: 'cl' } | null;
-function ploc(t: Team, pid: string): PLoc {
+export function ploc(t: Team, pid: string): PLoc {
   const ri = t.rotation.indexOf(pid);
   if (ri >= 0) return { k: 'rot', i: ri };
   if (t.closer === pid) return { k: 'cl' };
   const bi = t.bullpen.indexOf(pid);
   return bi >= 0 ? { k: 'pen', i: bi } : null;
 }
-function pput(t: Team, l: PLoc, pid: string): void {
+export function pput(t: Team, l: PLoc, pid: string): void {
   if (!l) return;
   if (l.k === 'rot') t.rotation[l.i] = pid;
   else if (l.k === 'pen') t.bullpen[l.i] = pid;

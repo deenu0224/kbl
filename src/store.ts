@@ -17,6 +17,7 @@ import { autoLineup, fixLineup, managerLineup } from './game/lineup';
 import { ensureObjectives, fillObjectivesMut, stopReason } from './game/campaign';
 import { CHARACTERS, OVER_LABEL } from './game/story';
 import { maybeDrawEvent, resolveEvent as resolveEventFn } from './game/events';
+import { closeBriefing, drawBriefing, refreshBriefing, runOffer, skipOffer } from './game/briefing';
 import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
 import { postMatch } from './game/postseason';
 import { useUi } from './components/layout/uiStore';
@@ -52,6 +53,9 @@ export interface Store extends Core {
   auto(): void;
   startNextSeason(): void; // 'ended' → 드래프트 시작, 드래프트 종료 후 → 다음 시즌
   resolveEvent(i: number): void; // 대기 중인 이벤트 카드 선택
+  briefRun(id: string): void; // 주간 브리핑: 제안 실행
+  briefSkip(id: string): void; // 주간 브리핑: 제안 넘기기
+  briefClose(): void; // 주간 브리핑 닫기 (다음 경기 진행 가능)
   beginDraft(): void;
   draftPick(pid: string): void;
   draftSkip(): void;
@@ -182,7 +186,7 @@ export const useStore = create<Store>()(
           }
           const r = advanceDay(pickCore(s), rng);
           const report = r.report;
-          const next = maybeDrawEvent(r.core, rng);
+          const next = drawBriefing(maybeDrawEvent(r.core, rng));
           if (!report.result.events.length) {
             set({ ...pickCore(next), playback: null, summary: [report], lastReport: report, fx: null });
             return;
@@ -207,14 +211,14 @@ export const useStore = create<Store>()(
           for (let i = 0; i < n; i++) {
             if (playBlock(core)) break;
             const r = advanceDay(core, rng);
-            core = maybeDrawEvent(r.core, rng);
+            core = drawBriefing(maybeDrawEvent(r.core, rng));
             reports.push(r.report);
-            // 이벤트 카드 · 전/결 구간의 시작 · 중간 점검 · 주전 부상에서 멈춘다
-            stopped = stopReason(core, r.report);
+            // 이벤트 카드 · 전/결 구간의 시작 · 중간 점검 · 주전 부상 · 주간 브리핑에서 멈춘다
+            stopped = stopReason(core, r.report) ?? (core.campaign.briefing ? '주간 브리핑' : null);
             if (stopped) break;
           }
           if (!reports.length) return;
-          const early = stopped && reports.length < n && !playBlock({ ...core, campaign: { ...core.campaign, event: null } });
+          const early = stopped && reports.length < n && !playBlock({ ...core, campaign: { ...core.campaign, event: null, briefing: null } });
           set({
             ...pickCore(core),
             summary: reports,
@@ -359,7 +363,24 @@ export const useStore = create<Store>()(
             set({ toast: mkToast(r.error, 'bad') });
             return;
           }
-          set({ ...pickCore(r.core), toast: mkToast(r.result, 'info') });
+          // 대기 중인 주간 브리핑은 카드 처리로 바뀐 상태에 맞춰 다시 만든다
+          set({ ...pickCore(refreshBriefing(r.core)), toast: mkToast(r.result, 'info') });
+        },
+        briefRun(id) {
+          if (locked()) return;
+          const r = runOffer(pickCore(get()), id);
+          if (applyResult(r, r.text)) {
+            const a = r.core.campaign.briefing?.offers.find((o) => o.id === id)?.action;
+            if (a?.t === 'upgrade') set({ fx: { kind: a.kind, key: ++seq } });
+          }
+        },
+        briefSkip(id) {
+          if (locked()) return;
+          set(pickCore(skipOffer(pickCore(get()), id)));
+        },
+        briefClose() {
+          if (locked()) return;
+          set(pickCore(closeBriefing(pickCore(get()))));
         },
         beginDraft() {
           const s = get();

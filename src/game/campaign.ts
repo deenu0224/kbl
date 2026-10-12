@@ -612,6 +612,56 @@ export function flagOnTrack(core: Core): boolean {
   }
 }
 
+/**
+ * 깃발을 예측 단위로: 지금 페이스로 시즌을 마치면 깃발 지표가 어디에 닿는가.
+ * 순위류는 모든 구단이 지금 승률을 유지한다고 보고(예상 순위 = 지금 승률 순위) 예상 승패를 함께 적는다.
+ * 관중류는 남은 홈경기를 최근 홈 6경기 평균으로 채운 시즌 평균. 12경기 전에는 "—".
+ */
+export function flagForecast(core: Core): { text: string; ok: boolean } {
+  const st = stageOf(core);
+  const { kind, target } = st.main;
+  const t = userTeam(core);
+  const games = t.rec.w + t.rec.l + t.rec.t;
+  if (core.phase !== 'season' || games < MIN_GAMES_RANKED) return { text: '—', ok: false };
+  const total = core.schedule.length;
+  const left = Math.max(0, total - core.day);
+  const mark = (ok: boolean) => (ok ? '✓' : '✗');
+  const decided = t.rec.w + t.rec.l;
+  const pct = decided ? t.rec.w / decided : 0.5;
+  const w = Math.round(t.rec.w + left * pct);
+  const pace = `${w}승 ${Math.max(0, total - t.rec.t - w)}패`;
+  const rank = rankOf(core.teams, core.userId);
+  switch (kind) {
+    case 'rank': {
+      const ok = rank <= target;
+      return { text: `지금 페이스: ${pace} · ${rank}위 예상 · 깃발 ${target}위 이내 ${mark(ok)}`, ok };
+    }
+    case 'post': {
+      const need = target >= 3 ? 2 : 4;
+      const ok = rank <= need;
+      return { text: `지금 페이스: ${pace} · ${rank}위 예상 · ${objText(kind, target)}은 ${need}위 이내부터 ${mark(ok)}`, ok };
+    }
+    case 'wins': {
+      const ok = w >= target;
+      return { text: `지금 페이스: ${w}승 예상 · 깃발 ${target}승 ${mark(ok)}`, ok };
+    }
+    case 'avgAtt': {
+      const a = core.attHistory;
+      if (!a.length) return { text: '—', ok: false };
+      const homeLeft = core.schedule.slice(core.day).filter((d) => d.some((g) => g.homeId === core.userId)).length;
+      const recent = a.slice(-6);
+      const rAvg = recent.reduce((s, v) => s + v, 0) / recent.length;
+      const v = Math.round((a.reduce((s, x) => s + x, 0) + rAvg * homeLeft) / (a.length + homeLeft));
+      const ok = v >= target;
+      return { text: `지금 페이스: 시즌 평균 관중 ${fmtInt(v)}명 예상 · 깃발 ${fmtInt(target)}명 ${mark(ok)}`, ok };
+    }
+    default: {
+      const ok = objMet(kind, target, objValue(core, kind));
+      return { text: `지금 그대로면: ${objText(kind, target)} ${mark(ok)}`, ok };
+    }
+  }
+}
+
 // ───────── 연대기: 응원 문화·구장 풍경 ─────────
 
 /** 응원 문화 0~3 (주황 물결 → 깃발 → 대형 현수막) */
