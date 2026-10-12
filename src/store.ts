@@ -113,7 +113,7 @@ function withUserTeam(s: Core, fn: (t: Team) => void): Team[] {
 }
 
 type Loc = { k: 'rot'; i: number } | { k: 'pen'; i: number } | { k: 'cl' } | null;
-function pitcherLoc(t: Team, pid: string): Loc {
+export function pitcherLoc(t: Team, pid: string): Loc {
   const ri = t.rotation.indexOf(pid);
   if (ri >= 0) return { k: 'rot', i: ri };
   if (t.closer === pid) return { k: 'cl' };
@@ -121,7 +121,7 @@ function pitcherLoc(t: Team, pid: string): Loc {
   if (bi >= 0) return { k: 'pen', i: bi };
   return null;
 }
-function putPitcher(t: Team, l: Loc, pid: string) {
+export function putPitcher(t: Team, l: Loc, pid: string) {
   if (!l) return;
   if (l.k === 'rot') t.rotation[l.i] = pid;
   else if (l.k === 'pen') t.bullpen[l.i] = pid;

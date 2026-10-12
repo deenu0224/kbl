@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { play } from '../audio/sfx';
 import { CHARACTERS } from '../game/story';
-import { useStore, userMatch, useUserTeam } from '../store';
+import { winChanceJob } from '../game/forecast';
+import { teamParts } from '../game/ratings';
+import { pickCore, useStore, userMatch, useUserTeam } from '../store';
 import { AutoButton, LineupTab, PitchersTab, TeamBar, orderIssues } from './LeftPanel';
 import PixelFace from './PixelFace';
 import { useIsMobile } from './layout/useLayout';
@@ -10,7 +12,7 @@ import { Badge, TabBar, TeamDot } from './ui';
 
 // 새 시즌·새 게임의 개막전에는 오더지가 다시 첫 화면이 된다
 useStore.subscribe((s, p) => {
-  if (s.season !== p.season || s.seed !== p.seed) useUi.setState({ orderOpen: true });
+  if (s.season !== p.season || s.seed !== p.seed) useUi.setState({ orderOpen: true, orderBase: null, orderEdit: null });
 });
 
 const safe = {
@@ -22,6 +24,61 @@ const safe = {
 
 /** 세그먼트 배지: 문제 수, 없으면 ✓ */
 const mark = (n: number) => (n > 0 ? <Badge n={n} /> : <span className="text-good">✓</span>);
+
+const CHANCE_N = 1200; // 화면용 표본 수 (표준오차 약 1.4%p)
+const CHANCE_CHUNK = 100; // 한 번에 돌리는 경기 수
+const CHANCE_MS = 2000;
+const idle = (fn: () => void): (() => void) => {
+  if (typeof requestIdleCallback === 'function') {
+    const id = requestIdleCallback(fn, { timeout: 300 });
+    return () => cancelIdleCallback(id);
+  }
+  const id = setTimeout(fn, 30);
+  return () => clearTimeout(id);
+};
+
+/** 오더지의 중심 숫자: 개막전 승리 확률. 편성을 바꾸면 "31% → 44%"가 잠깐 보인다. 계산은 미뤄서 하고 그동안은 이전 값을 둔다. */
+function WinChance({ fixable }: { fixable: boolean }) {
+  const team = useUserTeam();
+  const [pct, setPct] = useState<number | null>(null);
+  const [from, setFrom] = useState<number | null>(null);
+  const last = useRef<number | null>(null);
+  useEffect(() => {
+    const job = winChanceJob(pickCore(useStore.getState()), CHANCE_N);
+    let cancel = () => {};
+    const run = () => {
+      const r = job(CHANCE_CHUNK);
+      if (r === null) return void (cancel = idle(run));
+      const v = Math.round(r * 100);
+      if (last.current !== null && last.current !== v) setFrom(last.current);
+      last.current = v;
+      setPct(v);
+    };
+    cancel = idle(run);
+    return () => cancel();
+  }, [team]);
+  useEffect(() => {
+    if (from === null) return;
+    const id = setTimeout(() => setFrom(null), CHANCE_MS);
+    return () => clearTimeout(id);
+  }, [from, pct]);
+  const tone = from === null || pct === null ? 'text-hi' : pct > from ? 'text-good' : 'text-bad';
+  const bar = from === null || pct === null ? 'bg-hi' : pct > from ? 'bg-good' : 'bg-bad';
+  return (
+    <div className="shrink-0 px-2 pt-2" data-testid="win-chance">
+      <div className="flex items-baseline justify-between gap-2 whitespace-nowrap">
+        <span className="text-[12px] text-white/75 mob:text-[13px]">개막전 승리 확률</span>
+        <span className={`font-pixel-lg text-[24px] leading-none ${tone}`} style={{ textShadow: '1px 1px 0 #0f1420' }}>
+          {pct === null ? '…' : from === null ? `${pct}%` : `${from}% → ${pct}%`}
+        </span>
+      </div>
+      <div className="mt-1 h-[6px] bg-white/10">
+        <div className={`h-full ${bar}`} style={{ width: `${pct ?? 0}%`, transition: 'width .3s' }} />
+      </div>
+      {fixable && <div className="mt-1 text-[11px] text-white/70 mob:text-[12px]">오더를 고치면 이길 확률이 오릅니다.</div>}
+    </div>
+  );
+}
 
 /**
  * 개막전 오더지: 시즌 첫 경기를 치르기 전, 감독이 내민 오더가 첫 화면이 된다.
@@ -45,6 +102,16 @@ export default function OrderSheet() {
   useEffect(() => {
     if (visible) play('event');
   }, [visible]);
+  // 처음 열었을 때의 전력을 적어 둔다 (경기 후 요약의 "오더 수정" 줄)
+  const season = useStore((s) => s.season);
+  useEffect(() => {
+    if (visible && useUi.getState().orderBase?.season !== season) useUi.setState({ orderBase: { season, parts: teamParts(team) } });
+  }, [visible, season, team]);
+  const submit = () => {
+    const base = useUi.getState().orderBase;
+    if (base?.season === season) useUi.setState({ orderEdit: { season, from: base.parts, to: teamParts(team) } });
+    playNext();
+  };
 
   if (!visible) return null;
   const next = userMatch({ schedule, userId }, 0);
@@ -86,6 +153,7 @@ export default function OrderSheet() {
         </div>
       </div>
 
+      <WinChance fixable={issues.lineup + issues.pitchers > 0} />
       <TeamBar team={team} />
       <div className="shrink-0 px-1.5 pt-1.5">
         <TabBar
@@ -101,8 +169,8 @@ export default function OrderSheet() {
       <div className="flex min-h-0 flex-1 flex-col">{seg === 'lineup' ? <LineupTab order /> : <PitchersTab order />}</div>
 
       <div className="flex shrink-0 items-stretch gap-2 px-2 pt-1.5 pb-2">
-        <AutoButton className="min-h-11 flex-1 text-[12px] mob:text-[13px]" />
-        <button className="px-btn primary min-h-11 flex-[1.8] text-[15px]" data-sfx="none" data-testid="order-submit" onClick={playNext}>
+        <AutoButton order className="min-h-11 flex-1 text-[12px] mob:text-[13px]" />
+        <button className="px-btn primary min-h-11 flex-[1.8] text-[15px]" data-sfx="none" data-testid="order-submit" onClick={submit}>
           오더 제출 ▶
         </button>
       </div>
