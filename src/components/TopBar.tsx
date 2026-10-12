@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useStore, useUserTeam } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import { payroll } from '../game/economy';
 import { teamStrength } from '../game/ratings';
 import { rankOf } from '../game/season';
+import { useUi } from './layout/uiStore';
 import { Bar, ratingColor, recText, TeamDot } from './ui';
 
 function Cell({ label, children, title }: { label: string; children: ReactNode; title?: string }) {
   return (
-    <div className="flex flex-col justify-center px-2.5 leading-tight" title={title}>
+    <div className="flex flex-col justify-center px-2.5 leading-tight max-[1279px]:px-1.5" title={title}>
       <span className="text-[9px] text-white/50">{label}</span>
       <span className="whitespace-nowrap text-[13px]">{children}</span>
     </div>
@@ -47,7 +48,7 @@ export default function TopBar() {
           </div>
         </div>
       </div>
-      <div className="flex w-24 items-center">
+      <div className="flex w-24 items-center max-[1279px]:w-14">
         <Bar ratio={total ? day / total : 0} color="#7fd3ff" h={6} />
       </div>
       <Sep />
@@ -94,6 +95,144 @@ export default function TopBar() {
       <Cell label="전력">
         <span style={{ color: ratingColor(str) }}>{Math.round(str)}</span>
       </Cell>
+    </div>
+  );
+}
+
+// ───────── 모바일: 2줄 컴팩트 상단바 (탭하면 상세 펼침) ─────────
+
+function Detail({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col bg-ink/60 px-2 py-1 leading-tight">
+      <span className="text-[11px] text-white/50">{label}</span>
+      <span className="text-[14px]">{children}</span>
+    </div>
+  );
+}
+
+export function MobileTopBar() {
+  const team = useUserTeam();
+  const teams = useStore((s) => s.teams);
+  const season = useStore((s) => s.season);
+  const day = useStore((s) => s.day);
+  const total = useStore((s) => s.schedule.length);
+  const cash = useStore((s) => s.finance.cash);
+  const debt = useStore((s) => s.finance.debt);
+  const crowd = useStore((s) => s.crowd);
+  const fans = useStore((s) => s.fans);
+  const fanSat = useStore((s) => s.fanSat);
+  const playback = useStore((s) => !!s.playback);
+  const newGame = useStore((s) => s.newGame);
+  const open = useUi((s) => s.topOpen);
+  const setOpen = useUi((s) => s.setTopOpen);
+  const [arm, setArm] = useState(false);
+
+  useEffect(() => {
+    if (!open) setArm(false);
+  }, [open]);
+
+  const rank = rankOf(teams, team.id);
+  const str = teamStrength(team);
+  const pay = payroll(team);
+  const streak = team.rec.streak;
+  const satColor = fanSat >= 60 ? '#6ee07a' : fanSat >= 40 ? '#ffd84a' : '#ff6b6b';
+
+  return (
+    <div className="relative z-30 shrink-0">
+      <button className="px-panel flex w-full cursor-pointer flex-col gap-0.5 px-2 py-1 text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <div className="flex w-full items-center gap-1.5 text-[13px] leading-tight">
+          <TeamDot team={team} size={14} />
+          <span className="min-w-0 truncate font-pixel-lg text-[14px]" style={{ color: team.color, textShadow: '1px 1px 0 #0f1420' }}>
+            {team.name}
+          </span>
+          <span className="shrink-0 text-[11px] text-white/55">
+            {Math.min(day, total)}/{total}
+          </span>
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+            <span className={rank <= 3 ? 'text-hi' : rank >= 7 ? 'text-bad' : ''}>{rank}위</span>
+            <span className="text-white/85">{recText(team.rec)}</span>
+            {Math.abs(streak) >= 2 && (
+              <span className={`text-[11px] ${streak > 0 ? 'text-good' : 'text-bad'}`}>
+                {Math.abs(streak)}
+                {streak > 0 ? '연승' : '연패'}
+              </span>
+            )}
+          </span>
+        </div>
+        <div className="flex w-full items-center gap-2.5 text-[13px] leading-tight">
+          <span>
+            <span className="text-[11px] text-white/50">현금 </span>
+            <span className={cash < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(cash)}</span>
+          </span>
+          <span>
+            <span className="text-[11px] text-white/50">팬 </span>
+            {fmtInt(Math.round(fans))}
+          </span>
+          <span className="flex min-w-0 flex-1 items-center gap-1">
+            <span className="shrink-0 text-[11px] text-white/50">만족</span>
+            <span className="shrink-0" style={{ color: satColor }}>
+              {Math.round(fanSat)}
+            </span>
+            <span className="w-full max-w-14 min-w-6">
+              <Bar ratio={fanSat / 100} color={satColor} h={5} />
+            </span>
+          </span>
+          <span className="shrink-0 text-[11px] text-white/45">{open ? '▲' : '▼'}</span>
+        </div>
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[-1]" onClick={() => setOpen(false)} />
+          <div className="px-panel anim-fade absolute inset-x-0 top-full mt-[4px] p-2">
+            <div className="mb-1.5 flex items-center gap-2 text-[11px] text-white/55">
+              <span className="shrink-0">
+                {team.city} {team.name} · {season}시즌
+              </span>
+              <Bar ratio={total ? day / total : 0} color="#7fd3ff" h={6} />
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              <Detail label="부채">
+                <span className={debt > 0 ? 'text-bad' : 'text-white/60'}>{fmtMoney(debt)}</span>
+              </Detail>
+              <Detail label="연봉 총액">{fmtMoney(pay)}</Detail>
+              <Detail label="전력">
+                <span style={{ color: ratingColor(str) }}>{Math.round(str)}</span>
+              </Detail>
+              <Detail label="최근 홈 관중">
+                {crowd ? (
+                  <>
+                    {fmtInt(crowd.attendance)}
+                    {crowd.soldOut && <span className="ml-1 text-[11px] text-hi">매진</span>}
+                  </>
+                ) : (
+                  <span className="text-white/40">-</span>
+                )}
+              </Detail>
+              <Detail label="팬 수">{fmtInt(Math.round(fans))}</Detail>
+              <Detail label="팬 만족도">
+                <span style={{ color: satColor }}>{Math.round(fanSat)}</span>
+                <span className="text-[11px] text-white/45">/100</span>
+              </Detail>
+            </div>
+            <div className="mt-2 flex items-center justify-end gap-2">
+              {playback && <span className="text-[11px] text-white/45">재생 중에는 새 게임을 시작할 수 없습니다</span>}
+              <button
+                className={`px-btn ${arm ? 'primary' : ''}`}
+                disabled={playback}
+                onClick={() => {
+                  if (!arm) return setArm(true);
+                  setArm(false);
+                  setOpen(false);
+                  newGame();
+                }}
+              >
+                {arm ? '정말 새 게임? (저장 삭제)' : '새 게임'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

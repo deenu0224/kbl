@@ -130,7 +130,7 @@ export function TabBar<T extends string>({
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex-1 cursor-pointer py-1.5 text-[12px] ${on ? 'bg-panel text-hi' : 'bg-panel-2/60 text-white/60 hover:text-white'}`}
+            className={`flex-1 cursor-pointer py-1.5 text-[12px] mob:min-h-10 mob:text-[13px] ${on ? 'bg-panel text-hi' : 'bg-panel-2/60 text-white/60 hover:text-white'}`}
             style={on ? { boxShadow: 'inset 0 2px 0 #ffd84a' } : undefined}
           >
             {t.label}

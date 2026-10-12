@@ -5,6 +5,8 @@ import { useStore, useUserTeam, userMatch } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import { SEAT_LV, upgradeCost } from '../game/economy';
 import GameSummary from './GameSummary';
+import { useIsMobile } from './layout/useLayout';
+import { useUi } from './layout/uiStore';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
 
 const KINDS: FacilityKind[] = ['seats', 'food', 'training'];
@@ -17,6 +19,9 @@ function rectStyle(r: { x: number; y: number; w: number; h: number }): CSSProper
     height: `${(r.h / STADIUM_H) * 100}%`,
   };
 }
+
+/** cqw 글자 크기. 모바일에선 폰에서도 읽히도록 최소 px 를 보장한다. */
+const fz = (mobile: boolean, cqw: number, minPx: number) => (mobile ? `max(${cqw}cqw, ${minPx}px)` : `${cqw}cqw`);
 
 const chip: CSSProperties = {
   background: 'rgba(27,34,51,.88)',
@@ -41,7 +46,10 @@ export default function StadiumView() {
   const season = useStore((s) => s.season);
   const phase = useStore((s) => s.phase);
   const setTab = useStore((s) => s.setTab);
+  const setMobileTab = useUi((s) => s.setTab);
   const user = useUserTeam();
+  const mobile = useIsMobile();
+  const chipM: CSSProperties = mobile ? { ...chip, fontSize: fz(true, 1.7, 11), padding: '2px 5px' } : chip;
 
   const report = playback?.report ?? null;
   const step = playback?.step ?? 0;
@@ -174,22 +182,33 @@ export default function StadiumView() {
               key={k}
               className="group absolute cursor-pointer"
               style={rectStyle(HOTSPOTS[k])}
-              onClick={() => setTab('right', 'stadium')}
+              onClick={() => (mobile ? setMobileTab('stadium') : setTab('right', 'stadium'))}
               title={`${FAC_KO[k]} — 누르면 구장 탭이 열립니다`}
             >
               <span className="absolute inset-0 opacity-0 group-hover:opacity-100" style={{ boxShadow: 'inset 0 0 0 0.3cqw #ffd84a', background: 'rgba(255,216,74,.12)' }} />
-              <span
-                className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap opacity-0 group-hover:opacity-100"
-                style={{ ...chip, bottom: '100%', marginBottom: '0.6cqw', color: '#fff', fontSize: '1.5cqw' }}
-              >
-                {FAC_KO[k]} Lv{facilities[k] + 1}{' '}
-                {cost != null ? <span style={{ color: '#ffd84a' }}>▲{fmtMoney(cost)}</span> : <span style={{ color: '#6ee07a' }}>MAX</span>}
-              </span>
+              {mobile ? (
+                // 터치에는 hover 가 없으므로 항상 작은 태그로 보인다
+                <span
+                  className="absolute bottom-[4%] left-1/2 -translate-x-1/2 whitespace-nowrap text-center"
+                  style={{ ...chip, fontSize: 'max(1.5cqw, 10px)', padding: '1px 4px', color: '#fff', lineHeight: 1.2 }}
+                >
+                  {FAC_KO[k]} Lv{facilities[k] + 1}{' '}
+                  {cost != null ? <span style={{ color: '#ffd84a' }}>▲{fmtMoney(cost)}</span> : <span style={{ color: '#6ee07a' }}>MAX</span>}
+                </span>
+              ) : (
+                <span
+                  className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap opacity-0 group-hover:opacity-100"
+                  style={{ ...chip, bottom: '100%', marginBottom: '0.6cqw', color: '#fff', fontSize: '1.5cqw' }}
+                >
+                  {FAC_KO[k]} Lv{facilities[k] + 1}{' '}
+                  {cost != null ? <span style={{ color: '#ffd84a' }}>▲{fmtMoney(cost)}</span> : <span style={{ color: '#6ee07a' }}>MAX</span>}
+                </span>
+              )}
               {built && fxUp && (
                 <span
                   key={fxUp.key}
                   className="anim-float font-pixel-lg pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap"
-                  style={{ fontSize: '2.2cqw', color: '#ffd84a', textShadow: '0.2cqw 0.2cqw 0 #0f1420' }}
+                  style={{ fontSize: fz(mobile, 2.2, 13), color: '#ffd84a', textShadow: '0.2cqw 0.2cqw 0 #0f1420' }}
                 >
                   ▲ Lv{facilities[k] + 1}!
                 </span>
@@ -199,7 +218,7 @@ export default function StadiumView() {
         })}
 
         {/* 관중 칩 */}
-        <div className="pointer-events-none absolute flex items-center" style={{ ...chip, left: '1.2cqw', top: '1.2cqw', gap: '0.8cqw' }}>
+        <div className="pointer-events-none absolute flex items-center" style={{ ...chipM, left: '1.2cqw', top: '1.2cqw', gap: '0.8cqw' }}>
           <span title={WEATHER_KO[weather]}>{WEATHER_ICON[weather]}</span>
           {report && !report.isHome ? (
             <span className="text-white/80">원정 경기</span>
@@ -223,7 +242,7 @@ export default function StadiumView() {
 
         {/* 간판스타 칩 */}
         {star && (
-          <div className="pointer-events-none absolute" style={{ ...chip, right: '1.2cqw', top: '1.2cqw' }}>
+          <div className="pointer-events-none absolute" style={{ ...chipM, right: '1.2cqw', top: '1.2cqw' }}>
             <span className="text-white/55">간판스타 </span>
             <span className="text-hi">★ {star.name}</span>
           </div>
@@ -239,13 +258,13 @@ export default function StadiumView() {
                 background: 'rgba(15,20,32,.82)',
                 boxShadow: `0 0 0 0.3cqw ${mineEv ? user.color : '#0f1420'}, 0 0.8cqw 0 rgba(0,0,0,.25)`,
                 padding: '1.2cqw 3cqw',
-                maxWidth: '80%',
+                maxWidth: mobile ? '92%' : '80%',
               }}
             >
               <div
                 className="font-pixel-lg"
                 style={{
-                  fontSize: ev.type === 'hr' || ev.type === 'walkoff' ? '4.4cqw' : '3.4cqw',
+                  fontSize: ev.type === 'hr' || ev.type === 'walkoff' ? fz(mobile, 4.4, 16) : fz(mobile, 3.4, 14),
                   lineHeight: 1.15,
                   color: ev.type === 'injury' ? '#ff6b6b' : mineEv ? '#ffd84a' : '#ffffff',
                   textShadow: '0.3cqw 0.3cqw 0 #0f1420',
@@ -253,7 +272,7 @@ export default function StadiumView() {
               >
                 {ev.text}
               </div>
-              {ev.sub && <div style={{ fontSize: '1.8cqw', color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>}
+              {ev.sub && <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>}
             </div>
           </div>
         )}
@@ -266,13 +285,17 @@ export default function StadiumView() {
                 <span key={i} style={{ width: '1cqw', height: '1cqw', background: i <= step ? '#ffd84a' : 'rgba(15,20,32,.6)', boxShadow: '0 0 0 0.15cqw #0f1420' }} />
               ))}
             </div>
-            <button className="px-btn" style={{ fontSize: 'max(11px, 1.5cqw)' }} onClick={skipPlayback}>
-              건너뛰기 ▶▶
-            </button>
+            {/* 모바일은 엄지 위치(액션 바)에 건너뛰기가 있다 */}
+            {!mobile && (
+              <button className="px-btn" style={{ fontSize: 'max(11px, 1.5cqw)' }} onClick={skipPlayback}>
+                건너뛰기 ▶▶
+              </button>
+            )}
           </div>
         )}
 
-        <GameSummary />
+        {/* 모바일 요약은 셸에서 전체 화면 시트로 띄운다 */}
+        {!mobile && <GameSummary />}
       </div>
     </div>
   );

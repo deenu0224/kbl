@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 
+/* 모바일 레이아웃 전용 변형: App 이 <html data-layout="portrait|landscape|desktop"> 을 단다 */
+@custom-variant mob (&:is([data-layout='portrait'] *, [data-layout='landscape'] *));
+/* 세로 전용 (mob 뒤에 선언해야 mob 보다 우선) */
+@custom-variant por (&:is([data-layout='portrait'] *));
+/* 키가 작은 폰(360×640 등) */
+@custom-variant short (@media (max-height: 700px));
+
 @theme {
   --font-pixel: 'Galmuri11', 'Galmuri9', ui-monospace, monospace;
   --font-pixel-sm: 'Galmuri9', 'Galmuri11', ui-monospace, monospace;
@@ -27,6 +34,44 @@ body {
   font-family: var(--font-pixel);
   font-size: 12px;
   -webkit-font-smoothing: none;
+}
+
+html,
+body {
+  /* 당겨서 새로고침·바운스 스크롤 방지, 더블탭 줌 방지 */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ───────── 모바일 ───────── */
+
+:root:is([data-layout='portrait'], [data-layout='landscape']) body {
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 본문 글자 하한 11px (mob:text-* 로 직접 지정한 곳은 제외) */
+:root:is([data-layout='portrait'], [data-layout='landscape']) :is(.text-\[9px\], .text-\[10px\]):not([class*='mob:text']) {
+  font-size: 11px;
+}
+
+/* 터치 타깃 최소 40px */
+:root:is([data-layout='portrait'], [data-layout='landscape']) .px-btn {
+  min-height: 40px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* iOS 는 16px 미만 입력에 포커스하면 확대한다 */
+input,
+select,
+textarea {
+  font-size: 16px;
 }
 
 canvas.pixel {
@@ -59,8 +104,10 @@ canvas.pixel {
     inset 0 -3px 0 0 rgba(0, 0, 0, 0.3),
     inset 0 2px 0 0 rgba(255, 255, 255, 0.18);
 }
-.px-btn:hover:not(:disabled) {
-  filter: brightness(1.15);
+@media (hover: hover) {
+  .px-btn:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
 }
 .px-btn:active:not(:disabled) {
   transform: translateY(1px);
@@ -80,6 +127,10 @@ canvas.pixel {
   background: #2f9e4f;
 }
 
+.px-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
 .px-scroll::-webkit-scrollbar {
   width: 8px;
 }
@@ -128,4 +179,25 @@ canvas.pixel {
 }
 .anim-blink {
   animation: blink 0.8s steps(2) infinite;
+}
+
+@keyframes sheet-up {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.anim-sheet {
+  animation: sheet-up 0.18s steps(5) backwards; /* 끝난 뒤엔 끌기(transform)를 막지 않게 */
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+}
+.anim-fade {
+  animation: fade-in 0.15s steps(3) both;
 }
