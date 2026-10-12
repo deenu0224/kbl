@@ -92,3 +92,35 @@ export function teamStrength(t: Team): number {
   const pen = avg([t.closer, ...t.bullpen]) ?? all;
   return clamp(Math.round(bat * 0.5 + rot * 0.3 + pen * 0.2), 0, 99);
 }
+
+// 타순별 비중: 타석이 많이 돌아오는 상위·중심 타선이 무겁다
+const ORDER_W = [1.15, 1.1, 1.3, 1.35, 1.1, 0.95, 0.85, 0.75, 0.65];
+
+export interface TeamParts {
+  bat: number; // 타선: 타순 비중을 준 타격 가치
+  def: number; // 수비: 맡은 자리 기준(포지션 불일치 페널티 반영)
+  rot: number; // 선발: 로테이션을 선발 기준으로 본 값
+  pen: number; // 불펜: 마무리 + 불펜을 계투 기준으로 본 값
+}
+
+/** 팀 전력 4칸 (타선 탭 상단 막대). 타순·수비 위치·보직을 바꾸면 바로 변한다. */
+export function teamParts(t: Team): TeamParts {
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const slots = t.lineup.map((s) => ({ p: byId.get(s.pid), pos: s.pos })).filter((x): x is { p: Player; pos: BatPos } => !!x.p);
+  let bw = 0;
+  let bv = 0;
+  slots.forEach((x, i) => {
+    const w = ORDER_W[i] ?? 0.65;
+    bw += w;
+    bv += batValue(x.p) * w;
+  });
+  const field = slots.filter((x) => x.pos !== 'DH');
+  const def = field.length ? field.reduce((s, x) => s + effDef(x.p, x.pos), 0) / field.length : 0;
+  const pit = (ids: (string | null)[], w: typeof SP_W) => {
+    const ps = ids.map((id) => (id ? byId.get(id) : undefined)).filter((p): p is Player => !!p && p.kind === 'P');
+    return ps.length ? ps.reduce((s, p) => s + p.stf * w.stf + p.ctl * w.ctl + p.sta * w.sta, 0) / ps.length : 0;
+  };
+  // 불펜은 앞(필승조)일수록 자주 던진다: 마무리와 앞 3명만 본다
+  const r = (v: number) => clamp(Math.round(v), 0, 99);
+  return { bat: r(bw ? bv / bw : 0), def: r(def), rot: r(pit(t.rotation, SP_W)), pen: r(pit([t.closer, ...t.bullpen.slice(0, 3)], RP_W)) };
+}

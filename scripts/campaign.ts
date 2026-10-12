@@ -249,16 +249,17 @@ const passive: Bot = {
   draft: () => null,
 };
 
+const PLEDGE_TRUST = 70; // 이 지지 이상일 때만 중간 점검에서 목표 상향을 약속한다
 // 카드별 선택 (기본) — 동사를 쓰는 쪽
 const USE: Record<string, number[]> = {
   midcheck: [0],
-  dome: [0], veteran: [1], oldeye: [1, 2], notyet: [0], arm: [0], typhoon: [1],
-  meeting: [0], scalper: [0, 2], early: [1], goods: [0, 1], trade: [0], tourist: [0], tour: [0], raise: [0],
+  dome: [0], veteran: [1], oldeye: [1], notyet: [0], arm: [0], typhoon: [1],
+  meeting: [0], scalper: [0, 2], early: [1], goods: [0, 1], trade: [0], tourist: [0], tour: [0, 1], raise: [0],
 };
 // 그 동사를 쓰지 않을 때의 선택
 const SKIP: Record<string, { verb: Verb; pick: number[] }> = {
   veteran: { verb: 'lineup', pick: [0] },
-  oldeye: { verb: 'sign', pick: [2, 1] },
+  oldeye: { verb: 'sign', pick: [1] },
   trade: { verb: 'sign', pick: [1] },
   scalper: { verb: 'gate', pick: [1] },
   tourist: { verb: 'gate', pick: [1] },
@@ -297,7 +298,8 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
     event: (c, card) => {
       const id = baseId(card);
       const v = verbs(c);
-      if (id === 'midcheck') return firstEnabled(card, card.id.endsWith('ahead') ? [0] : [1]);
+      // 목표 상향 약속은 실패하면 지지를 크게 잃는다 — 지지에 여유가 있을 때만 건다
+      if (id === 'midcheck') return firstEnabled(card, card.id.endsWith('ahead') ? (c.campaign.trust >= PLEDGE_TRUST ? [0] : [1]) : [1]);
       const skip = SKIP[id];
       if (skip && !v.has(skip.verb)) return firstEnabled(card, skip.pick);
       return firstEnabled(card, USE[id] ?? [card.choices.length - 1]);

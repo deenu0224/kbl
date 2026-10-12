@@ -86,8 +86,8 @@ export const PAL = {
   rim: '#a3adb9',
   seat: '#9fb2c6',
   seatDk: '#8a9eb4',
-  seatWood: '#b99a72',
-  seatWoodDk: '#a2835c',
+  seatWood: '#8e7656', // 낡은 나무 의자: 관중 색이 도드라지게 어둡게
+  seatWoodDk: '#75603f',
   seatUp: '#8f9fc4',
   seatUpDk: '#7b8bb2',
   seatOut: '#9cc3b4',

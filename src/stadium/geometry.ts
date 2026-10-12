@@ -68,6 +68,10 @@ export const DECK_GAP = 6;
 export const ROW_STEP = 5;
 export const SEAT_STEP = 4.5;
 export const ROW0_D = 6;
+/** 좌석 간격. Lv0 의 낡은 구장은 등받이 없는 긴 의자라 촘촘히 앉는다(매진이면 빈틈없이 찬다) */
+export function seatStep(lv: number): number {
+  return lv === 0 ? 3.3 : SEAT_STEP;
+}
 export const AISLE_EVERY = 40;
 
 /** 줄 r 의 벽으로부터의 거리 */
@@ -194,7 +198,8 @@ export function buildSeats(lvIn: number): Seat[] {
     const sec: 0 | 1 = upper ? 1 : 0;
     const rowScore = r * 0.045 + (upper ? 0.12 : 0);
     // 직선 구간
-    for (let t = 2.6; t <= spec.len; t += SEAT_STEP) {
+    const step = seatStep(lv);
+    for (let t = 2.6; t <= spec.len; t += step) {
       if (isAisleT(t)) continue;
       if (d < DUG_D + 2 && t > DUG_T0 - 2.5 && t < DUG_T1 + 2.5) continue;
       const sc2 = rowScore + (t / 235) * 0.35;
@@ -205,7 +210,7 @@ export function buildSeats(lvIn: number): Seat[] {
       push(rr.x, rr.y, 0, sc2, sec, cov);
     }
     // 홈 뒤 호
-    const n = Math.floor((d * Math.PI * 0.5) / SEAT_STEP);
+    const n = Math.floor((d * Math.PI * 0.5) / step);
     for (let i = 0; i < n; i++) {
       const th = Math.PI / 4 + ((i + 0.5) / n) * (Math.PI / 2);
       if (d >= 16 && Math.abs(th - Math.PI / 2) * d < 2.2) continue;
@@ -249,6 +254,34 @@ export function buildSeats(lvIn: number): Seat[] {
     };
   });
   return seats;
+}
+
+/**
+ * 입석 자리: 매진된 날 스탠드 뒷벽을 따라, 그리고 스탠드 양 끝에 서서 보는 관중 (화면 좌표, 발 위치).
+ * 지붕이 없는 작은 구장(Lv0·1)에서만 쓴다.
+ */
+export function standingSpots(lvIn: number): { x: number; y: number; ph: number }[] {
+  const lv = clampLv(lvIn);
+  const spec = SEAT_SPEC[lv];
+  const out: { x: number; y: number; ph: number }[] = [];
+  const push = (wx: number, wy: number) => out.push({ x: Math.round(sxOf(wx)) - 1, y: Math.round(syOf(wy)), ph: Math.floor(hash2(out.length + 1, 313 + lv) * 256) });
+  const d = standOuter(lv) + 2.5;
+  // 뒷벽을 따라 한 줄
+  for (let t = 3; t <= spec.len; t += 3.6) for (const s of [-1, 1] as const) {
+    const p = standToWorld(s, d, t);
+    push(p.x, p.y);
+  }
+  const n = Math.floor((d * Math.PI * 0.5) / 3.6);
+  for (let i = 0; i < n; i++) {
+    const th = Math.PI / 4 + ((i + 0.5) / n) * (Math.PI / 2);
+    push(d * Math.cos(th), APEX_Y + d * Math.sin(th));
+  }
+  // 스탠드 양 끝(외야 쪽)에 두 줄
+  for (let k = 0; k < 2; k++) for (let dd = ROW0_D; dd <= d; dd += 3.4) for (const s of [-1, 1] as const) {
+    const p = standToWorld(s, dd, spec.len + 3.5 + k * 3.5);
+    push(p.x, p.y);
+  }
+  return out;
 }
 
 // ───────── 고정 배치 ─────────

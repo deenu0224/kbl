@@ -8,6 +8,8 @@ import { opProfit, payroll, previewDemand, signingBonus, userTeam } from '../src
 import { fmtMoney } from '../src/game/format';
 import { teamStrength } from '../src/game/ratings';
 import { SIM_TALLY } from '../src/game/sim';
+import { autoLineup } from '../src/game/lineup';
+import { ensureObjectives } from '../src/game/campaign';
 import { KBO_AVG, scaleToSeason, scaleToTeams } from '../src/game/kbo';
 import { batLeaders, pitLeaders, qualPA } from '../src/game/leaders';
 
@@ -146,9 +148,14 @@ function summarize(start: Core, end: Core): Summary {
 }
 
 /** 시즌을 돌리면서 매진·입장 못한 팬을 직접 집계 */
-function play(core: Core, seed: number, start: Core = core): Summary {
+function play(core: Core, seed: number, start: Core = core, fixed = false): Summary {
   const rng = mulberry32(seed * 7919 + 13);
   let c = core;
+  if (fixed) {
+    // 리그 지표 보정용: 0장의 고장 난 편성을 고친 정상 운영 (한 번도 안 고친 팀이 리그 평균을 끌고 가지 않게)
+    c = structuredClone(ensureObjectives(c, rng));
+    autoLineup(userTeam(c));
+  }
   let sellouts = 0;
   let turnedAway = 0;
   SIM_TALLY.dp = 0;
@@ -173,6 +180,9 @@ const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
 console.log(`\n=== 무개입 시즌 × ${N_SEEDS} 시드 ===`);
 console.log('seed |  AVG   ERA   R/G | HR1 .300+ .340+ 최고타율 다승 세이브 무 | 순위  전적     | 손익     연봉총액 | 평균관중 매진 못들어옴 | 팬    만족');
 const base: Summary[] = [];
+// KBO 대비 리그 지표는 편성을 고친 시즌으로 잰다
+const kboBase: Summary[] = [];
+for (let seed = 1; seed <= N_SEEDS; seed++) kboBase.push(play(newCore(seed), seed, undefined, true));
 for (let seed = 1; seed <= N_SEEDS; seed++) {
   const s = play(newCore(seed), seed);
   base.push(s);
@@ -256,7 +266,7 @@ for (const g of CMP) {
   console.log(`-- ${g.group}`);
   console.log(`${wide('지표', 30)} ${'KBO'.padStart(8)} ${'시뮬'.padStart(7)} ${'오차'.padStart(8)}  판정`);
   for (const c of g.rows) {
-    const sim = mean(base.map((s) => s.kbo[c.key]));
+    const sim = mean(kboBase.map((s) => s.kbo[c.key]));
     const err = (sim - c.kbo) / c.kbo;
     const ok = c.tol === null ? '-' : Math.abs(err) <= c.tol ? '✓' : '✗';
     if (ok === '✗') fails++;

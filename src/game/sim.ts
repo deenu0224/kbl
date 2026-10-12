@@ -11,7 +11,7 @@ const CAL = {
   BB: 0.975,
   K: 1.025,
   HR: 0.82,
-  BABIP: -0.012,
+  BABIP: -0.009, // 자동 편성이 수비 위치를 정리하면서 오른 리그 수비력만큼 보정
   D2: 0.95,
   D3: 0.92,
 };
@@ -63,6 +63,11 @@ export const SIM = {
   SP_LIMIT_BASE: 11, // 선발 한계 타자 수 = BASE + 체력 × STA (평균 5⅓이닝 안팎, 체력 좋은 에이스는 더 길게)
   SP_LIMIT_STA: 0.19,
   RP_AS_SP: 0.55, // 구원 전문(RP·CP)이 선발 등판할 때의 한계 타자 수 배율
+  RP_AS_SP_PEN: 12, // 그때의 구위·제구 하락 (선발 수업을 받지 않은 팔)
+  // 수비 조직력: 한두 명이 낯선 자리를 보는 건 버티지만(페널티 합 MISFIT_FREE 까지), 그 이상 뒤섞이면 수비가 무너진다
+  MISFIT_FREE: 65,
+  MISFIT_ROE: 0.0012, // 초과분 1점당 실책 출루 확률 가산
+  MISFIT_BABIP: 0.0012, // 초과분 1점당 인플레이 안타 확률 가산
   RP_LIMIT_BASE: 4,
   RP_LIMIT_STA: 0.1,
   FAT_STF: 2.2, // 한계 초과 타자 1명당 구위 하락
@@ -114,6 +119,7 @@ interface Side {
   pen: Player[]; // 아직 안 쓴 불펜 (앞이 필승조)
   closer: Player | null;
   def: number;
+  misfit: number; // 낯선 자리에 선 야수들의 수비 페널티 합 중 MISFIT_FREE 초과분
   cDef: number; // 포수 수비 (도루 저지)
   runs: number;
   hits: number;
@@ -168,6 +174,7 @@ function makeSide(t: Team, isHome: boolean, rest?: Set<string>): Side {
   const order = gameOrder(t);
   const fielders = order.filter((s) => s.pos !== 'DH');
   const def = fielders.length ? fielders.reduce((s, x) => s + effDef(x.p, x.pos), 0) / fielders.length : SIM.REF;
+  const misfit = Math.max(0, fielders.reduce((s, x) => s + Math.max(0, x.p.def - effDef(x.p, x.pos)), 0) - SIM.MISFIT_FREE);
   const catcher = order.find((s) => s.pos === 'C');
   const cDef = catcher ? effDef(catcher.p, 'C') : SIM.REF - 15;
 
@@ -195,7 +202,7 @@ function makeSide(t: Team, isHome: boolean, rest?: Set<string>): Side {
   const side: Side = {
     team: t, isHome, order, idx: 0,
     cur: undefined as unknown as PState,
-    used: [], pen, closer, def, cDef, runs: 0, hits: 0, line: [], lines: new Map(),
+    used: [], pen, closer, def, misfit, cDef, runs: 0, hits: 0, line: [], lines: new Map(),
   };
   for (const s of order) {
     s.p.bat.g++;
@@ -210,7 +217,7 @@ function enter(side: Side, p: Player, starter: boolean, lead: number): void {
   const limit = starter
     ? (SIM.SP_LIMIT_BASE + p.sta * SIM.SP_LIMIT_STA) * (p.pos === 'SP' ? 1 : SIM.RP_AS_SP)
     : SIM.RP_LIMIT_BASE + p.sta * SIM.RP_LIMIT_STA;
-  const ps: PState = { p, bf: 0, outs: 0, runs: 0, so: 0, limit, starter, entryLead: lead, tiredPen: starter ? 0 : tiredPenalty(p.tired) };
+  const ps: PState = { p, bf: 0, outs: 0, runs: 0, so: 0, limit, starter, entryLead: lead, tiredPen: starter ? (p.pos === 'SP' ? 0 : SIM.RP_AS_SP_PEN) : tiredPenalty(p.tired) };
   p.pit.g++;
   if (starter) p.pit.gs++;
   side.cur = ps;
@@ -345,13 +352,14 @@ export function simulateGame(
       const fat = Math.max(0, ps.bf - ps.limit);
       const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - ps.tiredPen);
       const stf = norm(stfRaw);
-      const ctl = norm(Math.max(20, ps.p.ctl - fat * SIM.FAT_CTL));
+      const ctl = norm(Math.max(20, ps.p.ctl - fat * SIM.FAT_CTL - (ps.starter ? ps.tiredPen : 0)));
       const pBB = clamp((SIM.BB * Math.pow(norm(b.eye), SIM.BB_EYE)) / Math.pow(ctl, SIM.BB_CTL), 0.02, 0.28);
       const pK = clamp((SIM.K * Math.pow(stf, SIM.K_STF)) / Math.pow(norm(b.con), SIM.K_CON), 0.04, 0.45);
       const pHR = clamp((SIM.HR * Math.pow(norm(b.pow), SIM.HR_POW)) / Math.pow(stf, SIM.HR_STF), 0.001, 0.13);
       const babip = clamp(
         SIM.BABIP +
           ((b.con - SIM.REF) * SIM.BABIP_CON + (b.spd - SIM.REF) * SIM.BABIP_SPD - (stfRaw - SIM.REF) * SIM.BABIP_STF - (fld.def - SIM.REF) * SIM.BABIP_DEF) * SIM.SKILL +
+          fld.misfit * SIM.MISFIT_BABIP +
           (bat.isHome ? SIM.HOME_EDGE : 0),
         0.2,
         0.43,
@@ -422,7 +430,7 @@ export function simulateGame(
           }
           bases = [me, second, third];
         }
-      } else if (rng() < SIM.ROE) {
+      } else if (rng() < SIM.ROE + fld.misfit * SIM.MISFIT_ROE) {
         // 실책 출루: 주자 전원 한 베이스씩, 이 플레이의 득점과 타자 주자는 비자책
         kind = 'roe';
         SIM_TALLY.roe++;

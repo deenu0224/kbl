@@ -12,13 +12,13 @@ import {
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
 import { activeBuffs, fillObjectivesMut, hintMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
-import { JETLAG_FOCUS, beatById, jetLag, scriptTickMut, weatherFor } from './script';
+import { JETLAG_FOCUS, POS_NAME, beatById, jetLag, scriptTickMut, weatherFor } from './script';
 import { memoAdd, memoGet, memoSet } from './memo';
 import { NEWS, OVER_LABEL } from './story';
 import { isFranchise } from './franchise';
 import { afterRegularSeasonMut, playPostDayMut } from './postseason';
 import { isDraftDone } from './draft';
-import { FOREIGN_MAX } from './events';
+import { cutGoodsMut, FOREIGN_MAX } from './events';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -187,11 +187,15 @@ function applyFocus(t: Team, d: number, per: Record<string, number> = {}): () =>
 }
 
 /** 은퇴 투어 등 고정 출전 선수를 타선에 넣는다 */
-function forceStarter(t: Team, pid: string): void {
+/** 고정 출전 선수를 선발 명단에 넣는다. 반환: 그에게 밀려난 선수 pid */
+function forceStarter(t: Team, pid: string): string | null {
   const p = t.roster.find((x) => x.id === pid);
-  if (!p || p.kind !== 'B' || p.injury > 0 || t.lineup.some((s) => s.pid === pid)) return;
+  if (!p || p.kind !== 'B' || p.injury > 0 || t.lineup.some((s) => s.pid === pid)) return null;
   const slot = t.lineup.find((s) => s.pos === p.pos) ?? t.lineup.find((s) => s.pos === 'DH');
-  if (slot) slot.pid = pid;
+  if (!slot) return null;
+  const out = slot.pid;
+  slot.pid = pid;
+  return out;
 }
 
 /** 유저 팀이 오늘 원정 6연전 뒤 첫 홈경기를 치르는가 (정규시즌만) */
@@ -212,7 +216,10 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
     const ut = home.id === core.userId ? home : away.id === core.userId ? away : null;
     if (ut) {
       const fx = activeBuffs(core);
-      for (const pid of fx.fixed) forceStarter(ut, pid);
+      for (const pid of fx.fixed) {
+        const out = forceStarter(ut, pid);
+        if (out && !memoGet(core, `fx-${pid}`)) memoSet(core, `fx-${pid}`, out); // 고정 출전이 끝나면 되돌린다
+      }
       const focus = fx.focus + (userJetLag(core, home) ? JETLAG_FOCUS : 0);
       if (focus || Object.keys(fx.slump).length) restore = applyFocus(ut, focus, fx.slump);
       if (fx.rest.length) rest = new Set(fx.rest);
@@ -392,6 +399,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   if (day >= 8 && rankAfter !== rankBefore) {
     notes.push(rankAfter < rankBefore ? `순위 상승: ${rankBefore}위 → ${rankAfter}위` : `순위 하락: ${rankBefore}위 → ${rankAfter}위`);
   }
+  cutGoodsMut(core);
   tickBuffs(core, isHome);
   if (core.day >= core.schedule.length) {
     addNews(core, `정규시즌 ${core.season} 종료 — 최종 ${rankAfter}위 (${user.rec.w}승 ${user.rec.l}패 ${user.rec.t}무)`, 'info');
@@ -580,7 +588,7 @@ function aiStoveLeague(core: Core, rng: Rng): void {
       const [p] = pool.splice(i, 1);
       t.roster.push(p);
       autoLineup(t);
-      addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${p.pos} OVR${p.ovr}) 영입`, 'info');
+      addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${POS_NAME[p.pos] ?? p.pos} OVR ${p.ovr}) 영입`, 'info');
     }
     // 정원 초과 → 남는 쪽(타자/투수)의 최하위부터 방출
     while (t.roster.length > AI_ROSTER) {
@@ -646,6 +654,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   core.freeAgents = genFreeAgents(ctx);
   for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
   core.schedule = buildSchedule(core.teams.map((t) => t.id), rng);
+  core.crowd = null; // 관중 칩·게이트 줄은 개막 전으로
   core.finance.ledger = ledgerZero();
   core.attHistory = [];
   core.cashHistory = [core.finance.cash];

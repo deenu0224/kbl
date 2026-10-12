@@ -33,6 +33,31 @@ type Bias = (p: Player) => number;
 const noBias: Bias = () => 0;
 const mgrBias: Bias = (p) => (p.age - 27) * MGR_AGE + (p.salary / 10000) * MGR_SALARY;
 
+/**
+ * 고른 9명 안에서 수비 위치를 다시 나눈다: 둘이 자리를 바꿔 낯선 자리의 페널티 합이 줄면 바꾼다.
+ * (자리를 순서대로 채우다 보면 서로 자리가 엇갈린 채 남는 경우가 있다 — 타자 구성은 그대로다)
+ */
+function tidyDefense(chosen: { p: Player; pos: BatPos }[]): void {
+  const pen = (p: Player, pos: BatPos) => (pos === 'DH' ? 0 : p.def - effDef(p, pos));
+  for (let pass = 0; pass < 4; pass++) {
+    let moved = false;
+    for (let i = 0; i < chosen.length; i++) {
+      for (let j = i + 1; j < chosen.length; j++) {
+        const a = chosen[i];
+        const b = chosen[j];
+        const now = pen(a.p, a.pos) + pen(b.p, b.pos);
+        const alt = pen(a.p, b.pos) + pen(b.p, a.pos);
+        const gain = slotValue(a.p, b.pos) + slotValue(b.p, a.pos) - slotValue(a.p, a.pos) - slotValue(b.p, b.pos);
+        if (alt < now || (alt === now && gain > 0.001)) {
+          [a.pos, b.pos] = [b.pos, a.pos];
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+}
+
 function buildBatting(t: Team, bias: Bias = noBias): void {
   const pool = t.roster.filter((p) => p.kind === 'B');
   const chosen: { p: Player; pos: BatPos }[] = [];
@@ -45,6 +70,7 @@ function buildBatting(t: Team, bias: Bias = noBias): void {
   // DH 감은 미리 빼두지 않고, 수비 8자리를 먼저 채운 뒤 남은 최고 타자를 DH 로
   for (const pos of FIELD_ORDER) take(pos);
   take('DH');
+  tidyDefense(chosen);
 
   // 타순: 1번 출루+주력, 3번 최고 타자, 4번 최고 파워, 나머지는 타격순
   const rest = chosen.slice();
@@ -121,39 +147,67 @@ export function managerLineup(t: Team): void {
   buildPitching(t, mgrBias);
 }
 
+// 고장의 정도 (scripts/firstgames.ts 로 맞춘다: 고장 난 채 12경기 승률 ≈ .30 이하, 고치면 ≈ .50)
+export const BROKEN = {
+  benched: 3, // 벤치로 밀려난 상위 타자 수 (그 자리는 포지션이 안 맞는 벤치 최고령이 맡는다)
+  misfit: 3, // 서로 수비 위치를 바꿔 선 주전 쌍
+  weakTop: 2, // 최약 타자를 4번·3번에
+  acesToPen: 3, // 불펜으로 간 상위 선발 수 (그 자리는 불펜 최고령이 선발로)
+  closerSwap: true, // 마무리 ↔ 불펜 맨 뒤
+};
+// 수비 위치를 맞바꿀 쌍 (앞에서부터 misfit 개)
+const MISFIT_PAIRS: [BatPos, BatPos][] = [['SS', '1B'], ['C', 'LF'], ['CF', '3B']];
+
 /**
  * 0장의 "고장 난 타순": 전임 체제의 유산. 감독의 편성에서 한 번 더 어긋나게 만든다.
- * 팀 최고 타자가 벤치 · 최약 타자가 4번 · 포지션 불일치 1명 · 최고 선발이 불펜. 고치는 건 무료·가역.
+ * 상위 타자가 벤치 · 최약 타자가 중심 타선 · 포지션 불일치 · 상위 선발이 불펜. 고치는 건 무료·가역.
  */
-export function breakLineup(t: Team): void {
+export function breakLineup(t: Team, lv: typeof BROKEN = BROKEN): void {
   managerLineup(t);
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const inLineup = () => t.lineup.map((s) => byId.get(s.pid)).filter((p): p is Player => !!p);
-  // 1) 최고 타자 → 벤치. 대신 포지션이 안 맞는 벤치 최고령이 그 자리를 맡는다
-  const top = best(inLineup(), (p) => batValue(p));
-  const used = new Set(t.lineup.map((s) => s.pid));
-  const bench = t.roster.filter((p) => p.kind === 'B' && !used.has(p.id));
-  if (top && bench.length) {
+  // 1) 상위 타자 → 벤치. 대신 포지션이 안 맞는 벤치 최고령이 그 자리를 맡는다
+  const out = new Set<string>();
+  for (let n = 0; n < lv.benched; n++) {
+    const top = best(inLineup().filter((p) => !out.has(p.id)), (p) => batValue(p));
+    const used = new Set(t.lineup.map((s) => s.pid));
+    const bench = t.roster.filter((p) => p.kind === 'B' && !used.has(p.id) && !out.has(p.id));
+    if (!top || !bench.length) break;
     const slot = t.lineup.find((s) => s.pid === top.id)!;
     const sub = best(bench, (p) => (p.pos !== slot.pos && slot.pos !== 'DH' ? 100 : 0) + p.age)!;
     slot.pid = sub.id;
+    out.add(top.id);
+    out.add(sub.id);
   }
-  // 2) 최약 타자 → 4번
-  const worst = best(inLineup(), (p) => -batValue(p));
-  if (worst && t.lineup.length >= 4) {
-    const i = t.lineup.findIndex((s) => s.pid === worst.id);
-    if (i >= 0 && i !== 3) [t.lineup[i], t.lineup[3]] = [t.lineup[3], t.lineup[i]];
+  // 2) 주전끼리 수비 위치를 바꿔 선다
+  for (const [a, b] of MISFIT_PAIRS.slice(0, lv.misfit)) {
+    const sa = t.lineup.find((s) => s.pos === a);
+    const sb = t.lineup.find((s) => s.pos === b);
+    if (sa && sb) [sa.pos, sb.pos] = [sb.pos, sa.pos];
   }
-  // 3) 최고 선발 ↔ 불펜 최고령
-  {
+  // 3) 최약 타자 → 4번, 그다음 → 3번
+  for (const at of [3, 2].slice(0, lv.weakTop)) {
+    const placed = new Set([3, 2].filter((i) => i > at).map((i) => t.lineup[i]?.pid));
+    const worst = best(inLineup().filter((p) => !placed.has(p.id)), (p) => -batValue(p));
+    if (worst && t.lineup.length > at) {
+      const i = t.lineup.findIndex((s) => s.pid === worst.id);
+      if (i >= 0 && i !== at) [t.lineup[i], t.lineup[at]] = [t.lineup[at], t.lineup[i]];
+    }
+  }
+  // 4) 상위 선발 ↔ 불펜 최고령
+  for (let n = 0; n < lv.acesToPen; n++) {
     const rot = t.rotation.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.pos === 'SP');
     const pen = t.bullpen.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.pos !== 'SP');
     const ace = best(rot, (p) => p.ovr);
     const old = best(pen, (p) => p.age - p.sta * 0.1);
-    if (ace && old) {
-      t.rotation[t.rotation.indexOf(ace.id)] = old.id;
-      t.bullpen[t.bullpen.indexOf(old.id)] = ace.id;
-    }
+    if (!ace || !old) break;
+    t.rotation[t.rotation.indexOf(ace.id)] = old.id;
+    t.bullpen[t.bullpen.indexOf(old.id)] = ace.id;
+  }
+  // 5) 마무리 ↔ 불펜 맨 뒤(추격조)
+  if (lv.closerSwap && t.closer && t.bullpen.length) {
+    const i = t.bullpen.length - 1;
+    [t.closer, t.bullpen[i]] = [t.bullpen[i], t.closer];
   }
   t.nextStarter = 0;
 }

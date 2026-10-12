@@ -233,7 +233,7 @@ export default function StadiumView() {
         })}
 
         {/* 관중 칩 */}
-        <div className="pointer-events-none absolute flex items-center" style={{ ...chipM, left: '1.2cqw', top: '1.2cqw', gap: '0.8cqw' }}>
+        <div className="pointer-events-none absolute flex items-center whitespace-nowrap" style={{ ...chipM, left: '1.2cqw', top: '1.2cqw', gap: '1.2cqw' }}>
           <span title={WEATHER_KO[weather]}>{WEATHER_ICON[weather]}</span>
           {report && !report.isHome ? (
             <span className="text-white/80">원정 경기</span>
@@ -241,15 +241,16 @@ export default function StadiumView() {
             <>
               <span>
                 관중 <span className="text-hi">{fmtInt(shownCrowd.attendance)}</span>
-                <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>
+                {/* 매진이면 정원은 생략한다 — 폰에서 "매진!"·🚶 숫자가 간판스타 칩과 겹치지 않게 */}
+                {!shownCrowd.soldOut && <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>}
               </span>
               {shownCrowd.soldOut && (
-                <span className="anim-blink font-pixel-lg" style={{ color: '#ff6b6b' }}>
+                <span className="anim-blink font-pixel-lg shrink-0" style={{ color: '#ff6b6b' }}>
                   매진!
                 </span>
               )}
               {/* 디오라마의 게이트 밖 줄은 폰에서 작다 — 발길 돌린 팬 수를 함께 적는다 */}
-              {shownCrowd.turnedAway > 0 && <span style={{ color: '#ffb38a' }}>🚶 +{fmtInt(shownCrowd.turnedAway)}</span>}
+              {shownCrowd.turnedAway > 0 && <span className="shrink-0" style={{ color: '#ffb38a' }}>🚶 +{fmtInt(shownCrowd.turnedAway)}</span>}
             </>
           ) : (
             <span className="text-white/70">좌석 {fmtInt(cap)}석 · 개막 대기</span>

@@ -8,7 +8,7 @@ import { fixLineup, slotNewcomer, slotValue } from './lineup';
 import { ROSTER_MAX, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { addNews } from './season';
-import { flagOnTrack, hintMut, stageOf } from './campaign';
+import { flagOnTrack, hintMut, MID_UP_FAIL_TRUST, stageOf } from './campaign';
 import { beatOn, MID_DAY, POS_NAME } from './script';
 import { memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
@@ -34,17 +34,23 @@ const N = {
   analystCost: 30000,
   trustYouth: 2, // 팀장을 믿어 주면 다음 드래프트 풀 품질
   coldYouth: -2, // 팀장과 서먹해지면
-  crackCost: 3000,
+  crackCostMin: 10000, // 단속 비용: 팬 규모 비례, 최소 1억
+  crackCostPerFan: 1.5,
   crackSat: 4,
   crackFans: 100,
-  ignoreSat: -5,
-  hikeStep: 0.2,
-  hikeSat: -3,
+  crackDemand: 0.95, // 검문 대기로 다음 홈경기 수요가 준다
+  crackGames: 3,
+  ignoreSat: -4,
+  hikeTicket: 1.12, // 가격 인상 안내: 암표 웃돈을 정가로 흡수
+  hikeGames: 5,
+  hikeSat: -7,
   meetTicket: 0.8,
   meetSat: 8,
   silentSat: -6,
-  goodsCost: 6000,
-  goodsMult: 1.5,
+  goodsCostMin: 15000, // 굿즈 콜라보 투자: 팬 규모 비례, 최소 1.5억
+  goodsCostPerFan: 2.5,
+  goodsMult: 3,
+  goodsFans: 0.05, // 한정판을 사러 온 새 팬 (팬 규모 대비)
   goodsStar: 70,
   tourDemand: 1.15, // 관광객 패키지
   tourTicket: 0.9,
@@ -66,6 +72,7 @@ const N = {
   retireDemand: 1.2,
   retireAge: 35,
   retireStar: 60,
+  retireCost: 4000, // 기념 경기 행사 비용 (스케일 적용)
   quietSat: -3,
   typhoonTired: 2,
   typhoonFocus: -3,
@@ -87,6 +94,8 @@ interface CardDef {
 
 const scale = (core: Core) => 1 + core.campaign.stage * STAGE_SCALE + core.fans / FAN_SCALE;
 const money = (core: Core, v: number) => Math.round((v * scale(core)) / 1000) * 1000;
+const fanCost = (core: Core, min: number, perFan: number) => Math.max(min, Math.round((core.fans * perFan) / 1000) * 1000);
+const goodsCut = (m: number) => 1 + (m - 1) / 2;
 const cashGate = (core: Core, cost: number): string | undefined => (core.finance.cash < cost ? `현금 부족 (필요 ${fmtMoney(cost)})` : undefined);
 const sat = (core: Core, d: number) => (core.fanSat = clamp(Math.round((core.fanSat + d) * 10) / 10, 0, 100));
 const spend = (core: Core, v: number) => {
@@ -235,7 +244,7 @@ export const CARDS: CardDef[] = [
         body: ahead ? `시즌 절반. 지금 페이스면 「${flag}」에 닿습니다.` : `시즌 절반. 지금 페이스로는 「${flag}」에 닿지 못합니다.`,
         choices: ahead
           ? [
-              { label: '목표 상향을 약속한다', desc: `깃발 달성 시 지원금 2배 (${fmtMoney(st.reward.cash)} → ${fmtMoney(st.reward.cash * 2)}) · 실패 시 ${TRUST_LABEL} 추가 −5` },
+              { label: '목표 상향을 약속한다', desc: `깃발 달성 시 지원금 2배 (${fmtMoney(st.reward.cash)} → ${fmtMoney(st.reward.cash * 2)}) · 실패 시 ${TRUST_LABEL} 추가 −${MID_UP_FAIL_TRUST}` },
               { label: '사양한다', desc: '변화 없음' },
             ]
           : [
@@ -303,7 +312,7 @@ export const CARDS: CardDef[] = [
         pid: v.vet.id,
         body: `원정 ${-userTeam(c).rec.streak}연패. 감독이 벤치의 ${v.vet.name}(${v.vet.age}세, OVR ${v.vet.ovr})을 ${v.out.name}(${v.out.age}세, OVR ${v.out.ovr}) 자리에 쓰겠다고 합니다.`,
         choices: [
-          { label: '복귀시킨다', desc: `${v.vet.name} ${N.vetGames}경기 고정 출전 · ${BUFF_GAMES}경기 집중력 ${sgn(N.vetFocus)}` },
+          { label: '복귀시킨다', desc: `${v.vet.name} ${N.vetGames}경기 고정 출전 (그 뒤 ${v.out.name} 복귀) · ${BUFF_GAMES}경기 집중력 ${sgn(N.vetFocus)}` },
           { label: '지금 타순을 고수한다', desc: `팬 만족 ${N.holdSat} · ${BUFF_GAMES}경기 집중력 ${N.holdFocus} · 이후 감독이 편성에서 손을 뗀다` },
         ],
       });
@@ -313,7 +322,10 @@ export const CARDS: CardDef[] = [
       const vet = findUser(c, cd.pid);
       if (i === 0) {
         const slot = t.lineup[Number(parts(cd)[1])];
-        if (vet && slot && !t.lineup.some((s) => s.pid === vet.id)) slot.pid = vet.id;
+        if (vet && slot && !t.lineup.some((s) => s.pid === vet.id)) {
+          memoSet(c, `fx-${vet.id}`, slot.pid); // 고정 출전이 끝나면 밀려난 선수가 제자리로 돌아온다
+          slot.pid = vet.id;
+        }
         if (vet) addBuff(c, { kind: 'fixed', value: 1, until: c.day + N.vetGames, label: `${vet.name} 고정 출전`, pid: vet.id });
         addBuff(c, { kind: 'focus', value: N.vetFocus, until: c.day + BUFF_GAMES, label: `라커룸 안정 집중력 ${sgn(N.vetFocus)}` });
         hintMut(c, 'lineup');
@@ -441,14 +453,17 @@ export const CARDS: CardDef[] = [
       const { p } = s;
       const t = userTeam(c);
       const hired = !!c.campaign.analyst;
-      // 선택지: 믿어 준다 / (데이터 분석원 채용) / 사양한다 — 마지막은 항상 고를 수 있다
-      const decline = { label: '사양한다', desc: `팀장과 서먹 — 다음 드래프트 풀 품질 ${N.coldYouth}` };
-      const second = hired
-        ? [decline]
-        : [{ label: '데이터 분석원을 채용한다', desc: `비용 ${fmtMoney(N.analystCost)} · 드래프트 등급이 정확해진다 · 팀장과 서먹(다음 드래프트 풀 품질 ${N.coldYouth})`, disabled: cashGate(c, N.analystCost) }, decline];
+      // 2지선다: 믿어 준다 / 데이터 분석원 채용. 이미 채용했거나 현금이 모자라면 둘째는 "수첩을 밀어낸다"(항상 고를 수 있다)
+      const hire = !hired && !cashGate(c, N.analystCost);
+      const second = [
+        hire
+          ? { label: '데이터 분석원을 채용한다', desc: `비용 ${fmtMoney(N.analystCost)} · 드래프트 등급이 정확해진다 · 팀장과 서먹(다음 드래프트 풀 품질 ${N.coldYouth})` }
+          : { label: hired ? '분석원의 보고서를 따른다' : '수첩을 밀어낸다', desc: `팀장과 서먹 — 다음 드래프트 풀 품질 ${N.coldYouth}` },
+      ];
+      const tail = hire ? 'hire' : 'cold';
       if (s.state === 'unsigned') {
         const dis = t.roster.length >= ROSTER_MAX ? '로스터가 가득 찼습니다' : undefined;
-        return card('oldeye|unsigned', 'oldeyeUnsigned', {
+        return card(`oldeye|unsigned|${tail}`, 'oldeyeUnsigned', {
           title: '옛날 눈',
           icon: '📓',
           pid: p.id,
@@ -456,7 +471,7 @@ export const CARDS: CardDef[] = [
           choices: [{ label: '믿어 준다', desc: `${p.name} 영입 (계약금 면제 · 연봉 ${fmtMoney(p.salary)}) · 다음 드래프트 풀 품질 ${sgn(N.trustYouth)}`, disabled: dis }, ...second],
         });
       }
-      return card('oldeye|slump', 'oldeyeSlump', {
+      return card(`oldeye|slump|${tail}`, 'oldeyeSlump', {
         title: '옛날 눈',
         icon: '📓',
         pid: p.id,
@@ -484,7 +499,7 @@ export const CARDS: CardDef[] = [
         return '한 번 더 믿어 보기로 했습니다';
       }
       addBuff(c, { kind: 'youth', value: N.coldYouth, until: 9999, label: '스카우트 팀장과 서먹 (드래프트 품질↓)' });
-      if (c.campaign.analyst || i === cd.choices.length - 1) return '팀장의 수첩을 조용히 밀어냈습니다';
+      if (c.campaign.analyst || parts(cd)[2] !== 'hire') return '팀장의 수첩을 조용히 밀어냈습니다';
       spend(c, N.analystCost);
       c.campaign.analyst = true;
       return '데이터 분석원 채용 — 드래프트 보고서의 등급이 정확해집니다';
@@ -521,35 +536,34 @@ export const CARDS: CardDef[] = [
     prio: 55,
     when: (c) => recentSellouts(c) >= 4,
     make: (c) => {
-      const cost = money(c, N.crackCost);
-      const now = c.finance.ticketPrice;
-      const next = Math.min(4, Math.round((now + N.hikeStep) * 10) / 10);
+      const cost = fanCost(c, N.crackCostMin, N.crackCostPerFan);
       return card('scalper', 'scalper', {
         title: '암표 소동',
         icon: '🎟️',
         body: '매진이 이어지자 게이트 앞에 암표상이 나타났습니다.',
         choices: [
-          { label: '단속한다', desc: `비용 ${fmtMoney(cost)} · 팬 만족 ${sgn(N.crackSat)} · 팬 +${N.crackFans}`, disabled: cashGate(c, cost) },
-          { label: '방치한다', desc: `팬 만족 ${N.ignoreSat}` },
-          { label: '가격을 올린다', desc: `티켓값 ${now.toFixed(1)}만 → ${next.toFixed(1)}만 · 팬 만족 ${N.hikeSat}` },
+          { label: '단속한다', desc: `비용 ${fmtMoney(cost)} · 검문 대기로 ${N.crackGames} 홈경기 관중 수요 ${pctTxt(N.crackDemand)} · 팬 만족 ${sgn(N.crackSat)} · 팬 +${N.crackFans}`, disabled: cashGate(c, cost) },
+          { label: '방치한다', desc: `비용 없음 · 팬 만족 ${N.ignoreSat}` },
+          { label: '가격 인상을 안내한다', desc: `${N.hikeGames} 홈경기 입장 수입 ${pctTxt(N.hikeTicket)} · 팬 만족 ${N.hikeSat}` },
         ],
       });
     },
     resolve: (c, i) => {
       if (i === 0) {
-        spend(c, money(c, N.crackCost));
+        spend(c, fanCost(c, N.crackCostMin, N.crackCostPerFan));
         sat(c, N.crackSat);
         c.fans += N.crackFans;
+        addBuff(c, { kind: 'demand', value: N.crackDemand, until: 9999, left: N.crackGames, label: `게이트 검문 수요 ${pctTxt(N.crackDemand)}` });
         return '암표 단속 — 정가에 표를 산 팬들이 박수를 보냅니다';
       }
       if (i === 1) {
         sat(c, N.ignoreSat);
         return '암표상이 활개 칩니다 — 팬들의 불만이 쌓입니다';
       }
-      c.finance.ticketPrice = Math.min(4, Math.round((c.finance.ticketPrice + N.hikeStep) * 10) / 10);
+      addBuff(c, { kind: 'ticket', value: N.hikeTicket, until: 9999, left: N.hikeGames, label: `인상 안내 입장 수입 ${pctTxt(N.hikeTicket)}` });
       sat(c, N.hikeSat);
       hintMut(c, 'stadium');
-      return `티켓값 인상 — ${c.finance.ticketPrice.toFixed(1)}만원`;
+      return '웃돈이 매표소로 들어옵니다 — 정가를 믿던 팬들은 씁쓸합니다';
     },
   },
   {
@@ -588,21 +602,24 @@ export const CARDS: CardDef[] = [
     prio: 45,
     when: (c) => userTeam(c).rec.streak >= 4 && userTeam(c).roster.some((p) => p.star >= N.goodsStar),
     make: (c) => {
-      const cost = money(c, N.goodsCost);
+      const cost = fanCost(c, N.goodsCostMin, N.goodsCostPerFan);
+      const fans = Math.round(c.fans * N.goodsFans);
       return card('goods', 'goods', {
         title: '굿즈 콜라보',
         icon: '🧢',
         body: `${userTeam(c).rec.streak}연승. 캐릭터 브랜드가 한정판 굿즈 콜라보를 제안했습니다.`,
         choices: [
-          { label: '투자', desc: `비용 ${fmtMoney(cost)} → ${BUFF_LONG}경기 굿즈 ×${N.goodsMult}`, disabled: cashGate(c, cost) },
+          { label: '투자', desc: `비용 ${fmtMoney(cost)} → ${BUFF_LONG}경기 굿즈 ×${N.goodsMult} · 팬 +${fans} · 연승이 끊기면 남은 기간 효과 절반(×${goodsCut(N.goodsMult)})`, disabled: cashGate(c, cost) },
           { label: '패스', desc: '변화 없음' },
         ],
       });
     },
     resolve: (c, i) => {
       if (i !== 0) return '콜라보는 패스했습니다';
-      spend(c, money(c, N.goodsCost));
-      addBuff(c, { kind: 'merch', value: N.goodsMult, until: c.day + BUFF_LONG, label: `굿즈 콜라보 ×${N.goodsMult}` });
+      spend(c, fanCost(c, N.goodsCostMin, N.goodsCostPerFan));
+      c.fans += Math.round(c.fans * N.goodsFans);
+      // pid 'streak' = 연승이 이어지는 동안의 표시. 끊기면 cutGoodsMut 이 효과를 절반으로 줄인다
+      addBuff(c, { kind: 'merch', value: N.goodsMult, until: c.day + BUFF_LONG, label: `굿즈 콜라보 ×${N.goodsMult}`, pid: 'streak' });
       return '한정판 굿즈 출시!';
     },
   },
@@ -697,31 +714,34 @@ export const CARDS: CardDef[] = [
       const p = retiree(c);
       if (!p) return null;
       const fr = isFranchise(p, c.season);
+      const cost = money(c, N.retireCost);
+      // 고정 출전의 값: 그가 밀어낼 주전과의 OVR 차 (이미 주전이면 손해 없음)
+      const t = userTeam(c);
+      const cur = t.lineup.some((s) => s.pid === p.id) || t.rotation.includes(p.id) || p.kind !== 'B' ? null : t.lineup.find((s) => s.pos === p.pos) ?? t.lineup.find((s) => s.pos === 'DH');
+      const out = cur ? t.roster.find((x) => x.id === cur.pid) : undefined;
+      const loss = out ? `${out.name}(OVR ${out.ovr}) 대신 출전 — OVR ${sgn(p.ovr - out.ovr)}` : '전력 손해 없음';
       return card('tour', 'tour', {
         title: '은퇴 투어',
         icon: '🎖️',
         pid: p.id,
-        body: `${p.name}(${p.age}세)이 올해를 끝으로 유니폼을 벗겠다고 합니다.`,
+        body: `${p.name}(${p.age}세, OVR ${p.ovr})이 올해를 끝으로 유니폼을 벗겠다고 합니다.`,
         choices: [
-          { label: '기념 경기', desc: `${BUFF_GAMES} 홈경기 관중 수요 ${pctTxt(N.retireDemand)} · ${p.name} 고정 출전 · 시즌 뒤 은퇴${fr ? ' (영구결번)' : ''}` },
-          { label: '조용히', desc: fr ? `팬 만족 ${N.quietSat} · 시즌 뒤 은퇴 (영구결번)` : '변화 없음' },
+          { label: '기념 경기', desc: `행사 비용 ${fmtMoney(cost)} · ${BUFF_GAMES} 홈경기 관중 수요 ${pctTxt(N.retireDemand)} · 그동안 ${p.name} 고정 출전(${loss}) · 시즌 뒤 은퇴${fr ? ' (영구결번)' : ''}`, disabled: cashGate(c, cost) },
+          { label: '조용히', desc: `비용 없음 · 팬 만족 ${N.quietSat} · 시즌 뒤 은퇴${fr ? ' (영구결번)' : ''}` },
         ],
       });
     },
     resolve: (c, i, cd) => {
       const p = findUser(c, cd.pid);
       if (!p) return '조용히 시즌을 이어갑니다';
-      const fr = isFranchise(p, c.season);
+      memoSet(c, 'retire', p.id);
       if (i === 0) {
-        memoSet(c, 'retire', p.id);
+        spend(c, money(c, N.retireCost));
         addBuff(c, { kind: 'demand', value: N.retireDemand, until: 9999, left: BUFF_GAMES, label: `${p.name} 은퇴 투어`, pid: p.id });
         return `${p.name} 은퇴 투어 시작 — 마지막을 보러 팬들이 모입니다`;
       }
-      if (fr) {
-        memoSet(c, 'retire', p.id);
-        sat(c, N.quietSat);
-      }
-      return '조용히 시즌을 이어갑니다';
+      sat(c, N.quietSat);
+      return `${p.name}은(는) 인사 없이 마지막 시즌을 보냅니다`;
     },
   },
   {
@@ -800,4 +820,15 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
 }
 
 /** 표시용: 이벤트 카드 종류 수 */
+/** 굿즈 콜라보: 연승이 끊기면 남은 기간 효과가 절반이 된다 (mutate, 매 경기 후) */
+export function cutGoodsMut(core: Core): void {
+  if (userTeam(core).rec.streak > 0) return;
+  for (const b of core.campaign.buffs) {
+    if (b.kind !== 'merch' || b.pid !== 'streak') continue;
+    b.value = goodsCut(b.value);
+    b.label = `굿즈 콜라보 ×${b.value} (연승 끝)`;
+    delete b.pid;
+  }
+}
+
 export const EVENT_POOL_SIZE = CARDS.length;

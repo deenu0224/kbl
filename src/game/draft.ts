@@ -11,6 +11,9 @@ import { addNews } from './season';
 import { activeBuffs } from './campaign';
 
 // ── 튜닝 상수 ──
+// 뉴스용 포지션 이름 (script.ts 의 POS_NAME 과 같은 표기. 순환 참조를 피해 따로 둔다)
+const POS_KO_NEWS: Record<string, string> = { SP: '선발', RP: '불펜', CP: '마무리', C: '포수', '1B': '1루수', '2B': '2루수', '3B': '3루수', SS: '유격수', LF: '좌익수', CF: '중견수', RF: '우익수', DH: '지명타자' };
+
 export const DRAFT_POOL = 28;
 export const DRAFT_ROUNDS = 3;
 export const DRAFT_BONUS = [15000, 8000, 4000]; // 라운드별 계약금 (만원)
@@ -130,7 +133,7 @@ function takePlayer(core: Core, t: Team, p: Player, round: number): void {
     core.finance.cash -= bonus;
     core.finance.ledger.signing += bonus;
     d.mine.push(p.id);
-    addNews(core, `드래프트 ${round}라운드: ${p.name}(${p.pos}, ${p.age}세) 지명 — 계약금 ${fmtMoney(bonus)}`, 'good');
+    addNews(core, `드래프트 ${round}라운드: ${p.name}(${POS_KO_NEWS[p.pos] ?? p.pos}, ${p.age}세) 지명 — 계약금 ${fmtMoney(bonus)}`, 'good');
   }
 }
 
