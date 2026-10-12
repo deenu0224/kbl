@@ -345,9 +345,9 @@ function rescueOffer(core: Core): Cand | null {
       offer(200, `rescue:price:${d > 0 ? 'up' : 'down'}`, 'rescue', 'chair', d > 0 ? '표값을 조금 올립시다. 오실 분들은 오십니다.' : '표값을 내려 자리를 채웁시다. 빈자리는 돈이 안 됩니다.', `티켓값 ${core.finance.ticketPrice.toFixed(1)} → ${next.finance.ticketPrice.toFixed(1)}만: 홈경기당 수입 ${signMoney(inc)} · ${tail(rw)}`, { t: 'price', value: next.finance.ticketPrice }),
     );
   }
-  // 대출: 시간을 벌 뿐이다 — 다른 대응이 없을 때의 마지막 카드라 효과를 절반으로 친다
+  // 대출: 시간을 벌 뿐이다 — 방출·티켓값으로 버틸 길이 하나도 없을 때만 내미는 마지막 카드
   const b = borrow(core);
-  if (!b.error && !m0.sale) {
+  if (!b.error && !m0.sale && !best) {
     const rw = runway(b.core);
     take(
       (val(rw) - m0.n) / 2,

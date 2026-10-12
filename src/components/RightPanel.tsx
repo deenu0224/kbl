@@ -423,7 +423,7 @@ export function FinanceTab() {
               {rw.perGame >= 0 ? '+' : '−'}
               {fmtMoney(Math.abs(rw.perGame))}
             </span>{' '}
-            · 이 페이스면 시즌 말 현금 <span className={rw.seasonEnd >= 0 ? 'text-hi' : 'text-bad'}>{fmtMoney(rw.seasonEnd)}</span>
+            · 이 페이스면 시즌 말 <span className={rw.seasonEnd >= 0 ? 'text-hi' : 'text-bad'}>{rw.seasonEnd >= 0 ? `현금 ${fmtMoney(rw.seasonEnd)}` : `${fmtMoney(-rw.seasonEnd)} 부족`}</span>
           </div>
           {rw.cashOut !== null && (
             <div className="text-bad" data-testid="runway-step">
