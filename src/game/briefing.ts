@@ -184,7 +184,8 @@ function fieldOffers(core: Core): Cand[] {
     const a = teamParts(t);
     const b = teamParts(c);
     const kinds = [iss.lineup ? '▲벤치/⇄제자리' : '', iss.pitchers ? '▲불펜' : ''].filter(Boolean).join('/') || '부상자 교체';
-    out.push(
+    // 전력이 그대로인 수리(경기 전에 저절로 메워지는 부상자 자리뿐)는 제안으로 내지 않는다
+    if (PART_NAME.some(([k]) => a[k] !== b[k])) out.push(
       offer(50 + n * 5, 'fix', 'fix', 'manager', '오더에 손볼 데가 있습니다. 제 눈에도 보입니다.', `${kinds} ${n}곳 적용: ${partsText(a, b, 3) || '전력 유지(부상자 교체)'}`, { t: 'fix' }, flagPiece(core, { win: winDelta(a, b) })),
     );
   }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore, userMatch, useUserTeam } from '../store';
 import { usePostLine } from './Bracket';
 import { EventReopen } from './EventCardModal';
-import { useUi } from './layout/uiStore';
+import { chanceKey, useUi } from './layout/uiStore';
 import { todayIssues } from '../game/fixes';
 import { useWinChance } from './useWinChance';
 import { TeamDot, dowOf, isNightDay } from './ui';
@@ -43,7 +43,15 @@ function useMatchActions() {
 function PreGame({ short = false }: { short?: boolean }) {
   const team = useUserTeam();
   const opener = useStore((s) => s.phase === 'season' && s.day === 0);
-  const pct = useWinChance();
+  // 오더지가 열려 있는 동안은 오더지가 같은 숫자를 계산한다 (같은 시뮬을 두 번 돌리지 않는다)
+  const sheetOpen = useUi((s) => (opener ? s.orderOpen : s.dailyOpen));
+  const own = useWinChance(!sheetOpen);
+  const seed = useStore((s) => s.seed);
+  const season = useStore((s) => s.season);
+  const phase = useStore((s) => s.phase);
+  const day = useStore((s) => s.day);
+  const shared = useUi((s) => s.chances[chanceKey({ seed, season, phase, day })]);
+  const pct = sheetOpen ? (shared ?? own) : own;
   const setDailyOpen = useUi((s) => s.setDailyOpen);
   const setOrderOpen = useUi((s) => s.setOrderOpen);
   const n = todayIssues(team);
