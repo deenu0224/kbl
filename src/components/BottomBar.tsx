@@ -178,8 +178,9 @@ export function MobileActionBar() {
         ▶ 경기 진행
       </button>
       {!inPost && (
-        <button className="px-btn min-h-11 short:min-h-10 flex-1 text-[13px]" disabled={bulkOff} onClick={() => simDays(6)}>
+        <button className="px-btn min-h-11 short:min-h-10 flex-1 text-[13px] leading-tight" disabled={bulkOff} onClick={() => simDays(6)}>
           1주
+          {!reason && bulkReason && <span className="block text-[10px] text-white/45">{bulkReason}</span>}
         </button>
       )}
       <button className="px-btn min-h-11 short:min-h-10 flex-[1.3] text-[13px] leading-tight" disabled={bulkOff} onClick={() => simDays(left)}>
@@ -193,7 +194,7 @@ export function MobileActionBar() {
       <div className="flex h-5 min-w-0 items-center justify-between gap-2">
         {info}
         {/* title 툴팁 대신 비활성 사유를 화면에 */}
-        {(reason ?? bulkReason) && !playback && next && <span className="shrink-0 text-[11px] text-white/45">{reason ?? `일괄 진행은 ${bulkReason}`}</span>}
+        {reason && !playback && next && <span className="shrink-0 text-[11px] text-white/45">{reason}</span>}
       </div>
       <div className="flex gap-2">{buttons}</div>
     </div>

@@ -249,6 +249,7 @@ const passive: Bot = {
   draft: () => null,
 };
 
+const PLEDGE_TRUST = 70; // 이 지지 이상일 때만 중간 점검에서 목표 상향을 약속한다
 // 카드별 선택 (기본) — 동사를 쓰는 쪽
 const USE: Record<string, number[]> = {
   midcheck: [0],
@@ -297,7 +298,8 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
     event: (c, card) => {
       const id = baseId(card);
       const v = verbs(c);
-      if (id === 'midcheck') return firstEnabled(card, card.id.endsWith('ahead') ? [0] : [1]);
+      // 목표 상향 약속은 실패하면 지지를 크게 잃는다 — 지지에 여유가 있을 때만 건다
+      if (id === 'midcheck') return firstEnabled(card, card.id.endsWith('ahead') ? (c.campaign.trust >= PLEDGE_TRUST ? [0] : [1]) : [1]);
       const skip = SKIP[id];
       if (skip && !v.has(skip.verb)) return firstEnabled(card, skip.pick);
       return firstEnabled(card, USE[id] ?? [card.choices.length - 1]);

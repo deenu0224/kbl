@@ -176,9 +176,9 @@ function TeamBar({ team }: { team: Team }) {
         const tone = from === undefined ? '' : v > from ? 'text-good' : 'text-bad';
         return (
           <div key={k} className="bg-ink/60 px-1 py-0.5 text-center">
-            <div className="flex items-baseline justify-center gap-1 text-[10px] text-white/55">
+            <div className="flex items-baseline justify-center gap-1 whitespace-nowrap text-[10px] text-white/55">
               {label}
-              <span className={`text-[13px] ${tone || 'text-white'}`}>{from === undefined ? v : `${from} → ${v}`}</span>
+              <span className={`text-[13px] ${tone || 'text-white'}`}>{from === undefined ? v : `${from}→${v}`}</span>
             </div>
             <div className="mt-0.5 h-[3px] bg-white/10">
               <div className={`h-full ${from === undefined ? 'bg-sky' : v > from ? 'bg-good' : 'bg-bad'}`} style={{ width: `${Math.min(100, Math.max(0, (v - 30) * 2))}%` }} />
@@ -212,9 +212,10 @@ export function LineupTab() {
   const team = useUserTeam();
   const swapLineup = useStore((s) => s.swapLineup);
   const substitute = useStore((s) => s.substitute);
+  const swapPos = useStore((s) => s.swapPos);
   const auto = useStore((s) => s.auto);
   const [sel, setSel] = useState<string | null>(null);
-  const [swap, setSwap] = useState(false);
+  const [swap, setSwap] = useState<false | 'order' | 'pos'>(false); // order: 타순·벤치 교체 / pos: 주전끼리 수비 위치 교대
   const mobile = useIsMobile();
 
   const byId = useMemo(() => new Map(team.roster.map((p) => [p.id, p])), [team.roster]);
@@ -250,7 +251,8 @@ export function LineupTab() {
   }, [team.lineup, bench, byId]);
   // 교체 모드로 들어가면 후보(벤치)가 바로 보이게
   useEffect(() => {
-    if (swap && selSlot >= 0) benchRef.current?.scrollIntoView({ block: 'start' });
+    if (swap === 'order' && selSlot >= 0) benchRef.current?.scrollIntoView({ block: 'start' });
+    if (swap === 'pos') box.current?.scrollTo({ top: 0 });
   }, [swap, selSlot]);
 
   useEffect(() => {
@@ -263,7 +265,10 @@ export function LineupTab() {
   const click = (pid: string) => {
     if (swap && sel && pid !== sel) {
       const j = team.lineup.findIndex((l) => l.pid === pid);
-      if (selSlot >= 0 && j >= 0) swapLineup(selSlot, j);
+      if (swap === 'pos') {
+        if (selSlot < 0 || j < 0) return; // 수비 교대는 주전끼리만
+        swapPos(selSlot, j);
+      } else if (selSlot >= 0 && j >= 0) swapLineup(selSlot, j);
       else if (selSlot >= 0) substitute(selSlot, pid);
       else if (j >= 0) substitute(j, sel);
       else {
@@ -277,7 +282,7 @@ export function LineupTab() {
     setSwap(false);
     setSel(pid === sel ? null : pid);
   };
-  const isTarget = (pid: string) => swap && !!sel && pid !== sel && (selSlot >= 0 || inLineup.has(pid));
+  const isTarget = (pid: string) => !!swap && !!sel && pid !== sel && (swap === 'pos' ? inLineup.has(pid) : selSlot >= 0 || inLineup.has(pid));
 
   return (
     <>
@@ -309,7 +314,7 @@ export function LineupTab() {
               target={isTarget(p.id)}
               onClick={() => click(p.id)}
               tag={off ? `본 ${POS_KO[p.pos as BatPos]}` : undefined}
-              up={up ? { label: `벤치 ${up.ovr}`, onClick: () => { setSel(p.id); setSwap(true); } } : undefined}
+              up={up ? { label: `벤치 ${up.ovr}`, onClick: () => { setSel(p.id); setSwap('order'); } } : undefined}
               flash={flashPid === p.id}
             />
           );
@@ -322,13 +327,18 @@ export function LineupTab() {
         ))}
         {!bench.length && <div className="px-1 text-[10px] text-white/40">벤치 타자가 없습니다</div>}
       </div>
-      {swap && <Hint onCancel={() => setSwap(false)}>↔ {selP?.name}와(과) 바꿀 선수를 고르세요</Hint>}
+      {swap && <Hint onCancel={() => setSwap(false)}>{swap === 'pos' ? `⇄ ${selP?.name}와(과) 수비 위치를 바꿀 주전을 고르세요` : `↔ ${selP?.name}와(과) 바꿀 선수를 고르세요`}</Hint>}
       <CardDock open={!!selP && !(mobile && swap)} onClose={() => setSel(null)} placeholder="선수를 누르면 카드가 열립니다">
         {selP && (
           <PlayerCard player={selP} team={team} roleLabel={selSlot >= 0 ? `${selSlot + 1}번 · ${POS_KO[team.lineup[selSlot].pos]}` : `벤치 · ${POS_KO[selP.pos]}`}>
-            <button className={`px-btn ${swap ? 'gold' : 'green'}`} onClick={() => setSwap((v) => !v)} title="타순 맞바꾸기 또는 벤치 선수와 교체">
+            <button className={`px-btn ${swap ? 'gold' : 'green'}`} onClick={() => setSwap((v) => (v ? false : 'order'))} title="타순 맞바꾸기 또는 벤치 선수와 교체">
               {swap ? '취소' : '↔ 교체'}
             </button>
+            {selSlot >= 0 && !swap && (
+              <button className="px-btn" onClick={() => setSwap('pos')} title="다른 주전과 수비 위치만 맞바꾸기 (타순은 그대로)">
+                ⇄ 수비 교대
+              </button>
+            )}
             <ReleaseButton player={selP} team={team} />
           </PlayerCard>
         )}
@@ -357,17 +367,29 @@ export function PitchersTab() {
   const box = useRef<HTMLDivElement>(null);
   const penRef = useRef<HTMLDivElement>(null);
   const flashPid = useFlash(box);
-  // 불펜에 선발보다 높은 선발 투수가 있으면, 로테이션에서 가장 처지는 자리에 표시한다
+  // 불펜·마무리 자리에 선발보다 높은 선발 투수가 있으면 로테이션에서 가장 처지는 자리에,
+  // 불펜에 더 나은 마무리 투수가 있으면 마무리 자리에 표시한다
   const better = useMemo(() => {
+    const out = new Map<string, { cand: Player; from: string }>();
+    const ok = (p: Player | undefined): p is Player => !!p && p.injury === 0;
     const rot = team.rotation.map((id) => byId.get(id)).filter((p): p is Player => !!p);
-    const pen = team.bullpen.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.pos === 'SP' && p.injury === 0);
-    if (!rot.length || !pen.length) return null;
-    const top = pen.reduce((a, b) => (a.ovr >= b.ovr ? a : b));
-    const val = (p: Player) => p.ovr - (p.pos === 'SP' ? 0 : 100);
-    const low = rot.reduce((a, b) => (val(a) <= val(b) ? a : b));
-    return low.pos !== 'SP' || low.ovr < top.ovr ? { at: low.id, cand: top } : null;
-  }, [team.rotation, team.bullpen, byId]);
-  const selInRot = !!sel && team.rotation.includes(sel);
+    const pen = team.bullpen.map((id) => byId.get(id)).filter(ok);
+    const cl = team.closer ? byId.get(team.closer) : undefined;
+    const sps = [...pen, ...(ok(cl) ? [cl] : [])].filter((p) => p.pos === 'SP');
+    if (rot.length && sps.length) {
+      const top = sps.reduce((a, b) => (a.ovr >= b.ovr ? a : b));
+      const val = (p: Player) => p.ovr - (p.pos === 'SP' ? 0 : 100);
+      const low = rot.reduce((a, b) => (val(a) <= val(b) ? a : b));
+      if (low.pos !== 'SP' || low.ovr < top.ovr) out.set(low.id, { cand: top, from: top === cl ? '마무리' : '불펜' });
+    }
+    const cps = pen.filter((p) => p.pos === 'CP');
+    if (cl && cl.pos !== 'CP' && cps.length) {
+      const top = cps.reduce((a, b) => (a.ovr >= b.ovr ? a : b));
+      if (cl.pos === 'SP' || top.ovr > cl.ovr) out.set(cl.id, { cand: top, from: '불펜' });
+    }
+    return out;
+  }, [team.rotation, team.bullpen, team.closer, byId]);
+  const selInRot = !!sel && (team.rotation.includes(sel) || team.closer === sel);
   useEffect(() => {
     if (swap && selInRot) penRef.current?.scrollIntoView({ block: 'start' });
   }, [swap, selInRot]);
@@ -400,7 +422,7 @@ export function PitchersTab() {
     const p = byId.get(pid);
     if (!p) return null;
     const inRot = team.rotation.includes(pid);
-    const up = !swap && better?.at === pid ? better.cand : undefined;
+    const up = swap ? undefined : better.get(pid);
     return (
       <Row
         key={pid}
@@ -410,8 +432,8 @@ export function PitchersTab() {
         selected={sel === pid}
         target={swap && !!sel && sel !== pid}
         onClick={() => click(pid)}
-        tag={inRot && p.pos !== 'SP' ? `본 ${POS_KO[p.pos]}` : !inRot && p.pos === 'SP' ? '본 선발' : undefined}
-        up={up ? { label: `불펜 ${up.ovr}`, onClick: () => { setSel(pid); setSwap(true); } } : undefined}
+        tag={inRot && p.pos !== 'SP' ? `본 ${POS_KO[p.pos]}` : !inRot && p.pos === 'SP' ? '본 선발' : p.pos === 'CP' && team.closer !== pid ? '본 마무리' : undefined}
+        up={up ? { label: `${up.from} ${up.cand.ovr}`, onClick: () => { setSel(pid); setSwap(true); } } : undefined}
         flash={flashPid === pid}
       />
     );

@@ -47,6 +47,7 @@ export interface Store extends Core {
   repay(): void;
   swapLineup(i: number, j: number): void;
   substitute(slot: number, benchPid: string): void;
+  swapPos(i: number, j: number): void; // 주전 둘의 수비 위치만 맞바꾼다 (타순은 그대로)
   swapPitchers(pidA: string, pidB: string): void;
   auto(): void;
   startNextSeason(): void; // 'ended' → 드래프트 시작, 드래프트 종료 후 → 다음 시즌
@@ -271,6 +272,19 @@ export const useStore = create<Store>()(
               // 타순만 맞바꾼다 (수비 위치는 선수를 따라감)
               t.lineup[i] = b;
               t.lineup[j] = a;
+            }),
+          });
+        },
+        swapPos(i, j) {
+          if (locked()) return;
+          if (i === j) return;
+          set({
+            teams: withUserTeam(get(), (t) => {
+              const a = t.lineup[i];
+              const b = t.lineup[j];
+              if (!a || !b) return;
+              t.lineup[i] = { ...a, pos: b.pos };
+              t.lineup[j] = { ...b, pos: a.pos };
             }),
           });
         },
