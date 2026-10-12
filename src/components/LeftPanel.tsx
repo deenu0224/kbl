@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { Player, Team } from '../game/types';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { BatPos, Player, Team } from '../game/types';
 import { useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, releaseCost, signingBonus } from '../game/economy';
+import { effDef, teamParts, type TeamParts } from '../game/ratings';
 import PlayerCard from './PlayerCard';
 import { useHintTabs } from './RightPanel';
 import Sheet from './layout/Sheet';
@@ -18,7 +19,13 @@ function Row({
   selected,
   target,
   onClick,
+  tag,
+  up,
+  flash,
 }: {
+  tag?: ReactNode; // 이름 옆 작은 태그 ("본 좌익")
+  up?: { label: string; onClick: () => void }; // 더 나은 대기 선수 ("▲벤치 63")
+  flash?: boolean; // 방금 영입한 선수의 자리
   lead: ReactNode;
   player: Player;
   stat: ReactNode;
@@ -30,10 +37,11 @@ function Row({
   return (
     <button
       onClick={onClick}
+      data-pid={p.id}
       className={`flex w-full cursor-pointer items-center gap-1.5 px-1 py-[3px] text-left text-[12px] mob:min-h-10 mob:gap-2 mob:text-[13px] ${
-        selected ? 'bg-hi/20' : target ? 'bg-good/10 hover:bg-good/25' : 'hover:bg-white/8'
+        flash ? 'bg-hi/35' : selected ? 'bg-hi/20' : target ? 'bg-good/10 hover:bg-good/25' : 'hover:bg-white/8'
       }`}
-      style={selected ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : target ? { boxShadow: 'inset 2px 0 0 #6ee07a' } : undefined}
+      style={flash ? { boxShadow: 'inset 0 0 0 2px #ffd84a' } : selected ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : target ? { boxShadow: 'inset 2px 0 0 #6ee07a' } : undefined}
     >
       <span className="w-9 shrink-0 text-[10px] text-white/55">{lead}</span>
       <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
@@ -42,8 +50,22 @@ function Row({
         {p.injury > 0 && <span className="ml-1 text-[10px]">✚{p.injury}</span>}
         {(p.tired ?? 0) > 0 && <span className="ml-1 text-[10px] text-[#f0a35a]">연투{p.tired}</span>}
         {p.star >= 70 && <span className="ml-0.5 text-[10px] text-hi">★</span>}
+        {tag && <span className="ml-1 bg-bad/25 px-1 text-[10px] text-bad">{tag}</span>}
       </span>
-      <span className="shrink-0 text-[10px] text-white/70 mob:text-[11px]">{stat}</span>
+      {up ? (
+        <span
+          role="button"
+          className="shrink-0 bg-good/20 px-1 py-0.5 text-[10px] text-good mob:px-1.5 mob:py-1 mob:text-[11px]"
+          onClick={(e) => {
+            e.stopPropagation();
+            up.onClick();
+          }}
+        >
+          ▲{up.label}
+        </span>
+      ) : (
+        <span className="shrink-0 text-[10px] text-white/70 mob:text-[11px]">{stat}</span>
+      )}
     </button>
   );
 }
@@ -122,6 +144,68 @@ function ReleaseButton({ player, team }: { player: Player; team: Team }) {
   );
 }
 
+// ───────── 팀 전력 막대 ─────────
+
+const PART_LABEL: [keyof TeamParts, string][] = [
+  ['bat', '타선'],
+  ['def', '수비'],
+  ['rot', '선발'],
+  ['pen', '불펜'],
+];
+const DELTA_MS = 2000;
+
+/** 타선 54 · 수비 49 · 선발 58 · 불펜 51. 편성을 바꾸는 순간 변한 칸이 "49 → 57"로 잠깐 보인다. */
+function TeamBar({ team }: { team: Team }) {
+  const parts = useMemo(() => teamParts(team), [team]);
+  const prev = useRef(parts);
+  const [delta, setDelta] = useState<Partial<Record<keyof TeamParts, number>>>({});
+  useEffect(() => {
+    const d: Partial<Record<keyof TeamParts, number>> = {};
+    for (const [k] of PART_LABEL) if (prev.current[k] !== parts[k]) d[k] = prev.current[k];
+    prev.current = parts;
+    if (!Object.keys(d).length) return;
+    setDelta(d);
+    const id = setTimeout(() => setDelta({}), DELTA_MS);
+    return () => clearTimeout(id);
+  }, [parts]);
+  return (
+    <div className="grid shrink-0 grid-cols-4 gap-[3px] px-1.5 pt-1.5" data-testid="teambar">
+      {PART_LABEL.map(([k, label]) => {
+        const from = delta[k];
+        const v = parts[k];
+        const tone = from === undefined ? '' : v > from ? 'text-good' : 'text-bad';
+        return (
+          <div key={k} className="bg-ink/60 px-1 py-0.5 text-center">
+            <div className="flex items-baseline justify-center gap-1 text-[10px] text-white/55">
+              {label}
+              <span className={`text-[13px] ${tone || 'text-white'}`}>{from === undefined ? v : `${from} → ${v}`}</span>
+            </div>
+            <div className="mt-0.5 h-[3px] bg-white/10">
+              <div className={`h-full ${from === undefined ? 'bg-sky' : v > from ? 'bg-good' : 'bg-bad'}`} style={{ width: `${Math.min(100, Math.max(0, (v - 30) * 2))}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 방금 영입한 선수의 자리를 잠깐 강조하고 그 줄로 스크롤한다 */
+function useFlash(box: React.RefObject<HTMLDivElement | null>): string | null {
+  const flash = useStore((s) => s.flash);
+  const [pid, setPid] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flash) return;
+    const left = DELTA_MS - (Date.now() - flash.at);
+    if (left <= 0) return;
+    setPid(flash.pid);
+    box.current?.querySelector(`[data-pid="${flash.pid}"]`)?.scrollIntoView({ block: 'nearest' });
+    const id = setTimeout(() => setPid(null), left);
+    return () => clearTimeout(id);
+  }, [flash, box]);
+  return pid;
+}
+
 // ───────── 타선 ─────────
 
 export function LineupTab() {
@@ -141,6 +225,33 @@ export function LineupTab() {
   );
   const selP = sel ? byId.get(sel) : undefined;
   const selSlot = sel ? team.lineup.findIndex((l) => l.pid === sel) : -1;
+  const box = useRef<HTMLDivElement>(null);
+  const benchRef = useRef<HTMLDivElement>(null);
+  const flashPid = useFlash(box);
+  // 벤치에 그 자리를 볼 수 있는 더 높은 OVR 이 있는 주전 (지명타자 자리는 다른 줄에 안 걸린 선수만)
+  const better = useMemo(() => {
+    const out = new Map<string, Player>();
+    const shown = new Set<string>();
+    const mark = (dh: boolean) => {
+      for (const l of team.lineup) {
+        if ((l.pos === 'DH') !== dh) continue;
+        const cur = byId.get(l.pid);
+        if (!cur) continue;
+        const cand = bench.find((p) => p.injury === 0 && p.ovr > cur.ovr && (dh ? !shown.has(p.id) : p.pos === l.pos));
+        if (cand) {
+          out.set(l.pid, cand);
+          shown.add(cand.id);
+        }
+      }
+    };
+    mark(false);
+    mark(true);
+    return out;
+  }, [team.lineup, bench, byId]);
+  // 교체 모드로 들어가면 후보(벤치)가 바로 보이게
+  useEffect(() => {
+    if (swap && selSlot >= 0) benchRef.current?.scrollIntoView({ block: 'start' });
+  }, [swap, selSlot]);
 
   useEffect(() => {
     if (sel && !byId.has(sel)) {
@@ -170,7 +281,8 @@ export function LineupTab() {
 
   return (
     <>
-      <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
+      <TeamBar team={team} />
+      <div ref={box} className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle
           right={
             <AutoButton />
@@ -181,12 +293,14 @@ export function LineupTab() {
         {team.lineup.map((l, i) => {
           const p = byId.get(l.pid);
           if (!p) return null;
+          const off = l.pos !== 'DH' && p.pos !== l.pos && effDef(p, l.pos) < p.def;
+          const up = swap ? undefined : better.get(p.id);
           return (
             <Row
               key={l.pid}
               lead={
                 <>
-                  <span className="text-hi">{i + 1}</span> {POS_KO[l.pos]}
+                  <span className="text-hi">{i + 1}</span> <span className={off ? 'text-bad' : ''}>{POS_KO[l.pos]}</span>
                 </>
               }
               player={p}
@@ -194,12 +308,17 @@ export function LineupTab() {
               selected={sel === p.id}
               target={isTarget(p.id)}
               onClick={() => click(p.id)}
+              tag={off ? `본 ${POS_KO[p.pos as BatPos]}` : undefined}
+              up={up ? { label: `벤치 ${up.ovr}`, onClick: () => { setSel(p.id); setSwap(true); } } : undefined}
+              flash={flashPid === p.id}
             />
           );
         })}
-        <SectionTitle>벤치 ({bench.length})</SectionTitle>
+        <div ref={benchRef}>
+          <SectionTitle>벤치 ({bench.length})</SectionTitle>
+        </div>
         {bench.map((p) => (
-          <Row key={p.id} lead={POS_KO[p.pos]} player={p} stat={batStat(p)} selected={sel === p.id} target={isTarget(p.id)} onClick={() => click(p.id)} />
+          <Row key={p.id} lead={POS_KO[p.pos]} player={p} stat={batStat(p)} selected={sel === p.id} target={isTarget(p.id)} onClick={() => click(p.id)} flash={flashPid === p.id} />
         ))}
         {!bench.length && <div className="px-1 text-[10px] text-white/40">벤치 타자가 없습니다</div>}
       </div>
@@ -235,6 +354,23 @@ export function PitchersTab() {
   );
   const spare = useMemo(() => team.roster.filter((p) => p.kind === 'P' && !assigned.has(p.id)), [team.roster, assigned]);
   const selP = sel ? byId.get(sel) : undefined;
+  const box = useRef<HTMLDivElement>(null);
+  const penRef = useRef<HTMLDivElement>(null);
+  const flashPid = useFlash(box);
+  // 불펜에 선발보다 높은 선발 투수가 있으면, 로테이션에서 가장 처지는 자리에 표시한다
+  const better = useMemo(() => {
+    const rot = team.rotation.map((id) => byId.get(id)).filter((p): p is Player => !!p);
+    const pen = team.bullpen.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.pos === 'SP' && p.injury === 0);
+    if (!rot.length || !pen.length) return null;
+    const top = pen.reduce((a, b) => (a.ovr >= b.ovr ? a : b));
+    const val = (p: Player) => p.ovr - (p.pos === 'SP' ? 0 : 100);
+    const low = rot.reduce((a, b) => (val(a) <= val(b) ? a : b));
+    return low.pos !== 'SP' || low.ovr < top.ovr ? { at: low.id, cand: top } : null;
+  }, [team.rotation, team.bullpen, byId]);
+  const selInRot = !!sel && team.rotation.includes(sel);
+  useEffect(() => {
+    if (swap && selInRot) penRef.current?.scrollIntoView({ block: 'start' });
+  }, [swap, selInRot]);
 
   useEffect(() => {
     if (sel && !byId.has(sel)) {
@@ -263,15 +399,29 @@ export function PitchersTab() {
   const row = (pid: string, lead: ReactNode) => {
     const p = byId.get(pid);
     if (!p) return null;
+    const inRot = team.rotation.includes(pid);
+    const up = !swap && better?.at === pid ? better.cand : undefined;
     return (
-      <Row key={pid} lead={lead} player={p} stat={pitStat(p)} selected={sel === pid} target={swap && !!sel && sel !== pid} onClick={() => click(pid)} />
+      <Row
+        key={pid}
+        lead={lead}
+        player={p}
+        stat={pitStat(p)}
+        selected={sel === pid}
+        target={swap && !!sel && sel !== pid}
+        onClick={() => click(pid)}
+        tag={inRot && p.pos !== 'SP' ? `본 ${POS_KO[p.pos]}` : !inRot && p.pos === 'SP' ? '본 선발' : undefined}
+        up={up ? { label: `불펜 ${up.ovr}`, onClick: () => { setSel(pid); setSwap(true); } } : undefined}
+        flash={flashPid === pid}
+      />
     );
   };
   const nextIdx = team.rotation.length ? team.nextStarter % team.rotation.length : -1;
 
   return (
     <>
-      <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
+      <TeamBar team={team} />
+      <div ref={box} className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle
           right={
             <AutoButton />
@@ -290,7 +440,9 @@ export function PitchersTab() {
         <div className="px-1 text-[10px] text-white/40">◀ 다음 경기 선발</div>
         <SectionTitle>마무리</SectionTitle>
         {team.closer ? row(team.closer, '마무리') : <div className="px-1 text-[10px] text-bad">마무리 투수가 없습니다</div>}
-        <SectionTitle>불펜 ({team.bullpen.length})</SectionTitle>
+        <div ref={penRef}>
+          <SectionTitle>불펜 ({team.bullpen.length})</SectionTitle>
+        </div>
         {team.bullpen.map((pid, i) => row(pid, `불펜${i + 1}`))}
         {spare.length > 0 && (
           <>

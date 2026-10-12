@@ -331,6 +331,8 @@ export function startSeasonScriptMut(core: Core, rng: Rng): void {
     breakLineup(t);
     fixLineup(t);
     addNews(core, NEWS.brokenLineup, 'info');
+    hintMut(core, 'lineup');
+    hintMut(core, 'pitchers');
   }
   if (beatById(core, 'fa-drought')) faDroughtMut(core);
   memoSet(core, 'pay0', payroll(t));

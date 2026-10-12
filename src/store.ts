@@ -19,6 +19,7 @@ import { CHARACTERS, OVER_LABEL } from './game/story';
 import { maybeDrawEvent, resolveEvent as resolveEventFn } from './game/events';
 import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
 import { postMatch } from './game/postseason';
+import { useUi } from './components/layout/uiStore';
 
 export type LeftTab = 'lineup' | 'pitchers' | 'market';
 export type RightTab = 'league' | 'stadium' | 'finance' | 'news';
@@ -29,6 +30,7 @@ export interface Store extends Core {
   summary: DayReport[] | null;
   fx: { kind: FacilityKind; key: number } | null;
   toast: { text: string; tone: Tone; key: number } | null;
+  flash: { pid: string; at: number } | null; // 방금 영입한 선수 (타선·투수 탭에서 그 자리를 잠깐 강조, 저장 안 함)
   lastReport: DayReport | null; // 마지막으로 커밋된 경기 (리그 탭 "타구장 결과"용, 저장 안 함)
   leftTab: LeftTab;
   rightTab: RightTab;
@@ -164,6 +166,7 @@ export const useStore = create<Store>()(
         fx: null,
         toast: null,
         lastReport: null,
+        flash: null,
         leftTab: 'lineup',
         rightTab: 'league',
 
@@ -226,7 +229,11 @@ export const useStore = create<Store>()(
           if (locked()) return;
           const s = get();
           const p = s.freeAgents.find((x) => x.id === pid);
-          applyResult(signPlayer(pickCore(s), pid), p ? `${p.name} 영입 완료!` : '영입 완료!');
+          if (!applyResult(signPlayer(pickCore(s), pid), p ? `${p.name} 영입 완료!` : '영입 완료!') || !p) return;
+          // 들어간 자리를 바로 보여 준다
+          const sub = p.kind === 'B' ? 'lineup' : 'pitchers';
+          set({ flash: { pid, at: Date.now() }, leftTab: sub });
+          useUi.setState({ tab: 'roster', rosterSub: sub });
         },
         release(pid) {
           if (locked()) return;
