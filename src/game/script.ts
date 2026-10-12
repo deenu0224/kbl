@@ -237,6 +237,8 @@ function arrangeSeries(core: Core, beat: Beat, projected: boolean): string[] {
 type AbilKey = 'con' | 'pow' | 'eye' | 'spd' | 'def' | 'stf' | 'ctl' | 'sta';
 const keysOf = (p: Player): AbilKey[] => (p.kind === 'B' ? ['con', 'pow', 'eye', 'spd', 'def'] : ['stf', 'ctl', 'sta']);
 
+export const POS_NAME: Record<string, string> = { SP: '선발', RP: '불펜', CP: '마무리', C: '포수', '1B': '1루수', '2B': '2루수', '3B': '3루수', SS: '유격수', LF: '좌익수', CF: '중견수', RF: '우익수', DH: '지명타자' };
+
 /** 0장 승: 스카우트 팀장의 명단 — 최약 포지션 후보 3명을 FA 풀에 올린다. 1명은 옛 명성만 높다. */
 function scoutListMut(core: Core, rng: Rng): void {
   const t = userTeam(core);
@@ -270,7 +272,7 @@ function scoutListMut(core: Core, rng: Rng): void {
   core.freeAgents.unshift(fame, solid, young);
   memoSet(core, 'scoutPick', fame.id);
   memoSet(core, 'scoutList', [fame.id, solid.id, young.id].join(','));
-  addNews(core, NEWS.scoutList(weak.pos), 'info');
+  addNews(core, NEWS.scoutList(POS_NAME[weak.pos] ?? weak.pos), 'info');
   hintMut(core, 'market');
 }
 

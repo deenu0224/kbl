@@ -374,6 +374,147 @@ export function objectiveValue(core: Core, o: Pick<Objective, 'id' | 'kind'>): n
   return ev ? ev.value(core) : objValue(core, o.kind);
 }
 
+// ───────── 목표 표시 (UI 는 이것만 쓴다) ─────────
+
+export const MIN_GAMES_RANKED = 12; // 순위·승률류는 이 경기 수 전에는 진행을 표시하지 않는다
+
+type ObjUnit = 'rank' | 'pct' | 'ovr' | 'payUp' | 'att' | 'rainAtt' | 'money' | 'debt' | 'post' | 'losses' | 'times' | 'people' | 'saves' | 'fans' | 'level' | 'wins';
+
+// 별은 id 로, 깃발은 kind 로 표시 단위를 정한다
+const STAR_UNIT: Record<string, ObjUnit> = {
+  's0-1': 'pct', 's0-2': 'ovr', 's0-3': 'payUp',
+  's1-1': 'times', 's1-2': 'rainAtt', 's1-3': 'money',
+  's2-1': 'people', 's2-2': 'times', 's2-3': 'people',
+  's3-1': 'rank', 's3-2': 'saves', 's3-3': 'losses',
+  's4-1': 'rank', 's4-2': 'att', 's4-3': 'debt',
+  's5-1': 'post', 's5-2': 'money', 's5-3': 'att',
+};
+const KIND_UNIT: Record<ObjKind, ObjUnit> = {
+  rank: 'rank', wins: 'wins', avgAtt: 'att', sellouts: 'times', profit: 'money', fans: 'fans', facility: 'level', star: 'ovr', post: 'post', debt: 'debt',
+};
+const POST_SHORT = ['–', '준PO', 'PO', '한국시리즈', '우승'];
+const fmtPct = (v: number) => `.${String(clamp(Math.round(v), 0, 999)).padStart(3, '0')}`;
+
+export interface ObjDisplay {
+  cur: string; // 현재 값 ("—" = 아직 판단할 수 없음)
+  target: string; // 목표 값
+  ratio: number; // 진행 막대 0~1
+  met: boolean; // 결산 전: 지금 조건을 충족 중 / 결산 후: 달성
+}
+
+/** 목표 한 줄의 표시값. 판정(STAR_EVAL·objMet)과 같은 값을 같은 단위로 보여준다. */
+export function objDisplay(core: Core, o: Objective): ObjDisplay {
+  const ev = STAR_EVAL[o.id];
+  const unit: ObjUnit = STAR_UNIT[o.id] ?? KIND_UNIT[o.kind];
+  const v = o.progress;
+  const t = o.target;
+  const rec = userTeam(core).rec;
+  const games = rec.w + rec.l + rec.t;
+  const nTeams = core.teams.length;
+  // 아직 판단할 수 없는 지표: 개막 직후의 순위·승률, 홈경기 전의 관중, 장마 전의 장마 관중
+  const early =
+    ((unit === 'rank' || unit === 'pct') && games < MIN_GAMES_RANKED) ||
+    (unit === 'att' && core.attHistory.length === 0) ||
+    (unit === 'rainAtt' && rainyAvgAtt(core) === null) ||
+    (unit === 'losses' && ev?.needPost && postLevel(core) < 1);
+
+  let cur: string;
+  let target: string;
+  let ratio: number;
+  switch (unit) {
+    case 'rank':
+      cur = `${v}위`;
+      target = `${t}위 이내`;
+      ratio = (nTeams - v) / Math.max(1, nTeams - t);
+      break;
+    case 'pct':
+      cur = fmtPct(v);
+      target = fmtPct(t);
+      ratio = v / t;
+      break;
+    case 'ovr':
+      cur = o.id === 's0-2' ? `최저 ${v}` : `${v}`;
+      target = `${t}`;
+      ratio = (v - 40) / Math.max(1, t - 40);
+      break;
+    case 'payUp':
+      cur = `+${fmtMoney(v)}`;
+      target = `${fmtMoney(t)} 이내`;
+      ratio = v <= t ? 1 : t / v;
+      break;
+    case 'att':
+    case 'rainAtt':
+      cur = `${fmtInt(v)}명`;
+      target = `${fmtInt(t)}명`;
+      ratio = v / t;
+      break;
+    case 'money':
+      cur = fmtMoney(v);
+      target = t <= 1 ? '흑자' : fmtMoney(t);
+      ratio = v / Math.max(1, t);
+      break;
+    case 'debt':
+      cur = v <= 0 ? '무차입' : fmtMoney(v);
+      target = t <= 0 ? '무차입' : `${fmtMoney(t)} 이하`;
+      ratio = v <= t ? 1 : Math.max(t, 1) / v;
+      break;
+    case 'post':
+      cur = POST_SHORT[v] ?? `${v}`;
+      target = POST_SHORT[t] ?? `${t}`;
+      ratio = v / Math.max(1, t);
+      break;
+    case 'losses':
+      cur = `${v}패`;
+      target = `${t}패`;
+      ratio = v <= t ? 1 : 0;
+      break;
+    case 'saves':
+      cur = `${v}세이브`;
+      target = `${t}세이브`;
+      ratio = v / t;
+      break;
+    case 'people':
+      cur = `${v}명`;
+      target = `${t}명`;
+      ratio = v / t;
+      break;
+    case 'fans':
+      cur = `${fmtInt(v)}명`;
+      target = `${fmtInt(t)}명`;
+      ratio = v / t;
+      break;
+    case 'level':
+      cur = `Lv ${v}`;
+      target = `Lv ${t}`;
+      ratio = v / t;
+      break;
+    case 'wins':
+      cur = `${v}승`;
+      target = `${t}승`;
+      ratio = v / t;
+      break;
+    default:
+      cur = `${v}회`;
+      target = `${t}회`;
+      ratio = v / Math.max(1, t);
+  }
+
+  if (o.state !== 'open') {
+    const met = o.state === 'done';
+    return { cur, target, ratio: met ? 1 : clamp(Number.isFinite(ratio) ? ratio : 0, 0, 0.97), met };
+  }
+  if (early) return { cur: '—', target, ratio: 0, met: false };
+  let met = objMet(o.kind, t, v);
+  // 깃발·가을야구가 전제인 별은 그 전제도 지금 충족 중이어야 한다
+  if (met && ev?.needFlag) {
+    const main = core.campaign.objectives.find((x) => x.main);
+    met = !!main && objDisplay(core, main).met;
+  }
+  if (met && ev?.needPost) met = postLevel(core) >= 1;
+  ratio = clamp(Number.isFinite(ratio) ? ratio : 0, 0, 1);
+  return { cur, target, ratio: met ? 1 : Math.min(ratio, 0.97), met };
+}
+
 const starId = (stage: number, n: number) => `s${stage}-${n}`;
 
 /** 별 정의 목록 (UI 캠페인 시트용). 구 업적 20개는 v3 에서 없앴다 — 호환을 위해 같은 이름으로 내보낸다. */

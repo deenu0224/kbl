@@ -34,9 +34,10 @@ function MobilePanel() {
   const active: HintTab = tab === 'roster' ? rosterSub : tab === 'club' ? clubSub : tab;
   const rosterTabs = useHintTabs(ROSTER_SUBS, tab === 'roster' ? rosterSub : null);
   const clubTabs = useHintTabs(CLUB_SUBS, tab === 'club' ? clubSub : null);
+  const activeN = useStore((s) => s.campaign.hints?.[active] ?? 0);
   useEffect(() => {
-    clearHint(active);
-  }, [active, clearHint]);
+    if (activeN > 0) clearHint(active);
+  }, [active, activeN, clearHint]);
 
   return (
     // 하이라이트 재생 중엔 야구장에 집중하도록 패널을 반투명하게

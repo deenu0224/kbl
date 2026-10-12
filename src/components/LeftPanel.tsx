@@ -173,9 +173,7 @@ export function LineupTab() {
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle
           right={
-            <button className="px-btn !px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]" onClick={auto} title="OVR 기준으로 타선·투수진을 다시 짭니다">
-              자동 편성
-            </button>
+            <AutoButton />
           }
         >
           선발 타순
@@ -276,9 +274,7 @@ export function PitchersTab() {
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle
           right={
-            <button className="px-btn !px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]" onClick={auto} title="OVR 기준으로 타선·투수진을 다시 짭니다">
-              자동 편성
-            </button>
+            <AutoButton />
           }
         >
           선발 로테이션
@@ -328,10 +324,14 @@ export function MarketTab() {
   const [sel, setSel] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'B' | 'P'>('all');
 
-  const list = useMemo(
-    () => freeAgents.filter((p) => filter === 'all' || p.kind === filter).sort((a, b) => b.ovr - a.ovr),
-    [freeAgents, filter],
-  );
+  // 스카우트 팀장의 명단은 시장 맨 위에 따로 올린다 (맨 앞이 그가 고른 선수)
+  const scoutIds = useStore((s) => s.campaign.eventsSeen.find((x) => x.startsWith('~scoutList='))?.slice(11) ?? '');
+  const list = useMemo(() => {
+    const ids = scoutIds ? scoutIds.split(',') : [];
+    const rank = (p: Player) => (ids.includes(p.id) ? ids.indexOf(p.id) - 9 : 0);
+    return freeAgents.filter((p) => filter === 'all' || p.kind === filter).sort((a, b) => rank(a) - rank(b) || b.ovr - a.ovr);
+  }, [freeAgents, filter, scoutIds]);
+  const scoutPick = scoutIds.split(',')[0];
   const selP = sel ? freeAgents.find((p) => p.id === sel) : undefined;
   const full = team.roster.length >= ROSTER_MAX;
   const bonus = selP ? signingBonus(selP) : 0;
@@ -377,6 +377,12 @@ export function MarketTab() {
                 <span className="flex items-center gap-1.5 text-[10px]">
                   <Stars star={p.star} />
                   {p.pot - p.ovr >= 6 && <span className="text-good">잠재 {p.pot}</span>}
+                  {scoutIds.includes(p.id) && (
+                    <span className={`truncate ${p.id === scoutPick ? 'text-hi' : 'text-sky'}`}>
+                      📋 {p.id === scoutPick ? '팀장 추천 · ' : ''}
+                      {(p.tag ?? '스카우트 명단').replace('스카우트 명단 · ', '')}
+                    </span>
+                  )}
                 </span>
               </span>
               <span className="shrink-0 text-right text-[10px] leading-tight">
@@ -419,6 +425,21 @@ const TABS: { id: LeftTab; label: string }[] = [
   { id: 'pitchers', label: '투수' },
   { id: 'market', label: '영입' },
 ];
+
+/** [자동 편성]: 감독이 승복하기 전(0장 클리어 전)에는 "감독에게 맡기기"다 */
+function AutoButton() {
+  const auto = useStore((s) => s.auto);
+  const yielded = useStore((s) => !!s.campaign.managerYielded);
+  return (
+    <button
+      className="px-btn !px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]"
+      onClick={auto}
+      title={yielded ? 'OVR 기준으로 타선·투수진을 다시 짭니다' : '감독이 자기 방식대로 타선·투수진을 짭니다'}
+    >
+      {yielded ? '자동 편성' : '감독에게 맡기기'}
+    </button>
+  );
+}
 
 export default function LeftPanel() {
   const tab = useStore((s) => s.leftTab);

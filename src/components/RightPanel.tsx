@@ -450,10 +450,12 @@ const TABS: { id: RightTab; label: string }[] = [
 export function useHintTabs<T extends HintTab>(tabs: { id: T; label: string }[], active: T | null) {
   const hints = useStore((s) => s.campaign.hints);
   const clearHint = useStore((s) => s.clearHint);
+  // 이미 열려 있는 탭에 새로 붙은 배지도 바로 지운다
+  const n = active ? (hints?.[active] ?? 0) : 0;
   useEffect(() => {
-    if (active) clearHint(active);
-  }, [active, clearHint]);
-  return tabs.map((t) => ({ ...t, badge: <Badge n={hints?.[t.id]} /> }));
+    if (active && n > 0) clearHint(active);
+  }, [active, n, clearHint]);
+  return tabs.map((t) => ({ ...t, badge: <Badge n={t.id === active ? 0 : hints?.[t.id]} /> }));
 }
 
 export default function RightPanel() {
