@@ -9,11 +9,13 @@ import { ROSTER_MAX, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { addNews } from './season';
 import { flagOnTrack, hintMut, stageOf } from './campaign';
-import { beatOn, MID_DAY } from './script';
+import { beatOn, MID_DAY, POS_NAME } from './script';
 import { memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
 import { batLeaders, era, ops, pitLeaders } from './leaders';
 import { isFranchise } from './franchise';
+
+const posKo = (pos: string): string => POS_NAME[pos] ?? pos;
 
 // ── 튜닝 상수 ──
 export const EVENT_GAP = 8; // 카드 간 최소 경기 수
@@ -375,7 +377,7 @@ export const CARDS: CardDef[] = [
         title: '팔은 소모품이 아니다',
         icon: '💪',
         pid: p.id,
-        body: `${p.name}(${p.pos}, OVR ${p.ovr})이 사흘 연속 마운드에 올랐습니다.`,
+        body: `${p.name}(${posKo(p.pos)}, OVR ${p.ovr})이 사흘 연속 마운드에 올랐습니다.`,
         choices: [
           { label: '휴식을 보장한다', desc: `${p.name} ${N.restGames}경기 등판 불가` },
           { label: '강행한다', desc: `부상 위험 ${Math.round(N.armInjury * 100)}% (8~15경기 결장)` },
@@ -450,7 +452,7 @@ export const CARDS: CardDef[] = [
           title: '옛날 눈',
           icon: '📓',
           pid: p.id,
-          body: `팀장이 명단 맨 위에 올린 ${p.name}(${p.pos}, ${p.age}세, OVR ${p.ovr}, 스타성 ${p.star})은 아직 시장에 있습니다.`,
+          body: `팀장이 명단 맨 위에 올린 ${p.name}(${posKo(p.pos)}, ${p.age}세, OVR ${p.ovr}, 스타성 ${p.star})은 아직 시장에 있습니다.`,
           choices: [{ label: '믿어 준다', desc: `${p.name} 영입 (계약금 면제 · 연봉 ${fmtMoney(p.salary)}) · 다음 드래프트 풀 품질 ${sgn(N.trustYouth)}`, disabled: dis }, ...second],
         });
       }
@@ -623,7 +625,7 @@ export const CARDS: CardDef[] = [
         title: '트레이드 제안',
         icon: '🔄',
         pid: me.id,
-        body: `${t.city} ${t.name}이(가) 벤치의 ${me.name}(${me.pos} OVR ${me.ovr}, ${me.age}세, 연봉 ${fmtMoney(me.salary)})을 원합니다. 대가는 ${p.name}(${p.pos} OVR ${p.ovr}, ${p.age}세, 연봉 ${fmtMoney(p.salary)})${cash ? ` + 현금 ${fmtMoney(cash)}` : ''}.`,
+        body: `${t.city} ${t.name}이(가) 벤치의 ${me.name}(${posKo(me.pos)} OVR ${me.ovr}, ${me.age}세, 연봉 ${fmtMoney(me.salary)})을 원합니다. 대가는 ${p.name}(${posKo(p.pos)} OVR ${p.ovr}, ${p.age}세, 연봉 ${fmtMoney(p.salary)})${cash ? ` + 현금 ${fmtMoney(cash)}` : ''}.`,
         choices: [
           { label: '수락', desc: `${me.name} ↔ ${p.name}${cash ? ` + ${fmtMoney(cash)}` : ''} · 연봉 ${sgn(Math.round((p.salary - me.salary) / 100) / 100)}억` },
           { label: '거절', desc: '현 전력 유지' },

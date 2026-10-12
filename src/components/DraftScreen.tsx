@@ -138,10 +138,10 @@ export default function DraftScreen() {
               <div
                 key={i}
                 ref={cur ? curRef : undefined}
-                className={`flex w-11 shrink-0 flex-col items-center gap-0.5 py-1 text-[10px] leading-none ${cur ? 'bg-hi/25' : 'bg-panel'} ${past ? 'opacity-40' : ''}`}
+                className={`flex w-11 shrink-0 flex-col items-center gap-0.5 py-1 text-[10px] leading-none land:flex-row land:justify-center land:gap-1 land:py-0.5 ${cur ? 'bg-hi/25' : 'bg-panel'} ${past ? 'opacity-40' : ''}`}
                 style={{ boxShadow: cur ? '0 0 0 2px #ffd84a' : me ? 'inset 0 -2px 0 #ffd84a' : undefined, marginLeft: i > 0 && i % perRound === 0 ? 8 : 0 }}
               >
-                <span className="text-white/50">
+                <span className="text-white/50 land:hidden">
                   {Math.floor(i / perRound) + 1}-{(i % perRound) + 1}
                 </span>
                 <TeamDot team={t} size={12} />
@@ -158,11 +158,13 @@ export default function DraftScreen() {
             {!landscape && filterRow}
             <div className="px-scroll mt-1 min-h-0 flex-1 overflow-y-auto">
               {landscape && <div className="mb-1">{filterRow}</div>}
+              {/* 키 작은 가로 화면: 두 열 + 낮은 줄로 한 화면에 6줄 이상 */}
+              <div className={landscape ? 'grid grid-cols-2 gap-x-1' : ''}>
               {list.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => setSel(p.id === sel && !mobile ? null : p.id)}
-                  className={`mb-[3px] flex w-full cursor-pointer items-center gap-2 px-1.5 py-1 text-left mob:min-h-12 ${sel === p.id ? 'bg-hi/20' : 'bg-ink/40'}`}
+                  className={`mb-[3px] flex w-full cursor-pointer items-center gap-2 px-1.5 text-left ${landscape ? 'min-h-9 py-0.5' : 'py-1 mob:min-h-12'} ${sel === p.id ? 'bg-hi/20' : 'bg-ink/40'}`}
                   style={sel === p.id ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
                 >
                   <OvrBadge ovr={p.ovr} size={22} />
@@ -178,6 +180,7 @@ export default function DraftScreen() {
                   <ScoutBadge grade={p.scout} size={20} />
                 </button>
               ))}
+              </div>
               {!list.length && <div className="p-2 text-center text-[11px] text-white/40">남은 선수가 없습니다</div>}
               {mobile && <div className="mt-2">{logView}</div>}
             </div>
