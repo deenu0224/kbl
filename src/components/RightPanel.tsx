@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import type { FacilityKind, Ledger } from '../game/types';
+import { useEffect, useMemo } from 'react';
+import type { FacilityKind, HintTab, Ledger } from '../game/types';
 import { useCore, useStore, useUserTeam, userMatch, type RightTab } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import {
@@ -15,7 +15,16 @@ import {
   upgradeCost,
 } from '../game/economy';
 import { standings } from '../game/season';
-import { Bar, FAC_KO, MiniBars, MoneyBar, SectionTitle, TabBar, TeamDot, TONE_CLASS, dowOf, fmtPct, isNightDay } from './ui';
+import Bracket from './Bracket';
+import Leaders from './Leaders';
+import { useUi, type LeagueSub } from './layout/uiStore';
+import { Badge, Bar, Chips, FAC_KO, MiniBars, MoneyBar, SectionTitle, TabBar, TeamDot, TONE_CLASS, dowOf, fmtPct, isNightDay } from './ui';
+
+const LEAGUE_SUBS: readonly (readonly [LeagueSub, string])[] = [
+  ['table', '순위'],
+  ['leaders', '기록'],
+  ['bracket', '대진표'],
+];
 
 // ───────── 리그 ─────────
 
@@ -25,21 +34,52 @@ export function LeagueTab() {
   const schedule = useStore((s) => s.schedule);
   const day = useStore((s) => s.day);
   const last = useStore((s) => s.lastReport);
+  const phase = useStore((s) => s.phase);
+  const post = useStore((s) => s.post);
+  const beats = useStore((s) => s.campaign.beats);
+  const sub = useUi((s) => s.leagueSub);
+  const setSub = useUi((s) => s.setLeagueSub);
 
   const table = useMemo(() => standings(teams), [teams]);
   const byId = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const lead = table[0];
   const upcoming = useMemo(() => {
     const out: { day: number; oppId: string; isHome: boolean }[] = [];
+    if (phase !== 'season') return out;
     for (let d = day; d < schedule.length && out.length < 5; d++) {
       const m = userMatch({ schedule, userId }, d);
-      if (m) out.push({ day: d, ...m });
+      if (m) out.push({ day: d, oppId: m.oppId, isHome: m.isHome });
     }
     return out;
-  }, [schedule, day, userId]);
+  }, [schedule, day, userId, phase]);
+  // 일정표 예보: 대본 구간 중 세계 안의 이름(label)이 붙은 것만. 구간의 역할(part)은 보이지 않는다.
+  const forecast = useMemo(
+    () =>
+      phase !== 'season'
+        ? []
+        : (beats ?? [])
+            .filter((b) => !!b.label && b.to >= day && b.from < schedule.length)
+            .sort((a, b) => a.from - b.from)
+            .slice(0, 3),
+    [beats, day, phase, schedule.length],
+  );
 
   return (
     <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
+      <Chips items={LEAGUE_SUBS} value={sub} onChange={setSub} />
+      {sub === 'leaders' && <Leaders />}
+      {sub === 'bracket' && (
+        <div className="mt-2">
+          <Bracket />
+        </div>
+      )}
+      {sub === 'table' && (
+        <>
+      {phase === 'post' && post && (
+        <div className="mt-2">
+          <Bracket />
+        </div>
+      )}
       <SectionTitle>순위표</SectionTitle>
       <div className="flex px-1 text-[9px] text-white/40">
         <span className="w-4" />
@@ -103,11 +143,25 @@ export function LeagueTab() {
       )}
 
       <SectionTitle>다음 일정</SectionTitle>
+      {forecast.map((b) => {
+        const n = b.from - day;
+        const games = b.to - Math.max(b.from, day) + 1;
+        return (
+          <div key={b.id} className="mb-[2px] flex items-center gap-1.5 bg-ink/50 px-1.5 py-[3px] text-[11px] mob:min-h-8 mob:text-[12px]" style={{ boxShadow: 'inset 2px 0 0 #f0a35a' }}>
+            <span className="w-[58px] shrink-0 whitespace-nowrap text-[#f0a35a]">{n > 0 ? `D-${n}` : '진행 중'}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {b.icon ? `${b.icon} ` : ''}
+              {b.label}
+            </span>
+            <span className="shrink-0 text-[10px] text-white/50">{n > 0 ? `${games}경기` : `남은 ${games}경기`}</span>
+          </div>
+        );
+      })}
       {upcoming.map((u, i) => {
         const opp = byId.get(u.oppId);
         return (
           <div key={u.day} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] ${i === 0 ? 'bg-sky/15' : ''}`}>
-            <span className="w-12 text-white/50">
+            <span className="w-[58px] shrink-0 whitespace-nowrap text-white/50">
               {u.day + 1}차전 {dowOf(u.day)}
             </span>
             <span className={`w-7 text-center text-[10px] ${u.isHome ? 'bg-good/25 text-good' : 'bg-white/10 text-white/60'}`}>{u.isHome ? '홈' : '원정'}</span>
@@ -119,7 +173,9 @@ export function LeagueTab() {
           </div>
         );
       })}
-      {!upcoming.length && <div className="px-1 text-[10px] text-white/40">남은 경기가 없습니다</div>}
+      {!upcoming.length && <div className="px-1 text-[10px] text-white/40">{phase === 'post' ? '포스트시즌 진행 중' : '남은 경기가 없습니다'}</div>}
+        </>
+      )}
     </div>
   );
 }
@@ -163,7 +219,7 @@ function FacilityCard({ kind }: { kind: FacilityKind }) {
           </div>
           <div className="text-[10px] text-white/65">{next.desc}</div>
           <div className="mt-1 flex items-center gap-2">
-            <button className="px-btn gold" disabled={!!reason} title={reason ?? `유지비 ${fmtMoney(next.upkeep)}/경기`} onClick={() => upgrade(kind)}>
+            <button className="px-btn gold" data-sfx="none" disabled={!!reason} onClick={() => upgrade(kind)}>
               업그레이드 {fmtMoney(cost)}
             </button>
             {reason ? <span className="text-[10px] text-bad">{reason}</span> : <span className="text-[10px] text-white/45">유지비 {fmtMoney(next.upkeep)}</span>}
@@ -226,7 +282,7 @@ export function StadiumTab() {
           <span className="text-white/40"> (평일·맑음)</span>
         </div>
         <Bar ratio={cap ? demand / cap : 0} color={over ? '#ffd84a' : '#7fd3ff'} h={8} className="mt-0.5" />
-        {over && <div className="mt-0.5 text-[10px] text-hi">자리가 모자랍니다 — 가격을 올리거나 관중석을 증설하세요</div>}
+        {over && <div className="mt-0.5 text-[10px] text-hi">예상 수요가 좌석보다 {fmtInt(Math.round(demand - cap))}명 많습니다</div>}
       </div>
 
       <SectionTitle>시설</SectionTitle>
@@ -390,12 +446,31 @@ const TABS: { id: RightTab; label: string }[] = [
   { id: 'news', label: '뉴스' },
 ];
 
+/** 탭 배지(campaign.hints): 탭을 열거나 다시 누르면 지운다 */
+export function useHintTabs<T extends HintTab>(tabs: { id: T; label: string }[], active: T | null) {
+  const hints = useStore((s) => s.campaign.hints);
+  const clearHint = useStore((s) => s.clearHint);
+  useEffect(() => {
+    if (active) clearHint(active);
+  }, [active, clearHint]);
+  return tabs.map((t) => ({ ...t, badge: <Badge n={hints?.[t.id]} /> }));
+}
+
 export default function RightPanel() {
   const tab = useStore((s) => s.rightTab);
   const setTab = useStore((s) => s.setTab);
+  const clearHint = useStore((s) => s.clearHint);
+  const tabs = useHintTabs(TABS, tab);
   return (
     <div className="px-panel flex h-full min-h-0 flex-col">
-      <TabBar tabs={TABS} value={tab} onChange={(t) => setTab('right', t)} />
+      <TabBar
+        tabs={tabs}
+        value={tab}
+        onChange={(t) => {
+          clearHint(t);
+          setTab('right', t);
+        }}
+      />
       {tab === 'league' && <LeagueTab />}
       {tab === 'stadium' && <StadiumTab />}
       {tab === 'finance' && <FinanceTab />}

@@ -6,14 +6,31 @@ import RightPanel from './components/RightPanel';
 import StadiumView from './components/StadiumView';
 import BottomBar from './components/BottomBar';
 import SeasonEnd from './components/SeasonEnd';
+import DraftScreen from './components/DraftScreen';
+import GameOver from './components/GameOver';
+import { CampaignSheet } from './components/Campaign';
 import Toast from './components/Toast';
 import MobileShell from './components/layout/MobileShell';
 import { useLayout } from './components/layout/useLayout';
+import { useUi } from './components/layout/uiStore';
+import { useSfx } from './components/useSfx';
+
+/** 시즌 사이의 전체 화면들: 결산 → 드래프트, 또는 연고 이전 */
+function PhaseScreens() {
+  // 마지막 경기 요약을 닫은 뒤에 띄운다
+  const idle = useStore((s) => !s.summary && !s.playback);
+  const phase = useStore((s) => s.phase);
+  const draftPeek = useUi((s) => s.draftPeek);
+  if (!idle) return null;
+  if (phase === 'ended') return <SeasonEnd />;
+  if (phase === 'over') return <GameOver />;
+  if (phase === 'draft' && !draftPeek) return <DraftScreen />;
+  return null;
+}
 
 export default function App() {
-  // 마지막 경기 요약을 닫은 뒤에 시즌 결산을 띄운다
-  const showEnd = useStore((s) => s.phase === 'ended' && !s.summary && !s.playback);
   const layout = useLayout();
+  useSfx();
 
   // CSS 의 mob: 변형과 모바일 글자 하한이 이 속성을 본다
   useLayoutEffect(() => {
@@ -24,7 +41,8 @@ export default function App() {
     return (
       <>
         <MobileShell orientation={layout} />
-        {showEnd && <SeasonEnd />}
+        <CampaignSheet />
+        <PhaseScreens />
         <Toast />
       </>
     );
@@ -47,7 +65,8 @@ export default function App() {
         </div>
       </div>
       <BottomBar />
-      {showEnd && <SeasonEnd />}
+      <CampaignSheet />
+      <PhaseScreens />
       <Toast />
     </div>
   );

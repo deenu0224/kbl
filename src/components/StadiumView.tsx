@@ -4,6 +4,8 @@ import StadiumCanvas, { HOTSPOTS, STADIUM_H, STADIUM_W } from '../stadium/Stadiu
 import { useStore, useUserTeam, userMatch } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import { SEAT_LV, upgradeCost } from '../game/economy';
+import { usePostLine } from './Bracket';
+import EventCardModal from './EventCardModal';
 import GameSummary from './GameSummary';
 import { useIsMobile } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
@@ -45,6 +47,12 @@ export default function StadiumView() {
   const day = useStore((s) => s.day);
   const season = useStore((s) => s.season);
   const phase = useStore((s) => s.phase);
+  const post = useStore((s) => s.post);
+  const titles = useStore((s) => s.campaign.titles ?? 0);
+  const retiredN = useStore((s) => s.campaign.retired?.length ?? 0);
+  const fans = useStore((s) => s.fans);
+  const fanSat = useStore((s) => s.fanSat);
+  const postLine = usePostLine();
   const setTab = useStore((s) => s.setTab);
   const setMobileTab = useUi((s) => s.setTab);
   const user = useUserTeam();
@@ -64,11 +72,23 @@ export default function StadiumView() {
     return () => window.clearTimeout(id);
   }, [report, step, evType, stepPlayback]);
 
-  const next = useMemo(() => (phase === 'ended' ? null : userMatch({ schedule, userId }, day)), [schedule, userId, day, phase]);
+  const next = useMemo(
+    () => (phase === 'season' || phase === 'post' ? userMatch({ schedule, userId, phase, post }, day) : null),
+    [schedule, userId, day, phase, post],
+  );
   const oppId = report ? report.oppId : next?.oppId;
   const opp = teams.find((t) => t.id === oppId);
   const cap = SEAT_LV[facilities.seats]?.cap ?? crowd?.capacity ?? 1;
   const idleFill = crowd ? Math.min(1, crowd.attendance / Math.max(1, cap)) : 0;
+
+  // 게이트 밖 줄: 직전(또는 진행 중인) 홈경기에서 발길을 돌린 팬 / 좌석 수
+  const gateCrowd = report ? (report.isHome ? report.crowd : null) : crowd;
+  const gateQueue = gateCrowd ? Math.max(0, Math.min(1, gateCrowd.turnedAway / Math.max(1, gateCrowd.capacity))) : 0;
+  // 응원 문화 0~3: 팬 규모·만족도·시즌 수 (로직에 헬퍼가 생기면 그쪽으로 옮긴다)
+  const cheerLv = useMemo(() => {
+    const score = fans / 6000 + (fanSat - 50) / 25 + Math.min(1, (season - 1) * 0.25);
+    return Math.max(0, Math.min(3, Math.floor(score - 0.6)));
+  }, [fans, fanSat, season]);
 
   const scene = useMemo<StadiumScene>(() => {
     let fill = idleFill;
@@ -106,9 +126,13 @@ export default function StadiumView() {
       homeBatting,
       fx,
       fxKey,
-      banners: Math.max(0, Math.min(3, season - 1)),
+      banners: Math.max(0, Math.min(3, titles)),
+      oldBanner: true,
+      gateQueue,
+      cheerLv,
+      retiredNums: Math.min(4, retiredN),
     };
-  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp?.color, idleFill, crowd?.weather, summaryOpen, userId, season]);
+  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp?.color, idleFill, crowd?.weather, summaryOpen, userId, titles, gateQueue, cheerLv, retiredN]);
 
   const star = useMemo(() => user.roster.reduce<(typeof user.roster)[number] | null>((a, p) => (!a || p.star > a.star ? p : a), null), [user.roster]);
 
@@ -158,17 +182,19 @@ export default function StadiumView() {
             </>
           ) : next && opp ? (
             <>
-              <div style={{ fontSize: '1.25cqw', color: '#7fd3ff' }}>NEXT · {day + 1}차전</div>
+              <div className="w-full truncate" style={{ fontSize: '1.25cqw', color: '#7fd3ff' }}>
+                {postLine ? `${postLine.name} ${postLine.gameNo}차전` : `NEXT · ${day + 1}차전`}
+              </div>
               <div className="font-pixel-lg w-full truncate" style={{ fontSize: '1.9cqw' }}>
                 vs {opp.name}
               </div>
               <div style={{ fontSize: '1.25cqw', color: '#fff' }}>
-                {next.isHome ? '홈' : '원정'} · {dowOf(day)}요일 {isNightDay(day) ? '야간' : '주간'}
+                {next.isHome ? '홈' : '원정'} · {postLine ? `${postLine.myW}승 ${postLine.oppW}패` : `${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`}
               </div>
             </>
           ) : (
             <div className="font-pixel-lg" style={{ fontSize: '1.9cqw' }}>
-              시즌 종료
+              {phase === 'draft' ? '스토브리그' : '시즌 종료'}
             </div>
           )}
         </div>
@@ -183,7 +209,6 @@ export default function StadiumView() {
               className="group absolute cursor-pointer"
               style={rectStyle(HOTSPOTS[k])}
               onClick={() => (mobile ? setMobileTab('stadium') : setTab('right', 'stadium'))}
-              title={`${FAC_KO[k]} — 누르면 구장 탭이 열립니다`}
             >
               <span className="absolute inset-0 opacity-0 group-hover:opacity-100" style={{ boxShadow: 'inset 0 0 0 0.3cqw #ffd84a', background: 'rgba(255,216,74,.12)' }} />
               {mobile ? (
@@ -233,11 +258,14 @@ export default function StadiumView() {
                   매진!
                 </span>
               )}
+              {/* 디오라마의 게이트 밖 줄은 폰에서 작다 — 발길 돌린 팬 수를 함께 적는다 */}
+              {shownCrowd.turnedAway > 0 && <span style={{ color: '#ffb38a' }}>🚶{fmtInt(shownCrowd.turnedAway)}</span>}
             </>
           ) : (
             <span className="text-white/70">좌석 {fmtInt(cap)}석 · 개막 대기</span>
           )}
           {report?.night && <span className="text-sky">야간</span>}
+          {report?.post && <span className="text-hi">{report.post.name}</span>}
         </div>
 
         {/* 간판스타 칩 */}
@@ -296,6 +324,7 @@ export default function StadiumView() {
 
         {/* 모바일 요약은 셸에서 전체 화면 시트로 띄운다 */}
         {!mobile && <GameSummary />}
+        {!mobile && <EventCardModal />}
       </div>
     </div>
   );

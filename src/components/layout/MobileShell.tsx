@@ -1,8 +1,11 @@
+import { useEffect } from 'react';
+import type { HintTab } from '../../game/types';
 import { useStore } from '../../store';
 import { MobileActionBar } from '../BottomBar';
 import GameSummary from '../GameSummary';
 import { LineupTab, MarketTab, PitchersTab } from '../LeftPanel';
-import { FinanceTab, LeagueTab, NewsTab, StadiumTab } from '../RightPanel';
+import EventCardModal from '../EventCardModal';
+import { FinanceTab, LeagueTab, NewsTab, StadiumTab, useHintTabs } from '../RightPanel';
 import StadiumView from '../StadiumView';
 import { MobileTopBar } from '../TopBar';
 import { TabBar } from '../ui';
@@ -26,13 +29,21 @@ function MobilePanel() {
   const setRosterSub = useUi((s) => s.setRosterSub);
   const setClubSub = useUi((s) => s.setClubSub);
   const playback = useStore((s) => !!s.playback);
+  const clearHint = useStore((s) => s.clearHint);
+  // 지금 보이는 하위 탭의 배지는 지운다
+  const active: HintTab = tab === 'roster' ? rosterSub : tab === 'club' ? clubSub : tab;
+  const rosterTabs = useHintTabs(ROSTER_SUBS, tab === 'roster' ? rosterSub : null);
+  const clubTabs = useHintTabs(CLUB_SUBS, tab === 'club' ? clubSub : null);
+  useEffect(() => {
+    clearHint(active);
+  }, [active, clearHint]);
 
   return (
     // 하이라이트 재생 중엔 야구장에 집중하도록 패널을 반투명하게
     <div className={`px-panel flex min-h-0 flex-1 flex-col transition-opacity ${playback ? 'opacity-35' : ''}`}>
       {tab === 'roster' && (
         <>
-          <TabBar tabs={ROSTER_SUBS} value={rosterSub} onChange={setRosterSub} />
+          <TabBar tabs={rosterTabs} value={rosterSub} onChange={setRosterSub} />
           {rosterSub === 'lineup' ? <LineupTab /> : <PitchersTab />}
         </>
       )}
@@ -41,7 +52,7 @@ function MobilePanel() {
       {tab === 'league' && <LeagueTab />}
       {tab === 'club' && (
         <>
-          <TabBar tabs={CLUB_SUBS} value={clubSub} onChange={setClubSub} />
+          <TabBar tabs={clubTabs} value={clubSub} onChange={setClubSub} />
           {clubSub === 'finance' ? <FinanceTab /> : <NewsTab />}
         </>
       )}
@@ -79,6 +90,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
           <MobilePanel />
         </div>
         <GameSummary sheet />
+        <EventCardModal sheet />
       </div>
     );
   }
@@ -95,6 +107,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
       <MobileActionBar />
       <MobileNav placement="bottom" />
       <GameSummary sheet />
+      <EventCardModal sheet />
     </div>
   );
 }

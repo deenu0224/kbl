@@ -4,6 +4,7 @@ import { useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, releaseCost, signingBonus } from '../game/economy';
 import PlayerCard from './PlayerCard';
+import { useHintTabs } from './RightPanel';
 import Sheet from './layout/Sheet';
 import { useIsMobile } from './layout/useLayout';
 import { OvrBadge, POS_KO, SectionTitle, Stars, TabBar } from './ui';
@@ -39,6 +40,7 @@ function Row({
       <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : ''}`}>
         {p.name}
         {p.injury > 0 && <span className="ml-1 text-[10px]">✚{p.injury}</span>}
+        {(p.tired ?? 0) > 0 && <span className="ml-1 text-[10px] text-[#f0a35a]">연투{p.tired}</span>}
         {p.star >= 70 && <span className="ml-0.5 text-[10px] text-hi">★</span>}
       </span>
       <span className="shrink-0 text-[10px] text-white/70 mob:text-[11px]">{stat}</span>
@@ -386,7 +388,7 @@ export function MarketTab() {
         })}
         {!list.length && <div className="p-2 text-center text-[11px] text-white/40">시장에 남은 선수가 없습니다</div>}
       </div>
-      <CardDock open={!!selP} onClose={() => setSel(null)} placeholder="스타(★)를 영입하면 관중과 굿즈 매출이 늘어납니다">
+      <CardDock open={!!selP} onClose={() => setSel(null)} placeholder="선수를 누르면 카드가 열립니다">
         {selP && (
           <PlayerCard
             player={selP}
@@ -399,7 +401,7 @@ export function MarketTab() {
               </div>
             }
           >
-            <button className="px-btn primary" disabled={!!reason} title={reason ?? '계약금을 내고 즉시 영입'} onClick={() => sign(selP.id)}>
+            <button className="px-btn primary" data-sfx="none" disabled={!!reason} onClick={() => sign(selP.id)}>
               영입
             </button>
             {reason && <span className="text-[10px] text-bad">{reason}</span>}
@@ -421,9 +423,18 @@ const TABS: { id: LeftTab; label: string }[] = [
 export default function LeftPanel() {
   const tab = useStore((s) => s.leftTab);
   const setTab = useStore((s) => s.setTab);
+  const clearHint = useStore((s) => s.clearHint);
+  const tabs = useHintTabs(TABS, tab);
   return (
     <div className="px-panel flex h-full min-h-0 flex-col">
-      <TabBar tabs={TABS} value={tab} onChange={(t) => setTab('left', t)} />
+      <TabBar
+        tabs={tabs}
+        value={tab}
+        onChange={(t) => {
+          clearHint(t);
+          setTab('left', t);
+        }}
+      />
       {tab === 'lineup' && <LineupTab />}
       {tab === 'pitchers' && <PitchersTab />}
       {tab === 'market' && <MarketTab />}

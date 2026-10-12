@@ -130,7 +130,8 @@ export function TabBar<T extends string>({
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex-1 cursor-pointer py-1.5 text-[12px] mob:min-h-10 mob:text-[13px] ${on ? 'bg-panel text-hi' : 'bg-panel-2/60 text-white/60 hover:text-white'}`}
+            data-sfx="tab"
+            className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-1.5 text-[12px] mob:min-h-10 mob:text-[13px] ${on ? 'bg-panel text-hi' : 'bg-panel-2/60 text-white/60 hover:text-white'}`}
             style={on ? { boxShadow: 'inset 0 2px 0 #ffd84a' } : undefined}
           >
             {t.label}
@@ -138,6 +139,29 @@ export function TabBar<T extends string>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** 탭 배지: 숫자만. 반짝이지 않는다. */
+export function Badge({ n }: { n: number | undefined }) {
+  if (!n || n <= 0) return null;
+  return (
+    <span className="inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center bg-[#e2572e] px-[3px] text-[10px] leading-none text-white mob:text-[11px]" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+      {n > 9 ? '9+' : n}
+    </span>
+  );
+}
+
+/** 작은 선택 칩 줄 (서브뷰·카테고리) */
+export function Chips<T extends string>({ items, value, onChange }: { items: readonly (readonly [T, string])[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="flex shrink-0 flex-wrap gap-1 text-[10px]">
+      {items.map(([k, label]) => (
+        <button key={k} data-sfx="tab" onClick={() => onChange(k)} className={`cursor-pointer px-1.5 py-0.5 mob:min-h-10 mob:px-3 mob:text-[12px] ${value === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

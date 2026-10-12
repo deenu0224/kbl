@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useStore, userMatch } from '../store';
+import { usePostLine } from './Bracket';
+import { EventReopen } from './EventCardModal';
+import { useUi } from './layout/uiStore';
 import { TeamDot, dowOf, isNightDay } from './ui';
 
 /** 하단 진행 버튼들의 공통 상태 (데스크톱 BottomBar · 모바일 액션 바 공용) */
@@ -11,18 +14,38 @@ function useMatchActions() {
   const schedule = useStore((s) => s.schedule);
   const userId = useStore((s) => s.userId);
   const teams = useStore((s) => s.teams);
+  const post = useStore((s) => s.post);
+  const event = useStore((s) => !!s.campaign.event);
+  const postLine = usePostLine();
 
   const total = schedule.length;
-  const ended = phase === 'ended' || day >= total;
-  const next = ended ? null : userMatch({ schedule, userId }, day);
+  const inPost = phase === 'post';
+  const live = phase === 'season' ? day < total : inPost;
+  const next = live ? userMatch({ schedule, userId, phase, post }, day) : null;
   const opp = teams.find((t) => t.id === next?.oppId);
-  const left = Math.max(0, total - day);
-  const reason = playback ? '경기 하이라이트 재생 중' : summary ? '경기 요약을 먼저 닫으세요' : ended ? '시즌이 끝났습니다' : undefined;
-  return { playback, day, next, opp, left, reason, off: !!reason };
+  const left = inPost ? 20 : Math.max(0, total - day);
+  const idle = phase === 'draft' ? '신인 드래프트 진행 중' : phase === 'over' ? '연고 이전이 확정됐습니다' : inPost ? '포스트시즌 일정이 끝났습니다' : '정규 시즌이 끝났습니다';
+  const reason = playback ? '경기 하이라이트 재생 중' : summary ? '경기 요약을 먼저 닫으세요' : event ? '이벤트 카드 대기 중' : !next ? idle : undefined;
+  /** 다음 경기 설명: 정규시즌은 "12차전 · 금요일 야간", 포스트시즌은 "한국시리즈 3차전 · 2승 1패" */
+  const when = postLine ? postLine.text : `${day + 1}차전 · ${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`;
+  const whenShort = postLine ? postLine.text : `${day + 1}차전 ${dowOf(day)} ${isNightDay(day) ? '야간' : '주간'}`;
+  return { playback, phase, inPost, next, opp, left, reason, idle, when, whenShort, off: !!reason };
+}
+
+/** 드래프트 중 구단 화면을 살펴보다 돌아가는 버튼 */
+function DraftReturn({ className = '' }: { className?: string }) {
+  const phase = useStore((s) => s.phase);
+  const setPeek = useUi((s) => s.setDraftPeek);
+  if (phase !== 'draft') return null;
+  return (
+    <button className={`px-btn primary ${className}`} onClick={() => setPeek(false)}>
+      드래프트로 돌아가기 ▶
+    </button>
+  );
 }
 
 export default function BottomBar() {
-  const { playback, day, next, opp, left, reason, off } = useMatchActions();
+  const { playback, inPost, next, opp, left, reason, idle, when, off } = useMatchActions();
   const playNext = useStore((s) => s.playNext);
   const simDays = useStore((s) => s.simDays);
   const newGame = useStore((s) => s.newGame);
@@ -39,25 +62,27 @@ export default function BottomBar() {
       <div className="flex min-w-0 flex-1 items-center gap-2 text-[12px]">
         {next && opp ? (
           <>
-            <span className="text-[10px] text-sky">다음 경기</span>
+            <span className="text-[10px] text-sky">{inPost ? '가을야구' : '다음 경기'}</span>
             <span className={`px-1 text-[10px] ${next.isHome ? 'bg-good/25 text-good' : 'bg-white/10 text-white/70'}`}>{next.isHome ? '홈' : '원정'}</span>
             <TeamDot team={opp} size={12} />
             <span className="truncate text-[13px]">
               vs {opp.city} {opp.name}
             </span>
             <span className="whitespace-nowrap text-[10px] text-white/50">
-              {day + 1}차전 · {dowOf(day)}요일 {isNightDay(day) ? '야간' : '주간'} · 상대 {opp.rec.w}승 {opp.rec.l}패
+              <span className={inPost ? 'text-hi' : ''}>{when}</span>
+              {!inPost && ` · 상대 ${opp.rec.w}승 ${opp.rec.l}패`}
             </span>
           </>
         ) : (
-          <span className="text-white/60">정규 시즌이 끝났습니다</span>
+          <span className="text-white/60">{idle}</span>
         )}
       </div>
-      {reason && <span className="text-[10px] text-white/45">{reason}</span>}
+      {reason && next && <span className="text-[10px] text-white/45">{reason}</span>}
+      <EventReopen className="!py-1.5" />
+      <DraftReturn className="!py-1.5" />
       <button
         className="px-btn !px-2 text-[10px]"
         disabled={playback}
-        title="저장된 구단을 지우고 처음부터 다시 시작합니다"
         onClick={() => {
           if (!arm) return setArm(true);
           setArm(false);
@@ -66,14 +91,16 @@ export default function BottomBar() {
       >
         {arm ? '정말 새 게임?' : '새 게임'}
       </button>
-      <button className="px-btn primary !px-5 !py-1.5 text-[14px]" disabled={off} title={reason ?? '하이라이트와 함께 한 경기 진행'} onClick={playNext}>
+      <button className="px-btn primary !px-5 !py-1.5 text-[14px]" data-sfx="none" disabled={off} onClick={playNext}>
         ▶ 경기 진행
       </button>
-      <button className="px-btn !py-1.5" disabled={off} title={reason ?? '하이라이트 없이 6경기 진행'} onClick={() => simDays(6)}>
-        1주 진행
-      </button>
-      <button className="px-btn !py-1.5" disabled={off} title={reason ?? `남은 ${left}경기를 한 번에 진행`} onClick={() => simDays(left)}>
-        시즌 끝까지
+      {!inPost && (
+        <button className="px-btn !py-1.5" disabled={off} onClick={() => simDays(6)}>
+          1주 진행
+        </button>
+      )}
+      <button className="px-btn !py-1.5" disabled={off} onClick={() => simDays(left)}>
+        {inPost ? '가을야구 끝까지' : '시즌 끝까지'}
       </button>
     </div>
   );
@@ -111,7 +138,7 @@ function LiveScore() {
  * 하이라이트 재생 중엔 엄지 위치에 [건너뛰기].
  */
 export function MobileActionBar() {
-  const { playback, day, next, opp, left, reason, off } = useMatchActions();
+  const { playback, inPost, next, opp, left, reason, idle, whenShort, off } = useMatchActions();
   const playNext = useStore((s) => s.playNext);
   const simDays = useStore((s) => s.simDays);
   const skipPlayback = useStore((s) => s.skipPlayback);
@@ -123,28 +150,38 @@ export function MobileActionBar() {
       <span className={`shrink-0 px-1 text-[11px] ${next.isHome ? 'bg-good/25 text-good' : 'bg-white/10 text-white/70'}`}>{next.isHome ? '홈' : '원정'}</span>
       <TeamDot team={opp} size={11} />
       <span className="min-w-0 truncate">vs {opp.name}</span>
-      <span className="shrink-0 text-[11px] text-white/50">
-        {day + 1}차전 {dowOf(day)} {isNightDay(day) ? '야간' : '주간'} · {opp.rec.w}승{opp.rec.l}패
+      <span className={`shrink-0 text-[11px] ${inPost ? 'text-hi' : 'text-white/50'}`}>
+        {whenShort}
+        {!inPost && ` · ${opp.rec.w}승${opp.rec.l}패`}
       </span>
     </div>
   ) : (
-    <div className="text-[12px] text-white/60">{reason ?? '정규 시즌이 끝났습니다'}</div>
+    <div className="text-[12px] text-white/60">{idle}</div>
   );
 
+  const eventId = useStore((s) => s.campaign.event?.id ?? null);
+  const hiddenId = useUi((s) => s.eventHidden);
+  const eventFolded = eventId !== null && eventId === hiddenId;
   const buttons = playback ? (
     <button className="px-btn gold min-h-11 short:min-h-10 flex-1 text-[15px]" onClick={skipPlayback}>
       건너뛰기 ▶▶
     </button>
+  ) : eventFolded ? (
+    // 카드를 접어 둔 동안엔 진행 버튼 대신 카드로 돌아가는 버튼 하나만
+    <EventReopen className="min-h-11 short:min-h-10 flex-1 truncate text-[15px]" />
   ) : (
     <>
-      <button className="px-btn primary min-h-11 short:min-h-10 flex-[1.6] text-[15px]" disabled={off} onClick={playNext}>
+      <DraftReturn className="min-h-11 short:min-h-10 flex-[2] text-[14px]" />
+      <button className="px-btn primary min-h-11 short:min-h-10 flex-[1.6] text-[15px]" data-sfx="none" disabled={off} onClick={playNext}>
         ▶ 경기 진행
       </button>
-      <button className="px-btn min-h-11 short:min-h-10 flex-1 text-[13px]" disabled={off} onClick={() => simDays(6)}>
-        1주
-      </button>
+      {!inPost && (
+        <button className="px-btn min-h-11 short:min-h-10 flex-1 text-[13px]" disabled={off} onClick={() => simDays(6)}>
+          1주
+        </button>
+      )}
       <button className="px-btn min-h-11 short:min-h-10 flex-[1.3] text-[13px] leading-tight" disabled={off} onClick={() => simDays(left)}>
-        시즌 끝까지
+        {inPost ? '가을야구 끝까지' : '시즌 끝까지'}
       </button>
     </>
   );

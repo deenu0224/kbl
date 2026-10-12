@@ -4,6 +4,8 @@ import { fmtInt, fmtMoney } from '../game/format';
 import { payroll } from '../game/economy';
 import { teamStrength } from '../game/ratings';
 import { rankOf } from '../game/season';
+import { CampaignChip } from './Campaign';
+import SoundButton from './SoundButton';
 import { useUi } from './layout/uiStore';
 import { Bar, ratingColor, recText, TeamDot } from './ui';
 
@@ -48,9 +50,11 @@ export default function TopBar() {
           </div>
         </div>
       </div>
-      <div className="flex w-24 items-center max-[1279px]:w-14">
+      <div className="flex w-16 items-center max-[1399px]:hidden">
         <Bar ratio={total ? day / total : 0} color="#7fd3ff" h={6} />
       </div>
+      <Sep />
+      <CampaignChip className="w-[210px] shrink-0 max-[1279px]:w-[176px]" />
       <Sep />
       <Cell label="순위">
         <span className={rank <= 3 ? 'text-hi' : rank >= 7 ? 'text-bad' : ''}>{rank}위</span>
@@ -71,7 +75,9 @@ export default function TopBar() {
       <Cell label="부채">
         <span className={debt > 0 ? 'text-bad' : 'text-white/60'}>{fmtMoney(debt)}</span>
       </Cell>
-      <Cell label="연봉 총액">{fmtMoney(pay)}</Cell>
+      <span className="flex max-[1399px]:hidden">
+        <Cell label="연봉 총액">{fmtMoney(pay)}</Cell>
+      </span>
       <Sep />
       <Cell label="최근 관중" title="마지막 홈경기 관중">
         {crowd ? (
@@ -95,6 +101,9 @@ export default function TopBar() {
       <Cell label="전력">
         <span style={{ color: ratingColor(str) }}>{Math.round(str)}</span>
       </Cell>
+      <div className="ml-auto flex items-center">
+        <SoundButton />
+      </div>
     </div>
   );
 }
@@ -138,8 +147,8 @@ export function MobileTopBar() {
   const satColor = fanSat >= 60 ? '#6ee07a' : fanSat >= 40 ? '#ffd84a' : '#ff6b6b';
 
   return (
-    <div className="relative z-30 shrink-0">
-      <button className="px-panel flex w-full cursor-pointer flex-col gap-0.5 px-2 py-1 text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
+    <div className="px-panel relative z-30 flex shrink-0 flex-col land:flex-row">
+      <button className="flex min-w-0 flex-1 cursor-pointer flex-col justify-center gap-0.5 px-2 py-1 text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
         <div className="flex w-full items-center gap-1.5 text-[13px] leading-tight">
           <TeamDot team={team} size={14} />
           <span className="min-w-0 truncate font-pixel-lg text-[14px]" style={{ color: team.color, textShadow: '1px 1px 0 #0f1420' }}>
@@ -180,6 +189,13 @@ export function MobileTopBar() {
           <span className="shrink-0 text-[11px] text-white/45">{open ? '▲' : '▼'}</span>
         </div>
       </button>
+      {/* 캠페인: 세로는 한 줄, 가로는 옆에 두 줄 */}
+      <div className="hidden bg-ink/35 por:block" style={{ boxShadow: 'inset 0 2px 0 #0f1420' }}>
+        <CampaignChip line />
+      </div>
+      <div className="hidden w-[46%] shrink-0 bg-ink/35 land:flex" style={{ boxShadow: 'inset 2px 0 0 #0f1420' }}>
+        <CampaignChip className="w-full" />
+      </div>
 
       {open && (
         <>
@@ -214,6 +230,9 @@ export function MobileTopBar() {
                 <span style={{ color: satColor }}>{Math.round(fanSat)}</span>
                 <span className="text-[11px] text-white/45">/100</span>
               </Detail>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <SoundButton inline />
             </div>
             <div className="mt-2 flex items-center justify-end gap-2">
               {playback && <span className="text-[11px] text-white/45">재생 중에는 새 게임을 시작할 수 없습니다</span>}
