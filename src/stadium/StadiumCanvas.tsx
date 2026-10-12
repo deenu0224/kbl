@@ -38,6 +38,9 @@ export default function StadiumCanvas(props: { scene: StadiumScene; className?: 
       if (!alive || document.hidden) return; // 탭이 가려지면 루프를 쉰다
       raf = requestAnimationFrame(tick);
       if (now - last < FRAME_MS) return;
+      render(now);
+    };
+    const render = (now: number) => {
       last = now;
       const scene = sceneRef.current;
       const key = staticKey(scene.facilities, scene.homeColor, scene.homeColor2);
@@ -58,6 +61,7 @@ export default function StadiumCanvas(props: { scene: StadiumScene; className?: 
     };
     document.addEventListener('visibilitychange', onVisibility);
     if (!document.hidden) raf = requestAnimationFrame(tick);
+    else render(performance.now()); // 가려진 채 열려도 첫 장면은 그려 둔다
 
     return () => {
       alive = false;
