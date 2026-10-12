@@ -153,7 +153,7 @@ export default function OrderSheet() {
       <div className="flex min-h-0 flex-1 flex-col">{seg === 'lineup' ? <LineupTab order /> : <PitchersTab order />}</div>
 
       <div className="flex shrink-0 items-stretch gap-2 px-2 pt-1.5 pb-2">
-        <AutoButton className="min-h-11 flex-1 text-[12px] mob:text-[13px]" />
+        <AutoButton order className="min-h-11 flex-1 text-[12px] mob:text-[13px]" />
         <button className="px-btn primary min-h-11 flex-[1.8] text-[15px]" data-sfx="none" data-testid="order-submit" onClick={playNext}>
           오더 제출 ▶
         </button>

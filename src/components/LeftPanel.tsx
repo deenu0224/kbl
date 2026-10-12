@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BatPos, Player, Team } from '../game/types';
-import { useCore, useStore, useUserTeam, type LeftTab } from '../store';
+import { pitcherLoc, putPitcher, useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, releaseCost, signingBonus } from '../game/economy';
 import { effDef, teamParts, type TeamParts } from '../game/ratings';
@@ -20,14 +20,16 @@ function Row({
   target,
   onClick,
   tag,
-  up,
+  fix,
   flash,
+  done,
   issue,
 }: {
   issue?: boolean; // 오더지: 문제 있는 줄 (왼쪽 빨간 띠)
   tag?: ReactNode; // 이름 옆 작은 태그 ("본 좌익")
-  up?: { label: string; onClick: () => void }; // 더 나은 대기 선수 ("▲벤치 63")
+  fix?: Fix; // 한 번 탭으로 고치는 칩 ("▲벤치 72 · 타선 +4")
   flash?: boolean; // 방금 영입한 선수의 자리
+  done?: boolean; // 방금 칩으로 고친 줄 (초록으로 잠깐 번쩍)
   lead: ReactNode;
   player: Player;
   stat: ReactNode;
@@ -41,10 +43,11 @@ function Row({
       onClick={onClick}
       data-pid={p.id}
       className={`flex w-full cursor-pointer items-center gap-1.5 px-1 py-[3px] text-left text-[12px] mob:min-h-10 mob:gap-2 mob:text-[13px] ${
-        flash ? 'bg-hi/35' : selected ? 'bg-hi/20' : target ? 'bg-good/10 hover:bg-good/25' : 'hover:bg-white/8'
+        done ? 'bg-good/35' : flash ? 'bg-hi/35' : selected ? 'bg-hi/20' : target ? 'bg-good/10 hover:bg-good/25' : 'hover:bg-white/8'
       }`}
-      style={flash ? { boxShadow: 'inset 0 0 0 2px #ffd84a' } : selected ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : target ? { boxShadow: 'inset 2px 0 0 #6ee07a' } : issue ? { boxShadow: 'inset 3px 0 0 #ff6b6b' } : undefined}
+      style={done ? { boxShadow: 'inset 0 0 0 2px #6ee07a' } : flash ? { boxShadow: 'inset 0 0 0 2px #ffd84a' } : selected ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : target ? { boxShadow: 'inset 2px 0 0 #6ee07a' } : issue ? { boxShadow: 'inset 3px 0 0 #ff6b6b' } : undefined}
       data-issue={issue || undefined}
+      data-done={done || undefined}
     >
       <span className="w-9 shrink-0 text-[10px] text-white/55">{lead}</span>
       <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
@@ -55,22 +58,32 @@ function Row({
         {p.star >= 70 && <span className="ml-0.5 text-[10px] text-hi">★</span>}
         {tag && <span className="ml-1 bg-bad/25 px-1 text-[10px] text-bad">{tag}</span>}
       </span>
-      {up ? (
+      {fix ? (
         <span
           role="button"
-          className="shrink-0 bg-good/20 px-1 py-0.5 text-[10px] text-good mob:px-1.5 mob:py-1 mob:text-[11px]"
+          data-fix={fix.kind}
+          className="flex shrink-0 items-center whitespace-nowrap bg-good/20 px-1 py-0.5 text-[10px] text-good hover:bg-good/35 mob:min-h-8 mob:px-1.5 mob:text-[11px]"
+          style={{ boxShadow: '0 0 0 1px #6ee07a88' }}
           onClick={(e) => {
             e.stopPropagation();
-            up.onClick();
+            fix.onClick();
           }}
         >
-          ▲{up.label}
+          {fix.label}
+          {fix.effect && <span className="text-white"> · {fix.effect}</span>}
         </span>
       ) : (
         <span className="shrink-0 text-[10px] text-white/70 mob:text-[11px]">{stat}</span>
       )}
     </button>
   );
+}
+
+interface Fix {
+  kind: 'bench' | 'pos' | 'arm';
+  label: string; // "▲벤치 72", "⇄ 제자리"
+  effect: string; // 누르기 전에 보이는 결과 ("타선 +4 · 수비 +3")
+  onClick: () => void;
 }
 
 const batStat = (p: Player) => (
@@ -194,6 +207,35 @@ export function TeamBar({ team }: { team: Team }) {
   );
 }
 
+/** 전력 변화 중 가장 큰 1~2칸: "타선 +4 · 수비 +3" */
+function partsDelta(a: TeamParts, b: TeamParts): string {
+  return PART_LABEL.map(([k, label]) => ({ label, d: b[k] - a[k] }))
+    .filter((x) => x.d !== 0)
+    .sort((x, y) => Math.abs(y.d) - Math.abs(x.d))
+    .slice(0, 2)
+    .map((x) => `${x.label} ${x.d > 0 ? '+' : '−'}${Math.abs(x.d)}`)
+    .join(' · ');
+}
+
+/** 편성을 이렇게 바꾸면 전력이 어떻게 변하는가 (복제본에만 적용) */
+function editEffect(team: Team, edit: (t: Team) => void): string {
+  const t: Team = { ...team, lineup: team.lineup.map((l) => ({ ...l })), rotation: [...team.rotation], bullpen: [...team.bullpen] };
+  edit(t);
+  return partsDelta(teamParts(team), teamParts(t));
+}
+
+const DONE_MS = 1000;
+/** 칩으로 방금 고친 줄들 (1초간 초록) */
+function useDone(): [string[], (...pids: string[]) => void] {
+  const [done, setDone] = useState<string[]>([]);
+  useEffect(() => {
+    if (!done.length) return;
+    const id = setTimeout(() => setDone([]), DONE_MS);
+    return () => clearTimeout(id);
+  }, [done]);
+  return [done, (...pids) => !useStore.getState().playback && setDone(pids)];
+}
+
 /** 방금 영입한 선수의 자리를 잠깐 강조하고 그 줄로 스크롤한다 */
 function useFlash(box: React.RefObject<HTMLDivElement | null>): string | null {
   const flash = useStore((s) => s.flash);
@@ -214,6 +256,22 @@ function useFlash(box: React.RefObject<HTMLDivElement | null>): string | null {
 
 /** 본 포지션이 아닌 자리에서 수비가 깎이는 주전인지 */
 const offPos = (p: Player, pos: BatPos): boolean => pos !== 'DH' && p.pos !== pos && effDef(p, pos) < p.def;
+
+/**
+ * 제자리 찾기: i번 주전의 본 포지션 자리에 서 있는 주전의 슬롯.
+ * 둘이 수비 위치를 맞바꿔 낯선 자리 페널티 합이 줄 때만 (아니면 -1)
+ */
+function homeSwap(team: Team, byId: Map<string, Player>, i: number): number {
+  const a = team.lineup[i];
+  const p = a && byId.get(a.pid);
+  if (!p) return -1;
+  const j = team.lineup.findIndex((l) => l.pos === p.pos);
+  const q = j >= 0 && j !== i ? byId.get(team.lineup[j].pid) : undefined;
+  if (!q) return -1;
+  const b = team.lineup[j];
+  const pen = (x: Player, pos: BatPos) => (pos === 'DH' ? 0 : x.def - effDef(x, pos));
+  return pen(p, b.pos) + pen(q, a.pos) < pen(p, a.pos) + pen(q, b.pos) ? j : -1;
+}
 
 /** 벤치에 그 자리를 볼 수 있는 더 높은 OVR 이 있는 주전 (지명타자 자리는 다른 줄에 안 걸린 선수만) */
 function betterBats(team: Team): Map<string, Player> {
@@ -310,6 +368,41 @@ export function LineupTab({ order = false }: { order?: boolean }) {
   const benchRef = useRef<HTMLDivElement>(null);
   const flashPid = useFlash(box);
   const better = useMemo(() => betterBats(team), [team]);
+  const [done, markDone] = useDone();
+  // 줄마다 한 번 탭으로 고치는 칩: 벤치의 더 나은 타자가 먼저, 없으면 제자리 찾기
+  const fixes = useMemo(() => {
+    const out = new Map<string, Fix>();
+    team.lineup.forEach((l, i) => {
+      const p = byId.get(l.pid);
+      if (!p) return;
+      const cand = better.get(p.id);
+      if (cand) {
+        out.set(p.id, {
+          kind: 'bench',
+          label: `▲벤치 ${cand.ovr}`,
+          effect: editEffect(team, (t) => (t.lineup[i].pid = cand.id)),
+          onClick: () => {
+            substitute(i, cand.id);
+            markDone(cand.id);
+          },
+        });
+        return;
+      }
+      const j = offPos(p, l.pos) ? homeSwap(team, byId, i) : -1;
+      if (j < 0) return;
+      const other = team.lineup[j].pid;
+      out.set(p.id, {
+        kind: 'pos',
+        label: '⇄ 제자리',
+        effect: editEffect(team, (t) => ([t.lineup[i].pos, t.lineup[j].pos] = [t.lineup[j].pos, t.lineup[i].pos])),
+        onClick: () => {
+          swapPos(i, j);
+          markDone(p.id, other);
+        },
+      });
+    });
+    return out;
+  }, [team, byId, better]);
   // 교체 모드로 들어가면 후보(벤치)가 바로 보이게
   useEffect(() => {
     if (swap === 'order' && selSlot >= 0) benchRef.current?.scrollIntoView({ block: 'start' });
@@ -354,7 +447,7 @@ export function LineupTab({ order = false }: { order?: boolean }) {
           const p = byId.get(l.pid);
           if (!p) return null;
           const off = offPos(p, l.pos);
-          const up = swap ? undefined : better.get(p.id);
+          const fix = swap ? undefined : fixes.get(p.id);
           return (
             <Row
               key={l.pid}
@@ -368,9 +461,10 @@ export function LineupTab({ order = false }: { order?: boolean }) {
               selected={sel === p.id}
               target={isTarget(p.id)}
               onClick={() => click(p.id)}
-              tag={off ? `본 ${POS_KO[p.pos as BatPos]}` : undefined}
-              up={up ? { label: `벤치 ${up.ovr}`, onClick: () => { setSel(p.id); setSwap('order'); } } : undefined}
+              tag={off && !fix ? `본 ${POS_KO[p.pos as BatPos]}` : undefined}
+              fix={fix}
               flash={flashPid === p.id}
+              done={done.includes(p.id)}
               issue={order && (off || better.has(p.id))}
             />
           );
@@ -423,6 +517,7 @@ export function PitchersTab({ order = false }: { order?: boolean }) {
   const penRef = useRef<HTMLDivElement>(null);
   const flashPid = useFlash(box);
   const better = useMemo(() => betterArms(team), [team]);
+  const [done, markDone] = useDone();
   const selInRot = !!sel && (team.rotation.includes(sel) || team.closer === sel);
   useEffect(() => {
     if (swap && selInRot) penRef.current?.scrollIntoView({ block: 'start' });
@@ -457,6 +552,20 @@ export function PitchersTab({ order = false }: { order?: boolean }) {
     if (!p) return null;
     const inRot = team.rotation.includes(pid);
     const up = swap ? undefined : better.get(pid);
+    const fix: Fix | undefined = up && {
+      kind: 'arm',
+      label: `▲${up.from} ${up.cand.ovr}`,
+      effect: editEffect(team, (t) => {
+        const la = pitcherLoc(t, pid);
+        const lb = pitcherLoc(t, up.cand.id);
+        putPitcher(t, la, up.cand.id);
+        putPitcher(t, lb, pid);
+      }),
+      onClick: () => {
+        swapPitchers(pid, up.cand.id);
+        markDone(up.cand.id);
+      },
+    };
     return (
       <Row
         key={pid}
@@ -466,9 +575,10 @@ export function PitchersTab({ order = false }: { order?: boolean }) {
         selected={sel === pid}
         target={swap && !!sel && sel !== pid}
         onClick={() => click(pid)}
-        tag={inRot && p.pos !== 'SP' ? `본 ${POS_KO[p.pos]}` : !inRot && p.pos === 'SP' ? '본 선발' : p.pos === 'CP' && team.closer !== pid ? '본 마무리' : undefined}
-        up={up ? { label: `${up.from} ${up.cand.ovr}`, onClick: () => { setSel(pid); setSwap(true); } } : undefined}
+        tag={fix ? undefined : inRot && p.pos !== 'SP' ? `본 ${POS_KO[p.pos]}` : !inRot && p.pos === 'SP' ? '본 선발' : p.pos === 'CP' && team.closer !== pid ? '본 마무리' : undefined}
+        fix={fix}
         flash={flashPid === pid}
+        done={done.includes(pid)}
         issue={order && better.has(pid)}
       />
     );
@@ -630,9 +740,17 @@ const TABS: { id: LeftTab; label: string }[] = [
 ];
 
 /** [자동 편성]: 감독이 승복하기 전(0장 클리어 전)에는 "감독에게 맡기기"다 */
-export function AutoButton({ className = '!px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]' }: { className?: string }) {
+export function AutoButton({ className = '!px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]', order = false }: { className?: string; order?: boolean }) {
   const auto = useStore((s) => s.auto);
   const yielded = useStore((s) => !!s.campaign.managerYielded);
+  // 오더지 안, 승복 전: 감독의 편성으로 되돌리는 버튼이라 작게 둔다
+  if (order && !yielded) {
+    return (
+      <button className="shrink-0 cursor-pointer self-center px-1 text-[11px] text-white/50 underline hover:text-white/80 mob:min-h-11" data-testid="order-reset" onClick={auto}>
+        감독의 원래 오더로
+      </button>
+    );
+  }
   return (
     <button
       className={`px-btn ${className}`}
