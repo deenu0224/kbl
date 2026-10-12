@@ -249,7 +249,7 @@ function manage(fld: Side, bat: Side, inning: number, atStart: boolean): void {
     const key = inning >= 7 && lead >= -2;
     const order = key ? fld.pen : fld.pen.slice().reverse();
     const tired = (p: Player) => p.tired ?? 0;
-    next = (key ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2) ?? order[0];
+    next = (key ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2) ?? order.reduce((a, p) => (tired(p) < tired(a) ? p : a));
     fld.pen.splice(fld.pen.indexOf(next), 1);
   } else if (fld.closer) {
     next = fld.closer;

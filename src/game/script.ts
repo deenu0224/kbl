@@ -360,8 +360,8 @@ export function startSeasonScriptMut(core: Core, rng: Rng): void {
   if (core.day !== 0) return;
 
   const t = userTeam(core);
-  // 0장: 고장 난 타순 (감독이 승복하기 전까지, 재도전 때마다)
-  if (stage === 0 && !c.managerYielded) {
+  // 0장: 고장 난 타순 — 부임 첫 시즌에만. 재도전 때는 유저가 고쳐 둔 편성을 그대로 둔다
+  if (stage === 0 && !c.managerYielded && c.history.length === 0) {
     breakLineup(t);
     fixLineup(t);
     addNews(core, NEWS.brokenLineup, 'info');
