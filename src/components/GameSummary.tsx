@@ -167,7 +167,10 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
                 ✚ {x.name} 부상 ({x.games}경기 결장)
               </div>
             ))}
-          {r.notes.slice(0, 6).map((t, i) => (
+          {r.notes
+            .filter((t) => !t.startsWith('부상: ')) /* 부상은 위의 ✚ 줄로 이미 나왔다 */
+            .slice(0, 6)
+            .map((t, i) => (
             <div key={i} className="text-[10px] leading-snug text-white/80">
               · {t}
             </div>

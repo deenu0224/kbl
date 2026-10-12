@@ -15,6 +15,7 @@ export const TRUST_START = 60;
 export const TRUST_MAX = 100;
 export const STAR_TRUST = 5; // 별 1개당 도민 지지
 export const MAX_JUMP = 2; // 월반 포함 한 번에 오를 수 있는 최대 장 수
+export const STOP_INJ_GAP = 3; // 부상으로 일괄 진행을 멈춘 뒤 이 경기 수 안에는 부상으로 다시 멈추지 않는다
 export const MID_FAIL_TRUST = 5; // 중간 점검에서 출자를 받고 깃발 실패 시 추가 감소
 export const MID_UP_FAIL_TRUST = 12; // 목표 상향을 약속하고 깃발 실패 시 추가 감소
 export const MID_UP_MULT = 2; // 목표 상향 약속 성공 시 깃발 지원금 배율
@@ -636,15 +637,24 @@ export function sceneExtras(core: Core): Pick<StadiumScene, 'oldBanner' | 'gateQ
 
 // ───────── 일괄 진행의 정지 (3절) ─────────
 
-/** 방금 치른 경기(report) 뒤에 일괄 진행을 멈춰야 하면 그 이유 (토스트용) */
+/** 방금 치른 경기(report) 뒤에 일괄 진행을 멈춰야 하면 그 이유 (토스트용). 부상으로 멈춘 날은 core 의 시즌 메모에 적는다 */
 export function stopReason(core: Core, report: DayReport): string | null {
   const c = core.campaign;
   if (c.event) return `${c.event.icon} ${c.event.title}`;
   if (core.phase !== 'season') return null;
+  // 주전 부상: OVR 기준 타자 상위 9명 또는 선발 로테이션 상위 3명. 한 번 멈춘 뒤 STOP_INJ_GAP 경기 안에는 같은 사유로 다시 멈추지 않는다
   const t = userTeam(core);
-  const key = new Set([...t.lineup.map((s) => s.pid), ...t.rotation, ...(t.closer ? [t.closer] : [])]);
+  const byOvr = (a: Player, b: Player) => b.ovr - a.ovr;
+  const rot = new Set(t.rotation);
+  const key = new Set([
+    ...t.roster.filter((p) => p.kind === 'B').sort(byOvr).slice(0, 9).map((p) => p.id),
+    ...t.roster.filter((p) => rot.has(p.id)).sort(byOvr).slice(0, 3).map((p) => p.id),
+  ]);
   const hurt = report.result.injuries.find((j) => j.teamId === core.userId && key.has(j.pid));
-  if (hurt) return `주전 부상: ${hurt.name} ${hurt.games}경기 결장`;
+  if (hurt && core.day - memoNum(core, 'injStop', -99) > STOP_INJ_GAP) {
+    memoSet(core, 'injStop', core.day);
+    return `주전 부상: ${hurt.name} ${hurt.games}경기 결장`;
+  }
   const b = (c.beats ?? []).find((x) => (x.part === 'jeon' || x.part === 'gyeol') && x.from === core.day);
   if (b) return b.label ? `다음 경기부터 ${b.icon ?? ''} ${b.label}`.replace('  ', ' ') : '시즌의 흐름이 바뀝니다';
   return null;

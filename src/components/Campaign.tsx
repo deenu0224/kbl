@@ -87,8 +87,12 @@ function useCampaign(): { c: Campaign; core: Core; main: Objective | undefined; 
  * line: 한 줄(모바일 세로) / 기본: 두 줄(데스크톱·모바일 가로)
  */
 export function CampaignChip({ line = false, className = '' }: { line?: boolean; className?: string }) {
-  const { c, core, main, stars } = useCampaign();
+  const { c: now, core, main, stars: starsNow } = useCampaign();
   const open = useUi((s) => s.setCampaignOpen);
+  // 결산 화면이 변화를 연출하기 전(마지막 경기 요약이 떠 있는 동안)에는 결산 전의 장·지지·별을 보여 준다
+  const v = core.phase === 'ended' ? now.verdict : null;
+  const c = v ? { ...now, stage: v.stageBefore, trust: v.trustBefore } : now;
+  const stars = v ? starsNow.map((o): Objective => (v.newAchievements.includes(o.id) || o.state === 'failed' ? { ...o, state: 'open' } : o)) : starsNow;
   const flag = main ? objDisplay(core, main) : null;
   const flagDone = !!flag?.met;
   const flagBar = <Bar ratio={flag?.ratio ?? 0} color={flagDone ? '#6ee07a' : '#ffd84a'} h={5} />;

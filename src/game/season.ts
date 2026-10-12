@@ -12,7 +12,7 @@ import {
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
 import { activeBuffs, fillObjectivesMut, hintMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
-import { JETLAG_FOCUS, beatById, jetLag, scriptTickMut, weatherFor } from './script';
+import { JETLAG_FOCUS, POS_NAME, beatById, jetLag, scriptTickMut, weatherFor } from './script';
 import { memoAdd, memoGet, memoSet } from './memo';
 import { NEWS, OVER_LABEL } from './story';
 import { isFranchise } from './franchise';
@@ -588,7 +588,7 @@ function aiStoveLeague(core: Core, rng: Rng): void {
       const [p] = pool.splice(i, 1);
       t.roster.push(p);
       autoLineup(t);
-      addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${p.pos} OVR${p.ovr}) 영입`, 'info');
+      addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${POS_NAME[p.pos] ?? p.pos} OVR ${p.ovr}) 영입`, 'info');
     }
     // 정원 초과 → 남는 쪽(타자/투수)의 최하위부터 방출
     while (t.roster.length > AI_ROSTER) {
@@ -654,6 +654,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   core.freeAgents = genFreeAgents(ctx);
   for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
   core.schedule = buildSchedule(core.teams.map((t) => t.id), rng);
+  core.crowd = null; // 관중 칩·게이트 줄은 개막 전으로
   core.finance.ledger = ledgerZero();
   core.attHistory = [];
   core.cashHistory = [core.finance.cash];
