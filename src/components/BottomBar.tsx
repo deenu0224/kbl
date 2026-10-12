@@ -152,7 +152,7 @@ export function MobileActionBar() {
       <span className="min-w-0 truncate">vs {opp.name}</span>
       <span className={`shrink-0 text-[11px] ${inPost ? 'text-hi' : 'text-white/50'}`}>
         {whenShort}
-        {!inPost && ` · ${opp.rec.w}승${opp.rec.l}패`}
+        {!inPost && ` · 상대 ${opp.rec.w}승${opp.rec.l}패`}
       </span>
     </div>
   ) : (

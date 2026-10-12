@@ -324,10 +324,14 @@ export function MarketTab() {
   const [sel, setSel] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'B' | 'P'>('all');
 
-  const list = useMemo(
-    () => freeAgents.filter((p) => filter === 'all' || p.kind === filter).sort((a, b) => b.ovr - a.ovr),
-    [freeAgents, filter],
-  );
+  // 스카우트 팀장의 명단은 시장 맨 위에 따로 올린다 (맨 앞이 그가 고른 선수)
+  const scoutIds = useStore((s) => s.campaign.eventsSeen.find((x) => x.startsWith('~scoutList='))?.slice(11) ?? '');
+  const list = useMemo(() => {
+    const ids = scoutIds ? scoutIds.split(',') : [];
+    const rank = (p: Player) => (ids.includes(p.id) ? ids.indexOf(p.id) - 9 : 0);
+    return freeAgents.filter((p) => filter === 'all' || p.kind === filter).sort((a, b) => rank(a) - rank(b) || b.ovr - a.ovr);
+  }, [freeAgents, filter, scoutIds]);
+  const scoutPick = scoutIds.split(',')[0];
   const selP = sel ? freeAgents.find((p) => p.id === sel) : undefined;
   const full = team.roster.length >= ROSTER_MAX;
   const bonus = selP ? signingBonus(selP) : 0;
@@ -373,6 +377,12 @@ export function MarketTab() {
                 <span className="flex items-center gap-1.5 text-[10px]">
                   <Stars star={p.star} />
                   {p.pot - p.ovr >= 6 && <span className="text-good">잠재 {p.pot}</span>}
+                  {scoutIds.includes(p.id) && (
+                    <span className={`truncate ${p.id === scoutPick ? 'text-hi' : 'text-sky'}`}>
+                      📋 {p.id === scoutPick ? '팀장 추천 · ' : ''}
+                      {(p.tag ?? '스카우트 명단').replace('스카우트 명단 · ', '')}
+                    </span>
+                  )}
                 </span>
               </span>
               <span className="shrink-0 text-right text-[10px] leading-tight">
