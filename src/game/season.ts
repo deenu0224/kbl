@@ -1,6 +1,6 @@
-import type { Core, Crowd, DayReport, FacilityKind, Player, Team, Weather } from './types';
+import type { Core, Crowd, DayReport, FacilityKind, GameResult, Player, Team, Weather } from './types';
 import { clamp, gauss, randInt, pick, type Rng } from './rng';
-import { calcOvr, calcSalary } from './ratings';
+import { calcOvr, calcSalary, teamStrength } from './ratings';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
 import { buildSchedule } from './schedule';
 import { simulateGame } from './sim';
@@ -8,9 +8,13 @@ import { fmtInt, fmtMoney } from './format';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   OPS_COST, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, RAIN_FOOD, FORCED_SALE_RATE,
-  calcDemand, opProfit, payroll, refPrice, releaseCost, signingBonus, starPower, upgradeCost, userTeam,
+  calcDemand, capacityOf, opProfit, payroll, refPrice, releaseCost, signingBonus, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
+import { activeBuffs, checkAchievementsMut, fillObjectivesMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
+import { afterRegularSeasonMut, playPostDayMut } from './postseason';
+import { isDraftDone } from './draft';
+import { FOREIGN_MAX } from './events';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -30,6 +34,13 @@ const DECLINE_RATE = 0.06;
 const NEWS_MAX = 80;
 const RETIRE_AGE = 40;
 const DOW_NAME = ['화', '수', '목', '금', '토', '일'];
+// 스토브리그 (AI 구단)
+const AI_ROSTER = 23; // AI 구단 로스터 정원 (초과분 방출)
+const AI_ROSTER_B = 13; // 타자 / 투수 기준 구성
+const AI_SIGN_MIN = 0; // AI 구단당 FA 영입 수 (0~1, 리그 전력 인플레 방지)
+const AI_SIGN_EXTRA = 0.5; // 1명 영입 확률
+const AI_SIGN_MARGIN = 2; // 기존 주전 최저 OVR 보다 이만큼 나아야 영입
+const AI_SIGN_TIER = 3; // 팀 전력 + 이 값을 넘는 FA 는 영입하지 않음
 const FAC_NAME: Record<FacilityKind, string> = { seats: '관중석', food: '매점', training: '훈련장' };
 const ABIL_KO: Record<string, string> = {
   con: '컨택', pow: '파워', eye: '선구안', spd: '주력', def: '수비', stf: '구위', ctl: '제구', sta: '체력',
@@ -56,7 +67,7 @@ export function rankOf(teams: Team[], id: string): number {
   return i < 0 ? teams.length : i + 1;
 }
 
-function addNews(core: Core, text: string, tone: 'good' | 'bad' | 'info'): void {
+export function addNews(core: Core, text: string, tone: 'good' | 'bad' | 'info'): void {
   core.news.unshift({ id: core.newsSeq++, season: core.season, day: core.day, text, tone });
   if (core.news.length > NEWS_MAX) core.news.length = NEWS_MAX;
 }
@@ -80,13 +91,13 @@ function applyResult(t: Team, rs: number, ra: number): void {
   if (r.last10.length > 10) r.last10.shift();
 }
 
-function rollWeather(rng: Rng): Weather {
+export function rollWeather(rng: Rng): Weather {
   const x = rng();
   return x < 0.6 ? 'sunny' : x < 0.85 ? 'cloudy' : 'rain';
 }
 
 /** 현금이 음수면 긴급 대출, 부채 한도 초과면 최고 연봉 선수 강제 매각 */
-function settleCash(core: Core, notes: string[]): void {
+export function settleCash(core: Core, notes: string[]): void {
   const f = core.finance;
   if (f.cash < 0) {
     const need = -f.cash;
@@ -143,11 +154,59 @@ function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
   }
 }
 
+type AbilKeyAll = AbilKey;
+const ALL_KEYS: AbilKeyAll[] = [...BAT_KEYS, ...PIT_KEYS];
+
+/** 이벤트 집중력 버프: 경기 중에만 능력치를 가감하고 되돌리는 함수를 반환 */
+function applyFocus(t: Team, d: number): () => void {
+  const saved = t.roster.map((p) => ALL_KEYS.map((k) => p[k]));
+  for (const p of t.roster) for (const k of p.kind === 'B' ? BAT_KEYS : PIT_KEYS) p[k] = clamp(p[k] + d, 20, 99);
+  return () => t.roster.forEach((p, i) => ALL_KEYS.forEach((k, j) => (p[k] = saved[i][j])));
+}
+
+/** 은퇴 투어 등 고정 출전 선수를 타선에 넣는다 */
+function forceStarter(t: Team, pid: string): void {
+  const p = t.roster.find((x) => x.id === pid);
+  if (!p || p.kind !== 'B' || p.injury > 0 || t.lineup.some((s) => s.pid === pid)) return;
+  const slot = t.lineup.find((s) => s.pos === p.pos) ?? t.lineup.find((s) => s.pos === 'DH');
+  if (slot) slot.pid = pid;
+}
+
+/**
+ * 한 경기 시뮬 (정규시즌·포스트시즌 공용). core 가 있으면 유저 구단에 훈련장 부상 보정과
+ * 이벤트 버프(집중력·고정 출전)를 적용한다. 팀/선수는 simulateGame 과 같이 mutate.
+ */
+export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, track: boolean): GameResult {
+  const injMult: Record<string, number> = {};
+  let restore: (() => void) | null = null;
+  if (core) {
+    injMult[core.userId] = TRAIN_LV[core.facilities.training].inj;
+    const ut = home.id === core.userId ? home : away.id === core.userId ? away : null;
+    if (ut) {
+      const fx = activeBuffs(core);
+      if (fx.fixedPid) forceStarter(ut, fx.fixedPid);
+      if (fx.focus) restore = applyFocus(ut, fx.focus);
+    }
+  }
+  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId });
+  restore?.();
+  return res;
+}
+
 export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayReport } {
+  if (core0.campaign?.event) throw new Error('이벤트 카드를 먼저 처리하세요');
+  if (core0.phase === 'post') {
+    const core = structuredClone(core0);
+    fillObjectivesMut(core, rng);
+    const report = playPostDayMut(core, rng);
+    return { core, report };
+  }
   if (core0.phase !== 'season' || core0.day >= core0.schedule.length) {
     throw new Error('시즌이 이미 종료되었습니다');
   }
   const core = structuredClone(core0);
+  fillObjectivesMut(core, rng);
+  const fx = activeBuffs(core);
   const day = core.day;
   const dow = day % WEEK;
   const night = dow < 4;
@@ -167,7 +226,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   if (isHome) {
     const weather = rollWeather(rng);
     const demand = calcDemand(core, { dow, weather, oppPop: opp.pop, noise: clamp(1 + gauss(rng) * NOISE_SD, 0.8, 1.2) });
-    const capacity = SEAT_LV[core.facilities.seats].cap;
+    const capacity = capacityOf(core);
     const attendance = Math.min(capacity, demand);
     crowd = { attendance, capacity, demand, turnedAway: Math.max(0, demand - capacity), soldOut: demand >= capacity, weather };
   }
@@ -178,14 +237,13 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     fixLineup(t);
     for (const p of t.roster) if (p.injury > 0) injuredBefore.add(p.id);
   }
-  const injMult = { [core.userId]: TRAIN_LV[core.facilities.training].inj };
   let result: DayReport['result'] | undefined;
   const others: DayReport['others'] = [];
   for (const g of games) {
     const home = byId.get(g.homeId)!;
     const away = byId.get(g.awayId)!;
     const isMine = g === mine;
-    const res = simulateGame(home, away, rng, { track: isMine, injMult, focusId: core.userId });
+    const res = playGame(core, home, away, rng, isMine);
     applyResult(home, res.home, res.away);
     applyResult(away, res.away, res.home);
     if (isMine) result = res;
@@ -219,13 +277,13 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const rankNow = rankOf(core.teams, core.userId);
   const price = f.ticketPrice;
   const att = crowd ? crowd.attendance : 0;
-  const ticket = Math.round(att * price);
-  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * (crowd.weather === 'rain' ? RAIN_FOOD : 1)) : 0;
-  const merch = Math.round(core.fans * MERCH_K * (starPower(user) / 100) * (isHome ? 1.4 : 0.6));
+  const ticket = Math.round(att * price * fx.ticket);
+  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * (crowd.weather === 'rain' ? RAIN_FOOD : 1)) : 0;
+  const merch = Math.round(core.fans * MERCH_K * (starPower(user) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
   const league = Math.round(LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rankNow) * LEAGUE_PER_RANK);
   const salary = Math.round(payroll(user) / core.schedule.length);
   const upkeep =
-    (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep : 0) +
+    (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
     TRAIN_LV[core.facilities.training].upkeep +
     OPS_COST;
   const interest = Math.round((f.debt * LOAN_RATE) / core.schedule.length);
@@ -243,7 +301,10 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   // ── 팬 ──
   let dFans = won === null ? FAN_TIE : won ? FAN_WIN : FAN_LOSS;
   if (crowd) {
-    if (crowd.soldOut) dFans += FAN_SELLOUT;
+    if (crowd.soldOut) {
+      dFans += FAN_SELLOUT;
+      core.campaign.sellouts++;
+    }
     dFans += (core.fanSat - 50) * FAN_SAT_K;
     const l10 = user.rec.last10;
     const form = l10.reduce((s, v) => s + v, 0) / Math.max(1, l10.length);
@@ -289,9 +350,15 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   if (day >= 8 && rankAfter !== rankBefore) {
     notes.push(rankAfter < rankBefore ? `순위 상승: ${rankBefore}위 → ${rankAfter}위` : `순위 하락: ${rankBefore}위 → ${rankAfter}위`);
   }
+  tickBuffs(core, isHome);
   if (core.day >= core.schedule.length) {
-    core.phase = 'ended';
-    addNews(core, `시즌 ${core.season} 종료 — 최종 ${rankAfter}위 (${user.rec.w}승 ${user.rec.l}패 ${user.rec.t}무)`, 'info');
+    addNews(core, `정규시즌 ${core.season} 종료 — 최종 ${rankAfter}위 (${user.rec.w}승 ${user.rec.l}패 ${user.rec.t}무)`, 'info');
+    refreshProgressMut(core);
+    afterRegularSeasonMut(core, rng); // 'post' 또는 (자동 시뮬 후) 'ended' + 결산
+  }
+  if (core.phase === 'season' || core.phase === 'post') {
+    refreshProgressMut(core);
+    checkAchievementsMut(core, false);
   }
   core.cashHistory.push(f.cash);
 
@@ -318,6 +385,9 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
   const fa = core0.freeAgents.find((p) => p.id === pid);
   if (!fa) return { core: core0, error: '영입 가능한 선수가 아닙니다' };
   if (userTeam(core0).roster.length >= ROSTER_MAX) return { core: core0, error: `로스터가 가득 찼습니다 (최대 ${ROSTER_MAX}명)` };
+  if (fa.foreign && userTeam(core0).roster.filter((p) => p.foreign).length >= FOREIGN_MAX) {
+    return { core: core0, error: `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다` };
+  }
   const bonus = signingBonus(fa);
   if (core0.finance.cash < bonus) return { core: core0, error: `계약금이 부족합니다 (필요 ${fmtMoney(bonus)})` };
 
@@ -428,17 +498,63 @@ function develop(p: Player, rng: Rng): void {
   p.pit = pitZero();
 }
 
+/** AI 구단 스토브리그: 남은 FA 중 전력 보강 1~2명 영입 후 정원 초과 최하위 방출 (mutate) */
+function aiStoveLeague(core: Core, rng: Rng): void {
+  const pool = core.freeAgents.slice().sort((a, b) => b.ovr - a.ovr);
+  // 약한 팀부터 고른다 (리그 평준화)
+  const ais = standings(core.teams).reverse().filter((t) => t.id !== core.userId);
+  for (const t of ais) {
+    const n = AI_SIGN_MIN + (rng() < AI_SIGN_EXTRA ? 1 : 0);
+    for (let k = 0; k < n; k++) {
+      const foreign = t.roster.filter((p) => p.foreign).length;
+      const weakest = (kind: 'B' | 'P') => {
+        const ids = kind === 'B' ? t.lineup.map((s) => s.pid) : [...t.rotation, ...(t.closer ? [t.closer] : [])];
+        const ovrs = t.roster.filter((p) => ids.includes(p.id)).map((p) => p.ovr);
+        return ovrs.length ? Math.min(...ovrs) : 0;
+      };
+      // 전력 tier 에 맞게: 주전 평균보다 크게 뛰어난 대어는 데려가지 않는다
+      const tier = teamStrength(t) + AI_SIGN_TIER;
+      const i = pool.findIndex((p) => (!p.foreign || foreign < FOREIGN_MAX) && p.ovr >= weakest(p.kind) + AI_SIGN_MARGIN && p.ovr <= tier);
+      if (i < 0) break;
+      const [p] = pool.splice(i, 1);
+      t.roster.push(p);
+      autoLineup(t);
+      addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${p.pos} OVR${p.ovr}) 영입`, 'info');
+    }
+    // 정원 초과 → 남는 쪽(타자/투수)의 최하위부터 방출
+    while (t.roster.length > AI_ROSTER) {
+      const nb = t.roster.filter((p) => p.kind === 'B').length;
+      const np = t.roster.length - nb;
+      const kind: 'B' | 'P' = nb - AI_ROSTER_B >= np - (AI_ROSTER - AI_ROSTER_B) ? 'B' : 'P';
+      if ((kind === 'B' && nb <= MIN_BATTERS) || (kind === 'P' && np <= MIN_PITCHERS)) break;
+      const worst = t.roster.filter((p) => p.kind === kind).sort((a, b) => a.ovr - b.ovr || b.age - a.age)[0];
+      t.roster = t.roster.filter((p) => p.id !== worst.id);
+    }
+    autoLineup(t);
+  }
+}
+
 export function nextSeason(core0: Core, rng: Rng): Core {
+  if (core0.phase === 'over') throw new Error('해임되어 더 이상 시즌을 진행할 수 없습니다');
+  if (core0.phase === 'draft' && !isDraftDone(core0)) throw new Error('드래프트가 아직 끝나지 않았습니다');
   const core = structuredClone(core0);
+  const drafted = new Set((core.draft?.log ?? []).map((l) => l.pid));
   core.season++;
   core.day = 0;
   core.phase = 'season';
 
-  const names = core.teams.flatMap((t) => t.roster.map((p) => p.name));
+  const names = [...core.teams.flatMap((t) => t.roster.map((p) => p.name)), ...core.freeAgents.map((p) => p.name)];
   const ctx = makeCtx(rng, `s${core.season}-`, names);
   const retired: string[] = [];
   for (const t of core.teams) {
     t.roster = t.roster.map((p) => {
+      if (drafted.has(p.id)) {
+        // 갓 지명된 신인: 성장/연봉 재산정 없이 데뷔
+        p.rookie = true;
+        return p;
+      }
+      delete p.rookie;
+      delete p.scout;
       develop(p, rng);
       if (p.age < RETIRE_AGE) return p;
       // 은퇴 → 같은 포지션 신인으로 충원
@@ -450,12 +566,18 @@ export function nextSeason(core0: Core, rng: Rng): Core {
     if (t.id === core.userId) fixLineup(t);
     else autoLineup(t);
   }
+  // 지난 시즌 남은 FA 로 AI 스토브리그 → 새 FA 시장
+  for (const p of core.freeAgents) develop(p, rng);
+  aiStoveLeague(core, rng);
   core.freeAgents = genFreeAgents(ctx);
   core.schedule = buildSchedule(core.teams.map((t) => t.id), rng);
   core.finance.ledger = ledgerZero();
   core.attHistory = [];
   core.cashHistory = [core.finance.cash];
   core.fanSat = Math.round((core.fanSat * 0.7 + 50 * 0.3) * 10) / 10;
+  core.post = null;
+  core.draft = null;
+  resetSeasonCampaignMut(core, rng);
   for (const n of retired) addNews(core, `${n} 은퇴 — 신인 선수가 자리를 채웁니다`, 'info');
   addNews(core, `시즌 ${core.season} 개막! 연봉이 재산정되고 새 FA 시장이 열렸습니다`, 'info');
   return core;

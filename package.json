@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "balance": "tsx scripts/balance.ts"
+    "balance": "tsx scripts/balance.ts",
+    "campaign": "tsx scripts/campaign.ts"
   },
   "dependencies": {
     "galmuri": "^2.40.3",
