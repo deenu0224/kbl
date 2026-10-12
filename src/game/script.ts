@@ -23,6 +23,8 @@ export const RAIN_RAINY = 0.6; // 장마 구간 비 확률
 export const JETLAG_GAMES = 6; // 원정 연속 이 경기 수 뒤 첫 홈경기
 export const JETLAG_FOCUS = -2; // 그 경기의 팀 컨디션
 const SERIES = 3;
+const OPENING_SUNNY = 3; // 개막 홈 3연전은 날씨 맑음 고정
+const KI_BLOCKS = 4; // 0장 기 구간: 첫 12경기(3연전 4번)
 const FA_DROUGHT_PRICE = 1.3; // 2장: 준척 FA 몸값
 const GEN_DROP: [number, number] = [4, 6]; // 세대교체: 능력치 하락 폭
 const GEN_DROP_MILD: [number, number] = [2, 3];
@@ -150,6 +152,8 @@ export function jetLag(core: Core, day: number): boolean {
 /** 그 경기일의 날씨. 장마 구간은 비 확률이 뛴다. */
 export function weatherFor(core: Core, day: number, rng: Rng): Weather {
   const x = rng();
+  // 개막 홈 3연전은 맑다 (정식 규칙)
+  if (day < OPENING_SUNNY && userGame(core, day)?.home) return 'sunny';
   const rain = beatOn(core, day, 'rainy') ? RAIN_RAINY : RAIN_BASE;
   if (x < rain) return 'rain';
   return x < rain + (1 - rain) * 0.3 ? 'cloudy' : 'sunny';
@@ -188,6 +192,7 @@ function arrangeSeries(core: Core, beat: Beat, projected: boolean): string[] {
   const targets = [b0, b0 + 1].filter((b) => b < nBlocks && b >= firstFree);
   // 다른 6연전 구간의 블록은 건드리지 않는다
   const locked = new Set<number>();
+  if (projected) for (let b = 0; b < openingBlocks(core); b++) locked.add(b);
   for (const o of core.campaign.beats ?? []) {
     if (o === beat || !SERIES_BEATS[o.id]) continue;
     const ob = Math.floor(o.from / SERIES);
@@ -230,6 +235,35 @@ function arrangeSeries(core: Core, beat: Beat, projected: boolean): string[] {
     }
   }
   return out;
+}
+
+/** 개막 전에 이미 자리가 정해진 앞쪽 블록 수 (개막 홈 3연전, 0장은 기 구간 4연속 시리즈) */
+function openingBlocks(core: Core): number {
+  return beatById(core, 'broken-lineup') ? KI_BLOCKS : 1;
+}
+
+/**
+ * 개막 일정. 매 시즌 개막 3연전은 홈이다.
+ * 0장의 기 구간(0~11경기)은 전력 하위 두 구단과의 3연전 4번: 홈 → 원정 → 홈 → 원정.
+ */
+function arrangeOpening(core: Core): void {
+  const nBlocks = Math.floor(core.schedule.length / SERIES);
+  const place = (tb: number, home: boolean, opp: string | null): boolean => {
+    for (let b = tb; b < nBlocks; b++) {
+      const g = userGame(core, b * SERIES);
+      if (!g || g.home !== home || (opp && g.oppId !== opp)) continue;
+      swapBlocks(core, b, tb);
+      return true;
+    }
+    return false;
+  };
+  if (!beatById(core, 'broken-lineup')) {
+    place(0, true, null);
+    return;
+  }
+  const [a, b] = opponentOrder(core, 'bottom', true);
+  const plan: [boolean, string][] = [[true, a], [false, a], [true, a], [false, b]];
+  plan.forEach(([home, opp], i) => place(i, home, opp) || place(i, home, null));
 }
 
 // ───────── 구간 효과 ─────────
@@ -337,6 +371,7 @@ export function startSeasonScriptMut(core: Core, rng: Rng): void {
   if (beatById(core, 'fa-drought')) faDroughtMut(core);
   memoSet(core, 'pay0', payroll(t));
   // 일정: 6연전 구간을 개막 전 전력 기준으로 먼저 깔아 둔다 (순위 연동 구간은 시즌 중 확정)
+  arrangeOpening(core);
   for (const b of c.beats) if (SERIES_BEATS[b.id]) arrangeSeries(core, b, true);
   if (core.season > 1) addNews(core, NEWS.fanLine(core.season), 'info');
 }
