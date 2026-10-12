@@ -31,6 +31,33 @@ function shade(hex: string, k: number): string {
   return `rgb(${f((n >> 16) & 255)},${f((n >> 8) & 255)},${f(n & 255)})`;
 }
 
+/**
+ * 인물(CHARACTERS) 전용 고정 외모: id 가 `char-<seed>` 일 때만 쓴다. 44px 에서도 한눈에 구분되게
+ * 모자 유무·머리색·안경·수염·옷 색을 인물마다 다르게 고정한다 (선수 초상 생성은 그대로).
+ */
+interface Look {
+  hat: boolean;
+  hair: string;
+  long?: boolean; // 어깨까지 내려오는 머리
+  glasses?: boolean;
+  beard?: 'full' | 'stache';
+  cloth: string; // 옷 색 (유니폼 대신)
+  trim?: string; // 옷깃·넥타이
+  skin: string;
+  wide?: boolean;
+  eye: number;
+  mouth: number;
+}
+const LOOKS: Record<string, Look> = {
+  'char-7101': { hat: true, hair: '#2b1d14', beard: 'stache', cloth: '#f4f4f4', skin: '#e0ac7e', wide: true, eye: 1, mouth: 0 }, // 감독: 구단 모자 · 콧수염 · 유니폼
+  'char-7102': { hat: false, hair: '#c8c8c8', glasses: true, cloth: '#6b4a2f', trim: '#e8dcc0', skin: '#eec39a', eye: 2, mouth: 1 }, // 스카우트 팀장: 백발 · 안경 · 갈색 점퍼
+  'char-7103': { hat: false, hair: '#8a4a2b', long: true, cloth: '#e86a8a', trim: '#ffffff', skin: '#f6d3b0', eye: 3, mouth: 2 }, // 마케팅 팀장: 긴 갈색 머리 · 분홍 블라우스
+  'char-7104': { hat: true, hair: '#1a1a1a', beard: 'full', cloth: '#3f8f5a', skin: '#c98d5e', wide: true, eye: 1, mouth: 1 }, // 2군 코치: 모자 · 턱수염 · 그을린 얼굴 · 초록 훈련복
+  'char-7105': { hat: true, hair: '#1a1a1a', glasses: true, cloth: '#2f4f8f', trim: '#cfd6ea', skin: '#eec39a', eye: 2, mouth: 0 }, // 투수 코치: 모자 · 안경 · 남색 바람막이
+  'char-7106': { hat: false, hair: '#9a9aa6', cloth: '#7a4f9a', trim: '#ffb347', skin: '#e8b98c', wide: true, eye: 0, mouth: 3 }, // 조합장: 회색 파마 · 보라 조끼 · 귤색 깃
+  'char-7107': { hat: false, hair: '#101014', glasses: true, cloth: '#22262f', trim: '#c0392b', skin: '#f6d3b0', eye: 1, mouth: 1 }, // 유치위원장: 검은 올백 · 안경 · 정장에 붉은 넥타이
+};
+
 /** 선수 id 를 시드로 16×16 픽셀 초상을 절차적으로 그린다. */
 function PixelFace({
   id,
@@ -57,27 +84,46 @@ function PixelFace({
       ctx.fillStyle = c;
       ctx.fillRect(x, y, w, h);
     };
-    const skin = foreign ? SKIN[Math.floor(r() * SKIN.length)] : SKIN_KR[Math.floor(r() * SKIN_KR.length)];
-    const hair = foreign ? HAIR_F[Math.floor(r() * HAIR_F.length)] : HAIR[Math.floor(r() * HAIR.length)];
-    const eyeStyle = Math.floor(r() * 4);
-    const mouth = Math.floor(r() * 4);
-    const brow = Math.floor(r() * 3);
-    const wide = r() < 0.4;
-    const beard = r() < (foreign ? 0.45 : 0.12);
-    const glasses = r() < 0.08;
-    const sideHair = r() < 0.6;
-    const eyeBlack = r() < 0.25; // 아이블랙
+    let skin = foreign ? SKIN[Math.floor(r() * SKIN.length)] : SKIN_KR[Math.floor(r() * SKIN_KR.length)];
+    let hair = foreign ? HAIR_F[Math.floor(r() * HAIR_F.length)] : HAIR[Math.floor(r() * HAIR.length)];
+    let eyeStyle = Math.floor(r() * 4);
+    let mouth = Math.floor(r() * 4);
+    let brow = Math.floor(r() * 3);
+    let wide = r() < 0.4;
+    let beard = r() < (foreign ? 0.45 : 0.12);
+    let glasses = r() < 0.08;
+    let sideHair = r() < 0.6;
+    let eyeBlack = r() < 0.25; // 아이블랙
+    const look = LOOKS[id];
+    if (look) {
+      skin = look.skin;
+      hair = look.hair;
+      eyeStyle = look.eye;
+      mouth = look.mouth;
+      brow = 2;
+      wide = !!look.wide;
+      beard = !!look.beard;
+      glasses = !!look.glasses;
+      sideHair = !look.hat;
+      eyeBlack = false;
+    }
 
     ctx.clearRect(0, 0, 16, 16);
     // 배경
     px(0, 0, 16, 16, shade(color, 0.42));
     px(0, 12, 16, 4, shade(color, 0.3));
 
-    // 유니폼 어깨
-    px(2, 13, 12, 3, '#f4f4f4');
-    px(2, 13, 1, 3, color);
-    px(13, 13, 1, 3, color);
-    px(7, 13, 2, 3, color2 === '#ffffff' ? color : color2);
+    // 유니폼 어깨 (인물은 제 옷)
+    if (look && !(look.hat && look.cloth === '#f4f4f4')) {
+      px(2, 13, 12, 3, look.cloth);
+      px(1, 14, 14, 2, look.cloth);
+      if (look.trim) px(7, 13, 2, 3, look.trim);
+    } else {
+      px(2, 13, 12, 3, '#f4f4f4');
+      px(2, 13, 1, 3, color);
+      px(13, 13, 1, 3, color);
+      px(7, 13, 2, 3, color2 === '#ffffff' ? color : color2);
+    }
     // 목
     px(6, 11, 4, 2, shade(skin, 0.86));
 
@@ -95,12 +141,25 @@ function PixelFace({
       px(fx + fw - 1, 5, 1, 2, hair);
     }
 
-    // 모자
-    px(fx, 2, fw, 3, color);
-    px(fx + 1, 1, fw - 2, 1, color);
-    px(fx, 2, fw, 1, shade(color, 1.2));
-    px(fx - 1, 5, fw + 2, 1, shade(color, 0.7)); // 챙
-    px(7, 2, 2, 2, color2); // 로고
+    if (look && !look.hat) {
+      // 맨머리: 정수리부터 이마까지 머리칼, 긴 머리는 어깨까지
+      px(fx, 2, fw, 3, hair);
+      px(fx + 1, 1, fw - 2, 1, hair);
+      px(fx - 1, 3, fw + 2, 3, hair);
+      px(fx + 1, 4, fw - 2, 1, shade(hair, 1.25));
+      px(fx + 2, 5, fw - 4, 1, skin); // 이마
+      if (look.long) {
+        px(fx - 1, 5, 2, 8, hair);
+        px(fx + fw - 1, 5, 2, 8, hair);
+      }
+    } else {
+      // 모자
+      px(fx, 2, fw, 3, color);
+      px(fx + 1, 1, fw - 2, 1, color);
+      px(fx, 2, fw, 1, shade(color, 1.2));
+      px(fx - 1, 5, fw + 2, 1, shade(color, 0.7)); // 챙
+      px(7, 2, 2, 2, color2); // 로고
+    }
 
     // 눈썹
     const ey = 7;
@@ -128,7 +187,14 @@ function PixelFace({
       px(lx + 1, ey + 1, 1, 1, '#1a1a1a');
       px(rx, ey + 1, 1, 1, '#1a1a1a');
     }
-    if (glasses) {
+    if (glasses && look) {
+      // 인물의 안경은 44px 에서도 보이게 테를 진하게
+      px(lx - 1, ey - 1, 4, 1, '#111');
+      px(rx - 1, ey - 1, 4, 1, '#111');
+      px(lx - 1, ey + 1, 4, 1, '#111');
+      px(rx - 1, ey + 1, 4, 1, '#111');
+      px(lx + 3, ey, Math.max(0, rx - lx - 4), 1, '#111');
+    } else if (glasses) {
       px(lx - 1, ey - 0, 4, 1, 'rgba(20,20,30,.55)');
       px(rx - 1, ey - 0, 4, 1, 'rgba(20,20,30,.55)');
       px(lx + 2, ey, rx - lx - 2, 1, '#222');
@@ -140,12 +206,14 @@ function PixelFace({
     // 코
     px(7, 8, 1, 1, shade(skin, 0.82));
     // 수염
-    if (beard) {
+    if (look?.beard === 'stache') {
+      px(6, 9, 4, 1, hair);
+    } else if (beard) {
       px(fx, 9, fw, 2, shade(hair, 1.25));
       px(fx + 1, 11, fw - 2, 1, shade(hair, 1.25));
     }
     // 입
-    const mc = beard ? '#f0d0c0' : '#8a3b32';
+    const mc = beard && look?.beard !== 'stache' ? '#f0d0c0' : '#8a3b32';
     if (mouth === 0) px(6, 10, 4, 1, mc);
     else if (mouth === 1) px(7, 10, 2, 1, mc);
     else if (mouth === 2) {

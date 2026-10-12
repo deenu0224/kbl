@@ -382,12 +382,14 @@ export interface BriefOffer {
   flag?: string; // 깃발 단위로 본 예상 ("예상 승수 +2")
   action: BriefAction;
   state?: 'done' | 'skipped';
+  rescue?: { t: 'release'; pid: string } | { t: 'borrow' }; // 자금 대응 제안: 있으면 action 대신 이것을 실행한다 (runway.ts)
 }
 export interface Briefing {
   day: number; // 이 경기일 직전에 열렸다
   summary: string; // 지난 6경기 한 줄
   results: string[]; // 지난주 실행한 제안의 결과
   offers: BriefOffer[];
+  alert?: string; // 조합장의 자금 경고 한 줄 (금고가 12경기 안에 빌 때만, 제안보다 위에)
 }
 /** 실행한 제안 (다음 주 브리핑의 결과 줄을 만들 재료) */
 export interface BriefDone {

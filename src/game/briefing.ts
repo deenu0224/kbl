@@ -4,7 +4,9 @@ import type { BatPos, BriefAction, BriefDone, BriefMemo, BriefOffer, Briefing, C
 import { teamParts, type TeamParts } from './ratings';
 import { FOOD_LV, LOAN_RATE, LOAN_STEP, ROSTER_MAX, SEAT_LV, TRAIN_LV, capacityOf, opProfit, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
-import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, rankOf, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
+import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
+import { RUNWAY_DANGER, runway, runwayAfter, runwayPieceOf, type Runway } from './runway';
+import { isFranchise } from './franchise';
 import { applyFixes, orderIssues, ploc, pput, tiredFront, todayIssues } from './fixes';
 import { stageOf } from './campaign';
 import { memoGet, memoNum } from './memo';
@@ -14,6 +16,9 @@ import { CHARACTERS } from './story';
 export const BRIEF_EVERY = 6; // 경기
 export const BRIEF_MAX = 3; // 한 번에 내는 제안 수
 export const SKIP_QUIET = 12; // 넘긴 제안은 이 경기 수(2주) 동안 다시 내지 않는다
+const SIGN_RUNWAY_MIN = 20; // 영입 제안: 실행 뒤 금고가 이 경기 수 안에 비면 내지 않는다
+const EARLY_DAYS = 12; // 시즌 첫 2주
+const EARLY_SALARY = 30000; // 첫 2주의 영입 제안은 연봉 3억 이하만
 const CASH_KEEP = 30000; // 시설·상환 제안은 실행 후에도 현금이 이만큼 남을 때만 (3억)
 
 const POS_NAME: Record<string, string> = { C: '포수', '1B': '1루', '2B': '2루', '3B': '3루', SS: '유격', LF: '좌익', CF: '중견', RF: '우익', DH: '지명', SP: '선발', RP: '불펜', CP: '마무리' };
@@ -59,6 +64,12 @@ function flagPiece(core: Core, o: { win?: number; att?: number }): string | unde
   return `예상 승수 ${w >= 0 ? '+' : '−'}${Math.abs(Math.round(w))}`;
 }
 
+/** 예상 결과 줄 끝에 붙는 자금 조각: 실행 뒤 금고가 30경기 안에 비거나 비는 시점이 달라질 때만 */
+function cashTail(before: Core, after: Core): string {
+  const s = runwayPieceOf(before, after);
+  return s ? ` · ${s}` : '';
+}
+
 function memoOf(core: Core): BriefMemo {
   const m = core.campaign.briefMemo;
   return m && m.season === core.season ? m : { season: core.season, done: [], skipped: {} };
@@ -79,7 +90,7 @@ function scoutOffer(core: Core): Cand | null {
   if (t.roster.length >= ROSTER_MAX) return null;
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const foreignFull = t.roster.filter((p) => p.foreign).length >= FOREIGN_MAX;
-  const can = (p: Player) => signingBonus(p) <= core.finance.cash && !(p.foreign && foreignFull) && p.injury === 0;
+  const can = (p: Player) => signingBonus(p) <= core.finance.cash && !(p.foreign && foreignFull) && p.injury === 0 && (core.day > EARLY_DAYS || p.salary <= EARLY_SALARY);
   // 자리별 현재 주전: 타순 9칸 + 선발 로테이션 맨 뒤
   const spots: { pos: string; cur: Player }[] = [];
   for (const l of t.lineup) {
@@ -103,6 +114,9 @@ function scoutOffer(core: Core): Cand | null {
     const after = teamParts(userTeam(r.core));
     const dw = winDelta(before, after);
     if (dw <= 0) continue;
+    // 금액 상한: 이 영입으로 금고가 20경기 안에 비게 되면 들고 오지 않는다
+    const out = runway(r.core).cashOut;
+    if (out !== null && out <= SIGN_RUNWAY_MIN) continue;
     const pos = POS_NAME[s.pos] ?? s.pos;
     const c = offer(
       30 + dw * 1000,
@@ -110,7 +124,7 @@ function scoutOffer(core: Core): Cand | null {
       'sign',
       'scout',
       oldEye ? `${pos} 자리엔 ${p.name}입니다. ${p.age}세, 제가 한창때부터 본 선수입니다.` : `${pos} 자리가 비어 보입니다. ${p.name}, ${p.age}세면 아직 쓸 만합니다.`,
-      `영입: ${pos} ${s.cur.ovr} → ${p.ovr} · ${partsText(before, after) || '전력 변화 없음'} · 연봉 +${fmtMoney(p.salary)} · 계약금 ${fmtMoney(signingBonus(p))}`,
+      `영입: ${pos} ${s.cur.ovr} → ${p.ovr} · ${partsText(before, after) || '전력 변화 없음'} · 연봉 +${fmtMoney(p.salary)} · 계약금 ${fmtMoney(signingBonus(p))}${cashTail(core, r.core)}`,
       { t: 'sign', pid: p.id },
       flagPiece(core, { win: dw }),
     );
@@ -161,7 +175,7 @@ function marketingOffer(core: Core): Cand | null {
         'gate',
         'marketing',
         '문 앞에서 돌아간 분들이 있었어요. 자리를 늘리면 다 들어오실 거예요!',
-        `관중석 증축 ${fmtMoney(cost)}: ${sign(add, '석')} · 최근 발길 돌린 팬 ${fmtInt(core.crowd?.turnedAway ?? 0)}명 · 홈경기당 수입 ${signMoney(then.income - now.income)} · 유지비 +${fmtMoney(lv.upkeep - SEAT_LV[core.facilities.seats].upkeep)}`,
+        `관중석 증축 ${fmtMoney(cost)}: ${sign(add, '석')} · 최근 발길 돌린 팬 ${fmtInt(core.crowd?.turnedAway ?? 0)}명 · 홈경기당 수입 ${signMoney(then.income - now.income)} · 유지비 +${fmtMoney(lv.upkeep - SEAT_LV[core.facilities.seats].upkeep)}${cashTail(core, r.core)}`,
         { t: 'upgrade', kind: 'seats' },
         flagPiece(core, { att: then.att - now.att }),
       );
@@ -222,7 +236,7 @@ function farmOffer(core: Core): Cand | null {
       'farm',
       'farm',
       '아이들이 칠 곳이 없습니다. 지금 지어야 내년에 씁니다.',
-      `훈련장 ${fmtMoney(cost)}: 주간 성장 ${Math.round(a.grow * 100)}% → ${Math.round(b.grow * 100)}% · 자랄 선수 ${growable}명 · 부상 −${Math.round((1 - b.inj) * 100)}% · 유지비 +${fmtMoney(b.upkeep - a.upkeep)}/경기`,
+      `훈련장 ${fmtMoney(cost)}: 주간 성장 ${Math.round(a.grow * 100)}% → ${Math.round(b.grow * 100)}% · 자랄 선수 ${growable}명 · 부상 −${Math.round((1 - b.inj) * 100)}% · 유지비 +${fmtMoney(b.upkeep - a.upkeep)}/경기${cashTail(core, upgradeFacility(core, 'training').core)}`,
       { t: 'upgrade', kind: 'training' },
     );
   }
@@ -262,6 +276,87 @@ function chairOffer(core: Core): Cand | null {
   return offer(20, 'repay', 'repay', 'chair', '빚이 있으면 조합원들이 잠을 못 잡니다. 여유가 있을 때 갚읍시다.', `${fmtMoney(amt)} 상환: 이자 시즌당 −${fmtMoney(perSeason)} · 남는 현금 ${fmtMoney(f.cash - amt)}`, { t: 'repay' });
 }
 
+// ───────── 자금 경고 (조합장) ─────────
+
+/** 지금 급한 쪽: 금고가 이미 비었으면(또는 다음 경기에 비면) 강제 매각까지, 아니면 바닥까지 */
+function cashMetric(core: Core, r: Runway): { n: number | null; label: string; sale: boolean } {
+  const sale = r.forcedSale !== null && (core.finance.cash <= 0 || (r.cashOut !== null && r.cashOut <= 1));
+  return sale ? { n: r.forcedSale, label: '강제 매각까지', sale } : { n: r.cashOut, label: '바닥까지', sale };
+}
+
+/** 조합장의 한 줄: 12경기 안에 금고가 비거나 강제 매각이 올 때만 */
+export function cashAlert(core: Core): string | null {
+  const r = runway(core);
+  if (core.finance.cash <= 0 && r.cashOut !== null && (r.forcedSale === null || r.forcedSale > RUNWAY_DANGER)) return '금고가 비었습니다. 경기마다 빚이 쌓이고 있습니다.';
+  if (r.forcedSale !== null && r.forcedSale <= RUNWAY_DANGER) {
+    return r.cashOut !== null && r.cashOut > 1 && r.cashOut < r.forcedSale
+      ? `이대로면 ${r.cashOut}경기 뒤에 금고가 빕니다. ${r.forcedSale}경기 뒤엔 선수를 내줘야 합니다.`
+      : `이대로면 ${r.forcedSale}경기 뒤에 빚이 한도를 넘습니다. 선수를 내줘야 합니다.`;
+  }
+  if (r.cashOut !== null && r.cashOut <= RUNWAY_DANGER) return `이대로면 ${r.cashOut}경기 뒤에 금고가 빕니다. 조합원들 볼 낯이 없습니다.`;
+  return null;
+}
+
+/** 가장 효과 큰 대응 1장: 고연봉 저효율 선수 방출 / 티켓값 조정 / 대출 중 금고를 가장 오래 버티게 하는 것 */
+function rescueOffer(core: Core): Cand | null {
+  const now = runway(core);
+  const m0 = cashMetric(core, now);
+  if (m0.n === null) return null;
+  const t = userTeam(core);
+  const val = (r: Runway) => (m0.sale ? r.forcedSale : r.cashOut) ?? 999;
+  const tail = (r: Runway) => `${m0.label} ${m0.n} → ${val(r) >= 999 ? '시즌 끝까지 안전' : `${val(r)}경기`}`;
+  const before = teamParts(t);
+  let best: { gain: number; c: Cand } | null = null;
+  const take = (gain: number, c: Cand) => {
+    if (gain > 0 && (!best || gain > best.gain)) best = { gain, c };
+  };
+  // 방출: 연봉이 크고 OVR 대비 비싼 순으로 4명만 따져 본다 (프랜차이즈 스타는 건드리지 않는다)
+  const pricey = t.roster
+    .filter((p) => p.salary >= 8000 && !isFranchise(p, core.season))
+    .sort((a, b) => b.salary / Math.max(5, b.ovr - 45) - a.salary / Math.max(5, a.ovr - 45))
+    .slice(0, 4);
+  for (const p of pricey) {
+    const r = releasePlayer(core, p.id);
+    if (r.error) continue;
+    const after = teamParts(userTeam(r.core));
+    const rw = runway(r.core);
+    const dw = winDelta(before, after);
+    const moved = PART_NAME.map(([k, label]) => ({ label, d: after[k] - before[k] })).filter((x) => x.d !== 0).sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
+    const cost = core.finance.cash - r.core.finance.cash;
+    take(
+      val(rw) - m0.n + dw * 100,
+      {
+        ...offer(200, `rescue:release:${p.id}`, 'rescue', 'chair', `${p.name}의 연봉이 살림에 비해 큽니다. 미안하지만 보내야겠습니다.`, `방출 ${p.name}: 연봉 −${fmtMoney(p.salary)} · ${moved ? `${moved.label} ${sign(moved.d)}` : '전력 변화 없음'}${cost ? ` · 위약금 ${fmtMoney(cost)}` : ''} · ${tail(rw)}`, { t: 'fix' }, flagPiece(core, { win: dw })),
+        rescue: { t: 'release', pid: p.id },
+      },
+    );
+  }
+  // 티켓값: 홈경기당 수입이 늘어나는 쪽으로 0.2 만
+  const income = (c: Core) => Math.min(capacityOf(c), previewDemand(c)) * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend);
+  const share = homeLeft(core) / Math.max(1, gamesLeft(core));
+  for (const d of [0.2, -0.2]) {
+    const next = setTicketPrice(core, core.finance.ticketPrice + d);
+    if (next === core) continue;
+    const inc = Math.round(income(next) - income(core));
+    if (inc <= 0) continue;
+    const rw = runwayAfter(core, { perGame: inc * share });
+    take(
+      val(rw) - m0.n,
+      offer(200, `rescue:price:${d > 0 ? 'up' : 'down'}`, 'rescue', 'chair', d > 0 ? '표값을 조금 올립시다. 오실 분들은 오십니다.' : '표값을 내려 자리를 채웁시다. 빈자리는 돈이 안 됩니다.', `티켓값 ${core.finance.ticketPrice.toFixed(1)} → ${next.finance.ticketPrice.toFixed(1)}만: 홈경기당 수입 ${signMoney(inc)} · ${tail(rw)}`, { t: 'price', value: next.finance.ticketPrice }),
+    );
+  }
+  // 대출: 시간을 벌 뿐이다 — 다른 대응이 없을 때의 마지막 카드라 효과를 절반으로 친다
+  const b = borrow(core);
+  if (!b.error && !m0.sale) {
+    const rw = runway(b.core);
+    take(
+      (val(rw) - m0.n) / 2,
+      { ...offer(200, 'rescue:borrow', 'rescue', 'chair', '급한 불부터 끕시다. 다만 빚은 빚입니다.', `대출 +${fmtMoney(LOAN_STEP)}: 이자 시즌당 ${fmtMoney(Math.round(LOAN_STEP * LOAN_RATE))} · ${tail(rw)}`, { t: 'fix' }), rescue: { t: 'borrow' } },
+    );
+  }
+  return (best as { gain: number; c: Cand } | null)?.c ?? null;
+}
+
 const STAGE_WHO: CharId[][] = [['manager', 'scout'], ['marketing'], ['farm'], ['pitching'], [], []];
 
 // ───────── 지난주 실행한 제안의 결과 ─────────
@@ -298,6 +393,10 @@ function resultLine(core: Core, d: BriefDone): string | null {
       return `지난주 ${d.label}: 이번 주 훈련 성과 ${Math.max(0, memoNum(core, 'grow') - n[0])}회`;
     case 'promote':
       return p ? `지난주 ${d.label}: ${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])} · OVR ${n[0]} → ${p.ovr}` : null;
+    case 'rescue': {
+      const r = runway(core);
+      return `지난주 ${d.label}: 경기당 손익 ${signMoney(r.perGame)} · ${r.cashOut === null ? '이번 시즌 금고는 버팁니다' : `바닥까지 ${r.cashOut}경기`}`;
+    }
     case 'repay':
       return `지난주 ${d.label}: 남은 부채 ${fmtMoney(core.finance.debt)} · 이자 경기당 ${fmtMoney(Math.round((core.finance.debt * LOAN_RATE) / Math.max(1, core.schedule.length)))}`;
   }
@@ -328,6 +427,14 @@ export function weeklyBriefing(core: Core): Briefing {
   const themed = STAGE_WHO[Math.min(core.campaign.stage, STAGE_WHO.length - 1)] ?? [];
   const kinds = new Set<string>();
   const offers: BriefOffer[] = [];
+  // 금고가 12경기 안에 비면 조합장이 먼저 말하고, 가장 효과 큰 대응 한 장이 맨 위에 온다
+  const alert = cashAlert(core);
+  const rescue = alert ? rescueOffer(core) : null;
+  if (rescue) {
+    const { score: _s, ...o } = rescue;
+    offers.push(o);
+    kinds.add('rescue');
+  }
   for (const c of cands.sort((a, b) => b.score + (themed.includes(b.who) ? 100 : 0) - (a.score + (themed.includes(a.who) ? 100 : 0)))) {
     if (offers.length >= BRIEF_MAX) break;
     const skippedAt = m.skipped[c.id];
@@ -338,7 +445,7 @@ export function weeklyBriefing(core: Core): Briefing {
   }
   void t;
   const results = m.done.filter((d) => d.day < core.day).map((d) => resultLine(core, d)).filter((s): s is string => !!s);
-  return { day: core.day, summary, results, offers };
+  return { day: core.day, summary, results, offers, ...(alert ? { alert } : {}) };
 }
 
 /** 브리핑을 열 차례인가: 정규시즌 6경기마다, 그날 이미 닫지 않았을 때 */
@@ -383,7 +490,14 @@ export function runOffer(core0: Core, id: string): { core: Core; error?: string;
   const attBefore = avg(core0.attHistory.slice(-3));
   let core: Core;
   let done: BriefDone;
-  const mk = (label: string, n: number[], pid?: string): BriefDone => ({ id: o.id, kind: o.kind, day: core0.day, label, n, ...(pid ? { pid } : {}) });
+  const mk = (label: string, n: number[] = [], pid?: string): BriefDone => ({ id: o.id, kind: o.kind, day: core0.day, label, n, ...(pid ? { pid } : {}) });
+  if (o.rescue) {
+    const p = o.rescue.t === 'release' ? t0.roster.find((x) => x.id === (o.rescue as { pid: string }).pid) : undefined;
+    const r = o.rescue.t === 'release' ? releasePlayer(core0, o.rescue.pid) : borrow(core0);
+    if (r.error) return { core: core0, error: r.error };
+    core = r.core;
+    done = { ...mk(p ? `방출 ${p.name}` : '대출'), kind: 'rescue' };
+  } else
   switch (a.t) {
     case 'sign': {
       const p = core0.freeAgents.find((x) => x.id === a.pid);

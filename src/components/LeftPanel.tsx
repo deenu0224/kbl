@@ -4,6 +4,8 @@ import { pitcherLoc, putPitcher, useCore, useStore, useUserTeam, type LeftTab } 
 import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, releaseCost, signingBonus } from '../game/economy';
 import { slotNewcomer } from '../game/lineup';
+import { signPlayer } from '../game/season';
+import { runwayPieceOf } from '../game/runway';
 import { betterArms, betterBats, homeSwap, offPos, orderIssues } from '../game/fixes';
 import { effDef, teamParts, type TeamParts } from '../game/ratings';
 import PlayerCard from './PlayerCard';
@@ -547,6 +549,7 @@ export function MarketTab() {
   const freeAgents = useStore((s) => s.freeAgents);
   const cash = useStore((s) => s.finance.cash);
   const sign = useStore((s) => s.sign);
+  const core = useCore();
   const [sel, setSel] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'B' | 'P'>('all');
 
@@ -576,6 +579,12 @@ export function MarketTab() {
       .map(([k, label]) => ({ label, from: a[k], to: b[k] }));
     return { role, moved };
   }, [selP, team]);
+  // 영입하면 금고가 언제 비는가 (안전하면 없음)
+  const signPiece = useMemo(() => {
+    if (!selP) return null;
+    const r = signPlayer(core, selP.id);
+    return r.error ? null : runwayPieceOf(core, r.core);
+  }, [core, selP]);
   const reason = !selP ? null : full ? `로스터 정원 초과 (${ROSTER_MAX}명)` : cash < bonus ? `현금 부족 (계약금 ${fmtMoney(bonus)})` : null;
 
   return (
@@ -658,6 +667,11 @@ export function MarketTab() {
                 <div className="text-white/60">
                   연봉 <span className="text-white">+{fmtMoney(selP.salary)}/시즌</span> · 계약금 <span className="text-hi">{fmtMoney(bonus)}</span>
                 </div>
+                {signPiece && (
+                  <div className="text-hi" data-testid="runway-piece">
+                    {signPiece}
+                  </div>
+                )}
               </div>
             }
           >

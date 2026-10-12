@@ -137,6 +137,8 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
       <span className="flex w-full items-center gap-2">
         <span className="min-w-6 flex-1">{flagBar}</span>
         {pace}
+        {/* 깃발 예측과 도민 지지는 다른 이야기다 — 가는 세로선으로 띄운다 */}
+        {pace && <span className="h-3 w-px shrink-0 bg-white/25" />}
         {trust}
       </span>
     </button>

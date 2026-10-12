@@ -20,6 +20,8 @@ import { maybeDrawEvent, resolveEvent as resolveEventFn } from './game/events';
 import { closeBriefing, drawBriefing, refreshBriefing, runOffer, skipOffer } from './game/briefing';
 import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
 import { postMatch } from './game/postseason';
+import { memoGet, memoSet } from './game/memo';
+import { RUNWAY_STOP, runway } from './game/runway';
 import { useUi } from './components/layout/uiStore';
 
 export type LeftTab = 'lineup' | 'pitchers' | 'market';
@@ -102,6 +104,14 @@ function playBlock(s: Core): string | null {
   if (s.phase === 'season') return s.day < s.schedule.length ? null : '정규시즌이 끝났습니다';
   if (s.phase === 'post') return s.post && postMatch(s) ? null : '진행할 포스트시즌 경기가 없습니다';
   return '지금은 경기를 진행할 수 없습니다';
+}
+/** 일괄 진행 정지 사유: 금고가 6경기 안에 비게 된 첫날 한 번 (시즌 메모에 적어 다시 멈추지 않는다 — core 는 방금 만든 복제본) */
+function cashStop(core: Core): string | null {
+  if (core.phase !== 'season' || memoGet(core, 'rwStop') !== undefined) return null;
+  const n = runway(core).cashOut;
+  if (n === null || n > RUNWAY_STOP) return null;
+  memoSet(core, 'rwStop', core.day);
+  return `이대로면 ${n}경기 뒤에 금고가 빕니다`;
 }
 let seq = 100000;
 const mkToast = (text: string, tone: Tone) => ({ text, tone, key: ++seq });
@@ -214,7 +224,7 @@ export const useStore = create<Store>()(
             core = drawBriefing(maybeDrawEvent(r.core, rng));
             reports.push(r.report);
             // 이벤트 카드 · 전/결 구간의 시작 · 중간 점검 · 주전 부상 · 주간 브리핑에서 멈춘다
-            stopped = stopReason(core, r.report) ?? (core.campaign.briefing ? '주간 브리핑' : null);
+            stopped = stopReason(core, r.report) ?? cashStop(core) ?? (core.campaign.briefing ? '주간 브리핑' : null);
             if (stopped) break;
           }
           if (!reports.length) return;
@@ -369,7 +379,8 @@ export const useStore = create<Store>()(
         briefRun(id) {
           if (locked()) return;
           const r = runOffer(pickCore(get()), id);
-          if (applyResult(r, r.text)) {
+          // 브리핑이 열려 있는 동안에는 카드가 "✓ 실행됨"으로 바뀌는 것이 완료 표시다 — 연달아 실행해도 토스트가 겹치지 않게 생략
+          if (applyResult(r)) {
             const a = r.core.campaign.briefing?.offers.find((o) => o.id === id)?.action;
             if (a?.t === 'upgrade') set({ fx: { kind: a.kind, key: ++seq } });
           }
