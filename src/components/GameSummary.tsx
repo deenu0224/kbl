@@ -54,17 +54,23 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
             {verdict}
           </div>
           <div className="mt-1 text-[10px] text-white/55">
-            {r.day + 1}차전 · {dowOf(r.day)}요일 {r.night ? '야간' : '주간'} · {r.isHome ? '홈' : '원정'}
+            {r.post ? `${r.post.name} ${r.post.gameNo}차전` : `${r.day + 1}차전 · ${dowOf(r.day)}요일 ${r.night ? '야간' : '주간'}`} · {r.isHome ? '홈' : '원정'}
           </div>
+          {r.post && (
+            <div className="mt-1 text-[13px]">
+              시리즈 <span className="font-pixel-lg text-[16px] text-hi">{r.post.myW}승 {r.post.oppW}패</span>
+              <span className="ml-1 text-[11px] text-white/50">{Math.floor(r.post.bestOf / 2) + 1}선승제</span>
+            </div>
+          )}
         </div>
         <div className="text-right text-[11px]">
-          <div className="text-white/50">순위</div>
+          <div className="text-white/50">{r.post ? '정규시즌' : '순위'}</div>
           <RankMove before={r.rankBefore} after={r.rankAfter} />
         </div>
       </div>
 
       {/* 라인스코어 */}
-      <div className="mt-2 overflow-x-auto bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+      <div className="mt-2 shrink-0 overflow-x-auto bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
         <table className="w-full border-collapse text-center text-[12px]">
           <thead>
             <tr className="text-[10px] text-white/45">
@@ -147,7 +153,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
               <Bar ratio={r.crowd.attendance / Math.max(1, r.crowd.capacity)} color={r.crowd.soldOut ? '#ffd84a' : '#7fd3ff'} h={8} className="my-1" />
               {r.crowd.soldOut && <div className="anim-blink text-[11px] text-hi">매진!</div>}
               {r.crowd.turnedAway > 0 && (
-                <div className="text-[10px] text-bad">입장 못한 팬 {fmtInt(r.crowd.turnedAway)}명 — 증설이 필요합니다</div>
+                <div className="text-[10px] text-bad">🚶 발길 돌린 팬 {fmtInt(r.crowd.turnedAway)}명</div>
               )}
             </>
           ) : (
@@ -190,6 +196,7 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
   const homes = rs.filter((r) => r.crowd);
   const att = homes.reduce((a, r) => a + (r.crowd?.attendance ?? 0), 0);
   const sold = homes.filter((r) => r.crowd?.soldOut).length;
+  const lastPost = rs[rs.length - 1].post;
   const notes = rs.flatMap((r) => r.notes.map((n) => ({ day: r.day, n }))).slice(-10);
 
   return (
@@ -202,6 +209,11 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
           <div className="mt-1 text-[13px]">
             <span className="text-good">{w}승</span> <span className="text-bad">{l}패</span>
             {t > 0 && <span className="text-sky"> {t}무</span>}
+            {lastPost && (
+              <span className="ml-2 text-hi">
+                {lastPost.name} {lastPost.myW}승 {lastPost.oppW}패
+              </span>
+            )}
           </div>
         </div>
         <div className="text-right text-[11px]">
@@ -221,7 +233,7 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
               key={r.day}
               className="flex items-center gap-1 bg-ink px-1 py-[2px] text-[10px]"
               style={{ boxShadow: `inset 2px 0 0 ${c}` }}
-              title={`${r.day + 1}차전 ${r.isHome ? '홈' : '원정'} vs ${opp?.name ?? r.oppId}`}
+              title={`${r.post ? `${r.post.name} ${r.post.gameNo}` : r.day + 1}차전 ${r.isHome ? '홈' : '원정'} vs ${opp?.name ?? r.oppId}`}
             >
               <TeamDot team={opp} size={8} />
               <span style={{ color: c }}>
@@ -264,7 +276,8 @@ export default function GameSummary({ sheet = false }: { sheet?: boolean }) {
   const teams = useStore((s) => s.teams);
   const userId = useStore((s) => s.userId);
   const close = useStore((s) => s.closeSummary);
-  const ended = useStore((s) => s.phase === 'ended');
+  const phase = useStore((s) => s.phase);
+  const ended = phase === 'ended' || phase === 'over';
   if (!summary || !summary.length) return null;
   const body = summary.length === 1 ? <Single r={summary[0]} teams={teams} userId={userId} /> : <Multi rs={summary} teams={teams} />;
 
