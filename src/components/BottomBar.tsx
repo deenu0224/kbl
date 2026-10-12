@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useStore, userMatch } from '../store';
+import { useStore, userMatch, useUserTeam } from '../store';
 import { usePostLine } from './Bracket';
 import { EventReopen } from './EventCardModal';
 import { useUi } from './layout/uiStore';
+import { todayIssues } from '../game/fixes';
+import { useWinChance } from './useWinChance';
 import { TeamDot, dowOf, isNightDay } from './ui';
 
 /** 하단 진행 버튼들의 공통 상태 (데스크톱 BottomBar · 모바일 액션 바 공용) */
@@ -16,6 +18,7 @@ function useMatchActions() {
   const teams = useStore((s) => s.teams);
   const post = useStore((s) => s.post);
   const event = useStore((s) => !!s.campaign.event);
+  const briefing = useStore((s) => !!s.campaign.briefing);
   const postLine = usePostLine();
 
   const total = schedule.length;
@@ -25,7 +28,7 @@ function useMatchActions() {
   const opp = teams.find((t) => t.id === next?.oppId);
   const left = inPost ? 20 : Math.max(0, total - day);
   const idle = phase === 'draft' ? '신인 드래프트 진행 중' : phase === 'over' ? '연고 이전이 확정됐습니다' : inPost ? '포스트시즌 일정이 끝났습니다' : '정규 시즌이 끝났습니다';
-  const reason = playback ? '경기 하이라이트 재생 중' : summary ? '경기 요약을 먼저 닫으세요' : event ? '이벤트 카드 대기 중' : !next ? idle : undefined;
+  const reason = playback ? '경기 하이라이트 재생 중' : summary ? '경기 요약을 먼저 닫으세요' : event ? '이벤트 카드 대기 중' : briefing ? '주간 브리핑 대기 중' : !next ? idle : undefined;
   /** 다음 경기 설명: 정규시즌은 "12차전 · 금요일 야간", 포스트시즌은 "한국시리즈 3차전 · 2승 1패" */
   const when = postLine ? postLine.text : `${day + 1}차전 · ${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`;
   const whenShort = postLine ? postLine.text : `${day + 1}차전 ${dowOf(day)} ${isNightDay(day) ? '야간' : '주간'}`;
@@ -34,6 +37,33 @@ function useMatchActions() {
   // 개막전은 오더 제출로만 시작한다: 주 버튼이 오더지를 다시 여는 버튼이 된다
   const opener = phase === 'season' && day === 0 && !!next;
   return { opener, playback, phase, inPost, next, opp, left, reason, idle, when, whenShort, off: !!reason, bulkOff: !!bulkReason, bulkReason };
+}
+
+/** 경기 전 점검 줄: "오늘 승리 확률 44%" + 고칠 곳이 있으면 칩 (탭하면 "오늘의 오더") */
+function PreGame({ short = false }: { short?: boolean }) {
+  const team = useUserTeam();
+  const opener = useStore((s) => s.phase === 'season' && s.day === 0);
+  const pct = useWinChance();
+  const setDailyOpen = useUi((s) => s.setDailyOpen);
+  const setOrderOpen = useUi((s) => s.setOrderOpen);
+  const n = todayIssues(team);
+  return (
+    <>
+      <span className="shrink-0 whitespace-nowrap text-[11px] text-white/70" data-testid="pre-chance">
+        {short ? '승리 확률' : '오늘 승리 확률'} <span className="text-[13px] text-hi">{pct === null ? '—' : `${pct}%`}</span>
+      </span>
+      {n > 0 && (
+        <button
+          className="shrink-0 cursor-pointer whitespace-nowrap bg-bad/85 px-1.5 py-0.5 text-[11px] text-white mob:py-1 mob:text-[12px]"
+          style={{ boxShadow: '0 0 0 1px #0f1420' }}
+          data-testid="fix-chip"
+          onClick={() => (opener ? setOrderOpen(true) : setDailyOpen(true))}
+        >
+          고칠 곳 {n}
+        </button>
+      )}
+    </>
+  );
 }
 
 /** 주 버튼: 평소엔 [▶ 경기 진행], 개막전 전에는 [개막전 오더] */
@@ -93,6 +123,7 @@ export default function BottomBar() {
               <span className={inPost ? 'text-hi' : ''}>{when}</span>
               {!inPost && ` · 상대 ${opp.rec.w}승 ${opp.rec.l}패`}
             </span>
+            {!playback && <PreGame />}
           </>
         ) : (
           <span className="text-white/60">{idle}</span>
@@ -170,8 +201,8 @@ export function MobileActionBar() {
       <span className="min-w-0 truncate">vs {opp.name}</span>
       <span className={`shrink-0 text-[11px] ${inPost ? 'text-hi' : 'text-white/50'}`}>
         {whenShort}
-        {!inPost && ` · 상대 ${opp.rec.w}승${opp.rec.l}패`}
       </span>
+      <PreGame short />
     </div>
   ) : (
     <div className="text-[12px] text-white/60">{idle}</div>
@@ -205,7 +236,7 @@ export function MobileActionBar() {
 
   return (
     <div className="px-panel flex shrink-0 flex-col gap-1.5 px-2 pt-1 pb-2">
-      <div className="flex h-5 min-w-0 items-center justify-between gap-2">
+      <div className="flex h-6 min-w-0 items-center justify-between gap-2">
         {info}
         {/* title 툴팁 대신 비활성 사유를 화면에 */}
         {reason && !playback && next && <span className="shrink-0 text-[11px] text-white/45">{reason}</span>}

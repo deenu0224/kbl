@@ -361,6 +361,49 @@ export interface Campaign {
   analyst?: boolean; // 데이터 분석원 채용 (드래프트 등급 정확도↑)
   dealt?: boolean; // 4장에서 이전 협상 테이블에 앉음 (엔딩 문구 분기)
   opening?: string; // 장 시작 때 인물의 한 줄 (TopBar/캠페인 시트 표시용)
+  briefing?: Briefing | null; // 대기 중인 주간 브리핑 (닫아야 다음 경기 진행)
+  briefMemo?: BriefMemo; // 주간 브리핑의 기억: 지난주 수치 · 실행한 제안 · 넘긴 제안
+}
+// ───────── 주간 브리핑 (briefing.ts 가 만들고 해석한다) ─────────
+export type BriefAction =
+  | { t: 'sign'; pid: string }
+  | { t: 'price'; value: number }
+  | { t: 'upgrade'; kind: FacilityKind }
+  | { t: 'fix' } // 편성 칩 전부 적용
+  | { t: 'rest'; pid: string; withPid: string } // 연투 투수와 쉰 투수의 보직 맞바꿈
+  | { t: 'promote'; pid: string; slot: number } // 유망주를 주전으로
+  | { t: 'repay' };
+export interface BriefOffer {
+  id: string; // 같은 제안인지 가리는 키 ("sign:LF", "price:up" …)
+  kind: string; // 종류 (같은 종류는 한 주에 한 장)
+  who: CharId;
+  line: string; // 인물의 한 줄 제안 (2문장 이하)
+  effect: string; // 예상 결과 숫자
+  flag?: string; // 깃발 단위로 본 예상 ("예상 승수 +2")
+  action: BriefAction;
+  state?: 'done' | 'skipped';
+}
+export interface Briefing {
+  day: number; // 이 경기일 직전에 열렸다
+  summary: string; // 지난 6경기 한 줄
+  results: string[]; // 지난주 실행한 제안의 결과
+  offers: BriefOffer[];
+}
+/** 실행한 제안 (다음 주 브리핑의 결과 줄을 만들 재료) */
+export interface BriefDone {
+  id: string;
+  kind: string;
+  day: number;
+  label: string; // "영입 노성진"
+  pid?: string;
+  n?: number[]; // 실행 시점의 숫자들 (종류별 해석은 briefing.ts)
+}
+export interface BriefMemo {
+  season: number;
+  snap?: { day: number; rank: number; profit: number; attN: number }; // 지난 브리핑 시점
+  done: BriefDone[];
+  skipped: Record<string, number>; // 제안 id → 넘긴 경기일
+  shown?: number; // 이번 시즌에 낸 제안 수 (실측용)
 }
 
 export interface SeasonVerdict {

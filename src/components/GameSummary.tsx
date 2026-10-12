@@ -2,7 +2,7 @@ import type { DayReport, Team } from '../game/types';
 import { findPlayer, useStore } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import { PART_LABEL } from './LeftPanel';
-import { useUi } from './layout/uiStore';
+import { chanceKey, useUi } from './layout/uiStore';
 import { Bar, MoneyBar, TeamDot, WEATHER_ICON, WEATHER_KO, dowOf } from './ui';
 
 function RankMove({ before, after }: { before: number; after: number }) {
@@ -44,6 +44,8 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
   const season = useStore((s) => s.season);
   const edit = useUi((s) => s.orderEdit);
   const edits = !r.post && r.day === 0 && edit?.season === season ? PART_LABEL.filter(([k]) => edit.from[k] !== edit.to[k]) : [];
+  const seed = useStore((s) => s.seed);
+  const pre = useUi((s) => (r.post ? undefined : s.chances[chanceKey({ seed, season, phase: 'season', day: r.day })]));
   const res = r.result;
   const away = teams.find((t) => t.id === res.awayId);
   const home = teams.find((t) => t.id === res.homeId);
@@ -54,6 +56,11 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
 
   return (
     <>
+      {pre !== undefined && (
+        <div className="mb-1 text-[12px] text-white/70 mob:text-[13px]" data-testid="pre-result">
+          경기 전 <span className="text-hi">{pre}%</span> → <span className={vColor}>{r.won === null ? '무승부' : r.won ? '승리' : '패배'}</span>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <div className={`anim-pop font-pixel-lg text-[26px] leading-none ${vColor}`} style={{ textShadow: '2px 2px 0 #0f1420' }}>

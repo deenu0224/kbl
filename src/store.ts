@@ -94,6 +94,7 @@ const freshCore = (): Core => ensureObjectives(newCore(Date.now()), rng);
 /** 경기 진행이 가능한 상태인지 (불가하면 사유) */
 function playBlock(s: Core): string | null {
   if (s.campaign?.event) return '이벤트 카드를 먼저 처리하세요';
+  if (s.campaign?.briefing) return '주간 브리핑을 먼저 닫으세요';
   if (s.phase === 'season') return s.day < s.schedule.length ? null : '정규시즌이 끝났습니다';
   if (s.phase === 'post') return s.post && postMatch(s) ? null : '진행할 포스트시즌 경기가 없습니다';
   return '지금은 경기를 진행할 수 없습니다';

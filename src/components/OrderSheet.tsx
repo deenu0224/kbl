@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { play } from '../audio/sfx';
 import { CHARACTERS } from '../game/story';
-import { winChanceJob } from '../game/forecast';
 import { teamParts } from '../game/ratings';
-import { pickCore, useStore, userMatch, useUserTeam } from '../store';
+import { useStore, userMatch, useUserTeam } from '../store';
 import { AutoButton, LineupTab, PitchersTab, TeamBar, orderIssues } from './LeftPanel';
+import { useWinChance } from './useWinChance';
 import PixelFace from './PixelFace';
 import { useIsMobile } from './layout/useLayout';
 import { useUi, type RosterSub } from './layout/uiStore';
@@ -25,38 +25,18 @@ const safe = {
 /** 세그먼트 배지: 문제 수, 없으면 ✓ */
 const mark = (n: number) => (n > 0 ? <Badge n={n} /> : <span className="text-good">✓</span>);
 
-const CHANCE_N = 1200; // 화면용 표본 수 (표준오차 약 1.4%p)
-const CHANCE_CHUNK = 100; // 한 번에 돌리는 경기 수
 const CHANCE_MS = 2000;
-const idle = (fn: () => void): (() => void) => {
-  if (typeof requestIdleCallback === 'function') {
-    const id = requestIdleCallback(fn, { timeout: 300 });
-    return () => cancelIdleCallback(id);
-  }
-  const id = setTimeout(fn, 30);
-  return () => clearTimeout(id);
-};
 
 /** 오더지의 중심 숫자: 개막전 승리 확률. 편성을 바꾸면 "31% → 44%"가 잠깐 보인다. 계산은 미뤄서 하고 그동안은 이전 값을 둔다. */
-function WinChance({ fixable }: { fixable: boolean }) {
-  const team = useUserTeam();
-  const [pct, setPct] = useState<number | null>(null);
+function WinChance({ fixable, label }: { fixable: boolean; label: string }) {
+  const pct = useWinChance();
   const [from, setFrom] = useState<number | null>(null);
   const last = useRef<number | null>(null);
   useEffect(() => {
-    const job = winChanceJob(pickCore(useStore.getState()), CHANCE_N);
-    let cancel = () => {};
-    const run = () => {
-      const r = job(CHANCE_CHUNK);
-      if (r === null) return void (cancel = idle(run));
-      const v = Math.round(r * 100);
-      if (last.current !== null && last.current !== v) setFrom(last.current);
-      last.current = v;
-      setPct(v);
-    };
-    cancel = idle(run);
-    return () => cancel();
-  }, [team]);
+    if (pct === null) return;
+    if (last.current !== null && last.current !== pct) setFrom(last.current);
+    last.current = pct;
+  }, [pct]);
   useEffect(() => {
     if (from === null) return;
     const id = setTimeout(() => setFrom(null), CHANCE_MS);
@@ -67,7 +47,7 @@ function WinChance({ fixable }: { fixable: boolean }) {
   return (
     <div className="shrink-0 px-2 pt-2" data-testid="win-chance">
       <div className="flex items-baseline justify-between gap-2 whitespace-nowrap">
-        <span className="text-[12px] text-white/75 mob:text-[13px]">개막전 승리 확률</span>
+        <span className="text-[12px] text-white/75 mob:text-[13px]">{label}</span>
         <span className={`font-pixel-lg text-[24px] leading-none ${tone}`} style={{ textShadow: '1px 1px 0 #0f1420' }}>
           {pct === null ? '…' : from === null ? `${pct}%` : `${from}% → ${pct}%`}
         </span>
@@ -85,9 +65,16 @@ function WinChance({ fixable }: { fixable: boolean }) {
  * 모바일은 전체 화면, 데스크톱은 야구장 영역 위 가운데. [오더 제출]로만 개막전이 시작된다.
  */
 export default function OrderSheet() {
-  const show = useStore((s) => s.phase === 'season' && s.day === 0 && !s.campaign.event && !s.summary && !s.playback);
-  const open = useUi((s) => s.orderOpen);
-  const setOpen = useUi((s) => s.setOrderOpen);
+  const idleNow = useStore((s) => !s.campaign.event && !s.campaign.briefing && !s.summary && !s.playback);
+  const opener = useStore((s) => s.phase === 'season' && s.day === 0);
+  const playable = useStore((s) => (s.phase === 'season' && s.day < s.schedule.length) || s.phase === 'post');
+  const phase = useStore((s) => s.phase);
+  const post = useStore((s) => s.post);
+  const day = useStore((s) => s.day);
+  const daily = !opener; // 개막전이 아니면 "오늘의 오더": 감독 대사 없이, [닫기]로 닫는다
+  const show = idleNow && playable;
+  const open = useUi((s) => (opener ? s.orderOpen : s.dailyOpen));
+  const setOpen = useUi((s) => (opener ? s.setOrderOpen : s.setDailyOpen));
   const playNext = useStore((s) => s.playNext);
   const opening = useStore((s) => s.campaign.opening);
   const schedule = useStore((s) => s.schedule);
@@ -100,12 +87,16 @@ export default function OrderSheet() {
   const visible = show && open;
 
   useEffect(() => {
-    if (visible) play('event');
-  }, [visible]);
+    if (visible && !daily) play('event');
+  }, [visible, daily]);
+  // 경기가 진행되면 "오늘의 오더"는 닫힌다
+  useEffect(() => {
+    if (!show) useUi.setState({ dailyOpen: false });
+  }, [show]);
   // 처음 열었을 때의 전력을 적어 둔다 (경기 후 요약의 "오더 수정" 줄)
   const season = useStore((s) => s.season);
   useEffect(() => {
-    if (visible && useUi.getState().orderBase?.season !== season) useUi.setState({ orderBase: { season, parts: teamParts(team) } });
+    if (visible && !daily && useUi.getState().orderBase?.season !== season) useUi.setState({ orderBase: { season, parts: teamParts(team) } });
   }, [visible, season, team]);
   const submit = () => {
     const base = useUi.getState().orderBase;
@@ -114,7 +105,8 @@ export default function OrderSheet() {
   };
 
   if (!visible) return null;
-  const next = userMatch({ schedule, userId }, 0);
+  const next = userMatch({ schedule, userId, phase, post }, day);
+  const title = daily ? '오늘의 오더' : '개막전 오더';
   const opp = teams.find((t) => t.id === next?.oppId);
   const mgr = CHARACTERS.manager;
 
@@ -122,7 +114,7 @@ export default function OrderSheet() {
     <>
       <div className="flex shrink-0 items-center gap-2 px-2 pt-1.5">
         <span className="font-pixel-lg shrink-0 text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
-          개막전 오더
+          {title}
         </span>
         {next && opp && (
           <span className="flex min-w-0 flex-1 items-center gap-1 text-[12px] text-white/75 mob:text-[13px]">
@@ -132,11 +124,14 @@ export default function OrderSheet() {
             </span>
           </span>
         )}
-        <button className="px-btn ml-auto shrink-0 !px-2 !py-0.5 text-[11px] mob:text-[12px]" data-testid="order-close" onClick={() => setOpen(false)}>
-          구장 보기
-        </button>
+        {!daily && (
+          <button className="px-btn ml-auto shrink-0 !px-2 !py-0.5 text-[11px] mob:text-[12px]" data-testid="order-close" onClick={() => setOpen(false)}>
+            구장 보기
+          </button>
+        )}
       </div>
 
+      {!daily && (
       <div className="flex shrink-0 items-start gap-2 px-2 pt-2">
         <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
           <PixelFace id={`char-${mgr.seed}`} color={team.color} color2={team.color2} size={48} />
@@ -152,8 +147,9 @@ export default function OrderSheet() {
           )}
         </div>
       </div>
+      )}
 
-      <WinChance fixable={issues.lineup + issues.pitchers > 0} />
+      <WinChance fixable={issues.lineup + issues.pitchers > 0} label={daily ? '오늘 승리 확률' : '개막전 승리 확률'} />
       <TeamBar team={team} />
       <div className="shrink-0 px-1.5 pt-1.5">
         <TabBar
@@ -170,22 +166,28 @@ export default function OrderSheet() {
 
       <div className="flex shrink-0 items-stretch gap-2 px-2 pt-1.5 pb-2">
         <AutoButton order className="min-h-11 flex-1 text-[12px] mob:text-[13px]" />
-        <button className="px-btn primary min-h-11 flex-[1.8] text-[15px]" data-sfx="none" data-testid="order-submit" onClick={submit}>
-          오더 제출 ▶
-        </button>
+        {daily ? (
+          <button className="px-btn primary min-h-11 flex-[1.8] text-[15px]" data-testid="daily-close" onClick={() => setOpen(false)}>
+            닫기
+          </button>
+        ) : (
+          <button className="px-btn primary min-h-11 flex-[1.8] text-[15px]" data-sfx="none" data-testid="order-submit" onClick={submit}>
+            오더 제출 ▶
+          </button>
+        )}
       </div>
     </>
   );
 
   if (mobile) {
     return (
-      <div className="anim-fade fixed inset-0 z-[35] flex h-[100dvh] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label="개막전 오더" data-testid="order-sheet">
+      <div className="anim-fade fixed inset-0 z-[35] flex h-[100dvh] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label={title} data-testid="order-sheet">
         {sheet}
       </div>
     );
   }
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center bg-ink/70 p-3" role="dialog" aria-label="개막전 오더" data-testid="order-sheet">
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-ink/70 p-3" role="dialog" aria-label={title} data-testid="order-sheet">
       <div className="px-panel anim-pop flex h-full max-h-[720px] w-full max-w-[560px] flex-col">{sheet}</div>
     </div>
   );
