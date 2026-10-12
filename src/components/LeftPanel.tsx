@@ -164,7 +164,7 @@ function ReleaseButton({ player, team }: { player: Player; team: Team }) {
 
 // ───────── 팀 전력 막대 ─────────
 
-const PART_LABEL: [keyof TeamParts, string][] = [
+export const PART_LABEL: [keyof TeamParts, string][] = [
   ['bat', '타선'],
   ['def', '수비'],
   ['rot', '선발'],

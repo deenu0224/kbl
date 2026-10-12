@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { TeamParts } from '../../game/ratings';
 
 /** 모바일 하단 탭 5개 */
 export type MobileTab = 'roster' | 'market' | 'stadium' | 'league' | 'club';
@@ -16,6 +17,8 @@ interface UiState {
   eventHidden: string | null; // 잠시 접어 둔 이벤트 카드 id (선수단을 살펴보고 다시 연다)
   draftPeek: boolean; // 드래프트 중 구단 화면 살펴보기
   orderOpen: boolean; // 개막전 오더지 (시즌이 바뀌면 다시 열린다)
+  orderBase: { season: number; parts: TeamParts } | null; // 오더지를 처음 열었을 때의 전력
+  orderEdit: { season: number; from: TeamParts; to: TeamParts } | null; // 제출 시점과의 차이 (개막전 요약의 "오더 수정" 줄)
   setTab(tab: MobileTab): void;
   setRosterSub(s: RosterSub): void;
   setClubSub(s: ClubSub): void;
@@ -38,6 +41,8 @@ export const useUi = create<UiState>()((set) => ({
   eventHidden: null,
   draftPeek: false,
   orderOpen: true,
+  orderBase: null,
+  orderEdit: null,
   setTab: (tab) => set({ tab }),
   setRosterSub: (rosterSub) => set({ rosterSub }),
   setClubSub: (clubSub) => set({ clubSub }),

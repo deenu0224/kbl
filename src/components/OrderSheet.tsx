@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { play } from '../audio/sfx';
 import { CHARACTERS } from '../game/story';
 import { winChance } from '../game/forecast';
+import { teamParts } from '../game/ratings';
 import { pickCore, useStore, userMatch, useUserTeam } from '../store';
 import { AutoButton, LineupTab, PitchersTab, TeamBar, orderIssues } from './LeftPanel';
 import PixelFace from './PixelFace';
@@ -11,7 +12,7 @@ import { Badge, TabBar, TeamDot } from './ui';
 
 // 새 시즌·새 게임의 개막전에는 오더지가 다시 첫 화면이 된다
 useStore.subscribe((s, p) => {
-  if (s.season !== p.season || s.seed !== p.seed) useUi.setState({ orderOpen: true });
+  if (s.season !== p.season || s.seed !== p.seed) useUi.setState({ orderOpen: true, orderBase: null, orderEdit: null });
 });
 
 const safe = {
@@ -96,6 +97,16 @@ export default function OrderSheet() {
   useEffect(() => {
     if (visible) play('event');
   }, [visible]);
+  // 처음 열었을 때의 전력을 적어 둔다 (경기 후 요약의 "오더 수정" 줄)
+  const season = useStore((s) => s.season);
+  useEffect(() => {
+    if (visible && useUi.getState().orderBase?.season !== season) useUi.setState({ orderBase: { season, parts: teamParts(team) } });
+  }, [visible, season, team]);
+  const submit = () => {
+    const base = useUi.getState().orderBase;
+    if (base?.season === season) useUi.setState({ orderEdit: { season, from: base.parts, to: teamParts(team) } });
+    playNext();
+  };
 
   if (!visible) return null;
   const next = userMatch({ schedule, userId }, 0);
@@ -154,7 +165,7 @@ export default function OrderSheet() {
 
       <div className="flex shrink-0 items-stretch gap-2 px-2 pt-1.5 pb-2">
         <AutoButton order className="min-h-11 flex-1 text-[12px] mob:text-[13px]" />
-        <button className="px-btn primary min-h-11 flex-[1.8] text-[15px]" data-sfx="none" data-testid="order-submit" onClick={playNext}>
+        <button className="px-btn primary min-h-11 flex-[1.8] text-[15px]" data-sfx="none" data-testid="order-submit" onClick={submit}>
           오더 제출 ▶
         </button>
       </div>

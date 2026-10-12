@@ -1,6 +1,8 @@
 import type { DayReport, Team } from '../game/types';
 import { findPlayer, useStore } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
+import { PART_LABEL } from './LeftPanel';
+import { useUi } from './layout/uiStore';
 import { Bar, MoneyBar, TeamDot, WEATHER_ICON, WEATHER_KO, dowOf } from './ui';
 
 function RankMove({ before, after }: { before: number; after: number }) {
@@ -38,6 +40,10 @@ function MoneyBlock({ m, netLabel = '오늘 순익' }: { m: DayReport['money']; 
 
 function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: string }) {
   const freeAgents = useStore((s) => s.freeAgents);
+  // 개막전: 오더지에서 고친 만큼을 한 줄로 되짚는다
+  const season = useStore((s) => s.season);
+  const edit = useUi((s) => s.orderEdit);
+  const edits = !r.post && r.day === 0 && edit?.season === season ? PART_LABEL.filter(([k]) => edit.from[k] !== edit.to[k]) : [];
   const res = r.result;
   const away = teams.find((t) => t.id === res.awayId);
   const home = teams.find((t) => t.id === res.homeId);
@@ -112,6 +118,18 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
           </tbody>
         </table>
       </div>
+
+      {edit && edits.length > 0 && (
+        <div className="mt-1.5 bg-ink/70 px-1.5 py-1 text-[11px]" style={{ boxShadow: 'inset 2px 0 0 #6ee07a' }} data-testid="order-edit">
+          <span className="text-white/60">오더 수정: </span>
+          {edits.map(([k, label], i) => (
+            <span key={k} className="whitespace-nowrap">
+              {i > 0 && ' · '}
+              {label} {edit.from[k]} → <span className={edit.to[k] > edit.from[k] ? 'text-good' : 'text-bad'}>{edit.to[k]}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
         {res.winP && (
