@@ -69,6 +69,9 @@ export function pickCore(s: Core): Core {
     cashHistory: s.cashHistory,
     news: s.news,
     newsSeq: s.newsSeq,
+    campaign: s.campaign,
+    post: s.post,
+    draft: s.draft,
   };
 }
 

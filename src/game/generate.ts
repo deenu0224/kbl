@@ -1,4 +1,4 @@
-import type { BatPos, BatStats, Core, Ledger, PitchRole, PitStats, Player, Team, TeamRecord } from './types';
+import type { BatPos, BatStats, Campaign, Core, Ledger, PitchRole, PitStats, Player, Team, TeamRecord } from './types';
 import { clamp, gauss, mulberry32, pick, randInt, shuffle, type Rng } from './rng';
 import { calcOvr, calcSalary } from './ratings';
 import { autoLineup } from './lineup';
@@ -103,7 +103,7 @@ function genName(ctx: GenCtx, foreign: boolean): string {
 }
 
 export function batZero(): BatStats {
-  return { g: 0, pa: 0, ab: 0, h: 0, d2: 0, hr: 0, rbi: 0, bb: 0, so: 0, r: 0 };
+  return { g: 0, pa: 0, ab: 0, h: 0, d2: 0, hr: 0, rbi: 0, bb: 0, so: 0, r: 0, d3: 0, sb: 0, cs: 0 };
 }
 export function pitZero(): PitStats {
   return { g: 0, gs: 0, outs: 0, er: 0, h: 0, bb: 0, so: 0, hr: 0, w: 0, l: 0, sv: 0 };
@@ -393,5 +393,26 @@ export function newCore(seed: number): Core {
       { id: 0, season: 1, day: 0, text: '제주 탠저린즈 창단 첫 시즌 개막! 작은 구장에서 큰 꿈을 시작합니다.', tone: 'info' },
     ],
     newsSeq: 1,
+    campaign: campaignZero(),
+    post: null,
+    draft: null,
+  };
+}
+
+/** 빈 캠페인 상태. 시즌 목표(objectives)는 campaign.ts 가 첫 진행 때 채운다. */
+export function campaignZero(): Campaign {
+  return {
+    stage: 0,
+    trust: 60,
+    objectives: [],
+    achievements: [],
+    titles: 0,
+    history: [],
+    event: null,
+    eventsSeen: [],
+    buffs: [],
+    sellouts: 0,
+    ending: false,
+    verdict: null,
   };
 }

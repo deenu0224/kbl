@@ -15,6 +15,9 @@ export interface BatStats {
   bb: number;
   so: number;
   r: number;
+  d3: number; // 3루타
+  sb: number; // 도루
+  cs: number; // 도루 실패
 }
 
 export interface PitStats {
@@ -54,6 +57,8 @@ export interface Player {
   star: number; // 스타성 0~100 (관중·굿즈에 영향)
   injury: number; // 남은 결장 경기 수 (0 = 건강)
   tag?: string; // KBO 참고 아키타입 설명 (예: "홈런왕형 1루수")
+  rookie?: boolean; // 이번 시즌 데뷔 신인 (신인왕 자격)
+  scout?: 'A' | 'B' | 'C' | 'D'; // 드래프트 스카우트 등급 (잠재력의 흐릿한 표시)
   bat: BatStats;
   pit: PitStats;
 }
@@ -201,6 +206,7 @@ export interface DayReport {
   rankAfter: number;
   others: { homeId: string; awayId: string; home: number; away: number }[];
   notes: string[]; // 이 날 생긴 소식 (매진, 부상, 성장 등)
+  post?: { round: PostRound; name: string; gameNo: number; myW: number; oppW: number; bestOf: number }; // 포스트시즌 경기일 때 (경기 후 시리즈 전적)
 }
 
 // 게임의 직렬화 가능한 핵심 상태 (스토어가 그대로 보관)
@@ -208,7 +214,7 @@ export interface Core {
   seed: number;
   season: number; // 1부터
   day: number; // 다음에 치를 경기일 인덱스 (0-based). schedule.length 이면 시즌 종료
-  phase: 'season' | 'ended';
+  phase: Phase;
   userId: string;
   teams: Team[];
   schedule: Matchup[][]; // [day][4경기]
@@ -222,6 +228,130 @@ export interface Core {
   cashHistory: number[]; // 일별 현금 기록
   news: NewsItem[]; // 최신이 앞
   newsSeq: number;
+  campaign: Campaign;
+  post: Postseason | null; // 이번 시즌 포스트시즌 (정규시즌 종료 시 생성)
+  draft: DraftState | null; // phase === 'draft' 일 때만
+}
+
+// ───────── 진행 단계 / 포스트시즌 / 캠페인 (docs/LEVEL_DESIGN.md) ─────────
+
+// season(정규시즌) → post(유저가 가을야구 진출 시에만) → ended(시즌 결산) → draft(신인 드래프트) → season …
+// over = 구단주 신임 0 으로 해임 (게임 오버)
+export type Phase = 'season' | 'post' | 'ended' | 'draft' | 'over';
+
+export type PostRound = 'SPO' | 'PO' | 'KS'; // 준플레이오프(3전2선승) / 플레이오프(5전3선승) / 한국시리즈(7전4선승)
+export type PostFinish = 'none' | 'SPO' | 'PO' | 'KS' | 'champion'; // 유저의 최종 도달 지점 (KS = 준우승)
+
+export interface PostSeries {
+  round: PostRound;
+  name: string; // "준플레이오프"
+  hiId: string | null; // 상위 시드 (홈 어드밴티지). 앞 시리즈가 안 끝났으면 null
+  loId: string | null;
+  bestOf: number;
+  hiW: number;
+  loW: number;
+  winnerId: string | null;
+  games: { homeId: string; awayId: string; home: number; away: number }[];
+}
+
+export interface Postseason {
+  seeds: string[]; // 정규시즌 1~4위 teamId
+  series: PostSeries[]; // [SPO, PO, KS]
+  cur: number; // 진행 중인 시리즈 인덱스 (3 = 전부 종료)
+  championId: string | null;
+  userFinish: PostFinish;
+}
+
+export type ObjKind =
+  | 'rank' // 정규시즌 순위 target 이내
+  | 'wins' // target 승 이상
+  | 'avgAtt' // 홈 평균 관중 target 이상
+  | 'sellouts' // 매진 target 회 이상
+  | 'profit' // 영업손익 target(만원) 이상
+  | 'fans' // 팬 수 target 이상
+  | 'facility' // 시설 레벨 합(seats+food+training) target 이상
+  | 'star' // star target 이상 선수 보유
+  | 'post' // 포스트시즌 도달: target 1=진출 2=PO 3=KS 4=우승
+  | 'debt'; // 시즌 종료 시 부채 target 이하
+
+export interface Objective {
+  id: string;
+  kind: ObjKind;
+  main: boolean; // true = 스테이지 클리어 조건, false = 보조 목표
+  text: string; // "정규시즌 7위 이내"
+  target: number;
+  progress: number; // 현재 값 (UI 진행 막대용, 매 경기 갱신)
+  state: 'open' | 'done' | 'failed';
+  reward: { cash: number; fans: number; trust: number }; // 달성 보상 (시즌 결산 시 지급)
+}
+
+export interface SeasonRecord {
+  season: number;
+  stage: number;
+  rank: number;
+  w: number;
+  l: number;
+  t: number;
+  post: PostFinish;
+  profit: number;
+  avgAtt: number;
+  grade: 'S' | 'A' | 'B' | 'C' | 'D';
+  cleared: boolean; // 그 시즌에 스테이지 메인 목표 달성
+}
+
+// 시즌 중 의사결정 이벤트 카드
+export interface EventCard {
+  id: string;
+  title: string;
+  body: string;
+  icon: string; // 이모지 1개
+  pid?: string; // 관련 선수
+  choices: { label: string; desc: string; disabled?: string }[]; // disabled = 선택 불가 사유
+}
+
+// 이벤트 지속 효과. kind 의 해석은 campaign.ts 가 소유한다.
+export interface Buff {
+  kind: string; // 예: 'merch', 'capacity', 'demand', 'food', 'focus', 'halfPrice', 'pledge'
+  value: number; // 배율 또는 수치
+  until: number; // 이 경기일(day, 0-based) 이전까지 유효. 홈경기 수로 세는 효과는 left 사용
+  left?: number; // 남은 홈경기 수 (있으면 until 대신 이걸로 만료)
+  label: string; // UI 표시 ("굿즈 콜라보 ×1.5")
+  pid?: string;
+}
+
+export interface Campaign {
+  stage: number; // 0-based STAGES 인덱스
+  trust: number; // 구단주 신임 0~100 (0 이하 = 해임)
+  objectives: Objective[]; // 이번 시즌 목표 (메인 1 + 보조 2)
+  achievements: string[]; // 달성한 업적 id
+  titles: number; // 한국시리즈 우승 횟수
+  history: SeasonRecord[];
+  event: EventCard | null; // 대기 중인 이벤트 (선택 전에는 경기 진행 불가)
+  eventsSeen: string[]; // 이번 시즌에 나온 이벤트 id
+  buffs: Buff[]; // 이벤트로 생긴 지속 효과 (시즌이 바뀌면 비움)
+  sellouts: number; // 이번 시즌 매진 횟수
+  ending: boolean; // 우승 엔딩을 본 적 있음
+  verdict: SeasonVerdict | null; // 시즌 결산 결과 (phase 'ended' 진입 시 기록)
+}
+
+export interface SeasonVerdict {
+  cleared: boolean;
+  stageBefore: number;
+  stageAfter: number;
+  trustBefore: number;
+  trustAfter: number;
+  cashReward: number;
+  fansReward: number;
+  newAchievements: string[];
+  fired: boolean;
+}
+
+export interface DraftState {
+  pool: Player[]; // 남은 지명 대상
+  order: string[]; // 전체 지명 순서 (teamId, 라운드 × 8)
+  pick: number; // order 인덱스 (order.length = 종료)
+  log: { round: number; teamId: string; pid: string; name: string; pos: string }[];
+  mine: string[]; // 유저가 뽑은 pid
 }
 
 // ───────── 구장 렌더러 입력 ─────────
