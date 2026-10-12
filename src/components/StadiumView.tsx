@@ -1,7 +1,8 @@
 import { useEffect, useMemo, type CSSProperties } from 'react';
 import type { FacilityKind, StadiumFx, StadiumScene } from '../game/types';
 import StadiumCanvas, { HOTSPOTS, STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
-import { useStore, useUserTeam, userMatch } from '../store';
+import { useCore, useStore, useUserTeam, userMatch } from '../store';
+import { sceneExtras } from '../game/campaign';
 import { fmtInt, fmtMoney } from '../game/format';
 import { SEAT_LV, upgradeCost } from '../game/economy';
 import { usePostLine } from './Bracket';
@@ -34,6 +35,7 @@ const chip: CSSProperties = {
 };
 
 export default function StadiumView() {
+  const core = useCore();
   const playback = useStore((s) => s.playback);
   const stepPlayback = useStore((s) => s.stepPlayback);
   const skipPlayback = useStore((s) => s.skipPlayback);
@@ -45,13 +47,8 @@ export default function StadiumView() {
   const userId = useStore((s) => s.userId);
   const schedule = useStore((s) => s.schedule);
   const day = useStore((s) => s.day);
-  const season = useStore((s) => s.season);
   const phase = useStore((s) => s.phase);
   const post = useStore((s) => s.post);
-  const titles = useStore((s) => s.campaign.titles ?? 0);
-  const retiredN = useStore((s) => s.campaign.retired?.length ?? 0);
-  const fans = useStore((s) => s.fans);
-  const fanSat = useStore((s) => s.fanSat);
   const postLine = usePostLine();
   const setTab = useStore((s) => s.setTab);
   const setMobileTab = useUi((s) => s.setTab);
@@ -84,11 +81,7 @@ export default function StadiumView() {
   // 게이트 밖 줄: 직전(또는 진행 중인) 홈경기에서 발길을 돌린 팬 / 좌석 수
   const gateCrowd = report ? (report.isHome ? report.crowd : null) : crowd;
   const gateQueue = gateCrowd ? Math.max(0, Math.min(1, gateCrowd.turnedAway / Math.max(1, gateCrowd.capacity))) : 0;
-  // 응원 문화 0~3: 팬 규모·만족도·시즌 수 (로직에 헬퍼가 생기면 그쪽으로 옮긴다)
-  const cheerLv = useMemo(() => {
-    const score = fans / 6000 + (fanSat - 50) / 25 + Math.min(1, (season - 1) * 0.25);
-    return Math.max(0, Math.min(3, Math.floor(score - 0.6)));
-  }, [fans, fanSat, season]);
+  const extras = useMemo(() => sceneExtras(core), [core]);
 
   const scene = useMemo<StadiumScene>(() => {
     let fill = idleFill;
@@ -126,13 +119,10 @@ export default function StadiumView() {
       homeBatting,
       fx,
       fxKey,
-      banners: Math.max(0, Math.min(3, titles)),
-      oldBanner: true,
-      gateQueue,
-      cheerLv,
-      retiredNums: Math.min(4, retiredN),
+      ...extras,
+      gateQueue, // 재생 중에는 그 경기의 줄
     };
-  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp?.color, idleFill, crowd?.weather, summaryOpen, userId, titles, gateQueue, cheerLv, retiredN]);
+  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp?.color, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras]);
 
   const star = useMemo(() => user.roster.reduce<(typeof user.roster)[number] | null>((a, p) => (!a || p.star > a.star ? p : a), null), [user.roster]);
 
@@ -259,7 +249,7 @@ export default function StadiumView() {
                 </span>
               )}
               {/* 디오라마의 게이트 밖 줄은 폰에서 작다 — 발길 돌린 팬 수를 함께 적는다 */}
-              {shownCrowd.turnedAway > 0 && <span style={{ color: '#ffb38a' }}>🚶{fmtInt(shownCrowd.turnedAway)}</span>}
+              {shownCrowd.turnedAway > 0 && <span style={{ color: '#ffb38a' }}>🚶 +{fmtInt(shownCrowd.turnedAway)}</span>}
             </>
           ) : (
             <span className="text-white/70">좌석 {fmtInt(cap)}석 · 개막 대기</span>

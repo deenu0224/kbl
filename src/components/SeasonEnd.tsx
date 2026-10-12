@@ -3,10 +3,10 @@ import type { BatPos, Objective, Player, Team } from '../game/types';
 import { useCore, useStore } from '../store';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from '../game/format';
 import { rankOf, seasonAwards, standings } from '../game/season';
-import { STAGES, TRUST_MAX } from '../game/campaign';
+import { STAGES, TRUST_MAX, objDisplay } from '../game/campaign';
 import { leagueAwards, type LeaderRow } from '../game/leaders';
 import Bracket from './Bracket';
-import { Flag, POST_KO, StageTrail, objDone, objProgressText, silhouette, stageName } from './Campaign';
+import { Flag, POST_KO, StageTrail, silhouette, stageName } from './Campaign';
 import EndingScene from './EndingScene';
 import PixelFace from './PixelFace';
 import { LedgerBars, ledgerTotals } from './RightPanel';
@@ -79,13 +79,16 @@ function AwardCard({ title, row, byId, userId }: { title: string; row: LeaderRow
 }
 
 function ObjResult({ o, flag }: { o: Objective; flag?: boolean }) {
-  const ok = objDone(o);
+  const d = objDisplay(useCore(), o);
+  const ok = o.state === 'done';
   return (
     <div className={`flex items-center gap-2 px-2 ${flag ? 'bg-ink/60 py-2' : 'bg-ink/40 py-1'}`} style={flag ? { boxShadow: `inset 3px 0 0 ${ok ? '#6ee07a' : '#ff6b6b'}` } : undefined}>
       {flag ? <Flag size={22} color={ok ? '#6ee07a' : '#6b7694'} /> : <span className={`text-[16px] leading-none ${ok ? 'text-hi' : 'text-white/20'}`}>★</span>}
       <div className="min-w-0 flex-1">
         <div className={`${flag ? 'font-pixel-lg text-[16px]' : 'text-[12px] mob:text-[13px]'} leading-tight ${ok ? '' : 'text-white/55'}`}>{o.text}</div>
-        <div className="text-[11px] text-white/55">{objProgressText(o)}</div>
+        <div className="text-[11px] text-white/55">
+          {d.cur} / {d.target}
+        </div>
       </div>
       <span className={`shrink-0 ${flag ? 'font-pixel-lg text-[15px]' : 'text-[11px]'} ${ok ? 'text-good' : 'text-bad'}`}>{ok ? '달성' : '미달'}</span>
     </div>

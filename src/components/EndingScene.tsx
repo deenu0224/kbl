@@ -1,25 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { StadiumScene } from '../game/types';
 import StadiumCanvas, { STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
-import { useStore, useUserTeam } from '../store';
-import * as story from '../game/story';
-
-// 문구는 story.ts 에 ENDING_LINES / ENDING_LINES_DEALT 가 생기면 그것을 쓴다. 아래는 임시 상수.
-const TEMP_LINES = ['시즌이 끝난 구장.', `${story.TITLE_YEARS_AGO}시즌을 혼자 걸려 있던 바랜 깃발 옆에`, '두 번째 깃발이 걸렸다.'];
-const TEMP_LINES_DEALT = [...TEMP_LINES, '협상 테이블에 앉았던 날을, 섬은 기억한다.'];
-
-function endingLines(dealt: boolean): string[] {
-  const data = story as unknown as Record<string, unknown>;
-  const pick = (k: string) => (Array.isArray(data[k]) && (data[k] as unknown[]).every((x) => typeof x === 'string') ? (data[k] as string[]) : null);
-  return (dealt ? pick('ENDING_LINES_DEALT') : null) ?? pick('ENDING_LINES') ?? (dealt ? TEMP_LINES_DEALT : TEMP_LINES);
-}
+import { useCore, useUserTeam } from '../store';
+import { sceneExtras } from '../game/campaign';
+import { endingText } from '../game/story';
 
 /** 엔딩: 우승 장면이 아니라, 바랜 깃발 옆에 두 번째 깃발이 걸린 빈 구장. 본 뒤에는 계속 플레이. */
 export default function EndingScene({ onDone }: { onDone: () => void }) {
-  const facilities = useStore((s) => s.facilities);
-  const campaign = useStore((s) => s.campaign);
+  const core = useCore();
+  const { facilities, campaign } = core;
   const team = useUserTeam();
-  const lines = useMemo(() => endingLines(!!campaign.dealt), [campaign.dealt]);
+  // 제목 + 본문을 문장 단위로 한 줄씩 띄운다
+  const lines = useMemo(() => {
+    const e = endingText(campaign);
+    return [e.title, ...e.text.split(/(?<=\.)\s+/).filter(Boolean)];
+  }, [campaign]);
   const [shown, setShown] = useState(0);
 
   useEffect(() => {
@@ -41,13 +36,11 @@ export default function EndingScene({ onDone }: { onDone: () => void }) {
       homeBatting: false,
       fx: { kind: 'none' },
       fxKey: 0,
-      banners: Math.max(1, Math.min(3, campaign.titles ?? 1)),
-      oldBanner: true,
+      // 시즌이 끝난 빈 구장: 깃발·영구결번·응원 문화는 로직이 정한 그대로
+      ...sceneExtras(core),
       gateQueue: 0,
-      cheerLv: 0,
-      retiredNums: Math.min(4, campaign.retired?.length ?? 0),
     }),
-    [facilities, team.color, team.color2, campaign.titles, campaign.retired?.length],
+    [facilities, team.color, team.color2, core],
   );
 
   return (
@@ -55,9 +48,9 @@ export default function EndingScene({ onDone }: { onDone: () => void }) {
       <div className="relative w-full" style={{ maxWidth: `min(880px, calc((100dvh - 220px) * ${STADIUM_W} / ${STADIUM_H}))`, aspectRatio: `${STADIUM_W} / ${STADIUM_H}`, boxShadow: '0 0 0 2px #0f1420' }}>
         <StadiumCanvas scene={scene} className="pixel absolute inset-0 block h-full w-full" />
       </div>
-      <div className="flex min-h-[92px] flex-col items-center gap-1 text-center">
+      <div className="flex min-h-[92px] flex-col items-center gap-1 px-2 text-center">
         {lines.slice(0, shown).map((l, i) => (
-          <div key={i} className={`anim-fade-slow ${i === lines.length - 1 || i === 2 ? 'font-pixel-lg text-[18px] text-hi' : 'text-[14px] text-white/85'}`} style={{ textShadow: '1px 1px 0 #0f1420' }}>
+          <div key={i} className={`anim-fade-slow ${i === 0 ? 'font-pixel-lg text-[20px] text-hi' : 'text-[14px] text-white/85'}`} style={{ textShadow: '1px 1px 0 #0f1420' }}>
             {l}
           </div>
         ))}

@@ -25,7 +25,7 @@ export type RightTab = 'league' | 'stadium' | 'finance' | 'news';
 export type Tone = 'good' | 'bad' | 'info';
 
 export interface Store extends Core {
-  playback: { report: DayReport; next: Core; step: number } | null;
+  playback: { report: DayReport; next: Core; step: number; cleared: HintTab[] } | null;
   summary: DayReport[] | null;
   fx: { kind: FacilityKind; key: number } | null;
   toast: { text: string; tone: Tone; key: number } | null;
@@ -147,7 +147,14 @@ export const useStore = create<Store>()(
       const commitPlayback = () => {
         const pb = get().playback;
         if (!pb) return;
-        set({ ...pickCore(pb.next), playback: null, summary: [pb.report], lastReport: pb.report });
+        // 재생 중에 지운 탭 배지는 커밋 때 되살리지 않는다 (pb.next 는 재생 시작 시점의 스냅샷)
+        const next = pickCore(pb.next);
+        if (pb.cleared.length && next.campaign.hints) {
+          const hints = { ...next.campaign.hints };
+          for (const t of pb.cleared) delete hints[t];
+          next.campaign = { ...next.campaign, hints };
+        }
+        set({ ...next, playback: null, summary: [pb.report], lastReport: pb.report });
       };
 
       return {
@@ -175,7 +182,7 @@ export const useStore = create<Store>()(
             set({ ...pickCore(next), playback: null, summary: [report], lastReport: report, fx: null });
             return;
           }
-          set({ playback: { report, next, step: 0 }, fx: null });
+          set({ playback: { report, next, step: 0, cleared: [] }, fx: null });
         },
         stepPlayback() {
           const pb = get().playback;
@@ -363,6 +370,8 @@ export const useStore = create<Store>()(
         },
         clearHint(tab) {
           const c = get().campaign;
+          const pb = get().playback;
+          if (pb && pb.next.campaign.hints?.[tab] && !pb.cleared.includes(tab)) set({ playback: { ...pb, cleared: [...pb.cleared, tab] } });
           if (!c.hints || !c.hints[tab]) return;
           const hints = { ...c.hints };
           delete hints[tab];

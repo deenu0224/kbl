@@ -1,8 +1,7 @@
-import type { Campaign, Objective, SeasonRecord } from '../game/types';
-import { useStore } from '../store';
-import { STAGES, TRUST_MAX, objMet } from '../game/campaign';
+import type { Campaign, Core, Objective, SeasonRecord } from '../game/types';
+import { useCore, useStore } from '../store';
+import { STAGES, TRUST_MAX, objDisplay } from '../game/campaign';
 import { PAST_RANKS, TITLE_YEARS_AGO } from '../game/story';
-import { fmtInt, fmtMoney } from '../game/format';
 import Dialog from './layout/Dialog';
 import { useUi } from './layout/uiStore';
 import { Bar, SectionTitle, recText } from './ui';
@@ -14,50 +13,7 @@ export const stageLabel = (i: number): string => `${i + 1}장 · ${stageName(i)}
 /** 아직 닿지 않은 장의 이름은 실루엣으로만 */
 export const silhouette = (i: number): string => '█'.repeat(Math.max(3, Math.min(8, [...stageName(i)].filter((c) => c !== ' ').length)));
 
-const POST_SHORT = ['–', '준PO', 'PO', '한국시리즈', '우승'];
 export const POST_KO: Record<SeasonRecord['post'], string> = { none: '', SPO: '준플레이오프', PO: '플레이오프', KS: '준우승', champion: '우승' };
-
-const num = (v: number) => (Number.isInteger(v) ? fmtInt(v) : v.toFixed(3).replace(/^0/, ''));
-
-export function objDone(o: Objective): boolean {
-  if (o.state === 'done') return true;
-  if (o.state === 'failed') return false;
-  return objMet(o.kind, o.target, o.progress);
-}
-
-/** 진행 막대 비율 0~1 */
-export function objRatio(o: Objective, nTeams = 8): number {
-  if (objDone(o)) return 1;
-  const p = o.progress;
-  const t = o.target;
-  let r: number;
-  if (o.kind === 'rank') r = p > 0 ? (nTeams + 1 - p) / Math.max(1, nTeams + 1 - t) : 0;
-  else if (o.kind === 'debt') r = p > 0 ? Math.min(1, Math.max(t, 1) / p) * 0.9 : 1;
-  else r = t > 0 ? p / t : 0;
-  return Math.max(0, Math.min(0.97, Number.isFinite(r) ? r : 0));
-}
-
-/** "현재 / 목표" */
-export function objProgressText(o: Objective): string {
-  const p = o.progress;
-  const t = o.target;
-  switch (o.kind) {
-    case 'rank':
-      return `${p}위 / ${t}위`;
-    case 'wins':
-      return `${p}승 / ${t}승`;
-    case 'sellouts':
-      return `${p}회 / ${t}회`;
-    case 'profit':
-      return `${fmtMoney(p)} / ${t <= 1 ? '흑자' : fmtMoney(t)}`;
-    case 'debt':
-      return `${fmtMoney(p)} / ${fmtMoney(t)}`;
-    case 'post':
-      return `${POST_SHORT[p] ?? p} / ${POST_SHORT[t] ?? t}`;
-    default:
-      return `${num(p)} / ${num(t)}`;
-  }
-}
 
 const trustColor = (v: number) => (v >= 50 ? '#6ee07a' : v >= 25 ? '#ffd84a' : '#ff6b6b');
 
@@ -74,13 +30,18 @@ export function Flag({ size = 12, color = '#ffd84a', faded = false }: { size?: n
   );
 }
 
-export function StarRow({ objs, size = 12 }: { objs: Objective[]; size?: number }) {
+/** 별 하나: 금색 채움은 결산에서 딴 뒤에만. 시즌 중 "현재 충족"은 테두리만. */
+export function Star({ o, met }: { o: Objective; met: boolean }) {
+  if (o.state === 'done') return <span className="text-hi">★</span>;
+  if (o.state === 'failed') return <span className="text-white/15">★</span>;
+  return <span className={met ? 'text-hi' : 'text-white/30'}>{met ? '☆' : '★'}</span>;
+}
+
+export function StarRow({ objs, core, size = 12 }: { objs: Objective[]; core: Core; size?: number }) {
   return (
     <span className="inline-flex shrink-0 tracking-tighter" style={{ fontSize: size, lineHeight: 1 }}>
       {objs.map((o) => (
-        <span key={o.id} className={objDone(o) ? 'text-hi' : o.state === 'failed' ? 'text-white/15' : 'text-white/30'}>
-          ★
-        </span>
+        <Star key={o.id} o={o} met={objDisplay(core, o).met} />
       ))}
     </span>
   );
@@ -112,11 +73,11 @@ export function RankString({ history, size = 16 }: { history: SeasonRecord[]; si
   );
 }
 
-function useCampaign(): { c: Campaign; main: Objective | undefined; stars: Objective[]; nTeams: number } {
-  const c = useStore((s) => s.campaign);
-  const nTeams = useStore((s) => s.teams.length);
+function useCampaign(): { c: Campaign; core: Core; main: Objective | undefined; stars: Objective[] } {
+  const core = useCore();
+  const c = core.campaign;
   const objs = c.objectives ?? [];
-  return { c, main: objs.find((o) => o.main), stars: objs.filter((o) => !o.main), nTeams };
+  return { c, core, main: objs.find((o) => o.main), stars: objs.filter((o) => !o.main) };
 }
 
 // ───────── 상단바 칩 ─────────
@@ -126,10 +87,11 @@ function useCampaign(): { c: Campaign; main: Objective | undefined; stars: Objec
  * line: 한 줄(모바일 세로) / 기본: 두 줄(데스크톱·모바일 가로)
  */
 export function CampaignChip({ line = false, className = '' }: { line?: boolean; className?: string }) {
-  const { c, main, stars, nTeams } = useCampaign();
+  const { c, core, main, stars } = useCampaign();
   const open = useUi((s) => s.setCampaignOpen);
-  const flagDone = main ? objDone(main) : false;
-  const flagBar = <Bar ratio={main ? objRatio(main, nTeams) : 0} color={flagDone ? '#6ee07a' : '#ffd84a'} h={5} />;
+  const flag = main ? objDisplay(core, main) : null;
+  const flagDone = !!flag?.met;
+  const flagBar = <Bar ratio={flag?.ratio ?? 0} color={flagDone ? '#6ee07a' : '#ffd84a'} h={5} />;
   const title = (
     <span className="flex min-w-0 items-center gap-1">
       <Flag size={11} color={flagDone ? '#6ee07a' : '#ffd84a'} />
@@ -148,7 +110,7 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
       <button className={`flex min-h-10 w-full cursor-pointer items-center gap-2 px-2 text-left text-[13px] leading-tight short:min-h-9 ${className}`} onClick={() => open(true)} aria-label="캠페인">
         {title}
         <span className="min-w-6 flex-1">{flagBar}</span>
-        <StarRow objs={stars} size={13} />
+        <StarRow objs={stars} core={core} size={13} />
         {trust}
       </button>
     );
@@ -157,7 +119,7 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
     <button className={`flex min-w-0 cursor-pointer flex-col justify-center gap-[3px] px-2 text-left text-[12px] leading-tight mob:min-h-10 mob:text-[13px] ${className}`} onClick={() => open(true)} aria-label="캠페인">
       <span className="flex w-full items-center justify-between gap-2">
         {title}
-        <StarRow objs={stars} size={12} />
+        <StarRow objs={stars} core={core} size={12} />
       </span>
       <span className="flex w-full items-center gap-2">
         <span className="min-w-6 flex-1">{flagBar}</span>
@@ -169,17 +131,19 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
 
 // ───────── 캠페인 시트 ─────────
 
-function ObjRow({ o, nTeams, flag }: { o: Objective; nTeams: number; flag?: boolean }) {
-  const done = objDone(o);
-  const c = o.state === 'failed' ? '#6b7694' : done ? '#6ee07a' : flag ? '#ffd84a' : '#7fd3ff';
+function ObjRow({ o, core, flag }: { o: Objective; core: Core; flag?: boolean }) {
+  const d = objDisplay(core, o);
+  const c = o.state === 'failed' ? '#6b7694' : d.met ? '#6ee07a' : flag ? '#ffd84a' : '#7fd3ff';
   return (
     <div className="bg-ink/50 px-2 py-1.5">
       <div className="flex items-center gap-1.5 text-[12px] mob:text-[13px]">
-        {flag ? <Flag size={13} color={c} /> : <span style={{ color: done ? '#ffd84a' : 'rgba(255,255,255,.3)' }}>★</span>}
+        {flag ? <Flag size={13} color={c} /> : <Star o={o} met={d.met} />}
         <span className={`min-w-0 flex-1 ${o.state === 'failed' ? 'text-white/45' : ''}`}>{o.text}</span>
-        <span className="shrink-0 text-[11px] text-white/70">{objProgressText(o)}</span>
+        <span className="shrink-0 text-[11px] text-white/70">
+          {d.cur} <span className="text-white/40">/ {d.target}</span>
+        </span>
       </div>
-      <Bar ratio={objRatio(o, nTeams)} color={c} h={flag ? 7 : 5} className="mt-1" />
+      <Bar ratio={d.ratio} color={c} h={flag ? 7 : 5} className="mt-1" />
     </div>
   );
 }
@@ -252,7 +216,7 @@ export function Retired({ list }: { list: NonNullable<Campaign['retired']> }) {
 export function CampaignSheet() {
   const isOpen = useUi((s) => s.campaignOpen);
   const setOpen = useUi((s) => s.setCampaignOpen);
-  const { c, main, stars, nTeams } = useCampaign();
+  const { c, core, main, stars } = useCampaign();
   if (!isOpen) return null;
   const history = c.history ?? [];
   const retired = c.retired ?? [];
@@ -271,9 +235,9 @@ export function CampaignSheet() {
       {c.opening && <div className="mt-1 text-[12px] leading-snug text-white/75 mob:text-[13px]">“{c.opening}”</div>}
 
       <div className="mt-2 flex flex-col gap-[3px]">
-        {main && <ObjRow o={main} nTeams={nTeams} flag />}
+        {main && <ObjRow o={main} core={core} flag />}
         {stars.map((o) => (
-          <ObjRow key={o.id} o={o} nTeams={nTeams} />
+          <ObjRow key={o.id} o={o} core={core} />
         ))}
       </div>
 

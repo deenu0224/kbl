@@ -173,9 +173,7 @@ export function LineupTab() {
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle
           right={
-            <button className="px-btn !px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]" onClick={auto} title="OVR 기준으로 타선·투수진을 다시 짭니다">
-              자동 편성
-            </button>
+            <AutoButton />
           }
         >
           선발 타순
@@ -276,9 +274,7 @@ export function PitchersTab() {
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle
           right={
-            <button className="px-btn !px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]" onClick={auto} title="OVR 기준으로 타선·투수진을 다시 짭니다">
-              자동 편성
-            </button>
+            <AutoButton />
           }
         >
           선발 로테이션
@@ -419,6 +415,21 @@ const TABS: { id: LeftTab; label: string }[] = [
   { id: 'pitchers', label: '투수' },
   { id: 'market', label: '영입' },
 ];
+
+/** [자동 편성]: 감독이 승복하기 전(0장 클리어 전)에는 "감독에게 맡기기"다 */
+function AutoButton() {
+  const auto = useStore((s) => s.auto);
+  const yielded = useStore((s) => !!s.campaign.managerYielded);
+  return (
+    <button
+      className="px-btn !px-1.5 !py-0.5 text-[10px] mob:!px-3 mob:text-[12px]"
+      onClick={auto}
+      title={yielded ? 'OVR 기준으로 타선·투수진을 다시 짭니다' : '감독이 자기 방식대로 타선·투수진을 짭니다'}
+    >
+      {yielded ? '자동 편성' : '감독에게 맡기기'}
+    </button>
+  );
+}
 
 export default function LeftPanel() {
   const tab = useStore((s) => s.leftTab);

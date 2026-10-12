@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import type { StadiumScene } from '../game/types';
 import StadiumCanvas, { STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
-import { useStore, useUserTeam } from '../store';
+import { useCore, useStore, useUserTeam } from '../store';
+import { sceneExtras } from '../game/campaign';
 import { Chronicle, Retired, StageTrail } from './Campaign';
 import { SectionTitle } from './ui';
 
 /** 도민 지지 0: 연고 이전. 구단사와 지나온 장을 보여주고 새 게임으로. */
 export default function GameOver() {
-  const campaign = useStore((s) => s.campaign);
-  const facilities = useStore((s) => s.facilities);
+  const core = useCore();
+  const { campaign, facilities } = core;
   const season = useStore((s) => s.season);
   const newGame = useStore((s) => s.newGame);
   const team = useUserTeam();
@@ -29,13 +30,10 @@ export default function GameOver() {
       homeBatting: false,
       fx: { kind: 'none' },
       fxKey: 0,
-      banners: Math.min(3, campaign.titles ?? 0),
-      oldBanner: true,
+      ...sceneExtras(core),
       gateQueue: 0,
-      cheerLv: 0,
-      retiredNums: Math.min(4, retired.length),
     }),
-    [facilities, team.color, team.color2, campaign.titles, retired.length],
+    [facilities, team.color, team.color2, core],
   );
 
   return (
