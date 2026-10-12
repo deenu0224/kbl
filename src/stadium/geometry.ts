@@ -278,7 +278,7 @@ export const BANNER_X = [240, 399, 228];
 export const BANNER_Y = 60;
 /** 바랜 옛 우승 깃발 자리. 이 깃발이 걸리면 새 깃발은 그 옆(BANNER_X_NEW)부터 채운다 */
 export const OLD_BANNER_X = 240;
-export const BANNER_X_NEW = [228, 399, 411];
+export const BANNER_X_NEW = [225, 399, 414];
 
 /** 외야 펜스 윗변의 화면 y */
 export function fenceTopY(sx: number): number {

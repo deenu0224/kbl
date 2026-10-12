@@ -144,7 +144,8 @@ function waveLift(u: number, crests: number[]): number {
 
 /**
  * cheer: fx 로 인한 순간 환호(0~2). cheerLv: 응원 문화 유효 단계(0~4, fx 중에는 한 단계 위).
- * 비 오는 날 지붕 없는 자리는 일부가 자리를 뜨고 남은 사람은 우산을 쓴다.
+ * 비 오는 날 지붕 없는 자리의 관중은 우산을 쓴다(우천 관중 감소는 fill 에 이미 들어 있다).
+ * 관중이 적은 날에는 오랜 팬 주위 자리를 비워 그 한 사람이 눈에 띄게 한다.
  */
 function drawCrowd(
   ctx: Ctx,
@@ -161,8 +162,9 @@ function drawCrowd(
   const h2 = lum(col(scene.homeColor2)) < 45 ? mix(scene.homeColor, '#ffffff', 0.45) : scene.homeColor2;
   const pal = [scene.homeColor, h2, scene.awayColor, ...FAN_EXTRA];
   const seats = L.seats;
-  // 비를 맞는 자리의 4분의 1 남짓은 비어 보인다(자리를 뜸)
-  const here = (s: Seat): boolean => s.rank < fill && !(rain && !s.cov && s.ph % 7 < 2);
+  const lonely = !L.oldFanOnGrass && fill < 0.75;
+  const of = L.oldFan;
+  const here = (s: Seat): boolean => s.rank < fill && !(lonely && Math.abs(s.x - of.x - 2) <= 10 && Math.abs(s.y - of.y + 2) <= 8);
   const wet = (s: Seat): boolean => rain && !s.cov && s.ph % 5 !== 0;
 
   for (let ci = 0; ci < L.groups.length; ci++) {
@@ -259,29 +261,33 @@ function drawCrowd(
   }
 }
 
-/** 외야의 오랜 팬: 관중이 없어도 늘 같은 자리에. 다른 관중보다 1px 크고 작은 깃발을 든다 */
+/** 외야의 오랜 팬: 관중이 없어도 늘 같은 자리에. 폰에서도 읽히도록 다른 관중의 세 배 크기(6×9)에 깃발을 든다 */
 function drawOldFan(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number): void {
   const { x, y } = L.oldFan;
   if (L.oldFanOnGrass) {
     // 잔디 언덕에 깐 돗자리
-    R(ctx, x - 3, y + 1, 10, 3, '#f4f6fa');
-    R(ctx, x - 3, y + 3, 10, 1, '#b9c4d2');
-    R(ctx, x + 4, y + 1, 2, 2, '#5ec8ff');
+    R(ctx, x - 4, y + 1, 14, 3, '#f4f6fa');
+    R(ctx, x - 4, y + 3, 14, 1, '#b9c4d2');
+    R(ctx, x + 7, y + 1, 2, 2, '#5ec8ff');
   } else {
-    R(ctx, x - 1, y + 2, 5, 1, 'rgba(20,40,30,0.3)');
+    R(ctx, x - 2, y + 2, 9, 1, 'rgba(20,40,30,0.35)');
   }
-  R(ctx, x, y - 1, 3, 3, scene.homeColor);
-  R(ctx, x, y - 3, 3, 2, PAL.skin);
-  R(ctx, x, y - 4, 3, 1, '#e9ecf1');
-  // 작은 깃발: 천천히 좌우로
+  // 몸 6×5 · 얼굴 4×3 · 흰 머리 1줄. 어두운 테두리로 관중에서 떼어낸다
+  R(ctx, x - 2, y - 7, 8, 9, 'rgba(15,20,32,0.55)');
+  R(ctx, x - 1, y - 3, 6, 5, scene.homeColor);
+  R(ctx, x - 1, y - 3, 6, 1, shade(scene.homeColor, 0.3));
+  R(ctx, x, y - 6, 4, 3, PAL.skin);
+  R(ctx, x, y - 7, 4, 1, '#e9ecf1');
+  // 깃발: 천천히 좌우로
   const w = (f >> 3) & 1;
-  R(ctx, x + 3, y - 11, 1, 11, '#f4f6fa');
-  R(ctx, x + 4, y - 11 + w, 6 - w, 4, scene.homeColor);
-  R(ctx, x + 4, y - 10 + w, 6 - w, 1, '#ffffff');
+  R(ctx, x + 5, y - 17, 1, 17, '#f4f6fa');
+  R(ctx, x + 6, y - 17 + w, 9 - w, 6, scene.homeColor);
+  R(ctx, x + 6, y - 15 + w, 9 - w, 2, '#ffffff');
+  R(ctx, x + 6, y - 11 + w, 9 - w, 1, 'rgba(20,30,50,0.35)');
   if (scene.weather === 'rain') {
-    R(ctx, x - 3, y - 7, 6, 2, '#ffd23f');
-    R(ctx, x - 2, y - 8, 4, 1, '#ffd23f');
-    R(ctx, x - 3, y - 5, 6, 1, '#c99a1c');
+    R(ctx, x - 4, y - 10, 10, 2, '#ffd23f');
+    R(ctx, x - 2, y - 11, 6, 1, '#ffd23f');
+    R(ctx, x - 4, y - 8, 10, 1, '#c99a1c');
   }
 }
 
@@ -520,65 +526,73 @@ function flag(ctx: Ctx, x: number, y: number, c: string, f: number, seed: number
   }
 }
 
+// 우승 깃발 한 장: 12×22. 폰(디오라마 폭 390px)에서도 한 덩어리로 읽히는 크기
+const BANNER_W = 12;
+
 function drawBanners(ctx: Ctx, scene: StadiumScene, f: number): void {
   const old = scene.oldBanner === true;
   const slots = old ? BANNER_X_NEW : BANNER_X;
   const n = Math.max(0, Math.min(slots.length, Math.round(scene.banners || 0)));
+  const W = BANNER_W;
   for (let i = 0; i < n; i++) {
     const x = slots[i] + 1;
     const y = BANNER_Y;
     const w = ((f >> 2) + i) & 1;
     R(ctx, x - 1, y - 2, 1, 62, PAL.steelDk);
     R(ctx, x - 2, y - 3, 3, 2, PAL.gold);
-    R(ctx, x, y, 8, 8, PAL.gold);
-    R(ctx, x + w, y + 8, 8, 7, PAL.gold);
-    R(ctx, x, y + 2, 8, 3, scene.homeColor);
-    R(ctx, x + 3 + w, y + 8, 2, 2, '#ffffff');
-    R(ctx, x + 2 + w, y + 9, 4, 1, '#ffffff');
-    R(ctx, x + w, y + 15, 3, 2, PAL.gold);
-    R(ctx, x + 5 + w, y + 15, 3, 2, PAL.gold);
-    R(ctx, x + 7, y, 1, 8, '#e0b020');
-    R(ctx, x + 7 + w, y + 8, 1, 7, '#e0b020');
+    R(ctx, x - 1, y - 1, W + 2, 13, 'rgba(15,20,32,0.55)');
+    R(ctx, x, y, W, 11, PAL.gold);
+    R(ctx, x + w, y + 11, W, 9, PAL.gold);
+    R(ctx, x, y + 3, W, 4, scene.homeColor);
+    R(ctx, x + 5 + w, y + 11, 2, 4, '#ffffff');
+    R(ctx, x + 3 + w, y + 12, 6, 2, '#ffffff');
+    R(ctx, x + w, y + 20, 4, 3, PAL.gold);
+    R(ctx, x + 8 + w, y + 20, 4, 3, PAL.gold);
+    R(ctx, x + W - 1, y, 1, 11, '#e0b020');
+    R(ctx, x + W - 1 + w, y + 11, 1, 9, '#e0b020');
   }
   if (!old) return;
   if (n === 0) {
-    // 아직 아무것도 걸리지 않은 빈 깃대: 가로대와, 깃발이 걸릴 자리의 빈 테두리
+    // 아직 아무것도 걸리지 않은 빈 깃대: 가로대와, 깃발이 걸릴 자리의 굵은 점선 테두리
     const x = slots[0] + 1;
     const y = BANNER_Y;
-    R(ctx, x - 1, y - 2, 1, 62, PAL.steelDk);
-    R(ctx, x - 2, y - 3, 3, 2, '#aab3c2');
-    R(ctx, x - 1, y - 1, 10, 1, PAL.steelDk);
-    for (let k = 0; k < 16; k += 4) {
-      R(ctx, x, y + k, 1, 2, '#9aa3b3');
-      R(ctx, x + 7, y + k + 2, 1, 2, '#9aa3b3');
+    const c = '#e9edf5';
+    R(ctx, x - 1, y - 2, 2, 62, PAL.steelDk);
+    R(ctx, x - 2, y - 3, 4, 2, '#aab3c2');
+    R(ctx, x - 1, y - 1, W + 2, 2, PAL.steelDk);
+    R(ctx, x, y + 1, W, 21, 'rgba(15,20,32,0.28)');
+    for (let k = 1; k < 21; k += 6) {
+      R(ctx, x, y + k, 2, 3, c);
+      R(ctx, x + W - 2, y + k + 3, 2, 3, c);
     }
-    R(ctx, x + 1, y + 16, 2, 1, '#9aa3b3');
-    R(ctx, x + 5, y + 16, 2, 1, '#9aa3b3');
+    R(ctx, x + 2, y + 21, 3, 2, c);
+    R(ctx, x + 7, y + 21, 3, 2, c);
   }
   // 바랜 옛 우승 깃발: 같은 모양, 빠진 색, 해진 끝. 거의 흔들리지 않는다
   const x = OLD_BANNER_X + 1;
   const y = BANNER_Y;
   const w = (f >> 4) % 5 === 0 ? 1 : 0;
-  const cloth = '#9d967f';
-  const dk = '#5f5a4b';
+  const cloth = '#a39b80';
+  const dk = '#4d4839';
   const band = mix(scene.homeColor, '#7f7a6c', 0.6);
   R(ctx, x - 1, y - 2, 1, 62, '#6b6352');
   R(ctx, x - 2, y - 3, 3, 2, '#8c7d5c');
   // 어두운 테두리로 밝은 광장 바닥에서 떼어낸다
-  R(ctx, x - 1, y - 1, 10, 10, dk);
-  R(ctx, x - 1 + w, y + 8, 10, 6, dk);
-  R(ctx, x - 1 + w, y + 14, 4, 3, dk);
-  R(ctx, x + 4 + w, y + 14, 4, 2, dk);
-  R(ctx, x, y, 8, 8, cloth);
-  R(ctx, x + w, y + 8, 8, 5, cloth);
-  R(ctx, x, y + 2, 8, 3, band);
-  R(ctx, x + 3 + w, y + 8, 2, 2, '#c4bda6');
+  R(ctx, x - 1, y - 1, W + 2, 13, dk);
+  R(ctx, x - 1 + w, y + 11, W + 2, 9, dk);
+  R(ctx, x - 1 + w, y + 20, 5, 4, dk);
+  R(ctx, x + 6 + w, y + 20, 5, 2, dk);
+  R(ctx, x, y, W, 11, cloth);
+  R(ctx, x + w, y + 11, W, 8, cloth);
+  R(ctx, x, y + 3, W, 4, band);
+  R(ctx, x + 5 + w, y + 11, 2, 3, '#c9c2aa');
   // 해진 끝: 길이가 제각각인 올
-  R(ctx, x + w, y + 13, 2, 3, cloth);
-  R(ctx, x + 5 + w, y + 13, 2, 2, cloth);
+  R(ctx, x + w, y + 19, 3, 4, cloth);
+  R(ctx, x + 7 + w, y + 19, 3, 2, cloth);
   // 좀먹은 구멍
-  R(ctx, x + 5, y + 5, 2, 2, dk);
-  R(ctx, x + 1 + w, y + 10, 1, 2, dk);
+  R(ctx, x + 8, y + 7, 3, 3, dk);
+  R(ctx, x + 2 + w, y + 14, 2, 3, dk);
+  R(ctx, x + 6, y + 1, 2, 1, dk);
 }
 
 // ───────── 선수 ─────────
