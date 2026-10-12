@@ -31,7 +31,27 @@ function useMatchActions() {
   const whenShort = postLine ? postLine.text : `${day + 1}차전 ${dowOf(day)} ${isNightDay(day) ? '야간' : '주간'}`;
   // 시즌 첫 경기는 한 경기씩: 개막전을 치르기 전에는 일괄 진행을 잠근다
   const bulkReason = reason ?? (phase === 'season' && day === 0 ? '개막전부터' : undefined);
-  return { playback, phase, inPost, next, opp, left, reason, idle, when, whenShort, off: !!reason, bulkOff: !!bulkReason, bulkReason };
+  // 개막전은 오더 제출로만 시작한다: 주 버튼이 오더지를 다시 여는 버튼이 된다
+  const opener = phase === 'season' && day === 0 && !!next;
+  return { opener, playback, phase, inPost, next, opp, left, reason, idle, when, whenShort, off: !!reason, bulkOff: !!bulkReason, bulkReason };
+}
+
+/** 주 버튼: 평소엔 [▶ 경기 진행], 개막전 전에는 [개막전 오더] */
+function PlayButton({ className, opener, off }: { className: string; opener: boolean; off: boolean }) {
+  const playNext = useStore((s) => s.playNext);
+  const setOrderOpen = useUi((s) => s.setOrderOpen);
+  if (opener) {
+    return (
+      <button className={`px-btn primary ${className}`} data-testid="order-open" disabled={off} onClick={() => setOrderOpen(true)}>
+        개막전 오더
+      </button>
+    );
+  }
+  return (
+    <button className={`px-btn primary ${className}`} data-sfx="none" disabled={off} onClick={playNext}>
+      ▶ 경기 진행
+    </button>
+  );
 }
 
 /** 드래프트 중 구단 화면을 살펴보다 돌아가는 버튼 */
@@ -47,8 +67,7 @@ function DraftReturn({ className = '' }: { className?: string }) {
 }
 
 export default function BottomBar() {
-  const { playback, inPost, next, opp, left, reason, idle, when, off, bulkOff, bulkReason } = useMatchActions();
-  const playNext = useStore((s) => s.playNext);
+  const { opener, playback, inPost, next, opp, left, reason, idle, when, off, bulkOff, bulkReason } = useMatchActions();
   const simDays = useStore((s) => s.simDays);
   const newGame = useStore((s) => s.newGame);
   const [arm, setArm] = useState(false);
@@ -93,9 +112,7 @@ export default function BottomBar() {
       >
         {arm ? '정말 새 게임?' : '새 게임'}
       </button>
-      <button className="px-btn primary !px-5 !py-1.5 text-[14px]" data-sfx="none" disabled={off} onClick={playNext}>
-        ▶ 경기 진행
-      </button>
+      <PlayButton className="!px-5 !py-1.5 text-[14px]" opener={opener} off={off} />
       {!inPost && (
         <button className="px-btn !py-1.5" disabled={bulkOff} title={bulkReason} onClick={() => simDays(6)}>
           1주 진행
@@ -140,8 +157,7 @@ function LiveScore() {
  * 하이라이트 재생 중엔 엄지 위치에 [건너뛰기].
  */
 export function MobileActionBar() {
-  const { playback, inPost, next, opp, left, reason, idle, whenShort, off, bulkOff, bulkReason } = useMatchActions();
-  const playNext = useStore((s) => s.playNext);
+  const { opener, playback, inPost, next, opp, left, reason, idle, whenShort, off, bulkOff, bulkReason } = useMatchActions();
   const simDays = useStore((s) => s.simDays);
   const skipPlayback = useStore((s) => s.skipPlayback);
 
@@ -174,9 +190,7 @@ export function MobileActionBar() {
   ) : (
     <>
       <DraftReturn className="min-h-11 short:min-h-10 flex-[2] text-[14px]" />
-      <button className="px-btn primary min-h-11 short:min-h-10 flex-[1.6] text-[15px]" data-sfx="none" disabled={off} onClick={playNext}>
-        ▶ 경기 진행
-      </button>
+      <PlayButton className="min-h-11 short:min-h-10 flex-[1.6] text-[15px]" opener={opener} off={off} />
       {!inPost && (
         <button className="px-btn min-h-11 short:min-h-10 flex-1 text-[13px] leading-tight" disabled={bulkOff} onClick={() => simDays(6)}>
           1주
