@@ -15,7 +15,8 @@ import {
   refPrice,
   upgradeCost,
 } from '../game/economy';
-import { standings } from '../game/season';
+import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season';
+import { forcedSaleTarget, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import Bracket from './Bracket';
 import Leaders from './Leaders';
 import { useUi, type LeagueSub } from './layout/uiStore';
@@ -220,6 +221,11 @@ function FacilityCard({ kind }: { kind: FacilityKind }) {
   const next = facInfo(kind, lv + 1);
   const cost = upgradeCost(kind, facilities);
   const reason = cost == null ? '최대 단계입니다' : cash < cost ? `현금 부족 (${fmtMoney(cost - cash)} 모자람)` : null;
+  // 실행하면 금고가 언제 비는가 (안전하면 없음)
+  const piece = useMemo(() => {
+    const r = upgradeFacility(core, kind);
+    return r.error ? null : runwayPieceOf(core, r.core);
+  }, [core, kind]);
 
   return (
     <div className="mb-1.5 bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
@@ -242,6 +248,7 @@ function FacilityCard({ kind }: { kind: FacilityKind }) {
           <div className="text-[10px] text-white/65">{next.desc}</div>
           <div className="mt-0.5 text-[11px] text-white" data-testid={`upgrade-effect-${kind}`}>
             {upgradeEffect(core, kind)}
+            {piece && <span className="text-hi" data-testid="runway-piece"> · {piece}</span>}
           </div>
           <div className="mt-1 flex items-center gap-2">
             <button className="px-btn gold" data-sfx="none" disabled={!!reason} onClick={() => upgrade(kind)}>
@@ -393,12 +400,43 @@ export function FinanceTab() {
   const canBorrow = finance.debt + LOAN_STEP <= LOAN_LIMIT;
   const canRepay = finance.debt > 0 && finance.cash >= Math.min(LOAN_STEP, finance.debt);
   const perGameInterest = (finance.debt * LOAN_RATE) / games;
+  const core = useCore();
+  const rw = useMemo(() => runway(core), [core]);
+  const ghost = useMemo(() => runwayPath(core), [core]);
+  const inSeason = core.phase === 'season' && core.day < core.schedule.length;
+  const victim = rw.forcedSale !== null ? forcedSaleTarget(core) : null;
+  const loanPiece = useMemo(() => {
+    const r = borrowLoan(core);
+    return r.error ? null : runwayPieceOf(core, r.core);
+  }, [core]);
 
   return (
     <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
       <div className="-mx-1.5 -mt-1.5 mb-1.5 empty:hidden">
         <FirstTip id="finance" />
       </div>
+      {inSeason && (
+        <div className="mb-1.5 bg-ink/60 px-1.5 py-1 text-[11px] leading-snug mob:text-[13px]" style={{ boxShadow: `inset 3px 0 0 ${rw.cashOut !== null ? '#ff6b6b' : '#6ee07a'}` }} data-testid="runway-line">
+          <div>
+            경기당 평균{' '}
+            <span className={rw.perGame >= 0 ? 'text-good' : 'text-bad'}>
+              {rw.perGame >= 0 ? '+' : '−'}
+              {fmtMoney(Math.abs(rw.perGame))}
+            </span>{' '}
+            · 이 페이스면 시즌 말 현금 <span className={rw.seasonEnd >= 0 ? 'text-hi' : 'text-bad'}>{fmtMoney(rw.seasonEnd)}</span>
+          </div>
+          {rw.cashOut !== null && (
+            <div className="text-bad" data-testid="runway-step">
+              ① {rw.cashOut}경기 뒤 바닥 → 모자란 돈은 긴급 대출(연 {Math.round(LOAN_RATE * 100)}%)로 전환
+            </div>
+          )}
+          {rw.forcedSale !== null && (
+            <div className="text-bad" data-testid="runway-step">
+              ② {rw.forcedSale}경기 뒤 부채 {fmtMoney(LOAN_LIMIT)} 초과 → 최고 연봉 선수{victim ? ` ${victim.name}(${fmtMoney(victim.salary)})` : ''} 강제 매각
+            </div>
+          )}
+        </div>
+      )}
       <SectionTitle>시즌 누적 장부</SectionTitle>
       <LedgerBars ledger={finance.ledger} />
 
@@ -425,6 +463,7 @@ export function FinanceTab() {
         {canBorrow && (
           <div className="mt-0.5 text-[11px] text-white" data-testid="loan-effect">
             +{fmtMoney(LOAN_STEP)} 대출: 이자 시즌당 약 {fmtMoney(Math.round(LOAN_STEP * LOAN_RATE))}
+            {loanPiece && <span className="text-hi" data-testid="runway-piece"> · {loanPiece}</span>}
           </div>
         )}
         <div className="mt-1.5 flex gap-2">
@@ -446,7 +485,13 @@ export function FinanceTab() {
       </div>
 
       <SectionTitle right={<span className="text-hi">{fmtMoney(finance.cash)}</span>}>현금 추이</SectionTitle>
-      <MiniBars values={cashHistory.slice(-84)} height={56} color={(v) => (v < 0 ? '#ff6b6b' : '#ffd84a')} />
+      <MiniBars values={cashHistory.slice(-84)} ghost={inSeason ? ghost : []} height={56} color={(v) => (v < 0 ? '#ff6b6b' : '#ffd84a')} />
+      {inSeason && ghost.length > 0 && (
+        <div className="mt-0.5 flex justify-between text-[9px] text-white/40 mob:text-[11px]">
+          <span>지금까지</span>
+          <span>┄ 이 페이스의 예측 (남은 {ghost.length}경기)</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,9 +14,9 @@
 //  · 이벤트 버프(수입 배율·임시 유지비), 이벤트 카드의 일회성 현금, 시즌 결산 보상은 넣지 않는다.
 //  · 관중은 최근 평균이 이어진다고 본다 — 연승·연패, 팬 수 증감, 날씨·요일 편차, 가격 변경 직후의 수요 변화는 늦게 반영된다.
 //  · 정규시즌 남은 경기까지만 본다(포스트시즌·다음 시즌 연봉 재산정은 예측 밖).
-import type { Core } from './types';
+import type { Core, Player } from './types';
 import {
-  DOW_MULT, FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_LIMIT, LOAN_RATE, MERCH_K, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
+  DOW_MULT, FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_LIMIT, LOAN_RATE, MERCH_K, MIN_BATTERS, MIN_PITCHERS, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
   capacityOf, opsCost, payroll, previewDemand, starPower, userTeam,
 } from './economy';
 import { fmtMoney } from './format';
@@ -58,7 +58,7 @@ function baseNet(core: Core): { home: number; away: number } {
   };
 }
 
-function project(core: Core, d: { cash?: number; perGame?: number; debt?: number }): Runway {
+function project(core: Core, d: { cash?: number; perGame?: number; debt?: number }, path?: number[]): Runway {
   const len = core.schedule.length || 1;
   const cash0 = core.finance.cash + (d.cash ?? 0);
   const debt0 = Math.max(0, core.finance.debt + (d.debt ?? 0));
@@ -82,6 +82,7 @@ function project(core: Core, d: { cash?: number; perGame?: number; debt?: number
       cash = 0;
     }
     if (debt > LOAN_LIMIT && forcedSale === null) forcedSale = k;
+    path?.push(Math.round(cash - (debt - debt0)));
   }
   return { perGame: Math.round(sum / left), cashOut, forcedSale, seasonEnd: Math.round(cash0 + sum) };
 }
@@ -96,11 +97,27 @@ export function runwayAfter(core: Core, d: { cash?: number; perGame?: number; de
   return project(core, d);
 }
 
+/** 남은 경기의 예상 현금 경로 (그래프의 점선용). 금고가 빈 뒤에는 새로 쌓이는 긴급 대출만큼 0 아래로 내려간다 */
+export function runwayPath(core: Core): number[] {
+  const path: number[] = [];
+  project(core, {}, path);
+  return path;
+}
+
+/** 강제 매각 대상: settleCash 와 같은 기준(최소 인원을 지키는 선에서 최고 연봉) */
+export function forcedSaleTarget(core: Core): Player | null {
+  const t = userTeam(core);
+  const nb = t.roster.filter((p) => p.kind === 'B').length;
+  const np = t.roster.length - nb;
+  return t.roster.filter((p) => (p.kind === 'B' ? nb > MIN_BATTERS : np > MIN_PITCHERS)).sort((a, b) => b.salary - a.salary)[0] ?? null;
+}
+
 /** 상단 경고: 30경기 이내에 금고가 비거나 강제 매각이 올 때만. danger = 12경기 이내 */
 export function runwayAlert(core: Pick<Core, 'finance'>, r: Runway): { text: string; danger: boolean } | null {
   if (core.finance.debt > 0 && r.forcedSale !== null && r.forcedSale <= RUNWAY_SHOW && (r.cashOut === null || r.cashOut <= 1 || r.forcedSale <= RUNWAY_DANGER)) {
     return { text: `강제 매각까지 ${r.forcedSale}경기`, danger: r.forcedSale <= RUNWAY_DANGER };
   }
+  if (r.cashOut !== null && core.finance.cash <= 0) return { text: '금고 바닥 · 빚 증가 중', danger: true };
   if (r.cashOut !== null && r.cashOut <= RUNWAY_SHOW) return { text: `${r.cashOut}경기 뒤 바닥`, danger: r.cashOut <= RUNWAY_DANGER };
   return null;
 }

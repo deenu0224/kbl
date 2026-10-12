@@ -38,6 +38,19 @@ function MoneyBlock({ m, netLabel = '오늘 순익' }: { m: DayReport['money']; 
   );
 }
 
+/** 그 경기로 긴급 대출 전환·강제 매각이 일어났으면 요약 맨 위에 빨간 한 줄씩 */
+function CashNotes({ notes }: { notes: string[] }) {
+  const hit = notes.filter((n) => n.includes('긴급 대출') || n.includes('강제 매각'));
+  if (!hit.length) return null;
+  return (
+    <div className="mb-1.5 bg-bad/20 px-2 py-1 text-[12px] leading-snug text-bad mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #ff6b6b' }} data-testid="cash-note">
+      {hit.map((n, i) => (
+        <div key={i}>⚠ {n}</div>
+      ))}
+    </div>
+  );
+}
+
 function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: string }) {
   const freeAgents = useStore((s) => s.freeAgents);
   // 개막전: 오더지에서 고친 만큼을 한 줄로 되짚는다
@@ -56,6 +69,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
 
   return (
     <>
+      <CashNotes notes={r.notes} />
       {pre !== undefined && (
         <div className="mb-1 text-[12px] text-white/70 mob:text-[13px]" data-testid="pre-result">
           경기 전 <span className="text-hi">{pre}%</span> → <span className={vColor}>{r.won === null ? '무승부' : r.won ? '승리' : '패배'}</span>
@@ -229,6 +243,7 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
 
   return (
     <>
+      <CashNotes notes={rs.flatMap((r) => r.notes)} />
       <div className="flex items-center justify-between">
         <div>
           <div className="font-pixel-lg text-[20px] leading-none text-hi" style={{ textShadow: '2px 2px 0 #0f1420' }}>

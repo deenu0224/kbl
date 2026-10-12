@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { useStore, useUserTeam } from '../store';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCore, useStore, useUserTeam } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import { payroll } from '../game/economy';
 import { teamStrength } from '../game/ratings';
 import { rankOf } from '../game/season';
+import { runway, runwayAlert } from '../game/runway';
 import { CampaignChip } from './Campaign';
 import SoundButton from './SoundButton';
 import { useUi } from './layout/uiStore';
@@ -15,6 +16,18 @@ function Cell({ label, children, title }: { label: string; children: ReactNode; 
       <span className="text-[9px] text-white/50">{label}</span>
       <span className="whitespace-nowrap text-[13px]">{children}</span>
     </div>
+  );
+}
+
+/** 현금 옆 경고: 30경기 이내에 금고가 비거나 강제 매각이 올 때만 (12경기 이내면 빨강·굵게, 그 밖은 노랑). 안전하면 아무것도 없다 */
+export function RunwayWarn({ className = '' }: { className?: string }) {
+  const core = useCore();
+  const a = useMemo(() => runwayAlert(core, runway(core)), [core]);
+  if (!a) return null;
+  return (
+    <span className={`whitespace-nowrap ${a.danger ? 'font-bold text-bad' : 'text-hi'} ${className}`} data-testid="runway-warn" data-danger={a.danger ? '1' : '0'}>
+      · {a.text}
+    </span>
   );
 }
 
@@ -71,6 +84,7 @@ export default function TopBar() {
       <Sep />
       <Cell label="현금">
         <span className={cash < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(cash)}</span>
+        <RunwayWarn className="ml-1 text-[11px]" />
       </Cell>
       <Cell label="부채">
         <span className={debt > 0 ? 'text-bad' : 'text-white/60'}>{fmtMoney(debt)}</span>
@@ -172,6 +186,7 @@ export function MobileTopBar() {
           <span>
             <span className="text-[11px] text-white/50">현금 </span>
             <span className={cash < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(cash)}</span>
+            <RunwayWarn className="ml-1 text-[12px]" />
           </span>
           <span>
             <span className="text-[11px] text-white/50">팬 </span>

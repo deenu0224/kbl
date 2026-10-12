@@ -203,7 +203,9 @@ export function MiniBars({
   color,
   max,
   style,
+  ghost = [],
 }: {
+  ghost?: number[]; // 예측 구간: 실적 뒤에 점선으로 잇는다
   values: number[];
   height?: number;
   color: (v: number, i: number) => string;
@@ -217,8 +219,8 @@ export function MiniBars({
       </div>
     );
   }
-  const hi = Math.max(max ?? 0, ...values, 1);
-  const lo = Math.min(0, ...values);
+  const hi = Math.max(max ?? 0, ...values, ...ghost, 1);
+  const lo = Math.min(0, ...values, ...ghost);
   const span = hi - lo || 1;
   const zero = (hi / span) * 100; // 위에서부터 0선 위치(%)
   return (
@@ -235,6 +237,17 @@ export function MiniBars({
                 top: v >= 0 ? `${zero - Math.max(h, 2)}%` : `${zero}%`,
               }}
             />
+          </div>
+        );
+      })}
+      {ghost.map((v, i) => {
+        const h = Math.max((Math.abs(v) / span) * 100, 2);
+        const c = v < 0 ? '#ff6b6b' : '#ffd84a';
+        return (
+          <div key={`g${i}`} className="relative min-w-0 flex-1" title={`예측 ${Math.round(v)}`} data-testid="ghost-bar">
+            {/* 점선: 한 칸 걸러 한 칸만 꼭대기를 찍는다 */}
+            {i % 2 === 0 && <div className="absolute inset-x-0 h-[2px]" style={{ background: c, top: v >= 0 ? `${zero - h}%` : `calc(${zero + h}% - 2px)` }} />}
+            <div className="absolute inset-x-0" style={{ background: c, opacity: 0.12, height: `${h}%`, top: v >= 0 ? `${zero - h}%` : `${zero}%` }} />
           </div>
         );
       })}

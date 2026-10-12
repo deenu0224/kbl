@@ -30,6 +30,25 @@ export function FlagForecast({ className = '' }: { className?: string }) {
   );
 }
 
+/** 조합장의 자금 경고 한 줄: 제안보다 위에 뜬다 */
+function ChairAlert({ text }: { text: string }) {
+  const team = useUserTeam();
+  const ch = CHARACTERS.chair;
+  return (
+    <div className="flex items-start gap-2 bg-bad/15 p-2" style={{ boxShadow: 'inset 3px 0 0 #ff6b6b' }} data-testid="brief-alert">
+      <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
+        <PixelFace id={`char-${ch.seed}`} color={team.color} color2={team.color2} size={44} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] leading-tight mob:text-[13px]">
+          {ch.name} <span className="text-[11px] text-white/55">{ch.title}</span>
+        </div>
+        <div className="mt-0.5 text-[12px] leading-snug text-white mob:text-[13px]">“{text}”</div>
+      </div>
+    </div>
+  );
+}
+
 /** 스태프 제안 한 장: 초상 + 한 줄 + 예상 결과 숫자 + [실행] 한 번 탭 / 넘기기 */
 function OfferCard({ o }: { o: BriefOffer }) {
   const team = useUserTeam();
@@ -57,7 +76,7 @@ function OfferCard({ o }: { o: BriefOffer }) {
       </div>
       <div className="mt-1.5 flex items-center gap-2">
         {done ? (
-          <span className="text-[12px] text-good mob:text-[13px]">✓ 실행했습니다 — 결과는 다음 주 브리핑에</span>
+          <span className="text-[12px] text-good mob:text-[13px]">✓ 실행됨 — 결과는 다음 주 브리핑에</span>
         ) : skipped ? (
           <span className="text-[12px] text-white/60 mob:text-[13px]">넘겼습니다</span>
         ) : (
@@ -113,6 +132,7 @@ export default function BriefingSheet() {
           </div>
           <FlagForecast className="mt-1" />
         </div>
+        {b.alert && <ChairAlert text={b.alert} />}
         {b.offers.map((o) => (
           <OfferCard key={o.id} o={o} />
         ))}
