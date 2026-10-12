@@ -8,7 +8,6 @@ import { SEAT_LV, upgradeCost } from '../game/economy';
 import { usePostLine } from './Bracket';
 import EventCardModal from './EventCardModal';
 import GameSummary from './GameSummary';
-import OrderSheet from './OrderSheet';
 import { useIsMobile } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
@@ -317,7 +316,6 @@ export default function StadiumView() {
         {/* 모바일 요약은 셸에서 전체 화면 시트로 띄운다 */}
         {!mobile && <GameSummary />}
         {!mobile && <EventCardModal />}
-        {!mobile && <OrderSheet />}
       </div>
     </div>
   );
