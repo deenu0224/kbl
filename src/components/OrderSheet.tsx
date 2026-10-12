@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { play } from '../audio/sfx';
 import { CHARACTERS } from '../game/story';
-import { winChance } from '../game/forecast';
+import { winChanceJob } from '../game/forecast';
 import { teamParts } from '../game/ratings';
 import { pickCore, useStore, userMatch, useUserTeam } from '../store';
 import { AutoButton, LineupTab, PitchersTab, TeamBar, orderIssues } from './LeftPanel';
@@ -25,7 +25,8 @@ const safe = {
 /** 세그먼트 배지: 문제 수, 없으면 ✓ */
 const mark = (n: number) => (n > 0 ? <Badge n={n} /> : <span className="text-good">✓</span>);
 
-const CHANCE_N = 400; // 화면용 표본 수 (오차 ±2%p 남짓)
+const CHANCE_N = 1200; // 화면용 표본 수 (표준오차 약 1.4%p)
+const CHANCE_CHUNK = 100; // 한 번에 돌리는 경기 수
 const CHANCE_MS = 2000;
 const idle = (fn: () => void): (() => void) => {
   if (typeof requestIdleCallback === 'function') {
@@ -42,16 +43,20 @@ function WinChance({ fixable }: { fixable: boolean }) {
   const [pct, setPct] = useState<number | null>(null);
   const [from, setFrom] = useState<number | null>(null);
   const last = useRef<number | null>(null);
-  useEffect(
-    () =>
-      idle(() => {
-        const v = Math.round(winChance(pickCore(useStore.getState()), CHANCE_N) * 100);
-        if (last.current !== null && last.current !== v) setFrom(last.current);
-        last.current = v;
-        setPct(v);
-      }),
-    [team],
-  );
+  useEffect(() => {
+    const job = winChanceJob(pickCore(useStore.getState()), CHANCE_N);
+    let cancel = () => {};
+    const run = () => {
+      const r = job(CHANCE_CHUNK);
+      if (r === null) return void (cancel = idle(run));
+      const v = Math.round(r * 100);
+      if (last.current !== null && last.current !== v) setFrom(last.current);
+      last.current = v;
+      setPct(v);
+    };
+    cancel = idle(run);
+    return () => cancel();
+  }, [team]);
   useEffect(() => {
     if (from === null) return;
     const id = setTimeout(() => setFrom(null), CHANCE_MS);

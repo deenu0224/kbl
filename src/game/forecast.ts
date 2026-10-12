@@ -49,24 +49,39 @@ const CACHE_MAX = 64;
  * 난수는 편성 해시로 고정해 같은 편성이면 같은 값이 나온다.
  */
 export function winChance(core: Core, n = 120): number {
+  const job = winChanceJob(core, n);
+  let v = job(n);
+  while (v === null) v = job(n);
+  return v;
+}
+
+/**
+ * winChance 를 나눠서 돌린다 (화면이 끊기지 않게): 부를 때마다 최대 k 경기를 시뮬하고,
+ * n 경기를 다 채우면 확률을, 아직이면 null 을 돌려준다. 결과는 한 번에 돌린 것과 같다.
+ */
+export function winChanceJob(core: Core, n = 120): (k: number) => number | null {
   const g = nextGame(core);
-  if (!g || n <= 0) return 0.5;
+  if (!g || n <= 0) return () => 0.5;
   const key = `${n}/${lineupKey(core, g.home, g.away)}`;
   const hit = cache.get(key);
-  if (hit !== undefined) return hit;
+  if (hit !== undefined) return () => hit;
   // playGame 이 고정 출전 메모를 캠페인에 적으므로 캠페인도 복제본을 넘긴다
   const shell: Core = { ...core, campaign: structuredClone(core.campaign) };
   const rng = mulberry32(hash(key));
   const userHome = g.home.id === core.userId;
   let pts = 0;
-  for (let i = 0; i < n; i++) {
-    const res = playGame(shell, structuredClone(g.home), structuredClone(g.away), rng, false);
-    const mine = userHome ? res.home : res.away;
-    const theirs = userHome ? res.away : res.home;
-    pts += mine > theirs ? 1 : mine === theirs ? 0.5 : 0;
-  }
-  const v = pts / n;
-  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
-  cache.set(key, v);
-  return v;
+  let i = 0;
+  return (k) => {
+    for (const end = Math.min(n, i + k); i < end; i++) {
+      const res = playGame(shell, structuredClone(g.home), structuredClone(g.away), rng, false);
+      const mine = userHome ? res.home : res.away;
+      const theirs = userHome ? res.away : res.home;
+      pts += mine > theirs ? 1 : mine === theirs ? 0.5 : 0;
+    }
+    if (i < n) return null;
+    const v = pts / n;
+    if (!cache.has(key) && cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
+    cache.set(key, v);
+    return v;
+  };
 }

@@ -324,13 +324,13 @@ function betterArms(team: Team): Map<string, { cand: Player; from: string }> {
   return out;
 }
 
-/** 오더지 배지: 고칠 줄의 수. 타선 = 본 포지션 불일치 또는 ▲벤치가 붙은 줄, 투수 = 불펜에 밀려나 있는 더 나은 선발 수 + 마무리 자리 */
+/** 오더지 배지: 고칠 줄의 수. 타선 = ▲벤치 또는 ⇄ 제자리 칩이 붙은 줄 (맞바꿀 자리가 없는 본 포지션 불일치는 태그만), 투수 = 불펜에 밀려나 있는 더 나은 선발 수 + 마무리 자리 */
 export function orderIssues(team: Team): { lineup: number; pitchers: number } {
   const byId = new Map(team.roster.map((p) => [p.id, p]));
   const better = betterBats(team);
-  const lineup = team.lineup.filter((l) => {
+  const lineup = team.lineup.filter((l, i) => {
     const p = byId.get(l.pid);
-    return !!p && (offPos(p, l.pos) || better.has(l.pid));
+    return !!p && (better.has(l.pid) || (offPos(p, l.pos) && homeSwap(team, byId, i) >= 0));
   }).length;
   // 선발: 불펜·마무리에 있는 선발 투수를 높은 순으로, 로테이션을 낮은 순으로 짝지어 바꿔야 할 자리 수를 센다
   const ok = (p: Player | undefined): p is Player => !!p && p.injury === 0;
@@ -466,7 +466,7 @@ export function LineupTab({ order = false }: { order?: boolean }) {
               fix={fix}
               flash={flashPid === p.id}
               done={done.includes(p.id)}
-              issue={order && (off || better.has(p.id))}
+              issue={order && fixes.has(p.id)}
             />
           );
         })}
