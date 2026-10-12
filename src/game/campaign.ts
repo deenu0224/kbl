@@ -5,7 +5,7 @@ import { clamp, type Rng } from './rng';
 import { opProfit, payroll, userTeam } from './economy';
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
-import { memoGet, memoNum } from './memo';
+import { memoGet, memoNum, memoSet } from './memo';
 import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine } from './story';
 import { beatById, startSeasonScriptMut, userHomeDays } from './script';
 
@@ -15,7 +15,8 @@ export const TRUST_START = 60;
 export const TRUST_MAX = 100;
 export const STAR_TRUST = 5; // 별 1개당 도민 지지
 export const MAX_JUMP = 2; // 월반 포함 한 번에 오를 수 있는 최대 장 수
-export const MID_FAIL_TRUST = 5; // 중간 점검에서 출자·약속을 받고 깃발 실패 시 추가 감소
+export const MID_FAIL_TRUST = 5; // 중간 점검에서 출자를 받고 깃발 실패 시 추가 감소
+export const MID_UP_FAIL_TRUST = 12; // 목표 상향을 약속하고 깃발 실패 시 추가 감소
 export const MID_UP_MULT = 2; // 목표 상향 약속 성공 시 깃발 지원금 배율
 // 포스트시즌 배당금 (유저 최종 도달 지점별, ledger.league 합산)
 export const POST_DIVIDEND: Record<PostFinish, number> = { none: 0, SPO: 30000, PO: 60000, KS: 120000, champion: 250000 };
@@ -257,7 +258,22 @@ export function activeBuffs(core: Core): BuffEffect {
 export function tickBuffs(core: Core, wasHome: boolean): void {
   const c = core.campaign;
   for (const b of c.buffs) if (wasHome && b.left !== undefined && b.left > 0) b.left--;
+  for (const b of c.buffs) if (b.pid && (b.kind === 'fixed' || b.kind === 'demand') && !buffActive(b, core.day)) unfixMut(core, b.pid);
   c.buffs = c.buffs.filter((b) => b.kind === 'youth' || buffActive(b, core.day));
+}
+
+/** 고정 출전이 끝나면 그 선수에게 밀려났던 주전이 제자리로 돌아온다 (mutate). 밀려난 선수는 메모 `fx-<pid>` 에 있다. */
+export function unfixMut(core: Core, pid: string): void {
+  const outId = memoGet(core, `fx-${pid}`);
+  if (!outId) return;
+  memoSet(core, `fx-${pid}`, '');
+  const t = userTeam(core);
+  const slot = t.lineup.find((s) => s.pid === pid);
+  const out = t.roster.find((p) => p.id === outId);
+  if (!slot || !out || out.kind !== 'B' || t.lineup.some((s) => s.pid === outId)) return;
+  slot.pid = outId;
+  addNews(core, `고정 출전이 끝나 ${out.name}이(가) 선발 명단에 돌아왔습니다`, 'info');
+  hintMut(core, 'lineup');
 }
 
 // ───────── 지표 ─────────
@@ -719,8 +735,8 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
       addNews(core, `깃발에는 닿지 못했지만 가을야구가 섬을 달랬습니다 — ${TRUST_LABEL} +${POST_CONSOLE[finish]}`, 'info');
     }
     if (mid) {
-      trust -= MID_FAIL_TRUST;
-      addNews(core, mid === 'up' ? `조합장에게 한 약속을 지키지 못했습니다 — ${TRUST_LABEL} −${MID_FAIL_TRUST}` : `조합원 출자금을 받고도 깃발에 닿지 못했습니다 — ${TRUST_LABEL} −${MID_FAIL_TRUST}`, 'bad');
+      trust -= mid === 'up' ? MID_UP_FAIL_TRUST : MID_FAIL_TRUST;
+      addNews(core, mid === 'up' ? `조합장에게 한 약속을 지키지 못했습니다 — ${TRUST_LABEL} −${MID_UP_FAIL_TRUST}` : `조합원 출자금을 받고도 깃발에 닿지 못했습니다 — ${TRUST_LABEL} −${MID_FAIL_TRUST}`, 'bad');
     }
   }
 
@@ -790,6 +806,8 @@ export function concludeSeason(core0: Core, rng: Rng): Core {
 /** 새 시즌용 캠페인 필드 리셋 (mutate) — nextSeason 에서 호출 */
 export function resetSeasonCampaignMut(core: Core, rng: Rng): void {
   const c = core.campaign;
+  // 시즌이 끝나면 고정 출전도 끝난다: 다음 시즌 개막 타순에 남지 않게 원래 편성으로
+  for (const b of c.buffs) if (b.pid && (b.kind === 'fixed' || b.kind === 'demand')) unfixMut(core, b.pid);
   c.objectives = [];
   c.event = null;
   c.eventsSeen = [];

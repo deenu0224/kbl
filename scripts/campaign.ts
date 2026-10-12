@@ -252,13 +252,13 @@ const passive: Bot = {
 // 카드별 선택 (기본) — 동사를 쓰는 쪽
 const USE: Record<string, number[]> = {
   midcheck: [0],
-  dome: [0], veteran: [1], oldeye: [1, 2], notyet: [0], arm: [0], typhoon: [1],
-  meeting: [0], scalper: [0, 2], early: [1], goods: [0, 1], trade: [0], tourist: [0], tour: [0], raise: [0],
+  dome: [0], veteran: [1], oldeye: [1], notyet: [0], arm: [0], typhoon: [1],
+  meeting: [0], scalper: [0, 2], early: [1], goods: [0, 1], trade: [0], tourist: [0], tour: [0, 1], raise: [0],
 };
 // 그 동사를 쓰지 않을 때의 선택
 const SKIP: Record<string, { verb: Verb; pick: number[] }> = {
   veteran: { verb: 'lineup', pick: [0] },
-  oldeye: { verb: 'sign', pick: [2, 1] },
+  oldeye: { verb: 'sign', pick: [1] },
   trade: { verb: 'sign', pick: [1] },
   scalper: { verb: 'gate', pick: [1] },
   tourist: { verb: 'gate', pick: [1] },
