@@ -59,6 +59,8 @@ export interface Player {
   tag?: string; // KBO 참고 아키타입 설명 (예: "홈런왕형 1루수")
   rookie?: boolean; // 이번 시즌 데뷔 신인 (신인왕 자격)
   scout?: 'A' | 'B' | 'C' | 'D'; // 드래프트 스카우트 등급 (잠재력의 흐릿한 표시)
+  since?: number; // 유저 팀에 합류한 시즌 (프랜차이즈 스타 판정용. 없으면 1)
+  tired?: number; // 연투 피로: 연속 등판 일수 (0/없음 = 정상). 투수만
   bat: BatStats;
   pit: PitStats;
 }
@@ -297,7 +299,24 @@ export interface SeasonRecord {
   avgAtt: number;
   grade: 'S' | 'A' | 'B' | 'C' | 'D';
   cleared: boolean; // 그 시즌에 스테이지 메인 목표 달성
+  name?: string; // 자동 명명된 시즌 이름 ("9월의 기적")
 }
+
+// 시즌 대본의 한 구간 (LEVEL_DESIGN 3절). label 이 있으면 일정표에 세계 안의 예보로 보인다.
+export interface Beat {
+  id: string; // 'broken-lineup' | 'scout-list' | 'road-trip' | 'rainy' | 'rivals' | 'home-stand' | 'midcheck' …
+  part: 'ki' | 'seung' | 'mid' | 'jeon' | 'gyeol'; // 유저에게 보이지 않는다
+  from: number; // 경기일(0-based) 포함
+  to: number; // 포함
+  label?: string; // "장마 예보", "죽음의 원정 6연전"
+  icon?: string; // 이모지 1개
+}
+
+// 인물 (story.ts 의 CHARACTERS 키)
+export type CharId = 'manager' | 'scout' | 'marketing' | 'farm' | 'pitching' | 'chair' | 'suitor' | 'player';
+
+// 탭 배지가 붙는 자리
+export type HintTab = 'lineup' | 'pitchers' | 'market' | 'league' | 'stadium' | 'finance' | 'news';
 
 // 시즌 중 의사결정 이벤트 카드
 export interface EventCard {
@@ -306,6 +325,8 @@ export interface EventCard {
   body: string;
   icon: string; // 이모지 1개
   pid?: string; // 관련 선수
+  who?: CharId; // 말하는 인물 (없으면 인물 없는 사건)
+  line?: string; // 인물의 대사 (2문장 이하). body 는 상황 설명 한 줄
   choices: { label: string; desc: string; disabled?: string }[]; // disabled = 선택 불가 사유
 }
 
@@ -332,6 +353,14 @@ export interface Campaign {
   sellouts: number; // 이번 시즌 매진 횟수
   ending: boolean; // 우승 엔딩을 본 적 있음
   verdict: SeasonVerdict | null; // 시즌 결산 결과 (phase 'ended' 진입 시 기록)
+  // ── v3 (전부 optional: 구 세이브·1라운드 코드와 호환) ──
+  beats?: Beat[]; // 이번 시즌 대본
+  hints?: Partial<Record<HintTab, number>>; // 탭 배지 숫자 (탭을 열면 스토어가 지운다)
+  retired?: { name: string; season: number; pos: string }[]; // 영구결번
+  managerYielded?: boolean; // 감독이 승복함 (자동 편성이 최적 편성이 된다)
+  analyst?: boolean; // 데이터 분석원 채용 (드래프트 등급 정확도↑)
+  dealt?: boolean; // 4장에서 이전 협상 테이블에 앉음 (엔딩 문구 분기)
+  opening?: string; // 장 시작 때 인물의 한 줄 (TopBar/캠페인 시트 표시용)
 }
 
 export interface SeasonVerdict {
@@ -342,6 +371,7 @@ export interface SeasonVerdict {
   trustAfter: number;
   cashReward: number;
   fansReward: number;
+  seasonName?: string;
   newAchievements: string[];
   fired: boolean;
 }
@@ -378,4 +408,9 @@ export interface StadiumScene {
   fx: StadiumFx;
   fxKey: number; // 값이 바뀌면 fx 애니메이션을 처음부터 재생
   banners: number; // 걸린 우승/성과 배너 수 (0~3)
+  // ── v3 (optional: 없으면 그리지 않는다) ──
+  oldBanner?: boolean; // 바랜 옛 우승 깃발 (항상 걸려 있다)
+  gateQueue?: number; // 게이트 밖 대기 줄 0~1 (발길 돌린 팬 비율)
+  cheerLv?: number; // 응원 문화 0~3 (주황 물결 → 깃발 → 대형 현수막)
+  retiredNums?: number; // 걸린 영구결번 수 (0~4)
 }

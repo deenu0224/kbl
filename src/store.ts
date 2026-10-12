@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
-import type { Core, DayReport, FacilityKind, Player, PostRound, Team } from './game/types';
+import type { HintTab, Core, DayReport, FacilityKind, Player, PostRound, Team } from './game/types';
 import { campaignZero, newCore } from './game/generate';
 import {
   advanceDay,
@@ -52,6 +52,7 @@ export interface Store extends Core {
   draftPick(pid: string): void;
   draftSkip(): void;
   finishDraft(): void; // 드래프트가 끝났으면 다음 시즌 개막 (= startNextSeason)
+  clearHint(tab: HintTab): void; // 탭을 열었을 때 배지를 지운다
   newGame(): void;
   setTab(side: 'left', tab: LeftTab): void;
   setTab(side: 'right', tab: RightTab): void;
@@ -343,6 +344,13 @@ export const useStore = create<Store>()(
             rightTab: 'league',
             toast: mkToast('새 구단으로 시작합니다', 'info'),
           });
+        },
+        clearHint(tab) {
+          const c = get().campaign;
+          if (!c.hints || !c.hints[tab]) return;
+          const hints = { ...c.hints };
+          delete hints[tab];
+          set({ campaign: { ...c, hints } });
         },
         setTab(side: 'left' | 'right', tab: LeftTab | RightTab) {
           if (side === 'left') set({ leftTab: tab as LeftTab });
