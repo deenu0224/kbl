@@ -26,6 +26,7 @@ import {
   fenceTopY,
   gateX,
   hash2,
+  standingSpots,
   type Pt,
   type Seat,
 } from './geometry';
@@ -147,6 +148,14 @@ function waveLift(u: number, crests: number[]): number {
  * 비 오는 날 지붕 없는 자리의 관중은 우산을 쓴다(우천 관중 감소는 fill 에 이미 들어 있다).
  * 관중이 적은 날에는 오랜 팬 주위 자리를 비워 그 한 사람이 눈에 띄게 한다.
  */
+const STANDING_FILL = 0.995; // 이 점유율부터 입석이 선다
+const standingCache = new Map<number, ReturnType<typeof standingSpots>>();
+function standingOf(lv: number): ReturnType<typeof standingSpots> {
+  let s = standingCache.get(lv);
+  if (!s) standingCache.set(lv, (s = standingSpots(lv)));
+  return s;
+}
+
 function drawCrowd(
   ctx: Ctx,
   L: StaticLayers,
@@ -238,6 +247,19 @@ function drawCrowd(
         const dy = jumpOf(s, f, cheer);
         R(ctx, s.x + ((f + s.ph) & 1 ? -1 : 2), s.y - dy - 3, 1, 2, m === 1 ? '#ffe45c' : scene.homeColor);
       }
+    }
+  }
+
+  // 매진: 작은 구장(지붕 없는 Lv0·1)은 뒷벽과 스탠드 끝에 서서 보는 입석 줄이 생긴다
+  if (fill >= STANDING_FILL && L.lv.seats <= 1) {
+    const spots = standingOf(L.lv.seats);
+    for (let i = 0; i < spots.length; i++) {
+      const s = spots[i];
+      const up = cheer > 0 && ((f + s.ph) & 1) === 0 ? 1 : 0;
+      const y = s.y - up;
+      R(ctx, s.x, y - 4, 2, 3, pal[s.ph % 3 === 0 ? 1 : s.ph % 7 === 0 ? 2 : 0]);
+      R(ctx, s.x, y - 5, 2, 1, s.ph & 1 ? PAL.skin2 : PAL.skin);
+      R(ctx, s.x, y - 1, 2, 1, '#2b3550');
     }
   }
 
