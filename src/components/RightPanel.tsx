@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import type { FacilityKind, HintTab, Ledger } from '../game/types';
+import type { Core, FacilityKind, HintTab, Ledger } from '../game/types';
 import { useCore, useStore, useUserTeam, userMatch, type RightTab } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import {
@@ -189,7 +189,28 @@ function facInfo(kind: FacilityKind, lv: number): { name: string; desc: string; 
   return row ? { name: row.name, desc: row.desc, upkeep: row.upkeep } : null;
 }
 
+/** 업그레이드하면 달라지는 것 한 줄 (숫자 위주) */
+function upgradeEffect(core: Core, kind: FacilityKind): string {
+  const lv = core.facilities[kind];
+  if (kind === 'seats') {
+    const add = `+${fmtInt(SEAT_LV[lv + 1].cap - SEAT_LV[lv].cap)}석`;
+    if (core.crowd && core.crowd.turnedAway > 0) return `${add} · 지난 홈경기 발길 돌린 팬 ${fmtInt(core.crowd.turnedAway)}명`;
+    const over = Math.round(previewDemand(core) - SEAT_LV[lv].cap);
+    return over > 0 ? `${add} · 예상 수요 초과 ${fmtInt(over)}명` : `${add} · 지금은 빈 좌석 ${fmtInt(-over)}석`;
+  }
+  if (kind === 'food') {
+    const d = FOOD_LV[lv + 1].spend - FOOD_LV[lv].spend;
+    const recent = core.attHistory.slice(-10);
+    const att = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : Math.min(previewDemand(core), SEAT_LV[core.facilities.seats].cap);
+    return `관중 1인당 +${fmtInt(Math.round(d * 10000))}원 · 홈경기당 약 +${fmtMoney(Math.round((att * d) / 10) * 10)}`;
+  }
+  const a = TRAIN_LV[lv];
+  const b = TRAIN_LV[lv + 1];
+  return `주간 성장 확률 ${Math.round(a.grow * 100)}% → ${Math.round(b.grow * 100)}% · 부상 −${Math.round((1 - b.inj / a.inj) * 100)}%`;
+}
+
 function FacilityCard({ kind }: { kind: FacilityKind }) {
+  const core = useCore();
   const facilities = useStore((s) => s.facilities);
   const cash = useStore((s) => s.finance.cash);
   const upgrade = useStore((s) => s.upgrade);
@@ -218,6 +239,9 @@ function FacilityCard({ kind }: { kind: FacilityKind }) {
             ▲ Lv{lv + 2} {next.name}
           </div>
           <div className="text-[10px] text-white/65">{next.desc}</div>
+          <div className="mt-0.5 text-[11px] text-white" data-testid={`upgrade-effect-${kind}`}>
+            {upgradeEffect(core, kind)}
+          </div>
           <div className="mt-1 flex items-center gap-2">
             <button className="px-btn gold" data-sfx="none" disabled={!!reason} onClick={() => upgrade(kind)}>
               업그레이드 {fmtMoney(cost)}
@@ -391,6 +415,11 @@ export function FinanceTab() {
         <div className="text-[10px] text-white/55">
           연 {Math.round(LOAN_RATE * 100)}% · 지금 이자 경기당 {fmtMoney(Math.round(perGameInterest))}
         </div>
+        {canBorrow && (
+          <div className="mt-0.5 text-[11px] text-white" data-testid="loan-effect">
+            +{fmtMoney(LOAN_STEP)} 대출: 이자 시즌당 약 {fmtMoney(Math.round(LOAN_STEP * LOAN_RATE))}
+          </div>
+        )}
         <div className="mt-1.5 flex gap-2">
           <button className="px-btn" disabled={!canBorrow} title={canBorrow ? `${fmtMoney(LOAN_STEP)} 대출` : '대출 한도 초과'} onClick={borrow}>
             대출 +{fmtMoney(LOAN_STEP)}

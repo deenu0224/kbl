@@ -3,6 +3,7 @@ import type { BatPos, Player, Team } from '../game/types';
 import { pitcherLoc, putPitcher, useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, releaseCost, signingBonus } from '../game/economy';
+import { slotNewcomer } from '../game/lineup';
 import { effDef, teamParts, type TeamParts } from '../game/ratings';
 import PlayerCard from './PlayerCard';
 import { useHintTabs } from './RightPanel';
@@ -648,6 +649,21 @@ export function MarketTab() {
   const selP = sel ? freeAgents.find((p) => p.id === sel) : undefined;
   const full = team.roster.length >= ROSTER_MAX;
   const bonus = selP ? signingBonus(selP) : 0;
+  // 영입하면: 자동으로 들어갈 자리를 복제본에 적용해 본 전력 변화
+  const preview = useMemo(() => {
+    if (!selP) return null;
+    const t = structuredClone(team);
+    const p = structuredClone(selP);
+    t.roster.push(p);
+    const role = slotNewcomer(t, p);
+    const a = teamParts(team);
+    const b = teamParts(t);
+    const moved = PART_LABEL.filter(([k]) => a[k] !== b[k])
+      .sort(([x], [y]) => Math.abs(b[y] - a[y]) - Math.abs(b[x] - a[x]))
+      .slice(0, 2)
+      .map(([k, label]) => ({ label, from: a[k], to: b[k] }));
+    return { role, moved };
+  }, [selP, team]);
   const reason = !selP ? null : full ? `로스터 정원 초과 (${ROSTER_MAX}명)` : cash < bonus ? `현금 부족 (계약금 ${fmtMoney(bonus)})` : null;
 
   return (
@@ -712,11 +728,23 @@ export function MarketTab() {
           <PlayerCard
             player={selP}
             extra={
-              <div className="mt-1 flex justify-between bg-ink/60 px-1.5 py-1 text-[11px]">
-                <span>
-                  계약금 <span className="text-hi">{fmtMoney(bonus)}</span>
-                </span>
-                <span className="text-white/60">연봉은 매 경기 분할 지급</span>
+              <div className="mt-1 bg-ink/60 px-1.5 py-1 text-[11px]" data-testid="sign-preview">
+                <div>
+                  <span className="text-white/60">영입하면: </span>
+                  {preview?.moved.length ? (
+                    preview.moved.map((m, i) => (
+                      <span key={m.label}>
+                        {i > 0 && ' · '}
+                        {m.label} {m.from} → <span className={m.to > m.from ? 'text-good' : 'text-bad'}>{m.to}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-white/75">{preview?.role} · 전력 변화 없음</span>
+                  )}
+                </div>
+                <div className="text-white/60">
+                  연봉 <span className="text-white">+{fmtMoney(selP.salary)}/시즌</span> · 계약금 <span className="text-hi">{fmtMoney(bonus)}</span>
+                </div>
               </div>
             }
           >
