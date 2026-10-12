@@ -265,14 +265,25 @@ function betterArms(team: Team): Map<string, { cand: Player; from: string }> {
   return out;
 }
 
-/** 오더지 배지: 타선 = 본 포지션 불일치 줄 + ▲벤치 줄, 투수 = ▲불펜/▲마무리 줄 */
+/** 오더지 배지: 고칠 줄의 수. 타선 = 본 포지션 불일치 또는 ▲벤치가 붙은 줄, 투수 = 불펜에 밀려나 있는 더 나은 선발 수 + 마무리 자리 */
 export function orderIssues(team: Team): { lineup: number; pitchers: number } {
   const byId = new Map(team.roster.map((p) => [p.id, p]));
-  const off = team.lineup.filter((l) => {
+  const better = betterBats(team);
+  const lineup = team.lineup.filter((l) => {
     const p = byId.get(l.pid);
-    return !!p && offPos(p, l.pos);
+    return !!p && (offPos(p, l.pos) || better.has(l.pid));
   }).length;
-  return { lineup: off + betterBats(team).size, pitchers: betterArms(team).size };
+  // 선발: 불펜·마무리에 있는 선발 투수를 높은 순으로, 로테이션을 낮은 순으로 짝지어 바꿔야 할 자리 수를 센다
+  const ok = (p: Player | undefined): p is Player => !!p && p.injury === 0;
+  const val = (p: Player) => p.ovr - (p.pos === 'SP' ? 0 : 100);
+  const rot = team.rotation.map((id) => byId.get(id)).filter((p): p is Player => !!p).sort((a, b) => val(a) - val(b));
+  const cl = team.closer ? byId.get(team.closer) : undefined;
+  const out = [...team.bullpen.map((id) => byId.get(id)), cl].filter(ok).filter((p) => p.pos === 'SP').sort((a, b) => b.ovr - a.ovr);
+  let pitchers = 0;
+  for (let k = 0; k < Math.min(rot.length, out.length); k++) if (val(rot[k]) < out[k].ovr) pitchers++;
+  const arms = betterArms(team);
+  if (cl && arms.has(cl.id)) pitchers++;
+  return { lineup, pitchers: Math.max(pitchers, arms.size) };
 }
 
 // ───────── 타선 ─────────
