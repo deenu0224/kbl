@@ -46,7 +46,7 @@ const CACHE_MAX = 64;
 /**
  * 다음 유저 경기의 승리 확률(0~1, 무승부는 0.5). 두 팀을 복제해 n 번 시뮬한다 —
  * 원본 core 는 건드리지 않는다(스탯·부상·다음 선발·연투 전부 복제본에서만).
- * 난수는 편성 해시로 고정해 같은 편성이면 같은 값이 나온다.
+ * 난수는 경기 번호별로 고정해 같은 편성이면 같은 값이 나온다.
  */
 export function winChance(core: Core, n = 120): number {
   const job = winChanceJob(core, n);
@@ -67,13 +67,14 @@ export function winChanceJob(core: Core, n = 120): (k: number) => number | null 
   if (hit !== undefined) return () => hit;
   // playGame 이 고정 출전 메모를 캠페인에 적으므로 캠페인도 복제본을 넘긴다
   const shell: Core = { ...core, campaign: structuredClone(core.campaign) };
-  const rng = mulberry32(hash(key));
+  // 경기 번호별로 난수를 고정한다(편성과 무관) — 편성을 바꿔도 같은 운으로 비교해 수리 전후의 표본 오차를 줄인다
+  const base = `${core.seed}/${core.season}/${core.phase}/${core.day}`;
   const userHome = g.home.id === core.userId;
   let pts = 0;
   let i = 0;
   return (k) => {
     for (const end = Math.min(n, i + k); i < end; i++) {
-      const res = playGame(shell, structuredClone(g.home), structuredClone(g.away), rng, false);
+      const res = playGame(shell, structuredClone(g.home), structuredClone(g.away), mulberry32(hash(`${base}/${i}`)), false);
       const mine = userHome ? res.home : res.away;
       const theirs = userHome ? res.away : res.home;
       pts += mine > theirs ? 1 : mine === theirs ? 0.5 : 0;
