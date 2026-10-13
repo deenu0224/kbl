@@ -33,6 +33,10 @@
 - 스토어의 `substitute`·`swapLineup`·`swapPos`·`swapPitchers` 는 화면에서 부르는 곳이 없다(편집기는 `restoreLineup`·`callUpInto` 만 쓴다). 2군·부상 선수 검사가 없지만 닿지 않으므로 그대로 둔다.
 - 포스트시즌 관중석 수는 `SEAT_LV.cap × 버프`로 계산하고 정규시즌은 `capacityOf(core)` 를 쓴다. 의도(밸런스)인지 알 수 없어 건드리지 않았다.
 
+- 같은 종류(카드에 타순 순번을 굽는 곳) — **남김**:
+  - 0장 `veteran` 카드(`events.ts` resolve 의 `t.lineup[Number(parts(cd)[1])]`): 카드를 접어 두고 타순을 바꾸면 베테랑이 카드에 적힌 선수가 아니라 그 순번에 지금 있는 선수 자리에 들어간다. 0장 한 번뿐인 카드라 낮음.
+  - 주간 브리핑의 유망주 기용 제안(`briefing.ts` runOffer `a.slot`): 브리핑을 연 채 오더 편집기로 타순을 바꾸면 같은 일이 생길 수 있다. **추정** — 이적·조치·카드 처리 뒤에는 `refreshBriefing` 으로 다시 만들지만 편집기(`restoreLineup`) 뒤에는 부르지 않는다. 재현하지 않았다.
+
 ## 검증 환경 메모
 
 - 이 워크트리에는 `node_modules` 가 없어 메인 체크아웃의 것을 심볼릭 링크로 걸었다(커밋 안 됨, `.gitignore`). 그 때문에 `npm run screens` 에서 폰트 요청이 Vite 허용 목록 밖이라 실패해 "콘솔 에러·실패한 요청"이 화면마다 잡힌다 — 코드 문제가 아니다.
