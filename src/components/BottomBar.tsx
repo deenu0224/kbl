@@ -36,11 +36,11 @@ export function useMatchActions() {
   return { opener, playback, phase, inPost, next, opp, reason, idle, when, whenShort, off: !!reason, bulkOff: !!bulkReason, bulkReason };
 }
 
-/** 경기 전 점검 줄: "오늘 승리 확률 44%". 숫자를 탭하면 오더 편집기("오늘의 오더") */
+/** 경기 전 점검 줄: "오늘 승리 확률 44%". 숫자를 탭하면 선수단 화면 (개막전에는 개막전 오더) */
 export function PreGame({ short = false }: { short?: boolean }) {
   const opener = useStore((s) => s.phase === 'season' && s.day === 0);
-  // 오더지가 열려 있는 동안은 오더지가 같은 숫자를 계산한다 (같은 시뮬을 두 번 돌리지 않는다)
-  const sheetOpen = useUi((s) => (opener ? s.orderOpen : s.dailyOpen));
+  // 개막전 오더가 열려 있는 동안은 그 화면이 같은 숫자를 계산한다 (같은 시뮬을 두 번 돌리지 않는다)
+  const sheetOpen = useUi((s) => opener && s.orderOpen);
   const own = useWinChance(!sheetOpen);
   const seed = useStore((s) => s.seed);
   const season = useStore((s) => s.season);
@@ -48,7 +48,7 @@ export function PreGame({ short = false }: { short?: boolean }) {
   const day = useStore((s) => s.day);
   const shared = useUi((s) => s.chances[chanceKey({ seed, season, phase, day })]);
   const pct = sheetOpen ? (shared ?? own) : own;
-  const setDailyOpen = useUi((s) => s.setDailyOpen);
+  const openSquad = useUi((s) => s.openSquad);
   const setOrderOpen = useUi((s) => s.setOrderOpen);
   return (
     <button
@@ -56,8 +56,8 @@ export function PreGame({ short = false }: { short?: boolean }) {
       className="shrink-0 cursor-pointer whitespace-nowrap text-[11px] text-white/70 mob:min-h-10 mob:text-[13px]"
       data-testid="pre-chance"
       data-sfx="tab"
-      aria-label="오더 편집기 열기"
-      onClick={() => (opener ? setOrderOpen(true) : setDailyOpen(true))}
+      aria-label="선수단 열기"
+      onClick={() => (opener ? setOrderOpen(true) : openSquad('field'))}
     >
       {short ? '승리 확률' : '오늘 승리 확률'} <span className="text-[13px] text-hi underline decoration-dotted underline-offset-2 mob:text-[15px]">{pct === null ? '—' : `${pct}%`}</span>
     </button>

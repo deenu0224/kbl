@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { PenLoadLine } from './PenStyle';
 import type { Player } from '../../game/types';
 import { PITCH_KEYS, fitsKey, type PosKey, type PosRow } from '../../game/analysis';
 import { fmtMoney } from '../../game/format';
@@ -40,6 +39,7 @@ export default function PlayerBrowser({
   band,
   pinned,
   note,
+  chips,
 }: {
   mode: TableMode;
   players: Player[];
@@ -51,6 +51,7 @@ export default function PlayerBrowser({
   band?: (p: Player) => { color: string; bg: string } | undefined;
   pinned?: string[]; // OVR 정렬일 때 맨 위에 올릴 선수 (스카우트 명단)
   note?: (p: Player) => ReactNode; // 이름 옆 작은 표시
+  chips?: ReactNode; // 목록의 전체/타자/투수 칩 대신 쓸 필터 칩 (명단: 전체/1군/2군/타자/투수)
 }) {
   // 특정 포지션으로 걸러서 열렸으면 그 필터를 가진 표로 시작한다
   const [table, setTable] = useState(!!initPos && initPos !== 'weak');
@@ -91,11 +92,12 @@ export default function PlayerBrowser({
       <div className="flex shrink-0 items-center gap-1 px-1.5 py-1.5">
         {/* 필터 칩은 한 줄 (가로 스크롤), [표로 보기]는 오른쪽에 고정 */}
         <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" data-testid="list-filters">
-        {([['all', '전체'], ['B', '타자'], ['P', '투수']] as const).map(([k, label]) => (
-          <Chip key={k} on={kind === k} onClick={() => setKind(k)} testid={`lkind-${k}`}>
-            {label}
-          </Chip>
-        ))}
+        {chips ??
+          ([['all', '전체'], ['B', '타자'], ['P', '투수']] as const).map(([k, label]) => (
+            <Chip key={k} on={kind === k} onClick={() => setKind(k)} testid={`lkind-${k}`}>
+              {label}
+            </Chip>
+          ))}
         {mode !== 'roster' && (
           <Chip on={weak} tone="bad" onClick={() => setWeak((v) => !v)} testid="lneed-only">
             {draft ? '빈 뎁스만' : '우리 약점만'}
@@ -108,7 +110,6 @@ export default function PlayerBrowser({
         </div>
         {toggle}
       </div>
-      {mode === 'roster' && kind === 'P' && <PenLoadLine className="shrink-0 px-2 pb-1.5" />}
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5" data-testid="player-list">
         {list.map((p) => {
           const bd = band?.(p);

@@ -1,25 +1,38 @@
 import { create } from 'zustand';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { positionReport, rankMap, type PosRow } from '../../game/analysis';
 import { pickCore, useCore, useStore } from '../../store';
+import type { LineupSnap } from './editorOps';
 
-export type OfficeView = 'diag' | 'table' | 'depth' | 'salary';
+export type ListView = 'list' | 'salary';
 
 interface RosterUi {
-  office: OfficeView | null; // 프런트 오피스 전체 화면 (null = 닫힘)
-  seen: { key: string; ranks: Record<string, number> } | null; // 다이아몬드가 마지막으로 보여 준 순위
-  flash: string[]; // 방금 순위가 오른 칸 (잠깐 초록)
-  openOffice(v?: OfficeView): void;
+  list: ListView | null; // 명단 전체 화면 (null = 닫힘)
+  hist: LineupSnap[]; // 되돌리기 스택: 다음 경기를 치르면 비운다
+  openList(v?: ListView): void;
   close(): void;
+  push(s: LineupSnap): void;
+  pop(): LineupSnap | undefined;
 }
 
-export const useRosterUi = create<RosterUi>()((set) => ({
-  office: null,
-  seen: null,
-  flash: [],
-  openOffice: (v = 'diag') => set({ office: v }),
-  close: () => set({ office: null }),
+export const useRosterUi = create<RosterUi>()((set, get) => ({
+  list: null,
+  hist: [],
+  openList: (v = 'list') => set({ list: v }),
+  close: () => set({ list: null }),
+  push: (s) => set((st) => ({ hist: [...st.hist, s].slice(-30) })),
+  pop: () => {
+    const last = get().hist.at(-1);
+    if (last) set((st) => ({ hist: st.hist.slice(0, -1) }));
+    return last;
+  },
 }));
+
+/** 순위 → 색: 1~2위 초록, 3~5위 중립, 6위 이하 빨강 */
+export function rankTone(r: Pick<PosRow, 'rank' | 'of'>): 'good' | 'mid' | 'bad' {
+  if (r.rank <= 2) return 'good';
+  return r.rank >= r.of - 2 ? 'bad' : 'mid';
+}
 
 /** 팀 진단 (스토어의 현재 상태 기준) */
 export function usePosReport(): PosRow[] {
@@ -37,29 +50,7 @@ function markBaseline(): void {
 }
 markBaseline();
 useStore.subscribe((s, p) => {
+  // 경기가 진행됐거나 다른 게임이면 되돌릴 것이 없다
+  if ((s.day !== p.day || s.phase !== p.phase || s.season !== p.season || s.seed !== p.seed) && useRosterUi.getState().hist.length) useRosterUi.setState({ hist: [] });
   if (s.season !== p.season || s.seed !== p.seed || s.phase !== p.phase || !s.campaign.posRank0) markBaseline();
 });
-
-const FLASH_MS = 2400;
-let flashTimer: ReturnType<typeof setTimeout> | undefined;
-
-/** 순위가 오른 칸을 잠깐 번쩍이게 한다. 다이아몬드(미니·전체)가 같이 쓴다 */
-export function useRankFlash(rows: PosRow[]): string[] {
-  const key = useStore((s) => `${s.seed}/${s.season}`);
-  const flash = useRosterUi((s) => s.flash);
-  useEffect(() => {
-    const now = rankMap(rows);
-    const seen = useRosterUi.getState().seen;
-    if (seen && seen.key === key) {
-      const up = Object.keys(now).filter((k) => now[k] < (seen.ranks[k] ?? now[k]));
-      const same = Object.keys(now).every((k) => now[k] === seen.ranks[k]);
-      if (same) return;
-      useRosterUi.setState({ seen: { key, ranks: now }, ...(up.length ? { flash: up } : {}) });
-      if (up.length) {
-        clearTimeout(flashTimer);
-        flashTimer = setTimeout(() => useRosterUi.setState({ flash: [] }), FLASH_MS);
-      }
-    } else useRosterUi.setState({ seen: { key, ranks: now } });
-  }, [rows, key]);
-  return flash;
-}

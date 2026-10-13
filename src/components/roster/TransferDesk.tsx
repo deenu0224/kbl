@@ -6,7 +6,7 @@ import { FARM_MAX, FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTr
 import { useCore, useStore, useUserTeam } from '../../store';
 import { useIsMobile } from '../layout/useLayout';
 import { POS_FULL } from '../ui';
-import { CardPop, FullScreen } from './FrontOffice';
+import { CardPop, FullScreen } from './RosterList';
 import PlayerBrowser from './PlayerBrowser';
 import { PART_KO } from './labels';
 import { usePosReport } from './rosterUi';

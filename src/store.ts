@@ -265,9 +265,8 @@ export const useStore = create<Store>()(
           const p = s.freeAgents.find((x) => x.id === pid);
           if (!applyResult(signPlayer(pickCore(s), pid), p ? `${p.name} 영입 완료!` : '영입 완료!') || !p) return;
           // 들어간 자리를 바로 보여 준다
-          const sub = p.kind === 'B' ? 'lineup' : 'pitchers';
-          set({ flash: { pid, at: Date.now() }, leftTab: sub });
-          useUi.setState({ tab: 'roster', rosterSub: sub });
+          set({ flash: { pid, at: Date.now() }, leftTab: 'lineup' });
+          useUi.getState().openSquad(p.kind === 'B' ? 'field' : 'arms');
         },
         release(pid) {
           if (locked()) return;
