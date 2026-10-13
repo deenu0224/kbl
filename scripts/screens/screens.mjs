@@ -283,6 +283,26 @@ export const SCREENS = [
   // ── 포스트시즌
   S('post-home', 'post', game()),
   S('post-bracket', 'post', game('리그', '대진표')),
+  // 10구단 와일드카드 결정전: 4위(1승 안고 시작) · 5위(2연승 필요) · 1승 1패 · 무승부 통과 · 탈락 결산
+  S('wc-hi-home', 'wcHi', game()),
+  S('wc-hi-bracket', 'wcHi', game('리그', '대진표')),
+  S('wc-hi-table', 'wcHi', game('리그')),
+  S('wc-help', 'wcHi', game('리그', '대진표', '가을야구 설명')),
+  S('eight-help', 'eight', game('리그', '대진표', '가을야구 설명')),
+  S('wc-lo-home', 'wcLo', game()),
+  S('wc-lo-bracket', 'wcLo', game('리그', '대진표')),
+  S('wc-lo-summary', 'wcLo', game(...SUMMARY)),
+  S('wc-mid-bracket', 'wcMid', game('리그', '대진표')),
+  S('wc-tie-bracket', 'wcTie', game('리그', '대진표')),
+  S('wc-out', 'wcOut', game()),
+  S('wc-out-folds', 'wcOut', game('fold-bracket', 'fold-ledger')),
+  // 8구단 세이브(10구단 체제 전의 게임): 홈 · 순위표 · 대진표(4팀) · 포스트시즌
+  S('eight-home', 'eight', game()),
+  S('eight-table', 'eight', game('리그')),
+  S('eight-more', 'eight', game('리그', '자세히: 승률')),
+  S('eight-bracket', 'eight', game('리그', '대진표')),
+  S('eight-club', 'eight', game(...CLUB)),
+  S('eight-post-bracket', 'eightPost', game('리그', '대진표')),
 
   // ── 도전과제: 초기 화면에서 연 목록(달성 일부 · 빈 저장) · 게임 안에서 연 목록 · 범주 탭 · 필터 · 달성 알림
   S('achv-title', 'opened', st(['open-achv']), { ui: ACHV_UI }),

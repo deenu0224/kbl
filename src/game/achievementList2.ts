@@ -65,7 +65,7 @@ const SQUAD: AchvDef[] = [
   Q('q-retired3', '전설들의 구단', '영구결번 선수 3명', '🏛️', 4, 'story', (x) => (x.core.campaign.retired?.length ?? 0) >= 3, { progress: (x) => [x.core.campaign.retired?.length ?? 0, 3] }),
   Q('q-franchise', '프랜차이즈 스타', '프랜차이즈 스타(스타성 60 이상 · 우리 팀 5시즌 이상) 보유', '💛', 2, ['squad', 'story'], (x) => some(x, (p) => isFranchise(p, x.core.season))),
   Q('q-resign', '남아 줘서 고맙다', 'FA 자격을 얻은 선수를 재계약 카드에서 붙잡는다', '🫶', 1, 'event', (x) => x.card?.id === 'resign' && !!x.card.pid && some(x, (p) => p.id === x.card!.pid)),
-  Q('q-cheap-post', '가성비 야구', '연봉 총액이 리그 8팀 중 7위 이하인데 포스트시즌 진출', '🪙', 4, 'season', (x) => x.rec!.post !== 'none' && x.core.teams.filter((t) => payroll(t) > payroll(x.t)).length >= leagueSize(x.core) - 2),
+  Q('q-cheap-post', '가성비 야구', '연봉 총액이 리그 10팀 중 9위 이하인데 포스트시즌 진출', '🪙', 4, 'season', (x) => x.rec!.post !== 'none' && x.core.teams.filter((t) => payroll(t) > payroll(x.t)).length >= leagueSize(x.core) - 2),
   Q('q-army', '몸 건강히 다녀와라', '입대한 선수가 생긴다', '🫡', 2, 'story', (x) => (x.core.campaign.away?.length ?? 0) >= 1),
   Q('q-army-back', '전역을 명 받았습니다', '입대했던 선수가 팀에 돌아온다', '🎖️', 3, 'story', (x) => !!x.prev && (x.prev.campaign.away ?? []).some((a) => some(x, (p) => p.id === a.id))),
   Q('q-analyst', '숫자로 야구한다', '데이터 분석원을 채용한다', '📊', 2, 'story', (x) => !!x.core.campaign.analyst),

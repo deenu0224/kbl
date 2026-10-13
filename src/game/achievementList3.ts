@@ -58,14 +58,14 @@ const STORY: AchvDef[] = [
 
 const O = mk('odd');
 const ODD: AchvDef[] = [
-  O('o-last-profit', '꼴찌로 흑자', '정규시즌 8위인데 영업 흑자로 시즌을 마친다', '🧮', 2, 'season', (x) => isLast(x.core, x.rec!.rank) && x.rec!.profit > 0),
+  O('o-last-profit', '꼴찌로 흑자', '정규시즌 꼴찌인데 영업 흑자로 시즌을 마친다', '🧮', 2, 'season', (x) => isLast(x.core, x.rec!.rank) && x.rec!.profit > 0),
   O('o-lose10', '오늘 경기는 없었던 걸로', '10점 차 이상으로 패배', '🙈', 1, 'game', (x) => lost(x) && gv(x).opp - gv(x).my >= 10),
   O('o-score10-lose', '10점 내고 지는 법', '10득점 이상 하고도 패배', '🫠', 1, 'game', (x) => lost(x) && gv(x).my >= 10),
   O('o-tie12', '아무도 이기지 못했다', '12회까지 가서 무승부', '🤝', 1, 'game', (x) => !!x.r && x.r.won === null && x.r.result.innings >= 12),
   O('o-3hit-win', '안타 3개면 충분하다', '팀 안타 3개 이하로 승리', '🥢', 2, 'game', (x) => won(x) && gv(x).myHits <= 3),
   O('o-err4', '이게 팀이냐', '한 경기 팀 실책 4개 이상', '🧤', 2, 'game', (x) => !!x.r && gv(x).myErrs >= 4),
   O('o-l10', '숨 쉬듯 진다', '정규시즌 10연패', '🕳️', 2, 'game', (x) => streaks(x.core).l >= 10, { hidden: '연패에도 급이 있다', progress: (x) => [streaks(x.core).l, 10] }),
-  O('o-60loss', '야구 끊는다 (열한 번째)', '한 시즌 60패 이상', '🚬', 2, 'season', (x) => x.rec!.l >= 60, { hidden: '84경기 중에 이만큼 지기도 쉽지 않다' }),
+  O('o-60loss', '야구 끊는다 (열한 번째)', '한 시즌 60패 이상', '🚬', 2, 'season', (x) => x.rec!.l >= 60, { hidden: '81경기 중에 이만큼 지기도 쉽지 않다' }),
   O('o-no-draft', '지명권은 장식입니다', '신인 드래프트에서 한 명도 지명하지 않고 끝낸다', '🪑', 1, 'draft', (x) => !!x.prev && x.prev.phase === 'draft' && x.core.phase !== 'draft' && !!x.prev.draft && x.prev.draft.mine.length === 0, { hidden: '드래프트장에서 아무 말도 하지 않는다' }),
   O('o-min-roster', '전원 방출 직전', '선수단(1군+2군)을 20명 이하로 줄인다', '🏚️', 3, 'squad', (x) => x.t.roster.length <= 20, { hidden: '라커룸이 휑하다' }),
   O('o-cheap-sell', '박리다매', '티켓값 0.5만원으로 홈경기 매진', '🏷️', 2, 'game', (x) => !!x.r?.crowd?.soldOut && !x.r.post && x.core.finance.ticketPrice <= 0.5),

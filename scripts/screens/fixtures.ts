@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import type { Core } from '../../src/game/types';
 import { mulberry32, type Rng } from '../../src/game/rng';
 import { newCore } from '../../src/game/generate';
-import { advanceDay, nextSeason } from '../../src/game/season';
+import { advanceDay, nextSeason, rankOf, standings } from '../../src/game/season';
 import { farmRoster, loanLimit, rehabRoster, userTeam } from '../../src/game/economy';
 import { ensureObjectives, STAGES } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
@@ -215,6 +215,98 @@ if (found.dynasty) {
     const name = n === 0 ? 'projects' : `dome${n}`;
     found[name] = { ...found.dynasty, core };
     if (n === 3) hofOf[name] = JSON.stringify(recordClub(emptyHof(), core, 'champion', '2026-10-13'));
+  }
+}
+
+// ── 10구단: 와일드카드 결정전 (봇이 4·5위로 시즌을 마치는 일이 드물어 마지막 경기 직전의 순위를 고쳐서 만든다) ──
+/** 사건·브리핑을 넘기며 하루 진행 */
+function stepDay(c0: Core, rng: Rng): Core {
+  let c = c0;
+  for (let g = 0; g < 20 && (c.campaign.event || c.campaign.briefing); g++) c = c.campaign.event ? resolveEvent(c, sensible.event(c, c.campaign.event), rng).core : closeBriefing(c);
+  return drawBriefing(maybeDrawEvent(advanceDay(c, rng).core, rng));
+}
+/** 정규시즌 마지막 경기 전의 세이브에서 유저 구단을 정확히 rank 위로 만든다 (다른 구단의 전적을 빌려 온다). 안 되면 null */
+function forceRank(c0: Core, rank: number): Core | null {
+  const c = structuredClone(c0);
+  const others = standings(c.teams).filter((t) => t.id !== c.userId);
+  const above = others[rank - 2]?.rec;
+  const below = others[rank - 1]?.rec;
+  if (!above || !below) return null;
+  const me = c.teams.find((t) => t.id === c.userId)!;
+  const games = me.rec.w + me.rec.l + me.rec.t;
+  // 바로 아래 구단보다 2승 많게 (마지막 경기 결과와 무관하게 순위가 유지되도록 위와의 간격도 본다)
+  const w = Math.min(below.w + 2, above.w - 2);
+  if (w < below.w + 2) return null;
+  me.rec = { ...me.rec, w, l: games - w - me.rec.t, last10: [1, 0, 1, 1, 0, 1, 0, 1, 1, 0], streak: -1 };
+  return rankOf(c.teams, c.userId) === rank ? c : null;
+}
+const lastDay: Pred = (c) => c.phase === 'season' && c.day === c.schedule.length - 1 && quiet(c);
+function wildcardFixtures(): void {
+  for (let seed = 1; seed <= 12 && !(found.wcHi && found.wcLo && found.wcOut && found.wcTie && found.wcMid); seed++) {
+    const rng = mulberry32(seed * 7919 + 101);
+    let c = sensible.preseason(ensureObjectives(newCore(seed), rng));
+    for (let g = 0; g < 400 && c.phase === 'season' && !lastDay(c); g++) {
+      if (!c.campaign.event && !c.campaign.briefing) c = sensible.daily(c);
+      c = stepDay(c, rng);
+    }
+    if (!lastDay(c)) continue;
+    for (const rank of [4, 5]) {
+      const base = forceRank(c, rank);
+      if (!base) continue;
+      for (let k = 0; k < 8; k++) {
+        const r2 = mulberry32(seed * 31 + rank * 7 + k);
+        let p: Core;
+        try {
+          p = stepDay(base, r2);
+        } catch {
+          continue;
+        }
+        const s0 = p.post?.series[0];
+        if (p.phase !== 'post' || !p.post || s0?.round !== 'WC' || rankOf(p.teams, p.userId) !== rank) continue;
+        const name = rank === 4 ? 'wcHi' : 'wcLo';
+        if (!found[name] && quiet(p)) found[name] = { core: structuredClone(p), seed, bot: `forced ${rank}위` };
+        // 무승부로 4위가 통과한 뒤: 엔진이 남기는 상태(무승부 한 경기 · 4위 승수 그대로 1 · 다음 라운드의 하위 시드로)를 그대로 만든다
+        if (rank === 4 && !found.wcTie && quiet(p)) {
+          const t = structuredClone(p);
+          const w = t.post!.series[0];
+          w.games = [{ homeId: w.hiId!, awayId: w.loId!, home: 3, away: 3 }];
+          w.winnerId = w.hiId;
+          t.post!.series[1].loId = w.hiId;
+          t.post!.cur = 1;
+          t.post!.userFinish = t.post!.series[1].round;
+          found.wcTie = { core: t, seed, bot: 'forced 4위 무승부' };
+        }
+        // 한 경기씩 치르며: 1승 1패로 2차전을 앞둔 날 · 와일드카드에서 떨어진 결산
+        for (let g = 0; g < 4 && p.phase === 'post'; g++) {
+          try {
+            p = stepDay(p, r2);
+          } catch {
+            break;
+          }
+          const w = p.post?.series[0];
+          if (!found.wcMid && p.phase === 'post' && w && !w.winnerId && w.games.length === 1 && quiet(p)) found.wcMid = { core: structuredClone(p), seed, bot: `forced ${rank}위` };
+          if (!found.wcOut && p.phase === 'ended' && p.post?.userFinish === 'WC' && !p.campaign.event && !endingNow(p)) found.wcOut = { core: structuredClone(p), seed, bot: `forced ${rank}위` };
+        }
+      }
+    }
+  }
+}
+wildcardFixtures();
+
+// ── 8구단 세이브 (10구단 체제 전에 시작한 게임): 구단 8개 · 84경기. 시즌 중 + 포스트시즌(4팀 사다리) ──
+{
+  const rng = mulberry32(8 * 7919 + 101);
+  let c = sensible.preseason(ensureObjectives(newCore(8, { teams: 8 }), rng));
+  for (let g = 0; g < 400 && c.phase === 'season'; g++) {
+    if (!found.eight && c.day >= 40 && quiet(c) && nextIsHome(c)) found.eight = { core: structuredClone(c), seed: 8, bot: '8구단' };
+    if (lastDay(c)) break;
+    if (!c.campaign.event && !c.campaign.briefing) c = sensible.daily(c);
+    c = stepDay(c, rng);
+  }
+  const base = lastDay(c) ? forceRank(c, 4) : null;
+  if (base) {
+    const p = stepDay(base, rng);
+    if (p.phase === 'post' && quiet(p)) found.eightPost = { core: structuredClone(p), seed: 8, bot: '8구단 forced 4위' };
   }
 }
 

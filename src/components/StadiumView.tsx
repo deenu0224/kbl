@@ -350,7 +350,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                 vs {opp.name}
               </div>
               <div style={{ fontSize: `${1.25 * k}cqw`, color: '#fff' }}>
-                {next.isHome ? '홈' : '원정'} · {postLine ? `${postLine.myW}승 ${postLine.oppW}패` : `${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`}
+                {next.isHome ? '홈' : '원정'} · {postLine ? postLine.score : `${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`}
               </div>
             </>
           ) : (

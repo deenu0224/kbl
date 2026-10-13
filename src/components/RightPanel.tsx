@@ -98,7 +98,7 @@ export function LeagueTab() {
           <Bracket />
         </div>
       )}
-      <SectionTitle>순위표</SectionTitle>
+      <SectionTitle right={<Help topic="postseason" />}>순위표</SectionTitle>
       <div className="flex px-1 text-[9px] text-white/40 mob:text-[13px]">
         <span className="w-5" />
         <span className="flex-1">구단</span>

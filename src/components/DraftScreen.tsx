@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { Player } from '../game/types';
 import { useCore, useStore, useUserTeam } from '../store';
 import { DRAFT_BONUS, DRAFT_ROUNDS, draftRound } from '../game/draft';
@@ -122,12 +122,19 @@ export default function DraftScreen() {
             const cur = i === pick && !done;
             const me = tid === userId;
             const past = i < pick;
+            const head = i % perRound === 0;
             return (
+              <Fragment key={i}>
+              {/* 라운드 머리: 한 라운드 = 구단 수만큼의 칸 (10구단 10칸) */}
+              {head && (
+                <span className={`flex w-5 shrink-0 items-center justify-center self-stretch text-[10px] leading-none ${Math.floor(i / perRound) + 1 === round && !done ? 'text-hi' : 'text-white/45'}`} style={{ marginLeft: i > 0 ? 6 : 0, boxShadow: 'inset 2px 0 0 #47557f' }} data-testid="draft-round">
+                  {Math.floor(i / perRound) + 1}R
+                </span>
+              )}
               <div
-                key={i}
                 ref={cur ? curRef : undefined}
                 className={`flex w-11 shrink-0 flex-col items-center gap-0.5 py-1 text-[10px] leading-none land:flex-row land:justify-center land:gap-1 land:py-0.5 ${cur ? 'bg-hi/25' : 'bg-panel'} ${past ? 'opacity-40' : ''}`}
-                style={{ boxShadow: cur ? '0 0 0 2px #ffd84a' : me ? 'inset 0 -2px 0 #ffd84a' : undefined, marginLeft: i > 0 && i % perRound === 0 ? 8 : 0 }}
+                style={{ boxShadow: cur ? '0 0 0 2px #ffd84a' : me ? 'inset 0 -2px 0 #ffd84a' : undefined }}
               >
                 <span className="text-white/50 land:hidden">
                   {Math.floor(i / perRound) + 1}-{(i % perRound) + 1}
@@ -135,6 +142,7 @@ export default function DraftScreen() {
                 <TeamDot team={t} size={12} />
                 <span className={me ? 'text-hi' : 'text-white/70'}>{me ? '우리' : tid}</span>
               </div>
+              </Fragment>
             );
           })}
         </div>
