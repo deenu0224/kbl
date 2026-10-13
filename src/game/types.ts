@@ -428,7 +428,7 @@ export interface Campaign {
   leagueCut?: { season: number; mult: number }; // 승부조작 적발: 이 시즌의 리그 분배금 배율 (scandal.ts)
   prevRevenue?: number; // 직전 시즌 매출(입장+매점+굿즈+분배금). 대출 한도의 기준 (economy.ts loanLimit)
   debtOver?: number; // 부채 한도 초과로 결산한 연속 시즌 수
-  luxCap?: number; // 경쟁균형세 상한의 지난 결산까지 최고값 — 상한은 내려가지 않는다 (10구단 리그 · economy.ts luxTax)
+  luxCap?: number; // 경쟁균형세 상한의 지난 결산까지 최고값 (시즌 1 물가 기준) — 상한은 내려가지 않고 연봉 인상률만큼 오른다 (10구단 리그 · economy.ts luxTax)
   debtHeavy?: number; // 부채가 한도의 80% 이상인 채 결산한 연속 시즌 수 (10구단 리그 · loan.ts DEBT_MOOD)
   bailout?: number; // 조합 특별 출자를 받은 시즌 (시즌 1회)
 }

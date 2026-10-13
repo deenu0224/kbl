@@ -114,7 +114,7 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: 
       const k = LUX_TAX_BIG;
       return [
         `연봉 총액이 상한을 넘으면 넘은 금액의 ${Math.round(k.rate * 100)}%를 시즌 결산 때 제재금으로 냅니다.`,
-        `상한 ${fmtMoney(l.cap)} = ${luxRule(core)}. 다른 구단 연봉이 오르면 상한도 오릅니다.`,
+        `상한 ${fmtMoney(l.cap)} = ${luxRule(core)}. 한 번 오른 상한은 내려가지 않고, 해마다 리그 연봉 인상률만큼 오릅니다.`,
         `지금 연봉 총액 ${fmtMoney(l.payroll)} — ${l.tax > 0 ? `이대로 시즌을 마치면 제재금 ${fmtMoney(l.tax)}` : `상한까지 ${fmtMoney(l.cap - l.payroll)} 남았습니다`}.`,
         '결산 시점의 연봉 총액으로 계산합니다. 영입·재계약 전에 예상 제재금이 함께 나옵니다.',
       ];
