@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { farmMax } from '../../game/economy';
+import { bonusText, faHeatLine, faSigned, farmMax } from '../../game/economy';
 import { luxPiece } from '../../game/runway';
 import type { Player } from '../../game/types';
 import { play } from '../../audio/sfx';
@@ -12,6 +12,7 @@ import { useIsMobile } from '../layout/useLayout';
 import { POS_FULL } from '../ui';
 import { CardPop, FullScreen } from './RosterList';
 import PlayerBrowser from './PlayerBrowser';
+import Help from '../Help';
 import { PART_KO } from './labels';
 import { usePosReport } from './rosterUi';
 import { useTransferUi } from './transferUi';
@@ -142,6 +143,10 @@ function Desk() {
   };
 
   const regWhy = signingClosedWhy(core);
+  // 계약금 누진(10구단): 이미 영입한 수 + 담은 수 기준으로 "다음 영입"의 계약금을 미리 말한다
+  const heatN = faSigned(core) + basket.sign.length;
+  const heatLine = faHeatLine(core, basket.sign.length);
+  const cardAhead = cardFa ? (basket.sign.includes(cardFa.id) ? basket.sign.indexOf(cardFa.id) : basket.sign.length) : 0;
   const blockWhy = blockClosedWhy(core);
   const closedLine = (why: string | null, testid: string) =>
     why && (
@@ -152,6 +157,12 @@ function Desk() {
   const market = (
     <>
     {closedLine(regWhy, 'reg-closed')}
+    {!regWhy && heatLine && (
+      <div className={`shrink-0 px-1.5 py-1 text-[11px] mob:text-[13px] ${heatN > 0 ? 'bg-[#4a3a2a] text-[#f0a35a]' : 'bg-ink/40 text-white/55'}`} data-testid="fa-heat">
+        {heatN > 0 ? '🔥 ' : ''}{heatLine}
+        <Help topic="faheat" className="ml-1" />
+      </div>
+    )}
     <PlayerBrowser key={`m${nonce}`} mode="market" players={freeAgents} rows={rows} sel={card} onPick={(p) => setCard(p.id)} initPos={pos} band={band} rowAction={(p) => <AddChip kind="sign" pid={p.id} />} />
     </>
   );
@@ -225,6 +236,11 @@ function Desk() {
       <Summary pv={pv} done={done} mobile={mobile} onConfirm={confirm} />
       {cardP && (
         <CardPop player={cardP} onClose={() => setCard(null)}>
+          {cardFa && (
+            <span className="mr-auto self-center text-[11px] text-white/75 mob:text-[13px]" data-testid="card-bonus">
+              {bonusText(core, cardFa, cardAhead)}
+            </span>
+          )}
           {(cardFa ? (['sign'] as BasketKind[]) : squadKinds(cardP)).map((k) => (
             <AddChip key={k} kind={k} pid={cardP.id} big />
           ))}
@@ -278,6 +294,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
   const wins = Math.round(pv.wins * 10) / 10;
   const winText = `${wins >= 0 ? '+' : '−'}${Math.abs(wins).toFixed(1)}승`;
   const oneOff = pv.bonus + pv.penalty;
+  const heatLine = faHeatLine(core, basket.sign.length);
 
   if (done) {
     return (
@@ -367,12 +384,18 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
   const fanDiff = Math.round(pv.fans.b - pv.fans.a);
   const people = (
     <div className="flex flex-col gap-[2px]" data-testid="sum-people">
-      {pv.ins.map(({ p, bonus }) => (
+      {pv.ins.map(({ p, bonus, why }) => (
         <div key={p.id} className="truncate" data-testid="sum-in">
           <span className="text-good">+ 영입 </span>
           {p.name} <span className="text-white/60">오버롤 {p.ovr} · {POS_FULL[p.pos]} · 연 {fmtMoney(p.salary)} · 계약금 {fmtMoney(bonus)}</span>
+          {why && <span className="text-[#f0a35a]"> ({why})</span>}
         </div>
       ))}
+      {heatLine && pv.ins.length > 0 && (
+        <div className="text-[#f0a35a]" data-testid="sum-heat">
+          {heatLine}
+        </div>
+      )}
       {ups.map((p) => (
         <div key={p.id} className="truncate" data-testid="sum-up">
           <span className="text-sky">▲ 콜업 </span>

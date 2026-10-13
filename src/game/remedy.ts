@@ -4,7 +4,7 @@ import { josa } from './format';
 import type { BatPos, Core, Player, Team } from './types';
 import {
   FARM_LOCK, FOOD_LV, LOAN_STEP, loanInterest, loanLimit, MIN_BATTERS, MIN_PITCHERS, RAIN_ROOF, ROOF_SEATS, ROSTER_MAX, SEAT_LV, SVC_YEARS, WEATHER_MULT,
-  activeRoster, capacityOf, farmRoster, hasRoof, previewDemand, releaseCost, signingBonus, upgradeCost, userTeam, deadlinesSoon,
+  activeRoster, capacityOf, farmRoster, hasRoof, previewDemand, releaseCost, bonusText, signingBonusFor, upgradeCost, userTeam, deadlinesSoon,
 } from './economy';
 import { svcYear } from './contract';
 import { FOREIGN_MAX } from './events';
@@ -311,14 +311,14 @@ function penRemedies(core: Core): Remedy[] {
   if (!full) {
     const foreignFull = t.roster.filter((p) => p.foreign).length >= FOREIGN_MAX;
     const fa = core.freeAgents
-      .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.injury === 0 && p.salary <= PEN_SIGN_SALARY && signingBonus(p) <= core.finance.cash && !(p.foreign && foreignFull))
+      .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.injury === 0 && p.salary <= PEN_SIGN_SALARY && signingBonusFor(core, p) <= core.finance.cash && !(p.foreign && foreignFull))
       .sort((a, b) => b.ovr - a.ovr || a.salary - b.salary)[0];
     const r = fa ? signPlayer(core, fa.id) : null;
     if (fa && r && !r.error && restedOf(r.core) > load.rested) {
       out.push({
         id: `sign-${fa.id}`, run: { t: 'sign', pid: fa.id },
         label: `FA 구원 ${fa.name} 영입 — 등판 가능 ${sgn(restedOf(r.core) - load.rested)}`,
-        effect: `${after(r.core)} · 오버롤 ${fa.ovr} · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))}`,
+        effect: `${after(r.core)} · 오버롤 ${fa.ovr} · 연봉 +${fmtMoney(fa.salary)} · ${bonusText(core, fa)}`,
       });
     }
   }
@@ -361,7 +361,7 @@ function fewRemedies(core: Core, kind: 'B' | 'P'): Remedy[] {
   const up = farmRoster(t).filter((p) => p.kind === kind && p.injury === 0).sort((a, b) => b.ovr - a.ovr).find((p) => !callUp(core, p.id).error);
   if (up) out.push({ id: `up-${up.id}`, run: { t: 'callup', pid: up.id }, tone: 'good', label: `2군 ${up.name} 콜업`, effect: `${posKo(up.pos)} 오버롤 ${up.ovr} · 1군 ${word} ${n} → ${n + 1}명` });
   const fa = core.freeAgents.filter((p) => p.kind === kind && p.injury === 0).sort((a, b) => a.salary - b.salary || b.ovr - a.ovr).find((p) => !signPlayer(core, p.id).error);
-  if (fa) out.push({ id: `sign-${fa.id}`, run: { t: 'sign', pid: fa.id }, label: `FA 최저 연봉 ${fa.name} 영입`, effect: `${posKo(fa.pos)} 오버롤 ${fa.ovr} · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))} · 1군 ${word} ${n} → ${n + 1}명` });
+  if (fa) out.push({ id: `sign-${fa.id}`, run: { t: 'sign', pid: fa.id }, label: `FA 최저 연봉 ${fa.name} 영입`, effect: `${posKo(fa.pos)} 오버롤 ${fa.ovr} · 연봉 +${fmtMoney(fa.salary)} · ${bonusText(core, fa)} · 1군 ${word} ${n} → ${n + 1}명` });
   if (!out.length) return [];
   out.push({ id: 'none', run: { t: 'none' }, tone: 'bad', label: '그대로 둔다', effect: `1군 ${word} ${n}명 — 최소 ${min}명에 ${min - n}명 모자란다` });
   return out;

@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { Player } from '../../game/types';
 import { FIELD_KEYS, PITCH_KEYS, VALUE_FAIR, canPlay, fitsKey, scoutRoom, signImpact, statusTags, valueGap, type PosKey, type PosRow, type SignImpact } from '../../game/analysis';
-import { signingBonus } from '../../game/economy';
+import { faHeatMult, faSigned, signingBonusFor } from '../../game/economy';
 import { fmtAvg, fmtEra, fmtMoney, fmtOps, fmtWhip } from '../../game/format';
 import { era, ops, whip } from '../../game/leaders';
-import { useStore, useUserTeam } from '../../store';
+import { useCore, useStore, useUserTeam } from '../../store';
+import { useTransferUi } from './transferUi';
 import { ScoutBadge } from '../PlayerCard';
 import { useIsMobile } from '../layout/useLayout';
 import { POS_KO, ratingColor } from '../ui';
@@ -78,6 +79,12 @@ export default function PlayerTable({
   const season = useStore((s) => s.season);
   const analyst = useStore((s) => !!s.campaign.analyst);
   const cash = useStore((s) => s.finance.cash);
+  // 계약금 누진(10구단): 이 선수를 지금 담으면(이미 담았으면 그 순서에서) 실제로 낼 계약금
+  const core = useCore();
+  const signs = useTransferUi((s) => s.basket.sign);
+  const ahead = (p: Player) => (signs.includes(p.id) ? signs.indexOf(p.id) : signs.length);
+  const bonusOf = (p: Player) => signingBonusFor(core, p, ahead(p));
+  const heatUp = (p: Player) => Math.round((faHeatMult(faSigned(core) + ahead(p)) - 1) * 100);
   const [kind, setKind] = useState<Kind>(initPos && initPos !== 'weak' ? (PITCH_KEYS.includes(initPos as 'SP') ? 'P' : 'B') : 'all');
   const [pos, setPos] = useState<PosKey | 'weak' | null>(initPos);
   const [set, setSet] = useState<Group | null>(null); // 모바일: 기본은 핵심 열만, 칩을 누르면 그 세트가 붙는다
@@ -155,7 +162,15 @@ export default function PlayerTable({
     }
     if (mode === 'market') {
       out.push(
-        { id: 'bonus', label: '계약금', group: 'deal', val: (p) => signingBonus(p), cell: (p) => <span className={cash >= signingBonus(p) ? 'text-hi' : 'text-bad'}>{fmtMoney(signingBonus(p))}</span> },
+        {
+          id: 'bonus', label: '계약금', group: 'deal', val: (p) => bonusOf(p),
+          cell: (p) => (
+            <span className={cash >= bonusOf(p) ? 'text-hi' : 'text-bad'} data-testid="row-bonus">
+              {fmtMoney(bonusOf(p))}
+              {heatUp(p) > 0 && <span className="text-[#f0a35a]"> +{heatUp(p)}%</span>}
+            </span>
+          ),
+        },
         {
           id: 'impact', label: '영입 시 전력', group: 'deal', val: (p) => impact.get(p.id)?.total ?? 0, left: true,
           cell: (p) => {
@@ -192,7 +207,7 @@ export default function PlayerTable({
       },
     });
     return out;
-  }, [mode, season, analyst, cash, impact, mine, role]);
+  }, [mode, season, analyst, cash, impact, mine, role, core, signs]);
 
   const shown = cols.filter((c) => (kind === 'all' || !c.kind || c.kind === kind) && (!mobile || c.group === 'core' || c.group === set));
   const list = useMemo(() => {

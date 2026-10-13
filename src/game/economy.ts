@@ -4,6 +4,7 @@ import { BASE_TEAMS, dayAt, leagueSize, rankUnits, seasonGames } from './league'
 import { activeBuffs } from './campaign';
 import { isFranchise } from './franchise';
 import { projectFx } from './projects';
+import { fmtMoney } from './format';
 
 // ── 시설 단계 (cost = 그 단계로 올리는 비용, upkeep = 만원/경기) ──
 export const SEAT_LV: { cap: number; cost: number; upkeep: number; name: string; desc: string }[] = [
@@ -254,6 +255,11 @@ export function faHeatWhy(core: HeatCore, ahead = 0): string {
   const n = faSigned(core) + ahead;
   const up = Math.round((faHeatMult(n) - 1) * 100);
   return up > 0 ? `이번 시즌 ${n + 1}번째 영입 · +${up}%` : '';
+}
+/** "계약금 2.4억 (이번 시즌 3번째 영입 · +60%)" — 실제로 낼 금액과, 배율이 걸렸으면 그 이유 */
+export function bonusText(core: HeatCore, p: Player, ahead = 0): string {
+  const why = faHeatWhy(core, ahead);
+  return `계약금 ${fmtMoney(signingBonusFor(core, p, ahead))}${why ? ` (${why})` : ''}`;
 }
 /** 영입 시장 맨 위의 한 줄 (누진이 없는 리그는 null) */
 export function faHeatLine(core: HeatCore, ahead = 0): string | null {
