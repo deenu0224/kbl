@@ -119,7 +119,9 @@ export function pickCore(s: Core): Core {
 }
 
 const rng = Math.random;
-const freshCore = (nickname?: string, seed?: number): Core => ensureObjectives(newCore(seed ?? Date.now(), nickname), rng);
+/** 새 리그의 시드: 32비트 난수 (시각으로 만들면 공유 링크에서 시작 시각을 되짚을 수 있다) */
+const freshSeed = (): number => crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+const freshCore = (nickname?: string, seed?: number): Core => ensureObjectives(newCore(seed ?? freshSeed(), nickname), rng);
 /** 경기 진행이 가능한 상태인지 (불가하면 사유) */
 function playBlock(s: Core): string | null {
   if (s.campaign?.event) return '이벤트 카드를 먼저 처리하세요';

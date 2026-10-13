@@ -10,7 +10,7 @@ import { pickCore, useStore } from '../store';
 import { Flag, stageLabel } from './Campaign';
 import { hofCloseClub, useHof } from './hofStore';
 import { useUi } from './layout/uiStore';
-import { parseChallenge } from '../share/shareData';
+import { parseChallenge, parseFrom } from '../share/shareData';
 import { ShareClubButton } from './ShareSheet';
 
 const DEF = TEAM_DEFS.find((d) => d.id === USER_ID)!;
@@ -247,6 +247,8 @@ export default function TitleScreen() {
   const [view, setView] = useState<'menu' | 'confirm' | 'nick' | 'hof'>('menu');
   // 도전 링크(?l=시드)로 열었는가. [같은 리그로 시작]을 눌렀을 때만 그 시드를 쓴다
   const [link] = useState(() => parseChallenge(window.location.search));
+  // 공유한 사람의 결과 유형(&from=w6): 있으면 "누군가 6시즌 만에 우승한 리그입니다"
+  const [from] = useState(() => parseFrom(window.location.search));
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const begin = (s?: number) => {
     setSeed(s);
@@ -289,8 +291,11 @@ export default function TitleScreen() {
             <div className="flex flex-[6] flex-col justify-center gap-3 land:flex-1 land:gap-2">
               {link !== null && (
                 <div className="bg-panel p-2 text-center" style={{ boxShadow: '0 0 0 2px #0f1420, inset 0 0 0 2px #ffd84a' }} data-testid="challenge">
-                  <div className="text-[14px] leading-snug text-hi">공유받은 리그 #{link.toString(36)} 에 도전</div>
-                  <div className="mt-0.5 text-[13px] leading-snug text-white/60">같은 선수·같은 출발선에서 시작합니다</div>
+                  <div className="text-[14px] leading-snug text-hi" data-testid="challenge-who">
+                    {from ? from.who : `공유받은 리그 #${link.toString(36)} 입니다`}
+                  </div>
+                  <div className="mt-0.5 text-[13px] leading-snug text-white/60">같은 선수단, 같은 일정에서 시작합니다</div>
+                  <div className="text-[13px] leading-snug text-white/45">경기 결과는 하기 나름입니다</div>
                   <button className="px-btn gold mt-2 min-h-11 w-full text-[15px]" data-testid="challenge-start" onClick={() => begin(link)}>
                     같은 리그로 시작
                   </button>
