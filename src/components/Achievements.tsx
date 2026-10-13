@@ -81,6 +81,7 @@ function Body({ onClose }: { onClose: () => void }) {
           </div>
           <Bar ratio={nDone / total} color="#ffd84a" h={10} />
         </div>
+        <div className="px-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto" data-testid="achv-scroll">
         <div className="flex shrink-0 flex-wrap gap-1" data-testid="achv-cats">
           <button className={chip(cat === 'all')} style={chipStyle(cat === 'all')} data-sfx="tab" data-testid="achv-cat-all" onClick={() => setCat('all')}>
             전체 <span className="text-white/50">{nDone}/{total}</span>
@@ -101,12 +102,13 @@ function Body({ onClose }: { onClose: () => void }) {
             </button>
           ))}
         </div>
-        <div className="px-scroll flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto" data-testid="achv-list">
+        <div className="flex flex-col gap-1" data-testid="achv-list">
           {rows.length ? (
             rows.map((d) => <Row key={d.id} d={d} date={save.done[d.id]} prog={onTitle && !hasSave && d.on[0] !== 'total' ? null : achvProgress(d, core, save.totals)} />)
           ) : (
             <div className="flex flex-1 items-center justify-center py-10 text-white/50">{filter === 'done' ? '아직 달성한 도전과제가 없습니다' : '이 범주는 전부 달성했습니다'}</div>
           )}
+        </div>
         </div>
       </div>
     </FullScreen>
@@ -115,13 +117,14 @@ function Body({ onClose }: { onClose: () => void }) {
 
 const SHOW_MS = 3600;
 
-/** 달성 알림: 화면 위쪽의 한 줄. 여러 개가 한꺼번에 달성되면 "외 n개", 따로 달성되면 차례로. 경기 하이라이트 재생 중에는 미룬다 */
+/** 달성 알림: 화면 위쪽의 한 줄. 여러 개가 한꺼번에 달성되면 "외 n개", 따로 달성되면 차례로 */
 export function AchvToast() {
   const batch = useAchv((s) => s.queue[0]);
   const shift = useAchv((s) => s.shift);
-  const playback = useStore((s) => !!s.playback);
+  // 하이라이트 재생 중과 경기 결과 화면에서는 미루고, 결과 화면을 닫은 뒤에 띄운다
+  const busy = useStore((s) => !!s.playback || !!s.summary);
   const onTitle = useUi((s) => s.screen === 'title');
-  const hold = playback || onTitle;
+  const hold = busy || onTitle;
   useEffect(() => {
     if (!batch || hold) return;
     play('achievement');

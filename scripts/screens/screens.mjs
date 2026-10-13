@@ -51,6 +51,17 @@ const CLUB = [m('구단')];
 const PLAY = [c('▶ 경기 진행')];
 const SUMMARY = [...PLAY, { wait: 600 }, c('건너뛰기 ▶▶', { optional: true }), { wait: 500 }];
 
+/** 도전과제 화면: 모바일은 상단 메뉴, 데스크톱은 상단바의 🏆 */
+const ACHV = [m('m-top'), m('menu-achv'), d('open-achv-top')];
+/** 도전과제 저장(kbl-achv-v1)의 예: 일부 달성 + 누적 카운터 */
+const ACHV_UI = {
+  'kbl-achv-v1': JSON.stringify({
+    v: 1,
+    done: Object.fromEntries(['s-first-game', 's-first-win', 's-first-loss', 's-home-win', 's-lineup', 's-sign', 's-season', 'g-10', 'g-shutout', 'g-walkoff', 'g-cb3', 'se-rank7', 'se-w5', 'c-sell10', 'q-foreign', 't-stage1', 't-star1', 'o-lose10', 'o-walkoff-loss', 'o-no-draft', 'n-games100', 'n-hr100'].map((id, i) => [id, `2026-10-${String(1 + (i % 13)).padStart(2, '0')}`])),
+    totals: { games: 212, wins: 97, losses: 110, ties: 5, hr: 188, runs: 930, sellouts: 31, att: 612400, seasons: 2, signs: 7, releases: 4, trades: 1, picks: 6, cards: 23, walkoffs: 6, clubs: 1 },
+  }),
+};
+
 export const SCREENS = [
   // ── 초기 화면
   S('title', null, []),
@@ -272,6 +283,15 @@ export const SCREENS = [
   // ── 포스트시즌
   S('post-home', 'post', game()),
   S('post-bracket', 'post', game('리그', '대진표')),
+
+  // ── 도전과제: 초기 화면에서 연 목록(달성 일부 · 빈 저장) · 게임 안에서 연 목록 · 범주 탭 · 필터 · 달성 알림
+  S('achv-title', 'opened', st(['open-achv']), { ui: ACHV_UI }),
+  S('achv-title-empty', null, st(['open-achv'])),
+  S('achv-game', 'season3', game(...ACHV), { ui: ACHV_UI }),
+  S('achv-cat', 'season3', game(...ACHV, 'achv-cat-odd'), { ui: ACHV_UI }),
+  S('achv-cat-total', 'season3', game(...ACHV, 'achv-cat-total'), { ui: ACHV_UI }),
+  S('achv-filter-done', 'season3', game(...ACHV, 'achv-filter-done'), { ui: ACHV_UI }),
+  S('achv-toast', 'season3', game(...SUMMARY, '확인', { wait: 300 })),
 
   // ── 설정 · 끝
   S('settings-game', 'season3', game(m('m-top'), m('menu-settings'), d('menu'))),
