@@ -1,16 +1,10 @@
-import type { HintTab } from '../../game/types';
-import { useStore } from '../../store';
+import type { TodoTab } from '../../game/todo';
+import { useTodos } from '../Todo';
 import { Badge } from '../ui';
 import { useUi, type MobileTab } from './uiStore';
 
-/** 모바일 5탭이 품는 배지 자리 (합으로 표시) */
-export const TAB_HINTS: Record<MobileTab, HintTab[]> = {
-  home: [],
-  roster: ['lineup', 'pitchers'],
-  market: ['market'],
-  league: ['league'],
-  club: ['finance', 'stadium', 'news'],
-};
+/** 모바일 5탭 ↔ 할 일의 탭. 배지 숫자 = 그 탭에 속한 할 일 개수 */
+export const TAB_TODO: Record<MobileTab, TodoTab> = { home: 'home', roster: 'roster', market: 'transfer', league: 'league', club: 'club' };
 
 // 7×7 픽셀 아이콘 ('#' = 칠함)
 const ICONS: Record<MobileTab, string[]> = {
@@ -42,7 +36,7 @@ export const MOBILE_TABS: { id: MobileTab; label: string }[] = [
 export default function MobileNav({ placement }: { placement: 'bottom' | 'top' }) {
   const tab = useUi((s) => s.tab);
   const setTab = useUi((s) => s.setTab);
-  const hints = useStore((s) => s.campaign.hints);
+  const todos = useTodos();
   const bottom = placement === 'bottom';
   return (
     <nav className="flex shrink-0 gap-[2px] bg-edge p-[2px]">
@@ -61,7 +55,7 @@ export default function MobileNav({ placement }: { placement: 'bottom' | 'top' }
             <PixelIcon name={t.id} size={bottom ? 18 : 14} />
             <span>{t.label}</span>
             <span className={bottom ? 'absolute top-1 left-[calc(50%+8px)] short:static' : ''}>
-              <Badge n={TAB_HINTS[t.id].reduce((a, h) => a + (hints?.[h] ?? 0), 0)} />
+              <Badge n={todos.filter((x) => x.tab === TAB_TODO[t.id]).length} />
             </span>
           </button>
         );

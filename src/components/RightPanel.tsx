@@ -1,4 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
+import { TodoCard, TodoLines, useTodos } from './Todo';
+import Fold from './Fold';
+import Help from './Help';
 import { FirstTip } from './Briefing';
 import type { Core, FacilityKind, HintTab, Ledger } from '../game/types';
 import { useCore, useStore, useUserTeam, userMatch, type RightTab } from '../store';
@@ -536,33 +539,21 @@ const TABS: { id: RightTab; label: string }[] = [
   { id: 'news', label: '뉴스' },
 ];
 
-/** 탭 배지(campaign.hints): 탭을 열거나 다시 누르면 지운다 */
-export function useHintTabs<T extends HintTab>(tabs: { id: T; label: string }[], active: T | null) {
-  const hints = useStore((s) => s.campaign.hints);
-  const clearHint = useStore((s) => s.clearHint);
-  // 이미 열려 있는 탭에 새로 붙은 배지도 바로 지운다
-  const n = active ? (hints?.[active] ?? 0) : 0;
-  useEffect(() => {
-    if (active && n > 0) clearHint(active);
-  }, [active, n, clearHint]);
-  return tabs.map((t) => ({ ...t, badge: <Badge n={t.id === active ? 0 : hints?.[t.id]} /> }));
+/** 탭 배지 = 그 탭에 속한 "할 일" 개수 (todo.ts). 탭을 열어도 상태가 해소되기 전에는 남는다 */
+export function useHintTabs<T extends HintTab>(tabs: { id: T; label: string }[], _active?: T | null) {
+  const todos = useTodos();
+  return tabs.map((t) => ({ ...t, badge: <Badge n={todos.filter((x) => x.hint === t.id).length} /> }));
 }
 
 export default function RightPanel() {
   const tab = useStore((s) => s.rightTab);
   const setTab = useStore((s) => s.setTab);
-  const clearHint = useStore((s) => s.clearHint);
   const tabs = useHintTabs(TABS, tab);
   return (
     <div className="px-panel flex h-full min-h-0 flex-col">
-      <TabBar
-        tabs={tabs}
-        value={tab}
-        onChange={(t) => {
-          clearHint(t);
-          setTab('right', t);
-        }}
-      />
+      {/* 데스크톱의 "할 일": 배지가 왜 떴는지 여기서 읽는다 */}
+      <TodoCard className="!shadow-none" />
+      <TabBar tabs={tabs} value={tab} onChange={(t) => setTab('right', t)} />
       {tab === 'league' && <LeagueTab />}
       {tab === 'stadium' && <StadiumTab />}
       {tab === 'finance' && <FinanceTab />}
