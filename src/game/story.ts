@@ -145,8 +145,19 @@ export const CARD_LINES: Record<string, Line> = {
   notyet: { who: 'farm', line: '아직 이릅니다. 지금 무너지면 다시 세우는 데 몇 해가 걸립니다.' },
   arm: { who: 'pitching', line: '어제도 그제도 던졌습니다. 팔은 소모품이 아닙니다.' },
   tour: { who: 'player', line: '올해가 마지막일 것 같습니다. 조용히 가도 괜찮습니다.' },
+  // 2군 사건 (farm.ts)
+  fReady: { who: 'farm', line: '2군에서 가르칠 건 다 가르쳤습니다. 이제는 1군 공을 봐야 자랍니다.' },
+  fHype: { who: 'farm', line: '기록만 보고 다들 올리라고 합니다. 제 눈엔 아직 1군 공을 못 따라갑니다.' },
+  fSub: { who: 'farm', line: '빈자리를 메우라고 올렸더니 자리를 차지해 버렸습니다. 돌아온 주전에게 뭐라고 할지 모르겠습니다.' },
+  fSubVet: { who: 'manager', line: '그 자리는 십 년을 지킨 선수의 자리입니다. 한 주 반짝한 걸로 뺏을 수는 없습니다.' },
+  fArmy: { who: 'farm', line: '입영 통지서가 나왔습니다. 지금 보내면 아프고, 미루면 더 아픈 때에 갑니다.' },
+  fConv: { who: 'farm', line: '저 자리는 몇 해가 지나도 안 납니다. 글러브를 바꿔 끼우면 길이 열립니다.' },
+  fPain: { who: 'farm', line: '1군 공에 방망이가 밀립니다. 지금 쓰면 망가지고, 내리면 기가 꺾입니다.' },
   dome: { who: 'suitor', line: '새 돔구장과 이전 지원금을 준비했습니다. 선수들에게도 팬들에게도 더 나은 환경일 겁니다.' },
 };
+
+/** 2군 사건 '인스트럭터 합류'의 대사 (은퇴한 프랜차이즈 스타의 이름이 들어간다) */
+export const FARM_COACH_LINE = (name: string): string => `${name} 선배가 유니폼을 다시 입겠답니다. 아이들에게 그만한 교본이 없습니다.`;
 
 /** 장 시작 한 줄 (retry = 같은 장 재도전) */
 export function openingLine(stage: number, retry: boolean, yielded = false): Line {

@@ -66,6 +66,11 @@ export interface Player {
   farmStat?: FarmStat; // 이번 시즌 퓨처스 누적 기록
   svc?: number; // 보유 기간(서비스 타임)의 기준: 유저 팀에 드래프트로 입단해 데뷔한 시즌. 있으면 6시즌 동안 연봉이 시장가의 일부 (contract.ts)
   ask?: number; // FA 재계약 때 합의한 배율 (시장가 × 이 값. 유저 팀에 있는 동안 유지)
+  away?: { until: number; kind: 'army' }; // 팀을 떠나 있는 선수 (입대). until 시즌 개막에 복귀. 로스터가 아니라 campaign.away 에 있다
+  served?: boolean; // 군 복무를 마쳤거나 입대한 선수 (입대 통지 대상에서 빠진다)
+  armyDue?: number; // 입대를 미룬 선수: 이 시즌 60경기 뒤 선택 없이 입대한다
+  subFor?: string; // 부상 대체로 자동 콜업된 선수: 대신하는 부상자의 id (복귀하면 2군으로 돌아간다)
+  posShift?: { from: string; pen: number; until: number }; // 포지션 전향 중: 원래 포지션 · 수비 감소분(이미 def 에 반영) · 해소되는 day
   bat: BatStats;
   pit: PitStats;
 }
@@ -379,6 +384,8 @@ export interface Campaign {
   briefing?: Briefing | null; // 대기 중인 주간 브리핑 (닫아야 다음 경기 진행)
   briefMemo?: BriefMemo; // 주간 브리핑의 기억: 지난주 수치 · 실행한 제안 · 넘긴 제안
   resignQueue?: string[]; // 스토브리그 재계약 대기열: FA 자격을 얻은 선수 id (contract.ts drawResign 이 채우고 카드로 하나씩 처리)
+  farmAuto?: boolean; // 2군 자동 운영 (undefined = 켜짐). farm.ts
+  away?: Player[]; // 팀을 떠나 있는 선수 (입대). 각 선수의 away.until 시즌 개막에 돌아온다
   posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)
 }
 // ───────── 주간 브리핑 (briefing.ts 가 만들고 해석한다) ─────────

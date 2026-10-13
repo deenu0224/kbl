@@ -15,6 +15,7 @@ import { memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
 import { batLeaders, era, ops, pitLeaders } from './leaders';
 import { isFranchise } from './franchise';
+import { drawFarmEvent, farmCardDef } from './farm';
 
 const posKo = (pos: string): string => POS_NAME[pos] ?? pos;
 
@@ -800,7 +801,7 @@ const BY_PRIO = CARDS.slice().sort((a, b) => b.prio - a.prio);
 export function maybeDrawEvent(core0: Core, rng: Rng): Core {
   if (core0.phase !== 'season' || core0.campaign.event || core0.day >= core0.schedule.length) return core0;
   const seen = new Set(seenCards(core0));
-  const normalSeen = [...seen].filter((id) => !DEF.get(id)?.forced).length;
+  const normalSeen = [...seen].filter((id) => DEF.has(id) && !DEF.get(id)!.forced).length;
   const normalOk = core0.day - memoNum(core0, 'evDay', -99) >= EVENT_GAP && normalSeen < EVENT_MAX;
   for (const d of BY_PRIO) {
     if (seen.has(d.id) || (!d.forced && !normalOk) || !d.when(core0)) continue;
@@ -814,7 +815,8 @@ export function maybeDrawEvent(core0: Core, rng: Rng): Core {
     addNews(core, `${cd.icon} ${who}${cd.title}`, 'info');
     return core;
   }
-  return core0;
+  // 일반 카드가 없는 날에만 2군 사건 (별도 예산: farm.ts)
+  return drawFarmEvent(core0, rng);
 }
 
 export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: Core; error?: string; result: string } {
@@ -823,7 +825,7 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   const ch = card0.choices[choiceIdx];
   if (!ch) return { core: core0, error: '잘못된 선택입니다', result: '' };
   if (ch.disabled) return { core: core0, error: ch.disabled, result: '' };
-  const def = DEF.get(baseId(card0.id));
+  const def = DEF.get(baseId(card0.id)) ?? farmCardDef(baseId(card0.id));
   const core = structuredClone(core0);
   const cd = core.campaign.event!;
   core.campaign.event = null;
