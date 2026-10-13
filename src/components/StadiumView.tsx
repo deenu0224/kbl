@@ -7,7 +7,7 @@ import { fmtInt, fmtMoney } from '../game/format';
 import { SEAT_LV, upgradeCost } from '../game/economy';
 import { usePostLine } from './Bracket';
 import EventCardModal from './EventCardModal';
-import GameSummary from './GameSummary';
+import GameSummary, { TeamTag } from './GameSummary';
 import { useIsMobile } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
@@ -133,6 +133,11 @@ export default function StadiumView() {
   const awayTeam = report ? teams.find((t) => t.id === report.result.awayId) : undefined;
   const homeTeam = report ? teams.find((t) => t.id === report.result.homeId) : undefined;
   const mineEv = ev?.teamId === userId;
+  const evTeam = ev ? teams.find((t) => t.id === ev.teamId) : undefined;
+  // 득점 장면은 왼쪽 띠로 편을 가른다: 우리 팀 초록, 상대 빨강
+  const scoreEv = ev?.type === 'hr' || ev?.type === 'score' || ev?.type === 'walkoff';
+  const band = scoreEv ? `max(1.2cqw, 6px) solid ${mineEv ? '#6ee07a' : '#ff6b6b'}` : undefined;
+  const tagged = !!ev && ev.type !== 'start' && ev.type !== 'final';
 
   return (
     <div className="flex h-full w-full items-center justify-center" style={{ containerType: 'size' }}>
@@ -276,6 +281,7 @@ export default function StadiumView() {
               style={{
                 background: 'rgba(15,20,32,.82)',
                 boxShadow: `0 0 0 0.3cqw ${mineEv ? user.color : '#0f1420'}, 0 0.8cqw 0 rgba(0,0,0,.25)`,
+                borderLeft: band,
                 padding: '1.2cqw 3cqw',
                 maxWidth: mobile ? '92%' : '80%',
               }}
@@ -289,6 +295,11 @@ export default function StadiumView() {
                   textShadow: '0.3cqw 0.3cqw 0 #0f1420',
                 }}
               >
+                {tagged && (
+                  <span className="mr-[0.4em] inline-block align-middle" style={{ textShadow: 'none' }}>
+                    <TeamTag team={evTeam} mine={mineEv} size={fz(mobile, 1.9, 11)} />
+                  </span>
+                )}
                 {ev.text}
               </div>
               {ev.sub && <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>}

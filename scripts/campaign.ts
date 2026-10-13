@@ -17,7 +17,7 @@ import {
 } from '../src/game/economy';
 import { ensureObjectives, STAGES } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent, FOREIGN_MAX } from '../src/game/events';
-import { closeBriefing, drawBriefing } from '../src/game/briefing';
+import { closeBriefing, drawBriefing, runOffer } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../src/game/draft';
 import { autoBatting, autoPitching, slotValue } from '../src/game/lineup';
 import { fmtMoney } from '../src/game/format';
@@ -385,8 +385,28 @@ interface Run {
 
 // 주간 브리핑 실측: 시즌당 유저에게 오는 결정 수 (브리핑 제안 + 이벤트 카드)
 const BRIEF = { seasons: 0, briefs: 0, offers: 0, byWho: {} as Record<string, { seasons: number; offers: number; cards: number }> };
+// 조용한 브리핑 실측: 봇이 제안을 다루는 방식별(전부 넘김 / 전부 실행 / 번갈아) 시즌당 브리핑·제안 수와 번복성 제안 수
+// 번복성 제안 = 같은 대상(선수·티켓값)에 대해 방향이 반대인 제안이 6주(36경기) 안에 다시 나온 것
+type BriefMode = 'skip' | 'run' | 'half';
+let BRIEF_MODE: BriefMode = 'skip';
+const QUIET: Record<BriefMode, { seasons: number; briefs: number; offers: number; ran: number; flips: number; min: number; max: number; kinds: Record<string, number> }> = {
+  skip: { seasons: 0, briefs: 0, offers: 0, ran: 0, flips: 0, min: 99, max: 0, kinds: {} },
+  run: { seasons: 0, briefs: 0, offers: 0, ran: 0, flips: 0, min: 99, max: 0, kinds: {} },
+  half: { seasons: 0, briefs: 0, offers: 0, ran: 0, flips: 0, min: 99, max: 0, kinds: {} },
+};
+const movesOfOffer = (o: { id: string; moves?: { t: string; d: 1 | -1 }[] }) => o.moves ?? (o.id.includes('price:') ? [{ t: 'price', d: (o.id.endsWith('up') ? 1 : -1) as 1 | -1 }] : []);
+function quietReport() {
+  console.log('\n조용한 브리핑 (목표: 번복 0 · 시즌당 브리핑 6~9회 · 제안 8~14장)');
+  for (const [k, label] of [['skip', '전부 넘김'], ['run', '전부 실행'], ['half', '번갈아 실행']] as const) {
+    const q = QUIET[k];
+    if (!q.seasons) continue;
+    const kinds = Object.entries(q.kinds).sort((a, b) => b[1] - a[1]).map(([n, v]) => `${n} ${(v / q.seasons).toFixed(1)}`).join(' · ');
+    console.log(`  ${label}: 시즌당 브리핑 ${(q.briefs / q.seasons).toFixed(1)}회(${q.min}~${q.max}) · 제안 ${(q.offers / q.seasons).toFixed(1)}장 · 실행 ${(q.ran / q.seasons).toFixed(1)}장 · 번복성 제안 ${q.flips}건/${q.seasons}시즌 [${kinds}]`);
+  }
+}
 process.on('exit', () => {
   if (!BRIEF.seasons) return;
+  quietReport();
   console.log(`\n주간 브리핑(전부 넘김): 시즌당 브리핑 ${(BRIEF.briefs / BRIEF.seasons).toFixed(1)}회 · 제안 ${(BRIEF.offers / BRIEF.seasons).toFixed(1)}장`);
   for (const [k, v] of Object.entries(BRIEF.byWho)) console.log(`  ${k}: 시즌당 제안 ${(v.offers / v.seasons).toFixed(1)}장 + 카드 ${(v.cards / v.seasons).toFixed(1)}장 = 결정 ${((v.offers + v.cards) / v.seasons).toFixed(1)}회 (${v.seasons}시즌)`);
 });
@@ -395,6 +415,10 @@ process.on('exit', () => {
 function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
   let c = bot.preseason(c0);
   let guard = 0;
+  const q = QUIET[BRIEF_MODE];
+  const offered: { t: string; d: 1 | -1; day: number }[] = [];
+  let briefs = 0;
+  let turn = 0;
   while (c.phase === 'season' || c.phase === 'post') {
     if (++guard > 400) throw new Error('무한 루프 의심');
     if (c.campaign.event) {
@@ -415,6 +439,22 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
       BRIEF.offers += c.campaign.briefing.offers.length;
       BRIEF.byWho[bot.name] = BRIEF.byWho[bot.name] ?? { seasons: 0, offers: 0, cards: 0 };
       BRIEF.byWho[bot.name].offers += c.campaign.briefing.offers.length;
+      briefs++;
+      for (const o of c.campaign.briefing.offers) {
+        q.offers++;
+        q.kinds[o.kind] = (q.kinds[o.kind] ?? 0) + 1;
+        for (const x of movesOfOffer(o)) {
+          if (offered.some((l) => l.t === x.t && l.d === -x.d && c.day - l.day <= 36)) q.flips++;
+          offered.push({ ...x, day: c.day });
+        }
+        if (BRIEF_MODE === 'run' || (BRIEF_MODE === 'half' && turn++ % 2 === 0)) {
+          const r = runOffer(c, o.id);
+          if (!r.error) {
+            c = r.core;
+            q.ran++;
+          }
+        }
+      }
       c = closeBriefing(c);
       continue;
     }
@@ -424,6 +464,10 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
     if (run && r.report.notes.some((n) => n.includes('강제 매각'))) run.forcedSale = true;
     c = drawBriefing(maybeDrawEvent(r.core, rng));
   }
+  q.seasons++;
+  q.briefs += briefs;
+  q.min = Math.min(q.min, briefs);
+  q.max = Math.max(q.max, briefs);
   BRIEF.seasons++;
   (BRIEF.byWho[bot.name] = BRIEF.byWho[bot.name] ?? { seasons: 0, offers: 0, cards: 0 }).seasons++;
   return c;
@@ -505,6 +549,28 @@ const fmtReach = (xs: (number | null)[]) => {
 };
 
 console.log(`\n=== 캠페인 봇 검증: ${N_SEEDS} 시드 × ${N_SEASONS} 시즌 ===`);
+// 제안을 실행하는 유저 흉내: 편성·경영은 손대지 않는 봇(passive)이 브리핑 제안만 실행한다. 3시즌씩, 본 검증 통계와는 섞지 않는다
+function quietPass() {
+  for (const mode of ['run', 'half'] as const) {
+    BRIEF_MODE = mode;
+    for (let seed = 1; seed <= N_SEEDS; seed++) {
+      const rng: Rng = mulberry32(seed * 6151 + 17);
+      let c = ensureObjectives(newCore(seed), rng);
+      for (let s = 0; s < 3 && (c.phase === 'season' || c.phase === 'post'); s++) {
+        c = playSeason(passive, c, rng);
+        if (c.phase !== 'ended') break;
+        const d = beginDraft(c, rng);
+        if (d.error) break;
+        c = d.core;
+        let g = 0;
+        while (c.phase === 'draft' && !isDraftDone(c) && g++ < 200) c = draftSkip(c, rng).core;
+        if (c.phase !== 'draft') break;
+        c = nextSeason(c, rng);
+      }
+    }
+  }
+  BRIEF_MODE = 'skip';
+}
 console.log(`장: ${STAGES.map((s, i) => `${i}.${s.name}`).join(' → ')}`);
 const t0 = Date.now();
 const all: Record<string, Run[]> = {};
@@ -639,3 +705,5 @@ if (crashes.length) {
   process.exitCode = 1;
 }
 console.log(`\n(${((Date.now() - t0) / 1000).toFixed(1)}초)`);
+
+quietPass();

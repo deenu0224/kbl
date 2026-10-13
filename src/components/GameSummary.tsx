@@ -5,6 +5,22 @@ import { PART_LABEL } from './LeftPanel';
 import { chanceKey, useUi } from './layout/uiStore';
 import { Bar, MoneyBar, TeamDot, WEATHER_ICON, WEATHER_KO, dowOf } from './ui';
 
+/** 팀 색 점 + 구단 약칭. 우리 팀은 밝은 테두리 — 하이라이트 배너·경기 요약에서 "누구 팀 선수인지"를 붙인다 */
+export function TeamTag({ team, mine, size = 11 }: { team: Pick<Team, 'id' | 'color' | 'color2'> | undefined; mine: boolean; size?: number | string }) {
+  if (!team) return null;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center whitespace-nowrap align-middle font-pixel leading-none"
+      style={{ fontSize: size, gap: '0.35em', padding: '0.2em 0.4em', background: 'rgba(15,20,32,.85)', color: mine ? '#fff' : '#b9c3e0', boxShadow: mine ? '0 0 0 1px #ffffff' : '0 0 0 1px #3a4563' }}
+      data-testid="team-tag"
+      data-mine={mine ? '1' : '0'}
+    >
+      <span className="inline-block" style={{ width: '0.8em', height: '0.8em', background: team.color, boxShadow: `inset -0.25em 0 0 ${team.color2}` }} />
+      {team.id}
+    </span>
+  );
+}
+
 function RankMove({ before, after }: { before: number; after: number }) {
   const d = before - after;
   return (
@@ -63,6 +79,9 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
   const away = teams.find((t) => t.id === res.awayId);
   const home = teams.find((t) => t.id === res.homeId);
   const name = (pid?: string) => findPlayer({ teams, freeAgents }, pid)?.name;
+  const teamOf = (pid?: string) => (pid ? teams.find((t) => t.roster.some((p) => p.id === pid)) : undefined);
+  const tag = (t: Team | undefined) => <TeamTag team={t} mine={t?.id === userId} size={10} />;
+  const scoring = res.events.filter((e) => e.type === 'hr' || e.type === 'score' || e.type === 'walkoff');
   const n = Math.max(9, res.innings, res.line[0].length, res.line[1].length);
   const verdict = r.won === null ? '무승부' : r.won ? '승리!' : '패배';
   const vColor = r.won === null ? 'text-sky' : r.won ? 'text-hi' : 'text-bad';
@@ -155,25 +174,46 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
         {res.winP && (
           <span>
-            <span className="bg-good px-1 text-ink">승</span> {name(res.winP) ?? '-'}
+            <span className="bg-good px-1 text-ink">승</span> {tag(teamOf(res.winP))} {name(res.winP) ?? '-'}
           </span>
         )}
         {res.lossP && (
           <span>
-            <span className="bg-bad px-1 text-ink">패</span> {name(res.lossP) ?? '-'}
+            <span className="bg-bad px-1 text-ink">패</span> {tag(teamOf(res.lossP))} {name(res.lossP) ?? '-'}
           </span>
         )}
         {res.saveP && (
           <span>
-            <span className="bg-sky px-1 text-ink">세</span> {name(res.saveP) ?? '-'}
+            <span className="bg-sky px-1 text-ink">세</span> {tag(teamOf(res.saveP))} {name(res.saveP) ?? '-'}
           </span>
         )}
         {res.mvp && (
           <span className="text-hi">
-            <span className="bg-hi px-1 text-ink">MVP</span> {res.mvp.name} <span className="text-white/70">{res.mvp.text}</span>
+            <span className="bg-hi px-1 text-ink">MVP</span> {tag(teams.find((t) => t.id === res.mvp?.teamId))} {res.mvp.name} <span className="text-white/70">{res.mvp.text}</span>
           </span>
         )}
       </div>
+
+      {scoring.length > 0 && (
+        <div className="mt-2 flex flex-col gap-[3px]" data-testid="score-log">
+          <div className="text-[11px] text-sky">▸ 득점 기록</div>
+          {scoring.map((e, i) => {
+            const mine = e.teamId === userId;
+            return (
+              <div key={i} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] leading-snug mob:text-[12px] ${mine ? 'bg-good/10' : 'bg-bad/10'}`} style={{ boxShadow: `inset 3px 0 0 ${mine ? '#6ee07a' : '#ff6b6b'}` }} data-testid="score-row" data-mine={mine ? '1' : '0'}>
+                <span className="w-9 shrink-0 text-[10px] text-white/55">
+                  {e.inning}회{e.half === 0 ? '초' : '말'}
+                </span>
+                {tag(teams.find((t) => t.id === e.teamId))}
+                <span className={`min-w-0 flex-1 ${mine ? 'text-white' : 'text-white/75'}`}>{e.text}</span>
+                <span className="shrink-0 text-hi">
+                  {e.away}:{e.home}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="mt-2 grid grid-cols-2 gap-2 por:grid-cols-1">
         <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>

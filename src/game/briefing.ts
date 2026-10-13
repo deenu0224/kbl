@@ -1,8 +1,8 @@
 // 주간 브리핑: 6경기마다 스태프가 "실행 가능한 제안"을 예상 숫자와 함께 들고 온다.
 // 순수 함수만 — 난수를 쓰지 않는다(브리핑은 경기 로직의 수치를 바꾸지 않는다). 실행은 season.ts 의 기존 액션을 재사용한다.
-import type { BatPos, BriefAction, BriefDone, BriefMemo, BriefOffer, Briefing, CharId, Core, Player, Team } from './types';
+import type { BatPos, BriefDetail, BriefDone, BriefMemo, BriefMove, BriefOffer, BriefResult, Briefing, CharId, Core, Player, Team } from './types';
 import { teamParts, type TeamParts } from './ratings';
-import { FOOD_LV, LOAN_RATE, LOAN_STEP, ROSTER_MAX, SEAT_LV, TRAIN_LV, capacityOf, opProfit, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
+import { FOOD_LV, LOAN_RATE, LOAN_STEP, ROSTER_MAX, SEAT_LV, TRAIN_LV, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
 import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
 import { RUNWAY_DANGER, runway, runwayAfter, runwayPieceOf, type Runway } from './runway';
@@ -14,8 +14,19 @@ import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import { CHARACTERS } from './story';
 
 export const BRIEF_EVERY = 6; // 경기
-export const BRIEF_MAX = 3; // 한 번에 내는 제안 수
-export const SKIP_QUIET = 12; // 넘긴 제안은 이 경기 수(2주) 동안 다시 내지 않는다
+export const BRIEF_MAX = 2; // 한 번에 내는 제안 수
+export const SKIP_QUIET = 12; // 넘긴 자금 대응 제안은 이 경기 수(2주) 동안 다시 내지 않는다
+// ── 조용한 브리핑 (실제 유저 피드백: "뺐다 넣었다, 올렸다 내렸다") ──
+export const NO_REVERSE = 36; // 번복 금지: 제안했거나 유저가 직접 한 조작의 반대 방향은 6주(36경기) 동안 내지 않는다
+export const KIND_GAP_DONE = 18; // 같은 종류의 제안 간격: 실행한 뒤 3주
+export const KIND_GAP_SKIP = 24; // 넘긴 뒤 4주 (자금 대응은 예외)
+export const MIN_FIX_WINS = 1.5; // 편성 제안: 남은 경기 환산 승수가 이만큼 오를 때만
+export const MIN_GATE_INCOME = 0.05; // 티켓값·관중석: 홈경기당 수입 +5% 이상이거나
+export const MIN_GATE_ATT = 0.08; // 관중 +8% 이상일 때만
+export const MIN_SIGN_PART = 3; // 영입: 해당 전력 칸이 +3 이상 오를 때만
+export const REST_MIN_TIRED = 2; // 휴식: 이틀 이상 연투한 팔만
+export const PROMOTE_MAX_LOSS = 1.5; // 유망주 기용: 환산 승수 손실이 이 안쪽이고
+export const PROMOTE_MIN_POT = 3; // 잠재력이 지금 주전보다 이만큼 높을 때만
 const SIGN_RUNWAY_MIN = 20; // 영입 제안: 실행 뒤 금고가 이 경기 수 안에 비면 내지 않는다
 const EARLY_DAYS = 12; // 시즌 첫 2주
 const EARLY_SALARY = 30000; // 첫 2주의 영입 제안은 연봉 3억 이하만
@@ -76,7 +87,61 @@ function memoOf(core: Core): BriefMemo {
 }
 
 type Cand = BriefOffer & { score: number };
-const offer = (score: number, id: string, kind: string, who: CharId, line: string, effect: string, action: BriefAction, flag?: string): Cand => ({ score, id, kind, who, line, effect, action, ...(flag ? { flag } : {}) });
+
+// ───────── 번복 금지 · 같은 종류 간격 ─────────
+
+/** 주전 자리: 타순 9칸 · 선발 로테이션 · 마무리 (선수 id → 자리) */
+function starters(t: Team): Record<string, string> {
+  const m: Record<string, string> = {};
+  for (const l of t.lineup) m[l.pid] = l.pos;
+  for (const id of t.rotation) m[id] = 'SP';
+  if (t.closer) m[t.closer] = 'CP';
+  return m;
+}
+/** 두 편성 사이에 주전에 들어간(+1) 선수와 빠진(−1) 선수 */
+function movesOf(a: Team, b: Team): BriefMove[] {
+  const sa = starters(a);
+  const sb = starters(b);
+  return [...Object.keys(sb).filter((id) => !(id in sa)).map((t) => ({ t, d: 1 as const })), ...Object.keys(sa).filter((id) => !(id in sb)).map((t) => ({ t, d: -1 as const }))];
+}
+/** 이 제안이 최근 6주 안의 제안·조작을 되돌리는가 */
+function reverses(m: BriefMemo, day: number, moves: BriefMove[] | undefined): boolean {
+  return !!moves?.some((x) => (m.log ?? []).some((l) => l.t === x.t && l.d === -x.d && day - l.day <= NO_REVERSE));
+}
+const withLog = (m: BriefMemo, day: number, moves: BriefMove[]): BriefMemo['log'] => {
+  const log = (m.log ?? []).filter((l) => day - l.day <= NO_REVERSE);
+  for (const x of moves) if (!log.some((l) => l.t === x.t && l.d === x.d && l.day === day)) log.push({ ...x, day });
+  return log;
+};
+const stateOf = (core: Core): NonNullable<BriefMemo['state']> => ({ price: core.finance.ticketPrice, seat: starters(userTeam(core)) });
+/**
+ * 지난 주 시점과 비교해 유저가 직접 한 조작(티켓값·주전 교체)을 적는다. 제안을 실행한 것도 같은 길로 잡힌다.
+ * 부상으로 빠진 선수와 그 자리를 메운 선수는 유저의 결정이 아니므로 적지 않는다.
+ */
+function observe(core: Core, m: BriefMemo): BriefMemo {
+  const now = stateOf(core);
+  const prev = m.state;
+  if (!prev) return { ...m, state: now };
+  const moves: BriefMove[] = [];
+  if (now.price !== prev.price) moves.push({ t: 'price', d: now.price > prev.price ? 1 : -1 });
+  const t = userTeam(core);
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const ins = Object.keys(now.seat).filter((id) => !(id in prev.seat));
+  const outs = Object.keys(prev.seat).filter((id) => !(id in now.seat));
+  const cover = new Set<string>();
+  for (const id of outs) {
+    if ((byId.get(id)?.injury ?? 0) > 0) {
+      const sub = ins.find((x) => !cover.has(x) && now.seat[x] === prev.seat[id]);
+      if (sub) cover.add(sub);
+      continue;
+    }
+    moves.push({ t: id, d: -1 });
+  }
+  for (const id of ins) if (!cover.has(id)) moves.push({ t: id, d: 1 });
+  return { ...m, state: now, log: withLog(m, core.day, moves) };
+}
+
+const offer = (score: number, id: string, kind: string, who: CharId, line: string, effect: string, action: BriefOffer['action'], flag?: string, moves?: BriefMove[]): Cand => ({ score, id, kind, who, line, effect, action, ...(flag ? { flag } : {}), ...(moves?.length ? { moves } : {}) });
 
 function hash(s: string): number {
   let h = 2166136261;
@@ -85,7 +150,7 @@ function hash(s: string): number {
 }
 
 /** 스카우트 팀장: 최약 자리에 FA 1명. 절반은 옛 명성(나이·이름값)을 고른다 — 숫자는 현재 OVR 그대로 */
-function scoutOffer(core: Core): Cand | null {
+function scoutOffer(core: Core, m: BriefMemo): Cand | null {
   const t = userTeam(core);
   if (t.roster.length >= ROSTER_MAX) return null;
   const byId = new Map(t.roster.map((p) => [p.id, p]));
@@ -114,6 +179,11 @@ function scoutOffer(core: Core): Cand | null {
     const after = teamParts(userTeam(r.core));
     const dw = winDelta(before, after);
     if (dw <= 0) continue;
+    // 효과 문턱: 전력 칸 하나가 +3 이상 오를 때만
+    if (Math.max(...PART_NAME.map(([k]) => after[k] - before[k])) < MIN_SIGN_PART) continue;
+    const moves = movesOf(t, userTeam(r.core));
+    if (!moves.some((x) => x.t === p.id)) moves.push({ t: p.id, d: 1 });
+    if (reverses(m, core.day, moves)) continue;
     // 금액 상한: 이 영입으로 금고가 20경기 안에 비게 되면 들고 오지 않는다
     const out = runway(r.core).cashOut;
     if (out !== null && out <= SIGN_RUNWAY_MIN) continue;
@@ -127,6 +197,7 @@ function scoutOffer(core: Core): Cand | null {
       `영입: ${pos} ${s.cur.ovr} → ${p.ovr} · ${partsText(before, after) || '전력 변화 없음'} · 연봉 +${fmtMoney(p.salary)} · 계약금 ${fmtMoney(signingBonus(p))}${cashTail(core, r.core)}`,
       { t: 'sign', pid: p.id },
       flagPiece(core, { win: dw }),
+      moves,
     );
     if (!best || c.score > best.score) best = c;
   }
@@ -146,11 +217,13 @@ function marketingOffer(core: Core): Cand | null {
     return { att, income: Math.round(att * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend)) };
   };
   const now = perGame(core);
+  const passGate = (a: { att: number; income: number }, b: { att: number; income: number }) => b.income - a.income >= a.income * MIN_GATE_INCOME || b.att - a.att >= a.att * MIN_GATE_ATT;
   const priceOffer = (to: number, line: string, score: number): Cand | null => {
     const next = setTicketPrice(core, to);
     if (next === core) return null;
     const then = perGame(next);
     const up = to > price;
+    if (!passGate(now, then)) return null;
     return offer(
       score,
       `price:${up ? 'up' : 'down'}`,
@@ -160,8 +233,11 @@ function marketingOffer(core: Core): Cand | null {
       `티켓값 ${price.toFixed(1)} → ${next.finance.ticketPrice.toFixed(1)}만: 홈경기당 수입 ${signMoney(then.income - now.income)} · 관중 ${sign(then.att - now.att, '명')}`,
       { t: 'price', value: next.finance.ticketPrice },
       flagPiece(core, { att: then.att - now.att }),
+      [{ t: 'price', d: up ? 1 : -1 }],
     );
   };
+  // 문턱을 넘는 가장 작은 폭 (0.2 → 0.4)
+  const priceStep = (dir: 1 | -1, line: string, score: number) => priceOffer(price + dir * 0.2, line, score) ?? priceOffer(price + dir * 0.4, line, score);
   if (so >= 2) {
     const cost = upgradeCost('seats', core.facilities);
     if (cost !== null && core.finance.cash >= cost) {
@@ -169,7 +245,9 @@ function marketingOffer(core: Core): Cand | null {
       const add = lv.cap - SEAT_LV[core.facilities.seats].cap;
       const r = upgradeFacility(core, 'seats');
       const then = perGame(r.core);
-      return offer(
+      // 증축으로 금고가 20경기 안에 비게 되면 들고 오지 않는다
+      const out = runway(r.core).cashOut;
+      if (passGate(now, then) && !(out !== null && out <= SIGN_RUNWAY_MIN)) return offer(
         45,
         'seats',
         'gate',
@@ -180,9 +258,9 @@ function marketingOffer(core: Core): Cand | null {
         flagPiece(core, { att: then.att - now.att }),
       );
     }
-    return priceOffer(price + 0.2, '표가 모자라요. 조금 올려도 오실 분들은 오세요.', 38);
+    return priceStep(1, '표가 모자라요. 조금 올려도 오실 분들은 오세요.', 38);
   }
-  if (fill < 0.7) return priceOffer(price - 0.2, '빈자리가 자꾸 눈에 밟혀요. 표값을 내리면 채울 수 있어요!', 36);
+  if (fill < 0.7) return priceStep(-1, '빈자리가 자꾸 눈에 밟혀요. 표값을 내리면 채울 수 있어요!', 36);
   return null;
 }
 
@@ -199,12 +277,13 @@ function fieldOffers(core: Core): Cand[] {
     const b = teamParts(c);
     const kinds = [iss.lineup ? '▲벤치/⇄제자리' : '', iss.pitchers ? '▲불펜' : ''].filter(Boolean).join('/') || '부상자 교체';
     // 전력이 그대로이거나(경기 전에 저절로 메워지는 부상자 자리뿐) 환산 승률이 오르지 않는 수리는 제안으로 내지 않는다
-    if (winDelta(a, b) > 0) out.push(
-      offer(50 + n * 5, 'fix', 'fix', 'manager', '오더에 손볼 데가 있습니다. 제 눈에도 보입니다.', `${kinds} ${n}곳 적용: ${partsText(a, b, 3) || '전력 유지(부상자 교체)'}`, { t: 'fix' }, flagPiece(core, { win: winDelta(a, b) })),
+    // 효과 문턱: 남은 경기로 환산한 승수가 +1.5 이상일 때만
+    if (winDelta(a, b) * gamesLeft(core) >= MIN_FIX_WINS) out.push(
+      offer(50 + n * 5, 'fix', 'fix', 'manager', '오더에 손볼 데가 있습니다. 제 눈에도 보입니다.', `${kinds} ${n}곳 적용: ${partsText(a, b, 3) || '전력 유지(부상자 교체)'}`, { t: 'fix' }, flagPiece(core, { win: winDelta(a, b) }), movesOf(t, c)),
     );
   }
   const tf = tiredFront(t);
-  if (tf?.fresh) {
+  if (tf?.fresh && (tf.tired.tired ?? 0) >= REST_MIN_TIRED) {
     const d = (tf.tired.tired ?? 0) >= 2 ? 9 : 4;
     out.push(
       offer(
@@ -215,6 +294,8 @@ function fieldOffers(core: Core): Cand[] {
         `${tf.tired.name}은 어제도 그제도 던졌습니다. 오늘은 뒤로 돌리시지요.`,
         `휴식: ${tf.tired.name} 연투 ${tf.tired.tired}일(구위 −${d}) ↔ ${tf.fresh.name} ${tf.fresh.ovr} 보직 교대`,
         { t: 'rest', pid: tf.tired.id, withPid: tf.fresh.id },
+        undefined,
+        [{ t: tf.tired.id, d: -1 }, { t: tf.fresh.id, d: 1 }],
       ),
     );
   }
@@ -247,10 +328,11 @@ function farmOffer(core: Core): Cand | null {
   for (const k of kids) {
     const slot = t.lineup.findIndex((l) => l.pos === (k.pos as BatPos));
     const cur = slot >= 0 ? byId.get(t.lineup[slot].pid) : undefined;
-    if (!cur || k.pot <= cur.ovr || cur.ovr - k.ovr > 12) continue;
+    if (!cur || k.pot - cur.ovr < PROMOTE_MIN_POT || cur.ovr - k.ovr > 12) continue;
     const c: Team = { ...t, lineup: t.lineup.map((l, i) => (i === slot ? { ...l, pid: k.id } : l)) };
     const a = teamParts(t);
     const b = teamParts(c);
+    if (winDelta(a, b) * gamesLeft(core) < -PROMOTE_MAX_LOSS) continue;
     const g = TRAIN_LV[lv].grow;
     return offer(
       24,
@@ -261,6 +343,7 @@ function farmOffer(core: Core): Cand | null {
       `유망주 기용: ${POS_NAME[k.pos] ?? k.pos} ${cur.ovr} → ${k.ovr}(잠재 ${k.pot}) · ${partsText(a, b) || '전력 변화 없음'} · 주간 성장 확률 ${Math.round(g * 100)}% → ${Math.round(g * PLAY_GROW * 100)}%`,
       { t: 'promote', pid: k.id, slot },
       flagPiece(core, { win: winDelta(a, b) }),
+      [{ t: k.id, d: 1 }, { t: cur.id, d: -1 }],
     );
   }
   return null;
@@ -298,7 +381,7 @@ export function cashAlert(core: Core): string | null {
 }
 
 /** 가장 효과 큰 대응 1장: 고연봉 저효율 선수 방출 / 티켓값 조정 / 대출 중 금고를 가장 오래 버티게 하는 것 */
-function rescueOffer(core: Core): Cand | null {
+function rescueOffer(core: Core, m: BriefMemo): Cand | null {
   const now = runway(core);
   const m0 = cashMetric(core, now);
   if (m0.n === null) return null;
@@ -308,7 +391,8 @@ function rescueOffer(core: Core): Cand | null {
   const before = teamParts(t);
   let best: { gain: number; c: Cand } | null = null;
   const take = (gain: number, c: Cand) => {
-    if (gain > 0 && (!best || gain > best.gain)) best = { gain, c };
+    // 자금 대응도 번복은 하지 않는다 (방금 데려온 선수를 내보내라거나, 올린 표값을 내리라거나)
+    if (gain > 0 && (!best || gain > best.gain) && !reverses(m, core.day, c.moves)) best = { gain, c };
   };
   // 방출: 연봉이 크고 OVR 대비 비싼 순으로 4명만 따져 본다 (프랜차이즈 스타는 건드리지 않는다)
   const pricey = t.roster
@@ -326,7 +410,7 @@ function rescueOffer(core: Core): Cand | null {
     take(
       val(rw) - m0.n + dw * 100,
       {
-        ...offer(200, `rescue:release:${p.id}`, 'rescue', 'chair', `${p.name}의 연봉이 살림에 비해 큽니다. 미안하지만 보내야겠습니다.`, `방출 ${p.name}: 연봉 −${fmtMoney(p.salary)} · ${moved ? `${moved.label} ${sign(moved.d)}` : '전력 변화 없음'}${cost ? ` · 위약금 ${fmtMoney(cost)}` : ''} · ${tail(rw)}`, { t: 'fix' }, flagPiece(core, { win: dw })),
+        ...offer(200, `rescue:release:${p.id}`, 'rescue', 'chair', `${p.name}의 연봉이 살림에 비해 큽니다. 미안하지만 보내야겠습니다.`, `방출 ${p.name}: 연봉 −${fmtMoney(p.salary)} · ${moved ? `${moved.label} ${sign(moved.d)}` : '전력 변화 없음'}${cost ? ` · 위약금 ${fmtMoney(cost)}` : ''} · ${tail(rw)}`, { t: 'fix' }, flagPiece(core, { win: dw }), [{ t: p.id, d: -1 }]),
         rescue: { t: 'release', pid: p.id },
       },
     );
@@ -342,7 +426,7 @@ function rescueOffer(core: Core): Cand | null {
     const rw = runwayAfter(core, { perGame: inc * share });
     take(
       val(rw) - m0.n,
-      offer(200, `rescue:price:${d > 0 ? 'up' : 'down'}`, 'rescue', 'chair', d > 0 ? '표값을 조금 올립시다. 오실 분들은 오십니다.' : '표값을 내려 자리를 채웁시다. 빈자리는 돈이 안 됩니다.', `티켓값 ${core.finance.ticketPrice.toFixed(1)} → ${next.finance.ticketPrice.toFixed(1)}만: 홈경기당 수입 ${signMoney(inc)} · ${tail(rw)}`, { t: 'price', value: next.finance.ticketPrice }),
+      offer(200, `rescue:price:${d > 0 ? 'up' : 'down'}`, 'rescue', 'chair', d > 0 ? '표값을 조금 올립시다. 오실 분들은 오십니다.' : '표값을 내려 자리를 채웁시다. 빈자리는 돈이 안 됩니다.', `티켓값 ${core.finance.ticketPrice.toFixed(1)} → ${next.finance.ticketPrice.toFixed(1)}만: 홈경기당 수입 ${signMoney(inc)} · ${tail(rw)}`, { t: 'price', value: next.finance.ticketPrice }, undefined, [{ t: 'price', d: d > 0 ? 1 : -1 }]),
     );
   }
   // 대출: 시간을 벌 뿐이다 — 방출·티켓값으로 버틸 길이 하나도 없을 때만 내미는 마지막 카드
@@ -403,12 +487,110 @@ function resultLine(core: Core, d: BriefDone): string | null {
   return null;
 }
 
+// ───────── 제안 상세 (탭하면 뜨는 시트의 재료) ─────────
+
+const partsArr = (p: TeamParts) => PART_NAME.map(([k]) => p[k]);
+export const PART_LABELS = PART_NAME.map(([, l]) => l);
+
+/** 선수 id → 지금 맡은 자리 이름 */
+function seats(t: Team): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const p of t.roster) m.set(p.id, p.kind === 'B' ? '벤치' : '대기 투수');
+  t.bullpen.forEach((id, i) => m.set(id, i < 3 ? `필승조 ${i + 1}` : '불펜'));
+  t.rotation.forEach((id, i) => m.set(id, `선발 ${i + 1}`));
+  if (t.closer) m.set(t.closer, '마무리');
+  t.lineup.forEach((l, i) => m.set(l.pid, `${i + 1}번 ${POS_NAME[l.pos] ?? l.pos}`));
+  return m;
+}
+
+/** 실행 전후의 두 상태를 비교해 상세 시트의 표를 만든다: 자리 이동 · 전력 4칸 · 가격/관중/수입 · 현금/연봉/부채 · 자금 예측 */
+function detailOf(a: Core, b: Core, o: BriefOffer): BriefDetail {
+  const ta = userTeam(a);
+  const tb = userTeam(b);
+  const sa = seats(ta);
+  const sb = seats(tb);
+  const names = new Map([...a.freeAgents, ...ta.roster, ...tb.roster].map((p) => [p.id, p.name]));
+  const shifts = [...new Set([...sa.keys(), ...sb.keys()])]
+    .map((id) => ({ name: names.get(id) ?? id, from: sa.get(id) ?? 'FA', to: sb.get(id) ?? '방출' }))
+    .filter((x) => x.from !== x.to)
+    .sort((x, y) => Number(/벤치|불펜|대기|FA/.test(x.to)) - Number(/벤치|불펜|대기|FA/.test(y.to)))
+    .slice(0, 8);
+  const pa = partsArr(teamParts(ta));
+  const pb = partsArr(teamParts(tb));
+  type Row = NonNullable<BriefDetail['rows']>[number];
+  const rows: Row[] = [];
+  const num = (label: string, x: number, y: number, fmt: (v: number) => string, better: 1 | -1 | 0 = 1) => {
+    rows.push({ label, a: fmt(x), b: fmt(y), ...(better && x !== y ? { tone: (y - x) * better > 0 ? ('good' as const) : ('bad' as const) } : {}) });
+  };
+  const money = (v: number) => (v < 0 ? `−${fmtMoney(-v)}` : fmtMoney(v));
+  const gate = (c: Core) => {
+    const demand = previewDemand(c);
+    const att = Math.min(capacityOf(c), demand);
+    return { demand, att, ticket: Math.round(att * c.finance.ticketPrice), food: Math.round(att * FOOD_LV[c.facilities.food].spend) };
+  };
+  const ga = gate(a);
+  const gb = gate(b);
+  const priced = a.finance.ticketPrice !== b.finance.ticketPrice;
+  const gated = priced || a.facilities.seats !== b.facilities.seats || a.facilities.food !== b.facilities.food;
+  if (o.action.t === 'sign' && !o.rescue) {
+    const p = a.freeAgents.find((x) => x.id === (o.action as { pid: string }).pid);
+    if (p) rows.push({ label: '계약금', a: '—', b: `−${fmtMoney(signingBonus(p))}`, tone: 'bad' }, { label: '이 선수 연봉/시즌', a: '—', b: fmtMoney(p.salary) });
+  }
+  if (priced) num('티켓값', a.finance.ticketPrice, b.finance.ticketPrice, (v) => `${v.toFixed(1)}만`, 0);
+  if (a.facilities.seats !== b.facilities.seats) num('좌석', capacityOf(a), capacityOf(b), (v) => `${fmtInt(v)}석`);
+  if (gated) {
+    num('예상 수요', ga.demand, gb.demand, (v) => `${fmtInt(v)}명`);
+    num('예상 관중', ga.att, gb.att, (v) => `${fmtInt(v)}명`);
+    num('홈경기당 입장 수입', ga.ticket, gb.ticket, money);
+    num('홈경기당 매점 수입', ga.food, gb.food, money);
+  }
+  if (a.facilities.training !== b.facilities.training) {
+    num('주간 성장 확률', TRAIN_LV[a.facilities.training].grow, TRAIN_LV[b.facilities.training].grow, (v) => `${Math.round(v * 100)}%`);
+    num('부상 위험', TRAIN_LV[a.facilities.training].inj, TRAIN_LV[b.facilities.training].inj, (v) => `${Math.round(v * 100)}%`, -1);
+  }
+  if (o.action.t === 'promote' && !o.rescue) {
+    const g = TRAIN_LV[a.facilities.training].grow;
+    rows.push({ label: '이 선수 주간 성장 확률', a: `${Math.round(g * 100)}%`, b: `${Math.round(g * PLAY_GROW * 100)}%`, tone: 'good' });
+  }
+  if (a.finance.cash !== b.finance.cash) num('현금', a.finance.cash, b.finance.cash, money);
+  if (payroll(ta) !== payroll(tb)) num('연봉 총액/시즌', payroll(ta), payroll(tb), money, -1);
+  if (a.finance.debt !== b.finance.debt) {
+    num('부채', a.finance.debt, b.finance.debt, money, -1);
+    num('이자/시즌', Math.round(a.finance.debt * LOAN_RATE), Math.round(b.finance.debt * LOAN_RATE), money, -1);
+  }
+  // 자금 예측: runway 는 최근 관중 실적으로 보므로, 관중이 달라지는 조작은 예상 수입 차이를 얹는다
+  const ra = runway(a);
+  const share = homeLeft(a) / Math.max(1, gamesLeft(a));
+  const inc = gated ? (gb.ticket + gb.food - ga.ticket - ga.food) * share : 0;
+  const rb = priced ? runwayAfter(a, { perGame: inc, cash: b.finance.cash - a.finance.cash }) : gated ? runwayAfter(b, { perGame: inc }) : runway(b);
+  if (ra.perGame !== rb.perGame || rows.length) {
+    num('경기당 손익', ra.perGame, rb.perGame, (v) => signMoney(v));
+    num('시즌 말 예상 현금', ra.seasonEnd, rb.seasonEnd, money);
+    if (ra.cashOut !== null || rb.cashOut !== null) rows.push({ label: '금고 바닥까지', a: ra.cashOut === null ? '안전' : `${ra.cashOut}경기`, b: rb.cashOut === null ? '안전' : `${rb.cashOut}경기`, ...(ra.cashOut !== rb.cashOut ? { tone: (rb.cashOut ?? 999) > (ra.cashOut ?? 999) ? ('good' as const) : ('bad' as const) } : {}) });
+  }
+  const d: BriefDetail = { parts: { a: pa, b: pb } };
+  if (rows.length) d.rows = rows;
+  if (shifts.length) d.shifts = shifts;
+  if (o.rescue?.t === 'release') d.pid = o.rescue.pid;
+  else if (o.action.t === 'sign' && !o.rescue) {
+    d.pid = o.action.pid;
+    const out = shifts.find((x) => /벤치|불펜|대기/.test(x.to) && !/벤치|불펜|대기|FA/.test(x.from));
+    const vs = out && ta.roster.find((p) => p.name === out.name && sa.get(p.id) === out.from);
+    if (vs) d.vsPid = vs.id;
+  } else if (o.action.t === 'promote') {
+    d.pid = o.action.pid;
+    d.vsPid = ta.lineup[o.action.slot]?.pid;
+  }
+  return d;
+}
+
 // ───────── 브리핑 ─────────
 
-/** 지금 상태의 주간 브리핑 (순수). 제안은 예상 효과가 큰 순 + 그 장의 인물 우선, 같은 종류는 한 장, 최대 3장 */
+const snapOf = (core: Core) => ({ day: core.day, rank: rankOf(core.teams, core.userId), profit: opProfit(core.finance.ledger), attN: core.attHistory.length });
+
+/** 지금 상태의 주간 브리핑 (순수). 문턱을 넘은 제안만, 예상 효과가 큰 순 + 그 장의 인물 우선, 같은 종류는 한 장, 최대 2장 */
 export function weeklyBriefing(core: Core): Briefing {
   const m = memoOf(core);
-  const t = userTeam(core);
   const wl = (memoGet(core, 'wl') ?? '').slice(-BRIEF_EVERY);
   const cnt = (c: string) => wl.split(c).length - 1;
   const rank = rankOf(core.teams, core.userId);
@@ -423,29 +605,37 @@ export function weeklyBriefing(core: Core): Briefing {
     home.length ? `평균 관중 ${fmtInt(avg(home))}` : '홈경기 없음',
   ].join(' · ');
 
-  const cands = [scoutOffer(core), marketingOffer(core), ...fieldOffers(core), farmOffer(core), chairOffer(core)].filter((c): c is Cand => !!c);
+  const cands = [scoutOffer(core, m), marketingOffer(core), ...fieldOffers(core), farmOffer(core), chairOffer(core)].filter((c): c is Cand => !!c);
   const themed = STAGE_WHO[Math.min(core.campaign.stage, STAGE_WHO.length - 1)] ?? [];
   const kinds = new Set<string>();
-  const offers: BriefOffer[] = [];
-  // 금고가 12경기 안에 비면 조합장이 먼저 말하고, 가장 효과 큰 대응 한 장이 맨 위에 온다
+  const picked: Cand[] = [];
+  const recent = (id: string, gap: number) => m.skipped[id] !== undefined && core.day - m.skipped[id] <= gap;
+  // 금고가 12경기 안에 비면 조합장이 먼저 말하고, 가장 효과 큰 대응 한 장이 맨 위에 온다 (같은 종류 간격의 예외)
   const alert = cashAlert(core);
-  const rescue = alert ? rescueOffer(core) : null;
-  if (rescue) {
-    const { score: _s, ...o } = rescue;
-    offers.push(o);
+  const rescue = alert ? rescueOffer(core, m) : null;
+  if (rescue && !recent(rescue.id, SKIP_QUIET)) {
+    picked.push(rescue);
     kinds.add('rescue');
   }
   for (const c of cands.sort((a, b) => b.score + (themed.includes(b.who) ? 100 : 0) - (a.score + (themed.includes(a.who) ? 100 : 0)))) {
-    if (offers.length >= BRIEF_MAX) break;
-    const skippedAt = m.skipped[c.id];
-    if (kinds.has(c.kind) || (skippedAt !== undefined && core.day - skippedAt <= SKIP_QUIET)) continue;
+    if (picked.length >= BRIEF_MAX) break;
+    if (kinds.has(c.kind) || core.day < (m.quiet?.[c.kind] ?? 0) || reverses(m, core.day, c.moves)) continue;
+    // 같은 브리핑 안에서도 서로 반대인 제안은 내지 않는다
+    if (picked.some((o) => o.moves?.some((x) => c.moves?.some((y) => y.t === x.t && y.d === -x.d)))) continue;
     kinds.add(c.kind);
-    const { score: _score, ...o } = c;
-    offers.push(o);
+    picked.push(c);
   }
-  void t;
-  const results = m.done.filter((d) => d.day < core.day).map((d) => resultLine(core, d)).filter((s): s is string => !!s);
-  return { day: core.day, summary, results, offers, ...(alert ? { alert } : {}) };
+  const offers: BriefOffer[] = picked.map(({ score: _score, ...o }) => {
+    const r = applyOffer(core, o);
+    return r.error ? o : { ...o, detail: detailOf(core, r.core, o) };
+  });
+  const now = partsArr(teamParts(userTeam(core)));
+  const resultInfo: BriefResult[] = [];
+  for (const d of m.done) {
+    const text = d.day < core.day ? resultLine(core, d) : null;
+    if (text) resultInfo.push({ text, label: d.label, ...(d.expect ? { expect: d.expect } : {}), ...(d.parts && d.partsExp ? { parts: { a: d.parts, b: d.partsExp, now } } : {}) });
+  }
+  return { day: core.day, summary, results: resultInfo.map((r) => r.text), resultInfo, offers, ...(alert ? { alert } : {}) };
 }
 
 /** 브리핑을 열 차례인가: 정규시즌 6경기마다, 그날 이미 닫지 않았을 때 */
@@ -455,14 +645,24 @@ export function briefingDue(core: Core): boolean {
   return !(m && m.season === core.season && m.snap?.day === core.day);
 }
 
-/** 매 경기 후(이벤트 카드 뽑기 뒤): 차례면 브리핑을 campaign.briefing 에 둔다. 아니면 원본 반환 */
+const offeredLog = (m: BriefMemo, day: number, b: Briefing) => withLog(m, day, b.offers.flatMap((o) => o.moves ?? []));
+
+/**
+ * 매 경기 후(이벤트 카드 뽑기 뒤): 차례면 브리핑을 campaign.briefing 에 둔다. 아니면 원본 반환.
+ * 문턱을 넘은 제안도, 지난주 실행 결과도 없는 주는 띄우지 않고 지난주 수치만 적어 둔다(일괄 진행도 멈추지 않는다).
+ */
 export function drawBriefing(core0: Core): Core {
   if (!briefingDue(core0)) return core0;
   const core = structuredClone(core0);
+  core.campaign.briefMemo = observe(core, memoOf(core));
   const b = weeklyBriefing(core);
   const m = memoOf(core);
+  if (!b.offers.length && !b.results.length) {
+    core.campaign.briefMemo = { ...m, done: m.done.filter((d) => d.day >= core.day), snap: snapOf(core) };
+    return core;
+  }
   core.campaign.briefing = b;
-  core.campaign.briefMemo = { ...m, shown: (m.shown ?? 0) + b.offers.length };
+  core.campaign.briefMemo = { ...m, shown: (m.shown ?? 0) + b.offers.length, log: offeredLog(m, core.day, b) };
   return core;
 }
 
@@ -472,17 +672,13 @@ export function refreshBriefing(core0: Core): Core {
   const core = structuredClone(core0);
   const m = memoOf(core);
   const b = weeklyBriefing(core);
-  core.campaign.briefMemo = { ...m, shown: (m.shown ?? 0) - core0.campaign.briefing.offers.length + b.offers.length };
+  core.campaign.briefMemo = { ...m, shown: (m.shown ?? 0) - core0.campaign.briefing.offers.length + b.offers.length, log: offeredLog(m, core.day, b) };
   core.campaign.briefing = b;
   return core;
 }
 
-/** 제안 실행: 기존 액션을 그대로 부른다. 실행 기록은 다음 주 결과 줄의 재료가 된다 */
-export function runOffer(core0: Core, id: string): { core: Core; error?: string; text?: string } {
-  const b0 = core0.campaign.briefing;
-  const o = b0?.offers.find((x) => x.id === id);
-  if (!b0 || !o) return { core: core0, error: '실행할 제안이 없습니다' };
-  if (o.state) return { core: core0, error: '이미 처리한 제안입니다' };
+/** 제안을 지금 상태에 적용한 결과 (순수). 실행과 상세 시트의 "후" 계산이 같은 길을 쓴다 */
+function applyOffer(core0: Core, o: BriefOffer): { core: Core; error?: string; done?: BriefDone } {
   const t0 = userTeam(core0);
   const before = teamParts(t0);
   const a = o.action;
@@ -557,8 +753,22 @@ export function runOffer(core0: Core, id: string): { core: Core; error?: string;
       break;
     }
   }
+  done = { ...done, expect: `${o.effect}${o.flag ? ` · ${o.flag}` : ''}`, parts: partsArr(before), partsExp: partsArr(teamParts(userTeam(core))) };
+  return { core, done };
+}
+
+/** 제안 실행: 기존 액션을 그대로 부른다. 실행 기록은 다음 주 결과 줄의 재료가 된다 */
+export function runOffer(core0: Core, id: string): { core: Core; error?: string; text?: string } {
+  const b0 = core0.campaign.briefing;
+  const o = b0?.offers.find((x) => x.id === id);
+  if (!b0 || !o) return { core: core0, error: '실행할 제안이 없습니다' };
+  if (o.state) return { core: core0, error: '이미 처리한 제안입니다' };
+  const before = teamParts(userTeam(core0));
+  const r = applyOffer(core0, o);
+  if (r.error || !r.done) return { core: core0, error: r.error ?? '실행할 수 없습니다' };
+  const { core, done } = r;
   const m = memoOf(core);
-  core.campaign.briefMemo = { ...m, done: [...m.done, done] };
+  core.campaign.briefMemo = { ...m, done: [...m.done, done], quiet: { ...m.quiet, [o.kind]: core.day + KIND_GAP_DONE } };
   const b = core.campaign.briefing!;
   core.campaign.briefing = { ...b, offers: b.offers.map((x) => (x.id === id ? { ...x, state: 'done' as const } : x)) };
   const after = teamParts(userTeam(core));
@@ -566,14 +776,14 @@ export function runOffer(core0: Core, id: string): { core: Core; error?: string;
   return { core, text: `${done.label} 완료${moved ? ` — ${moved}` : ''}` };
 }
 
-/** 제안 넘기기: 2주 동안 같은 제안은 다시 오지 않는다 */
+/** 제안 넘기기: 같은 종류의 제안은 4주 동안 다시 오지 않는다 */
 export function skipOffer(core0: Core, id: string): Core {
   const b = core0.campaign.briefing;
   const o = b?.offers.find((x) => x.id === id);
   if (!b || !o || o.state) return core0;
   const core = structuredClone(core0);
   const m = memoOf(core);
-  core.campaign.briefMemo = { ...m, skipped: { ...m.skipped, [id]: core.day } };
+  core.campaign.briefMemo = { ...m, skipped: { ...m.skipped, [id]: core.day }, quiet: { ...m.quiet, [o.kind]: core.day + KIND_GAP_SKIP } };
   core.campaign.briefing = { ...b, offers: b.offers.map((x) => (x.id === id ? { ...x, state: 'skipped' as const } : x)) };
   return core;
 }
@@ -585,13 +795,13 @@ export function closeBriefing(core0: Core): Core {
   const core = structuredClone(core0);
   const m = memoOf(core);
   const skipped = { ...m.skipped };
-  for (const o of b.offers) if (!o.state) skipped[o.id] = core.day;
-  core.campaign.briefMemo = {
-    ...m,
-    skipped,
-    done: m.done.filter((d) => d.day >= core.day),
-    snap: { day: core.day, rank: rankOf(core.teams, core.userId), profit: opProfit(core.finance.ledger), attN: core.attHistory.length },
-  };
+  const quiet = { ...m.quiet };
+  for (const o of b.offers) {
+    if (o.state) continue;
+    skipped[o.id] = core.day;
+    quiet[o.kind] = core.day + KIND_GAP_SKIP;
+  }
+  core.campaign.briefMemo = { ...m, skipped, quiet, done: m.done.filter((d) => d.day >= core.day), snap: snapOf(core) };
   core.campaign.briefing = null;
   return core;
 }
