@@ -2,7 +2,7 @@
 // 필요한 상태를 만나는 순간의 Core 를 zustand persist 형식({ state, version })으로 떠 둔다.
 // 실행: npx tsx scripts/screens/fixtures.ts  →  screens-out/fixtures/*.json (+ index.json)
 import { fixedStarters } from '../../src/game/campaign';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Core } from '../../src/game/types';
@@ -315,6 +315,16 @@ wildcardFixtures();
     if (!f) continue;
     for (const t of f.core.teams) if (OLD[t.id]) [t.city, t.name] = OLD[t.id];
     f.core = JSON.parse(JSON.stringify(f.core).replaceAll('"YIN"', '"HAN"')) as Core;
+  }
+}
+
+// ── 진짜 옛 세이브: 10구단 이전 코드(dc7f9fe)로 저장한 파일을 손대지 않고 그대로 넣는다 (scripts/fixtures-old — npm run oldsave 와 같은 파일) ──
+for (const [name, file] of [['oldReal', 'sensible-3-s6mid'], ['oldRealPost', 'sensible-1-post']] as const) {
+  try {
+    const raw = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures-old', `${file}.json`), 'utf8')) as { state: Core };
+    found[name] = { core: raw.state, seed: raw.state.seed, bot: `옛 세이브 ${file}` };
+  } catch {
+    // 파일이 없으면 건너뛴다
   }
 }
 
