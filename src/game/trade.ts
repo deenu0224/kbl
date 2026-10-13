@@ -46,6 +46,9 @@ export const TR = {
   frSat: -8,
 };
 
+// 감사용 스위치 (scripts/campaign.ts 의 TRADE=off 가 끈다. 게임에서는 켜 둔다)
+export const TRADE_AUDIT = { offers: true };
+
 export type TradeKind = 'now' | 'future' | 'dump' | 'cash';
 export const TRADE_KIND_KO: Record<TradeKind, string> = { now: '즉전감 맞교환', future: '지금 이기기 ↔ 미래', dump: '연봉 떠안기', cash: '현금 트레이드' };
 export interface TradeOffer {
@@ -452,7 +455,7 @@ function put(core0: Core, of: TradeOffer): Core | null {
 
 /** 매 경기 후: 트레이드 기간이면 예정된 날에 제안 1건을 campaign.event 에 둔다. 해당 없으면 원본 반환 */
 export function drawTrade(core0: Core, rng: Rng): Core {
-  if (!tradeOpen(core0) || core0.campaign.event) return core0;
+  if (!TRADE_AUDIT.offers || !tradeOpen(core0) || core0.campaign.event) return core0;
   // 유저가 내놓은 선수: 답이 오는 날을 정해 두고, 그날 원하는 구단을 찾는다
   const block = core0.campaign.block ?? [];
   if (block.length) {
@@ -499,7 +502,7 @@ export function drawTrade(core0: Core, rng: Rng): Core {
 
 /** 스토브리그(결산 후 · 드래프트 전): 제안 1건. 내놓은 선수가 있으면 그 선수부터 */
 export function drawStoveTrade(core0: Core, rng: Rng): Core {
-  if (core0.phase !== 'ended' || core0.campaign.event || memoGet(core0, 'trStove')) return core0;
+  if (!TRADE_AUDIT.offers || core0.phase !== 'ended' || core0.campaign.event || memoGet(core0, 'trStove')) return core0;
   const core = structuredClone(core0);
   memoSet(core, 'trStove', 1);
   for (const pid of core.campaign.block ?? []) {

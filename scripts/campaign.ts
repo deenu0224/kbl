@@ -7,7 +7,7 @@
 //   greedy   — 스타 FA 올인 + 대출 한도
 //   off-verb — 그 장의 주제 동사만 빼고 다 한다 (주제 동사가 실제 열쇠인지 검증)
 // 동사: lineup(타순·편성) · sign(영입) · gate(가격·관중석·매점) · youth(훈련장·지명·젊은 선수 기용) · pitch(투수 운용)
-import type { Core } from '../src/game/types';
+import type { Core, EventCard } from '../src/game/types';
 import { mulberry32, type Rng } from '../src/game/rng';
 import { newCore } from '../src/game/generate';
 import { advanceDay, nextSeason, rankOf } from '../src/game/season';
@@ -17,7 +17,7 @@ import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { closeBriefing, drawBriefing, runOffer } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
-import { drawStoveTrade, parseOffer, tradePreview } from '../src/game/trade';
+import { TRADE_AUDIT, drawStoveTrade, parseOffer, tradePreview } from '../src/game/trade';
 import { BOTS, baseId, firstEnabled, offVerb, passive, sensible, type Bot } from './bots';
 import { FARM_CARDS, FARM_COACH } from '../src/game/farm';
 import { fmtMoney } from '../src/game/format';
@@ -25,6 +25,11 @@ import { fmtMoney } from '../src/game/format';
 const N_SEEDS = Number(process.argv[2]) || 12;
 const N_SEASONS = Number(process.argv[3]) || 12;
 const AB_REPS = process.argv[4] !== undefined ? Number(process.argv[4]) : 2; // A/B 분기 반복 수 (0 = 끔)
+// 원인 측정용 환경 변수: BOTS=greedy (그 봇만 돌리고 요약만 출력) · TRADE=off (트레이드 제안 끔) · TRADE=deny (제안은 오되 봇이 전부 거절)
+const ONLY_BOTS = process.env.BOTS ? process.env.BOTS.split(',') : null;
+const TRADE_MODE = process.env.TRADE ?? 'on';
+if (TRADE_MODE === 'off') TRADE_AUDIT.offers = false;
+const pickOf = (bot: Bot, c: Core, card: EventCard): number => (TRADE_MODE === 'deny' && baseId(card) === 'trade' ? firstEnabled(card, [1]) : bot.event(c, card));
 
 
 // ───────── 실행 ─────────
@@ -116,7 +121,7 @@ function stove(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
       if (!c.campaign.event) break;
     }
     const card = c.campaign.event!;
-    const pick = bot.event(c, card);
+    const pick = pickOf(bot, c, card);
     if (run) {
       tallyTrade(run, c, card, pick);
       run.cards[baseId(card)] = (run.cards[baseId(card)] ?? 0) + (baseId(card) === 'trade' ? 1 : 0);
@@ -142,7 +147,7 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run, mid = false): Core 
       const scn = baseId(card) === 'dope' || baseId(card) === 'fix';
       if (run && scn && bot === sensible && FORK_REPS > 0) forkScandal(c, baseId(card));
       const s0 = c.campaign.secrets?.length ?? 0;
-      const pick = bot.event(c, card);
+      const pick = pickOf(bot, c, card);
       if (run) tallyTrade(run, c, card, pick);
       const cash0 = c.finance.cash;
       const r = resolveEvent(c, pick, rng);
@@ -367,9 +372,23 @@ console.log(`장: ${STAGES.map((s, i) => `${i}.${s.name}`).join(' → ')}`);
 const t0 = Date.now();
 const all: Record<string, Run[]> = {};
 for (const bot of BOTS) {
+  if (ONLY_BOTS && !ONLY_BOTS.includes(bot.name)) continue;
   const runs: Run[] = [];
   for (let seed = 1; seed <= N_SEEDS; seed++) runs.push(runOne(bot, seed));
   all[bot.name] = runs;
+}
+if (ONLY_BOTS) {
+  console.log(`\n── 원인 측정 (TRADE=${TRADE_MODE}) ──`);
+  for (const [name, runs] of Object.entries(all)) {
+    const over = runs.filter((r) => r.over !== null);
+    const seasons = Math.max(1, runs.reduce((a, r) => a + r.snaps.length, 0));
+    const snaps = runs.flatMap((r) => r.snaps);
+    const sum = (f: (r: Run) => number) => runs.reduce((a, r) => a + f(r), 0);
+    console.log(
+      `${name.padEnd(9)} 이전율 ${pct(over.length, runs.length).trim()} (평균 ${over.length ? mean(over.map((r) => r.over!)).toFixed(1) : '—'}시즌) · 우승 ${runs.filter((r) => r.champ !== null).length}/${runs.length} · 평균 순위 ${mean(snaps.map((x) => x.rank)).toFixed(2)} · 시즌 말 현금 ${fmtMoney(mean(snaps.map((x) => x.cash)))} · 부채 ${fmtMoney(mean(snaps.map((x) => x.debt)))} · 연봉 ${fmtMoney(mean(snaps.map((x) => x.payroll)))} · 영업손익 ${fmtMoney(mean(snaps.map((x) => x.profit)))} · 트레이드 제안 ${(sum((r) => r.trade.offers) / seasons).toFixed(2)} 수락 ${(sum((r) => r.trade.accepts) / seasons).toFixed(2)}/시즌 (건당 예상 ${sum((r) => r.trade.accepts) ? (sum((r) => r.trade.wins) / sum((r) => r.trade.accepts)).toFixed(2) : '—'}승, 가치 ${sum((r) => r.trade.accepts) ? fmtMoney(Math.round(sum((r) => r.trade.net) / sum((r) => r.trade.accepts))) : '—'}) · 크래시 ${runs.filter((r) => r.crash).length}`,
+    );
+  }
+  process.exit(0);
 }
 
 console.log('\n── 장 도달 시즌 분포 (도달률 · 도달 시즌 중앙값 · 최소~최대) / 우승 / 연고 이전 ──');

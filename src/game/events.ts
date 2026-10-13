@@ -77,6 +77,7 @@ const N = {
   armRest: 6, // 쉬게 한다: 등판 제외 경기 수
   armRisk: 3, // 계속 쓴다: 부상 확률 배율
   armRiskGames: 12,
+  armOut: [12, 30], // 혹사 기간에 다치면 결장 경기 수
   armStf: -3, // 계속 쓴다: 구위 (고를 때마다 누적)
   reinjury: 0.3,
   pushGain: 3,
@@ -484,6 +485,8 @@ export const CARDS: CardDef[] = [
       const loss = penWithout(c, p);
       const lossWins = Math.round(loss.wins * N.armRest * 10) / 10;
       const after = { ...p, stf: clamp(p.stf + N.armStf, 20, 99) };
+      const risk = armOdds(c);
+      const riskTxt = `부상 확률 ${pct1(risk.base)} → ${pct1(risk.pushed)}`;
       return card('arm', 'arm', {
         title: '팔은 소모품이 아니다',
         icon: '💪',
@@ -506,16 +509,17 @@ export const CARDS: CardDef[] = [
           },
           {
             label: '계속 쓴다',
-            desc: `부상 확률 ×${N.armRisk} · 구위 ${N.armStf}`,
+            desc: `${riskTxt} · 구위 ${N.armStf}`,
             detail: {
               rows: [
                 rowInfo('불펜 전력', `${loss.a}`, `${loss.a}`),
                 rowInfo(`${p.name} 구위`, `${after.stf}`, `${p.stf}`, 'bad'),
                 rowInfo(`${p.name} 오버롤`, `${calcOvr(after)}`, `${p.ovr}`, 'bad'),
-                rowInfo('등판 시 부상 확률', `×${N.armRisk}`, '기준', 'bad'),
+                rowInfo(`부상 확률 (${N.armRiskGames}경기)`, pct1(risk.pushed), pct1(risk.base), 'bad'),
+                rowInfo('다치면 결장', `${N.armOut[0]}~${N.armOut[1]}경기`, '3~16경기', 'bad'),
               ],
               pids: [p.id],
-              risk: `부상 확률 ×${N.armRisk} (8~15경기 결장) · 구위 하락은 남습니다`,
+              risk: `${riskTxt} (×${N.armRisk}, 등판하지 않는 날에도) · 다치면 ${N.armOut[0]}~${N.armOut[1]}경기 결장 · 구위 하락은 남습니다`,
               lasts: `${N.armRiskGames}경기`,
             },
           },
@@ -1007,14 +1011,26 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   return { core, result };
 }
 
-/** 매 경기 후 (mutate): 혹사를 강행한 투수는 등판한 날 다칠 확률이 N.armRisk 배다 (기본 판정에 더해 나머지 배수만큼 한 번 더 굴린다) */
+/** 혹사 기간의 경기당 추가 부상 확률: 기본 판정(등판한 날)의 (N.armRisk − 1)배를 기간 내내 고르게 건다 */
+const armExtra = (core: Core) => SIM.INJ_RATE * TRAIN_INJ(core) * ARM_USE * (N.armRisk - 1);
+const ARM_USE = N.armApps / 15; // 혹사 중인 구원의 등판 빈도
+/** 표시용: 혹사 기간(N.armRiskGames 경기) 동안 다칠 확률 — 평소대로 쓸 때와 계속 쓸 때. armTickMut 과 같은 식 */
+export function armOdds(core: Core): { base: number; pushed: number } {
+  const keep = Math.pow(1 - SIM.INJ_RATE * TRAIN_INJ(core) * ARM_USE, N.armRiskGames);
+  return { base: 1 - keep, pushed: 1 - keep * Math.pow(1 - armExtra(core), N.armRiskGames) };
+}
+const pct1 = (v: number) => `${(v * 100).toFixed(1)}%`;
+
+/** 매 경기 후 (mutate): 혹사를 강행한 투수는 그 기간 내내(등판하지 않은 날에도) 다칠 확률이 N.armRisk 배이고, 다치면 오래 빠진다 */
 export function armTickMut(core: Core, rng: Rng): void {
   for (const b of core.campaign.buffs) {
-    if (b.kind !== 'armRisk' || !b.pid || core.day > b.until) continue;
+    if (b.kind !== 'armRisk' || !b.pid || core.day > b.until || b.value <= 1) continue;
     const p = findUser(core, b.pid);
-    if (!p || p.injury > 0 || !(p.apps ?? '').endsWith('1')) continue;
-    if (rng() >= SIM.INJ_RATE * TRAIN_INJ(core) * (b.value - 1)) continue;
-    p.injury = randInt(rng, 8, 15);
+    if (!p || p.ban) continue;
+    // 이 기간에 경기 중 다친 경우(sim 의 기본 판정)도 혹사 부상으로 길어진다
+    if (p.injury === 0 && rng() >= armExtra(core)) continue;
+    p.injury = Math.max(p.injury, randInt(rng, N.armOut[0], N.armOut[1]));
+    b.value = 1; // 한 번 다치면 끝
     fixLineup(userTeam(core));
     hintMut(core, 'pitchers');
     addNews(core, `${p.name}, 팔꿈치를 잡고 내려왔습니다 — ${p.injury}경기 결장`, 'bad');
