@@ -273,7 +273,7 @@ export function unfixMut(core: Core, pid: string): void {
   const t = userTeam(core);
   const slot = t.lineup.find((s) => s.pid === pid);
   const out = t.roster.find((p) => p.id === outId);
-  if (!slot || !out || out.kind !== 'B' || t.lineup.some((s) => s.pid === outId)) return;
+  if (!slot || !out || out.farm || out.kind !== 'B' || t.lineup.some((s) => s.pid === outId)) return;
   slot.pid = outId;
   addNews(core, `고정 출전이 끝나 ${out.name}이(가) 선발 명단에 돌아왔습니다`, 'info');
   hintMut(core, 'lineup');

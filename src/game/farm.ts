@@ -407,13 +407,15 @@ export function farmDailyMut(core: Core, notes: string[]): void {
   }
 
   // ── 부상자가 돌아오면 대체 선수는 2군으로 (맹활약 중이면 사건 B3 로 넘긴다) ──
+  let askedNow = false;
   for (const p of t.roster.filter((x) => x.subFor && !x.farm)) {
     const orig = t.roster.find((x) => x.id === p.subFor);
     if (orig && (orig.injury > 0 || (orig.farm && orig.il))) continue; // 아직 결장 중이거나 재활 명단에서 복귀를 기다린다
     if (p.injury > 0) continue; // 다친 대체 선수는 나은 뒤에 내린다
     const asked = pend?.sub === p.id;
-    if (!asked && orig && !orig.farm && isHot(core, p) && farmBudgetOk(core)) {
+    if (!asked && !askedNow && orig && !orig.farm && isHot(core, p) && farmBudgetOk(core)) {
       memoSet(core, 'b3', `${p.id}|${orig.id}|${core.day}`);
+      askedNow = true; // 하루에 한 명만 묻는다
       continue;
     }
     if (asked && pend!.day === core.day) continue;
@@ -425,7 +427,37 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     say(core, notes, `${FARM_COACH}${orig ? `${orig.name} 복귀 — ` : ''}대체 선수 ${p.name} 2군 복귀`);
   }
 
-  // ── 장기 결장(부상 IL_AUTO · 징계 IL_AUTO_BAN 경기 이상)은 그날 부상자 명단으로, 빈 1군 자리에는 2군에서 한 명 ──
+  ilAutoMut(core, notes);
+
+  // ── 부상 공백에 콜업 (명단에 올리지 않는 짧은 부상: 뎁스가 빌 때만) ──
+  for (const inj of activeRoster(t).filter((p) => p.injury >= F.subInjury)) {
+    if (t.roster.some((p) => p.subFor === inj.id) || !depthEmpty(t, inj)) continue;
+    const k = subPick(core, t, inj);
+    if (!k) continue;
+    let tail = '';
+    if (activeRoster(t).length >= ROSTER_MAX) {
+      const out = benchOut(t, k.kind);
+      if (!out) continue;
+      demoteMut(core, t, out, false);
+      tail = ` (${out.name} 2군행)`;
+    }
+    markUpMut(core, k);
+    delete k.farm;
+    delete k.farmUntil;
+    k.subFor = inj.id;
+    fixLineup(t);
+    say(core, notes, `${FARM_COACH}${inj.name} 부상(${inj.injury}경기) 공백에 ${k.name}(${posKo(k.pos)} 오버롤 ${k.ovr}) 콜업${tail}`);
+  }
+  benchKidsMut(core, notes);
+}
+
+/**
+ * 자동 운영: 장기 결장(부상 IL_AUTO · 징계 IL_AUTO_BAN 경기 이상)은 그날 부상자 명단으로, 빈 1군 자리에는 2군에서 한 명 (mutate).
+ * 경기 뒤의 사건(혹사·징계)으로 생긴 결장도 놓치지 않도록 advanceDay 끝에서 한 번 더 부른다.
+ */
+export function ilAutoMut(core: Core, notes: string[]): void {
+  if (!farmAutoOn(core)) return;
+  const t = userTeam(core);
   for (const inj of activeRoster(t).filter((p) => p.injury >= (p.ban ? IL_AUTO_BAN : IL_AUTO))) {
     const has = t.roster.find((p) => p.subFor === inj.id && !p.farm);
     const k = has ? undefined : subPick(core, t, inj);
@@ -453,27 +485,11 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     say(core, notes, `${FARM_COACH}${inj.name} ${inj.ban ? '징계 말소' : '부상자 명단'}(${games}경기)${k ? ` — ${k.name} 콜업` : has ? '' : ' — 올릴 2군 선수 없음'}`);
   }
 
-  // ── 부상 공백에 콜업 (명단에 올리지 않는 짧은 부상: 뎁스가 빌 때만) ──
-  for (const inj of activeRoster(t).filter((p) => p.injury >= F.subInjury)) {
-    if (t.roster.some((p) => p.subFor === inj.id) || !depthEmpty(t, inj)) continue;
-    const k = subPick(core, t, inj);
-    if (!k) continue;
-    let tail = '';
-    if (activeRoster(t).length >= ROSTER_MAX) {
-      const out = benchOut(t, k.kind);
-      if (!out) continue;
-      demoteMut(core, t, out, false);
-      tail = ` (${out.name} 2군행)`;
-    }
-    markUpMut(core, k);
-    delete k.farm;
-    delete k.farmUntil;
-    k.subFor = inj.id;
-    fixLineup(t);
-    say(core, notes, `${FARM_COACH}${inj.name} 부상(${inj.injury}경기) 공백에 ${k.name}(${posKo(k.pos)} 오버롤 ${k.ovr}) 콜업${tail}`);
-  }
+}
 
-  // ── 벤치에서 썩는 유망주는 2군으로 (하루 한 명) ──
+/** 벤치에서 썩는 유망주는 2군으로 (하루 한 명) */
+function benchKidsMut(core: Core, notes: string[]): void {
+  const t = userTeam(core);
   const inLu = new Set(t.lineup.map((s) => s.pid));
   let nb = activeRoster(t).filter((p) => p.kind === 'B').length;
   let sent = false;

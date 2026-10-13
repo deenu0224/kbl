@@ -23,7 +23,7 @@ import { armTickMut, cutGoodsMut, FOREIGN_MAX } from './events';
 import { leagueMult, scandalTickMut } from './scandal';
 import { tradeTickMut } from './trade';
 import { svcSalary, svcYearAt } from './contract';
-import { farmDailyMut, growBonus, markUpMut, seasonTurnFarmMut } from './farm';
+import { farmDailyMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -487,6 +487,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   if (core.phase === 'season') scandalTickMut(core, rng);
   tradeTickMut(core);
   if (core.phase === 'season') armTickMut(core, rng);
+  if (core.phase === 'season') ilAutoMut(core, notes); // 경기 뒤 사건으로 생긴 장기 결장도 그날 명단으로
   if (core.phase === 'season' || core.phase === 'post') refreshProgressMut(core);
   core.cashHistory.push(f.cash);
 
