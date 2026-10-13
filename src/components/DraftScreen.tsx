@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Player } from '../game/types';
 import { useStore, useUserTeam } from '../store';
 import { DRAFT_BONUS, DRAFT_ROUNDS, draftRound } from '../game/draft';
-import { ROSTER_MAX } from '../game/economy';
+import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster } from '../game/economy';
 import { fmtMoney } from '../game/format';
 import PlayerCard, { ScoutBadge } from './PlayerCard';
 import Sheet from './layout/Sheet';
@@ -55,8 +55,9 @@ export default function DraftScreen() {
   const list = useMemo(() => pool.filter((p) => filter === 'all' || p.kind === filter), [pool, filter]);
   const selP = sel ? pool.find((p) => p.id === sel) : undefined;
   const mine = useMemo(() => new Set(draft?.mine ?? []), [draft?.mine]);
-  const full = team.roster.length >= ROSTER_MAX;
-  const reason = !myTurn ? '지명 차례가 아닙니다' : full ? `로스터가 가득 찼습니다 (${ROSTER_MAX}명)` : cash < bonus ? `계약금 부족 (${fmtMoney(bonus)})` : null;
+  const nFarm = farmRoster(team).length;
+  const full = nFarm >= FARM_MAX;
+  const reason = !myTurn ? '지명 차례가 아닙니다' : full ? `2군이 가득 찼습니다 (${FARM_MAX}명)` : cash < bonus ? `계약금 부족 (${fmtMoney(bonus)})` : null;
 
   useEffect(() => {
     if (sel && !pool.some((p) => p.id === sel)) setSel(null);
@@ -122,8 +123,8 @@ export default function DraftScreen() {
             <div>
               현금 <span className="text-hi">{fmtMoney(cash)}</span>
             </div>
-            <div className={full ? 'text-bad' : ''}>
-              로스터 {team.roster.length}/{ROSTER_MAX}
+            <div className={full ? 'text-bad' : ''} data-testid="draft-farm">
+              지명 선수는 2군으로 · 2군 {nFarm}/{FARM_MAX} <span className="text-white/45">(1군 {activeRoster(team).length}/{ROSTER_MAX})</span>
             </div>
           </div>
           <button className="px-btn shrink-0" onClick={() => setPeek(true)}>

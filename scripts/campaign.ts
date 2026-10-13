@@ -10,8 +10,9 @@
 import type { Core, EventCard, FacilityKind, Player, Team } from '../src/game/types';
 import { mulberry32, type Rng } from '../src/game/rng';
 import { newCore } from '../src/game/generate';
-import { advanceDay, borrow, nextSeason, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from '../src/game/season';
+import { advanceDay, borrow, callUp, farmLockLeft, nextSeason, rankOf, releasePlayer, sendDown, repay, setTicketPrice, signPlayer, upgradeFacility } from '../src/game/season';
 import {
+  FARM_MAX, activeRoster, farmRoster,
   FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_LIMIT, LOAN_STEP, MERCH_K, ROSTER_MAX, SEAT_LV, TRAIN_LV,
   capacityOf, opsCost, payroll, previewDemand, refPrice, signingBonus, starPower, upgradeCost, userTeam,
 } from '../src/game/economy';
@@ -57,16 +58,51 @@ function weakest(c: Core, p: Player): number {
 /** 로스터 정리: 시즌 종료 후(위약금 0) 노장·저능력 선수를 target 명까지 방출 */
 function trimRoster(c: Core, target: number): Core {
   let core = c;
-  for (let g = 0; g < 10 && userTeam(core).roster.length > target; g++) {
+  for (let g = 0; g < 10 && activeRoster(userTeam(core)).length > target; g++) {
     const t = userTeam(core);
     const inUse = new Set([...t.lineup.map((s) => s.pid), ...t.rotation, ...(t.closer ? [t.closer] : [])]);
-    const cand = t.roster.filter((p) => !inUse.has(p.id)).sort((a, b) => a.ovr + (a.pot - a.ovr) * 0.5 - a.age * 0.5 - (b.ovr + (b.pot - b.ovr) * 0.5 - b.age * 0.5))[0];
+    const cand = activeRoster(t).filter((p) => !inUse.has(p.id)).sort((a, b) => a.ovr + (a.pot - a.ovr) * 0.5 - a.age * 0.5 - (b.ovr + (b.pot - b.ovr) * 0.5 - b.age * 0.5))[0];
     if (!cand) break;
     const r = releasePlayer(core, cand.id);
     if (r.error) break;
     core = r.core;
   }
   return core;
+}
+
+/** 2군 운영 (sensible): 2군 선수가 그 자리 1군 주전보다 나아지면 콜업. 1군이 가득이면 가장 약한 벤치를 내리거나 방출한다 */
+function farmMoves(c0: Core): Core {
+  let c = c0;
+  for (const k of farmRoster(userTeam(c)).sort((a, b) => b.ovr - a.ovr)) {
+    const t = userTeam(c);
+    if (k.injury > 0 || farmLockLeft(c, k) > 0) continue;
+    const cur = k.kind === 'B' ? (t.roster.find((p) => p.id === t.lineup.find((s) => s.pos === k.pos)?.pid)?.ovr ?? 0) : weakest(c, k);
+    if (k.ovr <= cur) continue;
+    if (activeRoster(t).length >= ROSTER_MAX) {
+      const inUse = new Set([...t.lineup.map((s) => s.pid), ...t.rotation, ...t.bullpen.slice(0, 4), ...(t.closer ? [t.closer] : [])]);
+      const out = activeRoster(t).filter((p) => p.kind === k.kind && !inUse.has(p.id) && p.injury === 0).sort((a, b) => a.ovr - b.ovr)[0];
+      if (!out) continue;
+      const young = out.age <= 25 && out.pot > out.ovr + 3;
+      const r = young ? sendDown(c, out.id) : releasePlayer(c, out.id);
+      const r2 = r.error && !young ? sendDown(c, out.id) : r;
+      if (r2.error) continue;
+      c = r2.core;
+    }
+    c = ok(callUp(c, k.id), c);
+  }
+  return c;
+}
+
+/** 2군 정리 (sensible, 시즌 종료 후): 지명할 자리를 남기고 가망 없는 2군 선수를 방출 */
+function trimFarm(c0: Core, target: number): Core {
+  let c = c0;
+  for (let g = 0; g < 10 && farmRoster(userTeam(c)).length > target; g++) {
+    const out = farmRoster(userTeam(c)).sort((a, b) => a.pot - a.age - (b.pot - b.age))[0];
+    const r = releasePlayer(c, out.id);
+    if (r.error) break;
+    c = r.core;
+  }
+  return c;
 }
 
 const RESERVE = 50000; // 5억 비상금
@@ -134,7 +170,7 @@ function playYoung(c: Core): Core {
   return mutTeam(c, (t) => {
     const byId = new Map(t.roster.map((p) => [p.id, p]));
     const inLu = new Set(t.lineup.map((s) => s.pid));
-    const young = t.roster.filter((p) => p.kind === 'B' && !inLu.has(p.id) && p.age <= 25 && p.pot >= p.ovr + 5 && p.injury === 0).sort((a, b) => b.pot - a.pot);
+    const young = t.roster.filter((p) => p.kind === 'B' && !p.farm && !inLu.has(p.id) && p.age <= 25 && p.pot >= p.ovr + 5 && p.injury === 0).sort((a, b) => b.pot - a.pot);
     for (const y of young.slice(0, 2)) {
       const slot = t.lineup.find((s) => {
         const cur = byId.get(s.pid);
@@ -149,7 +185,7 @@ function playYoung(c: Core): Core {
 function doSign(c0: Core, n: number, only?: 'B' | 'P'): Core {
   let c = c0;
   for (let k = 0; k < n; k++) {
-    if (userTeam(c).roster.length >= ROSTER_MAX) c = trimRoster(c, ROSTER_MAX - 1);
+    if (activeRoster(userTeam(c)).length >= ROSTER_MAX) c = trimRoster(c, ROSTER_MAX - 1);
     const pay = payroll(userTeam(c));
     // 가을의 끝을 노리는 장(3장~)에서는 여윳돈이 덜 쌓여도 대어를 본다
     const rich = c.finance.cash > (c.campaign.stage >= 3 ? 250000 : 400000);
@@ -219,12 +255,12 @@ function doPen(c: Core): Core {
     .sort((a, b) => b.ovr - a.ovr)[0];
   if (!cand) return c;
   let core = c;
-  if (t.roster.length >= ROSTER_MAX) core = trimRoster(core, ROSTER_MAX - 1);
+  if (activeRoster(t).length >= ROSTER_MAX) core = trimRoster(core, ROSTER_MAX - 1);
   return ok(signPlayer(core, cand.id), core);
 }
 
 function bestProspect(c: Core, score: (p: Player) => number): string | null {
-  if (!c.draft || userTeam(c).roster.length >= ROSTER_MAX) return null;
+  if (!c.draft || farmRoster(userTeam(c)).length >= FARM_MAX) return null;
   const p = c.draft.pool.slice().sort((a, b) => score(b) - score(a))[0];
   return p ? p.id : null;
 }
@@ -289,6 +325,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
         autoPitching(t);
         coverRotation(t);
       });
+    if (name === 'sensible') c = farmMoves(c);
     if (v.has('youth') && v.has('lineup') && c.campaign.stage >= 2) c = playYoung(c);
     return c;
   };
@@ -306,7 +343,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
       return firstEnabled(card, USE[id] ?? [card.choices.length - 1]);
     },
     // 시즌이 끝난 직후(위약금 없음)에 내년 몸값을 내다보고 정리한다
-    beforeDraft: (c) => trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 25),
+    beforeDraft: (c) => (name === 'sensible' ? trimFarm(trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 26), FARM_MAX - 3) : trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 25)),
     // 지명은 매년 돌아오는 일이라 주제와 무관하게 한다. youth 를 쓰는 봇은 잠재력을, 아니면 즉전감을 본다
     draft: (c) => (drafts(c) ? bestProspect(c, (p) => (verbs(c).has('youth') ? SCOUT_V[p.scout ?? 'C'] * 0.65 + p.ovr * 0.35 : SCOUT_V[p.scout ?? 'C'] * 0.4 + p.ovr * 0.6)) : null),
   };
@@ -320,7 +357,7 @@ const offVerb = verbBot('off-verb', (c) => new Set(ALL_VERBS.filter((v) => !them
 function greedySign(c0: Core): Core {
   let c = c0;
   for (let n = 0; n < 3; n++) {
-    if (userTeam(c).roster.length >= ROSTER_MAX) c = trimRoster(c, ROSTER_MAX - 1);
+    if (activeRoster(userTeam(c)).length >= ROSTER_MAX) c = trimRoster(c, ROSTER_MAX - 1);
     const star = c.freeAgents.filter((p) => !p.foreign || foreignN(c) < FOREIGN_MAX).sort((a, b) => b.star - a.star || b.ovr - a.ovr)[0];
     if (!star || star.star < 60) break;
     while (c.finance.cash < signingBonus(star) && c.finance.debt + LOAN_STEP <= LOAN_LIMIT) c = ok(borrow(c), c);

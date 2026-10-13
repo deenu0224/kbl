@@ -137,7 +137,7 @@ const keyIds = (core: Core) => {
 };
 const benchBatters = (core: Core) => {
   const ids = lineupIds(core);
-  return userTeam(core).roster.filter((p) => p.kind === 'B' && !ids.has(p.id) && p.injury === 0);
+  return userTeam(core).roster.filter((p) => p.kind === 'B' && !p.farm && !ids.has(p.id) && p.injury === 0);
 };
 
 // ── 카드별 보조 ──
@@ -177,8 +177,9 @@ function recentSellouts(core: Core): number {
 /** 간판(star 최고) 선수가 타이틀 3위 이내인가 */
 function titleRace(core: Core): Player | null {
   const t = userTeam(core);
-  if (!t.roster.length) return null;
-  const p = t.roster.reduce((a, b) => (a.star >= b.star ? a : b));
+  const act = t.roster.filter((x) => !x.farm);
+  if (!act.length) return null;
+  const p = act.reduce((a, b) => (a.star >= b.star ? a : b));
   if (p.star < 55) return null;
   const top3 = (rows: { pid: string }[]) => rows.some((r) => r.pid === p.id);
   const hit =
@@ -223,7 +224,7 @@ function promotedYoung(core: Core): Player | null {
 const overworked = (core: Core) => userTeam(core).roster.filter((p) => p.kind === 'P' && (p.tired ?? 0) >= 3 && p.injury === 0);
 const retiree = (core: Core) =>
   userTeam(core)
-    .roster.filter((p) => p.age >= N.retireAge && p.star >= N.retireStar)
+    .roster.filter((p) => !p.farm && p.age >= N.retireAge && p.star >= N.retireStar)
     .sort((a, b) => b.star - a.star)[0];
 
 export const CARDS: CardDef[] = [
@@ -464,7 +465,7 @@ export const CARDS: CardDef[] = [
       ];
       const tail = hire ? 'hire' : 'cold';
       if (s.state === 'unsigned') {
-        const dis = t.roster.length >= ROSTER_MAX ? '로스터가 가득 찼습니다' : undefined;
+        const dis = t.roster.filter((x) => !x.farm).length >= ROSTER_MAX ? '1군이 가득 찼습니다' : undefined;
         return card(`oldeye|unsigned|${tail}`, 'oldeyeUnsigned', {
           title: '옛날 눈',
           icon: '📓',

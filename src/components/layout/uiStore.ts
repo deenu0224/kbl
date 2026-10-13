@@ -3,7 +3,7 @@ import type { TeamParts } from '../../game/ratings';
 
 /** 모바일 하단 탭 5개 */
 export type MobileTab = 'roster' | 'market' | 'stadium' | 'league' | 'club';
-export type RosterSub = 'lineup' | 'pitchers';
+export type RosterSub = 'lineup' | 'pitchers' | 'farm';
 export type ClubSub = 'finance' | 'news';
 export type LeagueSub = 'table' | 'leaders' | 'bracket';
 

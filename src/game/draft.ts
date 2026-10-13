@@ -3,7 +3,7 @@ import type { BatPos, Core, DraftState, PitchRole, Player, Team } from './types'
 import { clamp, gauss, pick, randInt, type Rng } from './rng';
 import { calcOvr, MIN_SALARY } from './ratings';
 import { slotNewcomer } from './lineup';
-import { ROSTER_MAX, userTeam } from './economy';
+import { FARM_MAX, ROSTER_MAX, farmRoster, userTeam } from './economy';
 import { genPlayer, makeCtx, type GenCtx } from './generate';
 import { fmtMoney } from './format';
 import { standings } from './season';
@@ -125,7 +125,9 @@ function takePlayer(core: Core, t: Team, p: Player, round: number): void {
   p.rookie = true;
   p.salary = MIN_SALARY;
   t.roster.push(p);
-  slotNewcomer(t, p);
+  // 유저 구단의 지명 선수는 2군에서 시작한다 (AI 구단은 2군을 쓰지 않는다)
+  if (t.id === core.userId) p.farm = true;
+  else slotNewcomer(t, p);
   d.log.push({ round, teamId: t.id, pid: p.id, name: p.name, pos: p.pos });
   if (t.id === core.userId) {
     p.since = core.season + 1; // 다음 시즌 데뷔
@@ -180,7 +182,7 @@ export function draftPick(core0: Core, pid: string, rng: Rng): { core: Core; err
   const d0 = core0.draft!;
   const p0 = d0.pool.find((p) => p.id === pid);
   if (!p0) return { core: core0, error: '지명할 수 없는 선수입니다' };
-  if (userTeam(core0).roster.length >= ROSTER_MAX) return { core: core0, error: `로스터가 가득 찼습니다 (최대 ${ROSTER_MAX}명) — 패스하거나 방출하세요` };
+  if (farmRoster(userTeam(core0)).length >= FARM_MAX) return { core: core0, error: `2군이 가득 찼습니다 (${FARM_MAX}명) — 패스하거나 2군 선수를 방출하세요` };
   const round = draftRound(d0);
   const bonus = DRAFT_BONUS[round - 1] ?? 0;
   if (core0.finance.cash < bonus) return { core: core0, error: `계약금이 부족합니다 (필요 ${fmtMoney(bonus)})` };

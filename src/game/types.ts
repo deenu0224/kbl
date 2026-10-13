@@ -61,8 +61,21 @@ export interface Player {
   scout?: 'A' | 'B' | 'C' | 'D'; // 드래프트 스카우트 등급 (잠재력의 흐릿한 표시)
   since?: number; // 유저 팀에 합류한 시즌 (프랜차이즈 스타 판정용. 없으면 1)
   tired?: number; // 연투 피로: 연속 등판 일수 (0/없음 = 정상). 투수만
+  farm?: boolean; // 2군(퓨처스) 소속. 없으면 1군 등록 (유저 구단만 쓴다)
+  farmUntil?: number; // 2군으로 내려간 선수가 다시 1군에 등록될 수 있는 day (말소 후 10경기)
+  farmStat?: FarmStat; // 이번 시즌 퓨처스 누적 기록
   bat: BatStats;
   pit: PitStats;
+}
+
+/** 퓨처스(2군) 누적 기록 — 경기 시뮬 없이 능력치에서 주간으로 뽑는다 */
+export interface FarmStat {
+  g: number;
+  ab: number;
+  h: number;
+  hr: number;
+  outs: number;
+  er: number;
 }
 
 export interface LineupSlot {
@@ -405,6 +418,7 @@ export interface BriefOffer {
   action: BriefAction;
   state?: 'done' | 'skipped';
   rescue?: { t: 'release'; pid: string } | { t: 'borrow' }; // 자금 대응 제안: 있으면 action 대신 이것을 실행한다 (runway.ts)
+  farm?: { up?: string; down?: string }; // 2군 이동 제안: 있으면 action 대신 내려보내기 → 콜업 순으로 실행한다
 }
 export interface Briefing {
   day: number; // 이 경기일 직전에 열렸다

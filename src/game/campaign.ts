@@ -697,7 +697,7 @@ export function stopReason(core: Core, report: DayReport): string | null {
   const byOvr = (a: Player, b: Player) => b.ovr - a.ovr;
   const rot = new Set(t.rotation);
   const key = new Set([
-    ...t.roster.filter((p) => p.kind === 'B').sort(byOvr).slice(0, 9).map((p) => p.id),
+    ...t.roster.filter((p) => p.kind === 'B' && !p.farm).sort(byOvr).slice(0, 9).map((p) => p.id),
     ...t.roster.filter((p) => rot.has(p.id)).sort(byOvr).slice(0, 3).map((p) => p.id),
   ]);
   const hurt = report.result.injuries.find((j) => j.teamId === core.userId && key.has(j.pid));

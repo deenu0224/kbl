@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BatPos, Player, Team } from '../game/types';
 import { pitcherLoc, putPitcher, useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
-import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, releaseCost, signingBonus } from '../game/economy';
+import { FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, activeRoster, farmRoster, releaseCost, signingBonus } from '../game/economy';
 import { slotNewcomer } from '../game/lineup';
-import { signPlayer } from '../game/season';
+import { farmStatText, signPlayer } from '../game/season';
 import { runwayPieceOf } from '../game/runway';
 import { betterArms, betterBats, homeSwap, offPos, orderIssues } from '../game/fixes';
 import { effDef, teamParts, type TeamParts } from '../game/ratings';
@@ -17,7 +17,7 @@ import { OvrBadge, POS_KO, SectionTitle, Stars, TabBar } from './ui';
 import { MiniDiamond } from './roster/Diamond';
 import FrontOffice, { MarketBoard } from './roster/FrontOffice';
 import { usePosReport, useRosterUi } from './roster/rosterUi';
-import { fitsKey } from '../game/analysis';
+import { callUpPreview, fitsKey, sendDownPreview } from '../game/analysis';
 
 // ───────── 공용 행 ─────────
 
@@ -132,6 +132,115 @@ function CardDock({ open, onClose, placeholder, children }: { open: boolean; onC
   return placeholder ? <div className="shrink-0 bg-panel-2/60 p-2 text-center text-[11px] text-white/45">{placeholder}</div> : null;
 }
 
+/** [2군으로] / [콜업] 버튼 + 누르기 전에 보이는 결과 줄 */
+export function FarmMoveButton({ player, onDone }: { player: Player; onDone?: () => void }) {
+  const core = useCore();
+  const sendDown = useStore((s) => s.sendDown);
+  const callUp = useStore((s) => s.callUp);
+  const pv = player.farm ? callUpPreview(core, player) : sendDownPreview(core, player);
+  return (
+    <>
+      <button
+        className={`px-btn ${player.farm ? 'green' : ''}`}
+        data-testid={player.farm ? 'call-up' : 'send-down'}
+        disabled={!pv.ok}
+        onClick={() => {
+          (player.farm ? callUp : sendDown)(player.id);
+          onDone?.();
+        }}
+      >
+        {player.farm ? '▲ 콜업' : '▼ 2군으로'}
+      </button>
+      <span className={`basis-full text-[10px] leading-snug ${pv.ok ? 'text-white/65' : 'text-bad'}`} data-testid="farm-preview">
+        {player.farm ? '콜업하면' : '2군으로 내리면'}: {pv.text}
+      </span>
+    </>
+  );
+}
+
+// ───────── 2군 ─────────
+
+export function FarmTab() {
+  const team = useUserTeam();
+  const core = useCore();
+  const callUp = useStore((s) => s.callUp);
+  const [sel, setSel] = useState<string | null>(null);
+  const mobile = useIsMobile();
+  const farm = useMemo(() => farmRoster(team).sort((a, b) => Number(a.kind === 'P') - Number(b.kind === 'P') || b.ovr - a.ovr), [team]);
+  const nAct = activeRoster(team).length;
+  const selP = sel ? farm.find((p) => p.id === sel) : undefined;
+  const span = (v: number) => `${Math.max(0, Math.min(100, ((v - 30) / 65) * 100))}%`;
+  return (
+    <>
+      <div className="px-1 pt-1 text-[10px] leading-snug text-white/60 mob:text-[11px]" data-testid="farm-head">
+        1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className={farm.length >= FARM_MAX ? 'text-bad' : 'text-white'}>{farm.length}/{FARM_MAX}</span>
+        <span className="text-white/45"> · 실전으로 빨리 자라지만 경기에는 못 나온다</span>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-[3px] overflow-y-auto p-1" data-testid="farm-list">
+        {farm.map((p) => {
+          const pv = callUpPreview(core, p);
+          const stat = farmStatText(p);
+          return (
+            <div
+              key={p.id}
+              role="button"
+              data-testid="farm-row"
+              onClick={() => setSel(sel === p.id ? null : p.id)}
+              className={`flex cursor-pointer flex-col gap-[2px] px-1 py-[3px] text-[11px] mob:min-h-11 mob:text-[12px] ${sel === p.id ? 'bg-sky/25' : 'bg-panel-2/70 hover:bg-panel-2'}`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0 whitespace-nowrap text-[10px] text-white/55">
+                  {POS_KO[p.pos]} <span className="text-white/40">{p.age}세</span>
+                </span>
+                <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
+                <span className="min-w-0 flex-1 truncate">
+                  {p.name}
+                  {p.injury > 0 && <span className="ml-1 text-[10px] text-bad">✚{p.injury}</span>}
+                  {p.rookie && <span className="ml-1 text-[10px] text-good">신인</span>}
+                </span>
+                <span
+                  role="button"
+                  data-testid="farm-call"
+                  className={`shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:flex mob:min-h-8 mob:items-center mob:text-[11px] ${pv.ok ? 'bg-good/20 text-good hover:bg-good/35' : 'bg-ink/60 text-bad'}`}
+                  style={pv.ok ? { boxShadow: '0 0 0 1px #6ee07a88' } : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    callUp(p.id);
+                  }}
+                >
+                  {pv.ok ? '▲ 콜업' : pv.text}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-white/55">
+                <span className="relative inline-block h-[5px] w-10 shrink-0" style={{ background: '#141a29' }} title={`잠재력 ${p.pot}`}>
+                  <span className="absolute inset-y-0 left-0 bg-good/40" style={{ width: span(p.pot) }} />
+                  <span className="absolute inset-y-0 left-0 bg-sky" style={{ width: span(p.ovr) }} />
+                </span>
+                <span className="shrink-0 text-good">잠재 {p.pot}</span>
+                <span className="min-w-0 flex-1 truncate">{stat ? `퓨처스 ${stat}` : '퓨처스 기록 없음'}</span>
+                {pv.ok && <span className="shrink-0 whitespace-nowrap text-white" data-testid="farm-call-effect">{pv.text}</span>}
+              </div>
+            </div>
+          );
+        })}
+        {!farm.length && (
+          <div className="px-1 py-2 text-[11px] leading-relaxed text-white/50" data-testid="farm-empty">
+            2군에 선수가 없습니다. 드래프트로 지명한 신인은 2군에서 시작하고, 1군 선수 카드의 [▼ 2군으로] 로 내려보낼 수 있습니다.
+          </div>
+        )}
+      </div>
+      <CardDock open={!!selP} onClose={() => setSel(null)} placeholder={farm.length ? '선수를 누르면 카드가 열립니다' : undefined}>
+        {selP && (
+          <PlayerCard player={selP} team={team} roleLabel={`2군 · ${POS_KO[selP.pos]}`}>
+            <FarmMoveButton player={selP} onDone={() => setSel(null)} />
+            <ReleaseButton player={selP} team={team} />
+          </PlayerCard>
+        )}
+      </CardDock>
+    </>
+  );
+}
+
 /** 방출 버튼 + 불가 사유 */
 function ReleaseButton({ player, team }: { player: Player; team: Team }) {
   const core = useCore();
@@ -139,13 +248,13 @@ function ReleaseButton({ player, team }: { player: Player; team: Team }) {
   const [arm, setArm] = useState(false);
   useEffect(() => setArm(false), [player.id]);
 
-  const nBat = team.roster.filter((x) => x.kind === 'B').length;
-  const nPit = team.roster.length - nBat;
+  const nBat = activeRoster(team).filter((x) => x.kind === 'B').length;
+  const nPit = activeRoster(team).length - nBat;
   const cost = releaseCost(player, core);
   const reason =
-    player.kind === 'B' && nBat <= MIN_BATTERS
+    !player.farm && player.kind === 'B' && nBat <= MIN_BATTERS
       ? `타자는 최소 ${MIN_BATTERS}명`
-      : player.kind === 'P' && nPit <= MIN_PITCHERS
+      : !player.farm && player.kind === 'P' && nPit <= MIN_PITCHERS
         ? `투수는 최소 ${MIN_PITCHERS}명`
         : core.finance.cash < cost
           ? `위약금 부족 (${fmtMoney(cost)})`
@@ -293,7 +402,7 @@ export function LineupTab({ order = false }: { order?: boolean }) {
   const byId = useMemo(() => new Map(team.roster.map((p) => [p.id, p])), [team.roster]);
   const inLineup = useMemo(() => new Set(team.lineup.map((l) => l.pid)), [team.lineup]);
   const bench = useMemo(
-    () => team.roster.filter((p) => p.kind === 'B' && !inLineup.has(p.id)).sort((a, b) => b.ovr - a.ovr),
+    () => team.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => b.ovr - a.ovr),
     [team.roster, inLineup],
   );
   const selP = sel ? byId.get(sel) : undefined;
@@ -424,6 +533,7 @@ export function LineupTab({ order = false }: { order?: boolean }) {
               </button>
             )}
             <ReleaseButton player={selP} team={team} />
+            {!swap && <FarmMoveButton player={selP} onDone={() => setSel(null)} />}
           </PlayerCard>
         )}
       </CardDock>
@@ -445,7 +555,7 @@ export function PitchersTab({ order = false }: { order?: boolean }) {
     () => new Set([...team.rotation, ...team.bullpen, ...(team.closer ? [team.closer] : [])]),
     [team.rotation, team.bullpen, team.closer],
   );
-  const spare = useMemo(() => team.roster.filter((p) => p.kind === 'P' && !assigned.has(p.id)), [team.roster, assigned]);
+  const spare = useMemo(() => team.roster.filter((p) => p.kind === 'P' && !p.farm && !assigned.has(p.id)), [team.roster, assigned]);
   const selP = sel ? byId.get(sel) : undefined;
   const box = useRef<HTMLDivElement>(null);
   const penRef = useRef<HTMLDivElement>(null);
@@ -554,6 +664,7 @@ export function PitchersTab({ order = false }: { order?: boolean }) {
               {swap ? '취소' : '↔ 교체'}
             </button>
             <ReleaseButton player={selP} team={team} />
+            {!swap && <FarmMoveButton player={selP} onDone={() => setSel(null)} />}
           </PlayerCard>
         )}
       </CardDock>
@@ -587,7 +698,7 @@ export function MarketTab() {
   }, [freeAgents, filter, scoutIds, posFilter, weakKeys]);
   const scoutPick = scoutIds.split(',')[0];
   const selP = sel ? freeAgents.find((p) => p.id === sel) : undefined;
-  const full = team.roster.length >= ROSTER_MAX;
+  const full = activeRoster(team).length >= ROSTER_MAX;
   const bonus = selP ? signingBonus(selP) : 0;
   // 영입하면: 자동으로 들어갈 자리를 복제본에 적용해 본 전력 변화
   const preview = useMemo(() => {
@@ -635,7 +746,7 @@ export function MarketTab() {
           우리 약점만
         </button>
         <span className={`ml-auto whitespace-nowrap ${full ? 'text-bad' : 'text-white/50'}`}>
-          {team.roster.length}/{ROSTER_MAX}
+          1군 {activeRoster(team).length}/{ROSTER_MAX}
         </span>
         <button className="cursor-pointer whitespace-nowrap bg-panel-2 px-1.5 py-0.5 text-hi mob:min-h-9 mob:px-2" data-testid="market-table" onClick={() => useRosterUi.setState({ board: true })}>
           표로 보기 ⤢
@@ -735,7 +846,7 @@ export function MarketTab() {
 
 // ───────── 패널 ─────────
 
-const TABS: { id: LeftTab; label: string }[] = [
+const TABS: { id: Exclude<LeftTab, 'farm'>; label: string }[] = [
   { id: 'lineup', label: '타선' },
   { id: 'pitchers', label: '투수' },
   { id: 'market', label: '영입' },
@@ -768,17 +879,20 @@ export default function LeftPanel() {
   const tab = useStore((s) => s.leftTab);
   const setTab = useStore((s) => s.setTab);
   const clearHint = useStore((s) => s.clearHint);
-  const tabs = useHintTabs(TABS, tab);
+  const nFarm = useStore((s) => (s.teams.find((t) => t.id === s.userId)?.roster ?? []).filter((p) => p.farm).length);
+  const hinted = useHintTabs(TABS, tab === 'farm' ? null : tab);
+  const tabs: { id: LeftTab; label: string; badge?: ReactNode }[] = [...hinted.slice(0, 2), { id: 'farm' as const, label: `2군 ${nFarm}/${FARM_MAX}` }, ...hinted.slice(2)];
   return (
     <div className="px-panel flex h-full min-h-0 flex-col">
       <TabBar
         tabs={tabs}
         value={tab}
         onChange={(t) => {
-          clearHint(t);
+          if (t !== 'farm') clearHint(t as Exclude<LeftTab, 'farm'>);
           setTab('left', t);
         }}
       />
+      {tab === 'farm' && <FarmTab />}
       {tab === 'lineup' && <LineupTab />}
       {tab === 'pitchers' && <PitchersTab />}
       {tab === 'market' && <MarketTab />}

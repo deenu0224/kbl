@@ -86,7 +86,8 @@ export function teamStrength(t: Team): number {
     const ps = ids.map((id) => (id ? byId.get(id) : undefined)).filter((p): p is Player => !!p);
     return ps.length ? ps.reduce((s, p) => s + p.ovr, 0) / ps.length : null;
   };
-  const all = t.roster.length ? t.roster.reduce((s, p) => s + p.ovr, 0) / t.roster.length : 0;
+  const act = t.roster.filter((p) => !p.farm);
+  const all = act.length ? act.reduce((s, p) => s + p.ovr, 0) / act.length : 0;
   const bat = avg(t.lineup.map((s) => s.pid)) ?? all;
   const rot = avg(t.rotation) ?? all;
   const pen = avg([t.closer, ...t.bullpen]) ?? all;
