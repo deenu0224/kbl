@@ -4,6 +4,7 @@ import type { BatPos, BriefDetail, BriefDone, BriefMemo, BriefMove, BriefOffer, 
 import { teamParts, type TeamParts } from './ratings';
 import { BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, FOOD_LV, LOAN_RATE, LOAN_STEP, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SEAT_LV, TRAIN_LV, activeRoster, farmRoster, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
+import { farmAutoOn } from './farm';
 import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, callUp, farmLockLeft, farmStatText, growChance, sendDown, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
 import { RUNWAY_DANGER, runway, runwayAfter, runwayPieceOf, type Runway } from './runway';
 import { isFranchise } from './franchise';
@@ -408,6 +409,8 @@ function farmMoveOffer(core: Core, phase: 'up' | 'down'): Cand | null {
 
 /** 2군 코치: 콜업 → 훈련장 → 유망주 기용 → 내려보내기 */
 function farmOffer(core: Core): Cand | null {
+  // 자동 운영 중에는 콜업·내려보내기를 묻지 않는다 (2군 코치가 알아서 하고, 주전이 바뀌는 콜업은 사건 B1 이 묻는다)
+  if (farmAutoOn(core)) return coachOffer(core);
   return farmMoveOffer(core, 'up') ?? coachOffer(core) ?? farmMoveOffer(core, 'down');
 }
 

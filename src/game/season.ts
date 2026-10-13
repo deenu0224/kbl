@@ -9,7 +9,7 @@ import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, FORCED_SALE_RATE, RENEW_PREMIUM, RENEW_SEASONS,
   BENCH_GROW, FARM_CAP, FARM_LOCK, SVC_YEARS, FARM_MAX, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
-  calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, starPower, upgradeCost, userTeam,
+  awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
 import { activeBuffs, fillObjectivesMut, hintMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
@@ -21,6 +21,7 @@ import { afterRegularSeasonMut, playPostDayMut } from './postseason';
 import { isDraftDone } from './draft';
 import { cutGoodsMut, FOREIGN_MAX } from './events';
 import { svcSalary, svcYearAt } from './contract';
+import { farmDailyMut, growBonus, markUpMut, seasonTurnFarmMut } from './farm';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -144,10 +145,12 @@ export function settleCash(core: Core, notes: string[]): void {
 }
 
 /** 선수의 주간 성장 확률: 2군(실전) > 1군 주전 > 1군 벤치. 자랄 수 없으면 0 */
-export function growChance(core: Pick<Core, 'facilities'>, t: Team, p: Player): number {
+export function growChance(core: Pick<Core, 'facilities'> & Partial<Pick<Core, 'campaign' | 'day'>>, t: Team, p: Player): number {
   if (p.age > TRAIN_MAX_AGE || p.ovr >= p.pot) return 0;
-  const grow = TRAIN_LV[core.facilities.training].grow;
-  if (p.farm) return p.ovr >= FARM_CAP ? 0 : farmGrow(core.facilities);
+  // 2군 사건의 보정: 인스트럭터(2군 +%p) · 믿고 쓰는 선수(×)
+  const fb = growBonus(core, p);
+  const grow = Math.min(1, TRAIN_LV[core.facilities.training].grow * fb.mult);
+  if (p.farm) return p.ovr >= FARM_CAP ? 0 : Math.min(1, farmGrow(core.facilities) + fb.add);
   if (p.age > PLAY_GROW_AGE) return grow;
   const playing = t.lineup.some((x) => x.pid === p.id) || t.rotation.includes(p.id) || t.closer === p.id;
   // 불펜 투수는 벤치가 아니다: 등판하는 투수이므로 훈련장 확률 그대로 자란다
@@ -272,7 +275,9 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
   const injMult: Record<string, number> = {};
   let restore: (() => void) | null = null;
   let rest: Set<string> | undefined;
+  const awayEdge: Record<string, number> = {};
   if (core) {
+    if (away.id === core.userId) awayEdge[core.userId] = awaySupport(core); // 원정 응원단
     injMult[core.userId] = TRAIN_LV[core.facilities.training].inj;
     const ut = home.id === core.userId ? home : away.id === core.userId ? away : null;
     if (ut) {
@@ -286,7 +291,7 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
       if (fx.rest.length) rest = new Set(fx.rest);
     }
   }
-  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId, rest });
+  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId, rest, awayEdge });
   restore?.();
   return res;
 }
@@ -468,6 +473,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     refreshProgressMut(core);
     afterRegularSeasonMut(core, rng); // 'post' 또는 (자동 시뮬 후) 'ended' + 결산
   }
+  if (core.phase === 'season') farmDailyMut(core, notes); // 2군 코치의 하루
   if (core.phase === 'season') scriptTickMut(core, rng);
   if (core.phase === 'season' || core.phase === 'post') refreshProgressMut(core);
   core.cashHistory.push(f.cash);
@@ -547,6 +553,13 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   delete p.farm;
   delete p.farmUntil;
   delete p.farmStat;
+  delete p.subFor;
+  delete p.armyDue;
+  if (p.posShift) {
+    p.def = clamp(p.def + p.posShift.pen, 20, 99);
+    delete p.posShift;
+    p.ovr = calcOvr(p);
+  }
   core.freeAgents.push(p);
   core.finance.cash -= cost;
   core.finance.ledger.signing += cost;
@@ -596,6 +609,8 @@ export function callUp(core0: Core, pid: string): { core: Core; error?: string }
   const p = t.roster.find((x) => x.id === pid)!;
   delete p.farm;
   delete p.farmUntil;
+  delete p.subFor;
+  markUpMut(core, p);
   const role = slotNewcomer(t, p);
   addNews(core, `콜업: ${p.name} 1군 등록 (${role})`, 'good');
   return { core };
@@ -742,6 +757,12 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       delete p.farmUntil;
       delete p.farmStat;
       delete p.scout;
+      delete p.subFor;
+      if (p.posShift) {
+        // 포지션 전향의 수비 페널티는 시즌을 넘기지 않는다
+        p.def = clamp(p.def + p.posShift.pen, 20, 99);
+        delete p.posShift;
+      }
       const franchise = t.id === core.userId && isFranchise(p, endedSeason);
       develop(p, rng, core.season);
       if (t.id === core.userId) {
@@ -775,6 +796,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
     if (t.id === core.userId) fixLineup(t);
     else autoLineup(t);
   }
+  seasonTurnFarmMut(core, rng); // 전역 선수 복귀
   // 지난 시즌 남은 FA 로 AI 스토브리그 → 새 FA 시장
   for (const p of core.freeAgents) develop(p, rng, core.season);
   aiStoveLeague(core, rng);

@@ -181,6 +181,16 @@ export function starPower(t: Team, season?: number): number {
     .reduce((s, v) => s + v, 0);
 }
 
+// 원정 응원단: 팬이 많으면 원정에서도 우리 응원석이 찬다 → 상대 홈 이점의 일부를 상쇄
+export const AWAY_FAN_MIN = 5000; // 이 팬 수부터 원정 응원단이 생긴다
+export const AWAY_FAN_FULL = 30000; // 이 팬 수에서 상한
+export const AWAY_SUPPORT_MAX = 0.35; // 상대 홈 이점(SIM.HOME_EDGE)의 최대 35% 상쇄
+
+/** 원정 응원단의 힘: 원정 경기에서 상대 홈 이점을 상쇄하는 비율 (0 ~ AWAY_SUPPORT_MAX, 팬 수에 선형) */
+export function awaySupport(core: Pick<Core, 'fans'>): number {
+  return clamp((core.fans - AWAY_FAN_MIN) / (AWAY_FAN_FULL - AWAY_FAN_MIN), 0, 1) * AWAY_SUPPORT_MAX;
+}
+
 export function userTeam(core: Core): Team {
   const t = core.teams.find((x) => x.id === core.userId);
   if (!t) throw new Error('유저 구단을 찾을 수 없습니다');

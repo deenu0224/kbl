@@ -264,7 +264,7 @@ export function simulateGame(
   home: Team,
   away: Team,
   rng: Rng,
-  opts: { track: boolean; injMult?: Record<string, number>; focusId?: string; rest?: Set<string> },
+  opts: { track: boolean; injMult?: Record<string, number>; focusId?: string; rest?: Set<string>; awayEdge?: Record<string, number> },
 ): GameResult {
   const H = makeSide(home, true, opts.rest);
   const A = makeSide(away, false, opts.rest);
@@ -360,7 +360,7 @@ export function simulateGame(
         SIM.BABIP +
           ((b.con - SIM.REF) * SIM.BABIP_CON + (b.spd - SIM.REF) * SIM.BABIP_SPD - (stfRaw - SIM.REF) * SIM.BABIP_STF - (fld.def - SIM.REF) * SIM.BABIP_DEF) * SIM.SKILL +
           fld.misfit * SIM.MISFIT_BABIP +
-          (bat.isHome ? SIM.HOME_EDGE : 0),
+          (bat.isHome ? SIM.HOME_EDGE : SIM.HOME_EDGE * (opts.awayEdge?.[bat.team.id] ?? 0)),
         0.2,
         0.43,
       );
