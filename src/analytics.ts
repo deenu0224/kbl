@@ -4,7 +4,7 @@ import { useStore } from './store';
 // - 쿠키·고정 번호·별칭·세이브 내용은 보내지 않는다. 보내는 것은 "어떤 일이 일어났다"는 이름뿐이다.
 // - 설정에서 끌 수 있다 (kbl-no-stats).
 /** GoatCounter 사이트 코드 (https://{코드}.goatcounter.com). 가입 뒤 여기에 적는다 */
-export const STATS_CODE: string = '';
+export const STATS_CODE: string = 'deenu0224';
 /** 의견 보내기 링크 (구글 폼). 비어 있으면 버튼이 뜨지 않는다 */
 export const FEEDBACK_URL: string = '';
 
