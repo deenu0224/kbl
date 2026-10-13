@@ -310,7 +310,7 @@ export function growthInfo(core: Core, p: Player): GrowthInfo {
   const chance = !trains ? 0 : !mine ? lv.grow : farm ? rates.farm : playing ? rates.starter : rates.bench;
   const total = core.schedule.length;
   const left = core.phase === 'season' ? Math.max(0, Math.floor(total / WEEK) - Math.floor(core.day / WEEK)) : 0;
-  const expect = trains ? Math.min(farm ? Math.max(0, FARM_CAP - p.ovr) : room, r1(left * chance * GAIN_PER_HIT[p.kind])) : 0;
+  const expect = trains ? Math.min(farm ? Math.max(0, FARM_CAP - p.ovr) : room, r1(left * chance * GAIN_PER_HIT[p.kind] * (farm && p.kind === 'B' ? 2 : 1))) : 0;
   const nextAge = p.age + 1;
   return {
     room,

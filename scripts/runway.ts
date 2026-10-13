@@ -21,7 +21,7 @@ function greedy(c0: Core, stars: number): Core {
   let c = c0;
   for (let n = 0; n < stars; n++) {
     const t = userTeam(c);
-    if (t.roster.length >= ROSTER_MAX) break;
+    if (t.roster.filter((p) => !p.farm).length >= ROSTER_MAX) break;
     const foreign = t.roster.filter((p) => p.foreign).length;
     const star = c.freeAgents.filter((p) => !p.foreign || foreign < FOREIGN_MAX).sort((a, b) => b.star - a.star || b.ovr - a.ovr)[0];
     if (!star) break;

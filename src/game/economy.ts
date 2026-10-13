@@ -35,8 +35,8 @@ export const LOAN_RATE = 0.08; // 연이율
 export const ROSTER_MAX = 28; // 1군 등록 정원
 export const FARM_MAX = 20; // 2군(퓨처스) 정원
 export const FARM_CAP = 64; // 2군에서는 이 OVR 까지만 자란다 (그 위는 1군에서만)
-export const FARM_GROW = 2.0; // 2군의 주간 성장 확률 = 훈련장 확률 × 이 값
-export const FARM_GROW_MIN = 0.18; // 훈련장이 없어도 2군은 실전으로 이만큼은 자란다
+export const FARM_GROW = 2.2; // 2군의 주간 성장 확률 = 훈련장 확률 × 이 값
+export const FARM_GROW_MIN = 0.25; // 훈련장이 없어도 2군은 실전으로 이만큼은 자란다
 export const BENCH_GROW = 0.5; // 1군 벤치의 25세 이하: 안 쓰면 썩는다
 export const FARM_LOCK = 10; // 2군으로 내린 뒤 재등록까지 걸리는 경기 수
 export const FARM_UPKEEP = 4; // 2군 운영비 (만원/경기 · 선수 1명당)

@@ -208,12 +208,18 @@ function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
     if (p.age <= TRAIN_MAX_AGE && p.ovr < p.pot && (rng() < g || sure)) {
       memoAdd(core, 'grow');
       const k = pick(rng, keys);
-      const d = randInt(rng, 1, 2);
+      // 2군 타자는 매일 타석에 서므로 한 번의 성과가 크다 (능력치가 다섯이라 OVR 로는 투수와 비슷해진다 — scripts/farmgrowth.ts)
+      const big = !!p.farm && p.kind === 'B';
+      const d = randInt(rng, 1, 2) + (big ? 1 : 0);
       p[k] = clamp(p[k] + d, 20, 99);
       p.ovr = calcOvr(p);
       // 한 번의 성과는 주 능력치 +1~2 와 다른 능력치 +1
       const k2 = pick(rng, keys.filter((x) => x !== k));
-      p[k2] = clamp(p[k2] + 1, 20, 99);
+      p[k2] = clamp(p[k2] + (big ? randInt(rng, 1, 2) : 1), 20, 99);
+      if (big) {
+        const k3 = pick(rng, keys.filter((x) => x !== k && x !== k2));
+        p[k3] = clamp(p[k3] + 1, 20, 99);
+      }
       p.ovr = calcOvr(p);
       const msg = `${p.farm ? '퓨처스 성과' : '훈련 성과'}: ${p.name} ${ABIL_KO[k]}+${d} · ${ABIL_KO[k2]}+1`;
       if (p.farm && p.ovr >= FARM_CAP && p.ovr < p.pot) addNews(core, `${p.name}: 2군에서 배울 건 다 배웠습니다 (OVR ${p.ovr})`, 'info');

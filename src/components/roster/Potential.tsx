@@ -63,7 +63,7 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
           {g.trains || prospect ? (
             <span>
               {who}{g.maxAge}세 이하 · 여지가 있으면 {g.week}경기마다 훈련. {g.facility}에서 주당 <span className="text-hi">{pct(prospect ? g.base : g.chance)}</span> 확률로 능력치 +1~2 와 +1
-              {g.capped ? <span className="text-bad"> (2군 상한 OVR {g.farmCap} 도달 — 1군에서만 더 자란다)</span> : g.farm ? <span className="text-good"> (2군 실전)</span> : g.playing ? <span className="text-good"> ({g.playAge}세 이하 주전 ×{g.playMult})</span> : g.mine && p.age <= g.playAge ? <span className="text-bad"> ({g.playAge}세 이하 벤치 — 안 쓰면 썩는다)</span> : null}
+              {g.capped ? <span className="text-bad"> (2군 상한 OVR {g.farmCap} 도달 — 1군에서만 더 자란다)</span> : g.farm ? <span className="text-good"> (2군 실전{p.kind === 'B' ? ' · 타자는 +2~3 · +1~2 · +1' : ''})</span> : g.playing ? <span className="text-good"> ({g.playAge}세 이하 주전 ×{g.playMult})</span> : g.mine && p.age <= g.playAge ? <span className="text-bad"> ({g.playAge}세 이하 벤치 — 안 쓰면 썩는다)</span> : null}
             </span>
           ) : (
             <span className="text-white/70">{g.room <= 0 ? '잠재력에 닿아 시즌 중 훈련 성장 없음' : `${g.maxAge}세를 넘어 시즌 중 훈련 성장 없음`}</span>
