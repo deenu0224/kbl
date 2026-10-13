@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { uiZoom } from '../layout/uiScale';
 import type { BatPos, Player } from '../../game/types';
 import type { PosKey, PosRow } from '../../game/analysis';
 import { farmMax } from '../../game/economy';
@@ -164,7 +165,7 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
   const rehab = cands.filter((c) => c.rehab); // 재활 중: 맨 아래 회색, 교체 불가
   return (
     <Dialog onClose={onClose} label="자리" width={460}>
-      <div className="flex max-h-[calc(70dvh-34px)] flex-col gap-1" data-testid="slot-sheet">
+      <div className="flex max-h-[calc(calc(var(--dvh)*70)-34px)] flex-col gap-1" data-testid="slot-sheet">
         <div className="flex shrink-0 items-center gap-1.5">
           <span className="font-pixel-lg min-w-0 flex-1 truncate text-[16px] text-white">
             {name}
@@ -220,6 +221,8 @@ interface DragState {
   moved: boolean;
   timer: number;
 }
+
+const ghostAt = (d: DragState) => `translate(${d.x / uiZoom()}px, ${d.y / uiZoom()}px) ${d.touch ? 'translate(-50%, -135%)' : 'translate(14px, 10px)'}`;
 
 const VIEWS: [SquadView, string][] = [
   ['field', '야수'],
@@ -341,7 +344,8 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
 
   const itemAt = (x: number, y: number): string | null => (document.elementFromPoint(x, y)?.closest('[data-item]') as HTMLElement | null)?.dataset.item ?? null;
   const placeGhost = (d: DragState) => {
-    if (ghost.current) ghost.current.style.transform = `translate(${d.x}px, ${d.y}px) translate(-50%, -135%)`;
+    // 손가락은 이름표를 가리므로 위에, 마우스는 커서 오른쪽 아래에 붙인다
+    if (ghost.current) ghost.current.style.transform = ghostAt(d);
   };
   const onDown = (pid: string, pan: DragState['pan']) => (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -457,7 +461,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
 
   const fieldView = (
     <>
-      <div className={`relative mx-auto ${top ? 'h-[250px] lg:h-[300px]' : 'h-[min(360px,max(250px,calc(100dvh-350px)))]'} w-full max-w-[560px] shrink-0 overflow-hidden`} style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="squad-field">
+      <div className={`relative mx-auto ${top ? 'h-[250px] lg:h-[300px]' : 'h-[min(360px,max(250px,calc(calc(var(--dvh)*100)-350px)))]'} w-full max-w-[560px] shrink-0 overflow-hidden`} style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="squad-field">
         {/* 내야 흙과 잔디 */}
         <div className="absolute left-1/2 top-[62%] aspect-square w-[46%] -translate-x-1/2 -translate-y-1/2 rotate-45" style={{ background: '#a8794d' }}>
           <div className="absolute inset-[16%]" style={{ background: '#337a45' }} />
@@ -643,7 +647,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
       )}
 
       {recs.length > 0 && (
-        <div className="flex min-h-[52px] shrink flex-col px-1.5 pt-1.5 pb-1.5 mob:max-h-[40dvh]" data-testid="squad-recs">
+        <div className="flex min-h-[52px] shrink flex-col px-1.5 pt-1.5 pb-1.5 mob:max-h-[calc(var(--dvh)*40)]" data-testid="squad-recs">
           <div className="flex shrink-0 items-stretch gap-1.5">
             <button className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-1 bg-good/15 px-2 text-left text-[14px] text-good" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="squad-recs-toggle" onClick={() => setRecOpen((v) => !v)}>
               추천 {recs.length}건 <span className="text-white/60">{recOpen ? '▾' : '▸'}</span>
@@ -655,7 +659,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
             )}
           </div>
           {recOpen && (
-            <div className="px-scroll mt-1 flex max-h-[30dvh] min-h-0 flex-col gap-1 overflow-y-auto mob:max-h-none [&>*]:shrink-0">
+            <div className="px-scroll mt-1 flex max-h-[calc(var(--dvh)*30)] min-h-0 flex-col gap-1 overflow-y-auto mob:max-h-none [&>*]:shrink-0">
               {recs.map((r) => {
                 const plan = planEdit(core, team, r.view, r.a, r.b);
                 return (
@@ -677,7 +681,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
       {bottom}
 
       {dragP && (
-        <div ref={ghost} className="pointer-events-none fixed left-0 top-0 z-[60] flex items-center gap-1 bg-panel px-2 py-1.5 text-[14px] text-white" style={{ boxShadow: '0 0 0 2px #ffd84a, 0 6px 0 rgba(0,0,0,.35)', transform: dragRef.current ? `translate(${dragRef.current.x}px, ${dragRef.current.y}px) translate(-50%, -135%)` : undefined }} data-testid="squad-ghost">
+        <div ref={ghost} className="pointer-events-none fixed left-0 top-0 z-[60] flex items-center gap-1 bg-panel px-2 py-1.5 text-[14px] text-white" style={{ boxShadow: '0 0 0 2px #ffd84a, 0 6px 0 rgba(0,0,0,.35)', transform: dragRef.current ? ghostAt(dragRef.current) : undefined }} data-testid="squad-ghost">
           {dragP.name}
           <OvrBadge ovr={dragP.ovr} size={20} />
         </div>

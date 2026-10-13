@@ -155,7 +155,7 @@ export default function DraftScreen() {
                 </button>
               )}
             />
-            {mobile && <div className="px-scroll max-h-[18dvh] shrink-0 overflow-y-auto land:hidden">{logView}</div>}
+            {mobile && <div className="px-scroll max-h-[calc(var(--dvh)*18)] shrink-0 overflow-y-auto land:hidden">{logView}</div>}
           </div>
           {!mobile && (
             <div className="px-scroll flex min-h-0 w-[320px] shrink-0 flex-col overflow-y-auto">

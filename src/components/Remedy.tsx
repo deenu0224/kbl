@@ -58,7 +58,7 @@ function Modal({
       aria-label={label}
     >
       <div className="anim-fade absolute inset-0 bg-ink/65" onClick={onClose} />
-      <div className="px-panel anim-fade relative max-h-[80vh] w-[420px] overflow-y-auto py-2">
+      <div className="px-panel anim-fade relative max-h-[calc(var(--vh)*80)] w-[420px] overflow-y-auto py-2">
         {children}
       </div>
     </div>

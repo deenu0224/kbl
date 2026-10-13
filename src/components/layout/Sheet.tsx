@@ -36,7 +36,7 @@ export default function Sheet({ onClose, children, label }: { onClose: () => voi
     <div className="fixed inset-0 z-40 flex flex-col justify-end" role="dialog" aria-label={label}>
       <div className="anim-fade absolute inset-0 bg-ink/65" onClick={onClose} />
       <div
-        className="anim-sheet relative mx-auto flex max-h-[88dvh] w-full max-w-[520px] flex-col bg-panel"
+        className="anim-sheet relative mx-auto flex max-h-[calc(var(--dvh)*88)] w-full max-w-[520px] flex-col bg-panel"
         style={{
           transform: dy ? `translateY(${dy}px)` : undefined,
           boxShadow: '0 -2px 0 0 #0f1420, inset 0 2px 0 0 rgba(255,255,255,.08)',

@@ -394,7 +394,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
   return (
     <div className="shrink-0 bg-panel-2 px-1.5 pt-1 pb-1.5 text-[11px] mob:text-[13px]" style={{ boxShadow: 'inset 0 2px 0 #ffd84a' }} data-testid="desk-summary" data-wide={full || undefined}>
       {full ? (
-        <div className="px-scroll grid max-h-[34dvh] grid-cols-[1.15fr_1.25fr_1.35fr] gap-1 overflow-y-auto mob:max-h-[52dvh] mob:grid-cols-1">
+        <div className="px-scroll grid max-h-[calc(var(--dvh)*34)] grid-cols-[1.15fr_1.25fr_1.35fr] gap-1 overflow-y-auto mob:max-h-[calc(var(--dvh)*52)] mob:grid-cols-1">
           <div className="flex min-w-0 flex-col gap-1">
             <Box title={`전력 · 예상 승수 ${pv.exact && !empty ? winText : '—'} (${pv.winGames}경기 환산)`} testid="sum-power">
               {partsRow}
@@ -448,7 +448,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
         </div>
       )}
       {bumps.length > 0 && (
-        <div className="px-scroll mt-1 flex max-h-[15dvh] flex-col gap-1 overflow-y-auto bg-ink/55 px-1.5 py-1" data-testid="sum-bumps">
+        <div className="px-scroll mt-1 flex max-h-[calc(var(--dvh)*15)] flex-col gap-1 overflow-y-auto bg-ink/55 px-1.5 py-1" data-testid="sum-bumps">
           {full ? bumps : bumps.slice(0, 1)}
           {!full && bumps.length > 1 && <span className="text-white/50">밀려나는 선수 {bumps.length - 1}명 더 · [자세히 ▲]</span>}
         </div>

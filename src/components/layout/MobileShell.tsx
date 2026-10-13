@@ -230,7 +230,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
 
   if (orientation === 'landscape') {
     return (
-      <div className="flex h-[100dvh] gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
+      <div className="flex h-[calc(var(--dvh)*100)] gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
         <div className="flex min-w-0 flex-1 flex-col gap-[4px]">
           <ThinBar menu />
           <div className="relative min-h-0 flex-1">
@@ -240,7 +240,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
           </div>
           <MobileActionBar bare />
         </div>
-        <div className="flex w-[clamp(300px,46vw,460px)] shrink-0 flex-col gap-[4px]">
+        <div className="flex w-[clamp(300px,calc(var(--vw)*46),460px)] shrink-0 flex-col gap-[4px]">
           <MobileNav placement="top" />
           {playback ? <LiveLine /> : <MobilePanel />}
         </div>
@@ -250,13 +250,13 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
   }
   const home = tab === 'home';
   return (
-    <div className="flex h-[100dvh] flex-col gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
+    <div className="flex h-[calc(var(--dvh)*100)] flex-col gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
       {home && !playback ? <MobileTopBar /> : <ThinBar />}
       {home && (
         <>
           {!playback && <TripLine />}
           {/* 구장이 남는 높이를 채운다: 다음 경기·할 일 카드는 제 높이만큼만 */}
-          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[34dvh] flex-1'}`} style={playback ? { height: 'min(65dvh, calc(100dvh - 256px))' } : undefined} data-testid="stadium-box">
+          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[calc(var(--dvh)*34)] flex-1'}`} style={playback ? { height: 'min(calc(var(--dvh)*65), calc(calc(var(--dvh)*100) - 256px))' } : undefined} data-testid="stadium-box">
             <div className="absolute inset-0">
               <StadiumView pan />
             </div>

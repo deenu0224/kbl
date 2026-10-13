@@ -314,7 +314,7 @@ function DetailSheet({ o, r, mobile, onClose }: { o?: BriefOffer; r?: BriefResul
   );
   if (mobile) {
     return (
-      <div className="anim-fade fixed inset-0 z-[37] flex h-[100dvh] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label="제안 상세" data-testid="brief-detail">
+      <div className="anim-fade fixed inset-0 z-[37] flex h-[calc(var(--dvh)*100)] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label="제안 상세" data-testid="brief-detail">
         {body}
       </div>
     );
@@ -388,7 +388,7 @@ export default function BriefingSheet() {
 
   if (mobile) {
     return (
-      <div className="anim-fade fixed inset-0 z-[36] flex h-[100dvh] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label="주간 브리핑" data-testid="briefing">
+      <div className="anim-fade fixed inset-0 z-[36] flex h-[calc(var(--dvh)*100)] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label="주간 브리핑" data-testid="briefing">
         {body}
         {detail}
       </div>

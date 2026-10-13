@@ -26,7 +26,11 @@ const VIEWPORTS = [
   { name: '390', width: 390, height: 844, mobile: true },
   { name: '360', width: 360, height: 640, mobile: true },
   { name: '1280', width: 1280, height: 800, mobile: false },
-].filter((v) => typeof args.viewport !== 'string' || args.viewport.split(',').includes(v.name));
+  // 큰 모니터(자동 확대)는 --viewport=1920 으로 부를 때만
+  { name: '1920', width: 1920, height: 1000, mobile: false, extra: true },
+].filter((v) => (typeof args.viewport !== 'string' ? !v.extra : args.viewport.split(',').includes(v.name)));
+// --size=s|l|xl: 글자 크기 설정을 켠 채로 찍는다
+const UI_SIZE = typeof args.size === 'string' ? args.size : null;
 
 const SEVERITY = {
   vertical: '높음', hscroll: '높음', console: '높음', pageerror: '높음', requestfailed: '높음', missing: '높음',
@@ -126,6 +130,7 @@ async function shoot(browser, base, vp, screen, fixtures) {
   });
   const entries = fx ? [[SAVE_KEY, JSON.stringify(fx.save)], ...Object.entries(fx.ui ?? {})] : [];
   for (const [k, v] of Object.entries(screen.ui ?? {})) entries.push([k, v]);
+  if (UI_SIZE) entries.push(['kbl-ui-size', UI_SIZE]);
   await ctx.addInitScript(initScript, { entries, seed: 20261013 });
   const page = await ctx.newPage();
   const push = (kind, text) => rec.issues.push({ kind, text: String(text).replace(/\s+/g, ' ').slice(0, 120), x: 0, y: 0, w: 0, h: 0 });

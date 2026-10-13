@@ -74,10 +74,10 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col gap-[6px] overflow-hidden bg-[#141a29] p-[6px] font-pixel text-[12px] select-none">
+    <div className="flex h-[calc(var(--dvh)*100)] flex-col gap-[6px] overflow-hidden bg-[#141a29] p-[6px] font-pixel text-[12px] select-none">
       <TopBar />
       <div className="flex min-h-0 flex-1 gap-[6px]">
-        <div className="w-[300px] shrink-0 max-[1279px]:w-[clamp(256px,23.4vw,300px)]">
+        <div className="w-[300px] shrink-0 max-[1279px]:w-[clamp(256px,calc(var(--vw)*23.4),300px)]">
           <LeftPanel />
         </div>
         <div className="relative min-w-0 flex-1">
@@ -87,7 +87,7 @@ export default function App() {
           {/* 야구장 그림은 비율이 고정이라, 오더지는 가운데 칸 전체 높이를 쓴다 */}
           <OrderSheet />
         </div>
-        <div className="w-[330px] shrink-0 max-[1279px]:w-[clamp(280px,25.8vw,330px)]">
+        <div className="w-[330px] shrink-0 max-[1279px]:w-[clamp(280px,calc(var(--vw)*25.8),330px)]">
           <RightPanel />
         </div>
       </div>

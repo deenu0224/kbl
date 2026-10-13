@@ -46,7 +46,7 @@ export default function EndingScene({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="anim-fade fixed inset-0 z-[70] flex flex-col items-center justify-center gap-3 bg-ink p-3" role="dialog" aria-label="엔딩">
-      <div className="relative w-full" style={{ maxWidth: `min(880px, calc((100dvh - 220px) * ${STADIUM_W} / ${STADIUM_H}))`, aspectRatio: `${STADIUM_W} / ${STADIUM_H}`, boxShadow: '0 0 0 2px #0f1420' }}>
+      <div className="relative w-full" style={{ maxWidth: `min(880px, calc((calc(var(--dvh)*100) - 220px) * ${STADIUM_W} / ${STADIUM_H}))`, aspectRatio: `${STADIUM_W} / ${STADIUM_H}`, boxShadow: '0 0 0 2px #0f1420' }}>
         <StadiumCanvas scene={scene} className="pixel absolute inset-0 block h-full w-full" />
       </div>
       <div className="flex min-h-[92px] flex-col items-center gap-1 px-2 text-center">

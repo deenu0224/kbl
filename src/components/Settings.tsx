@@ -7,6 +7,7 @@ import Dialog from './layout/Dialog';
 import Help from './Help';
 import { SAVE_KEY, useUi } from './layout/uiStore';
 import { clearHof } from './hofStore';
+import { UI_SIZES, setUiSize, useUiSize } from './layout/uiScale';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -64,6 +65,7 @@ export default function Settings() {
   const subAuto = useStore((s) => s.campaign.subAuto === true);
   const setSubAuto = useStore((s) => s.setSubAuto);
   const playback = useStore((s) => !!s.playback);
+  const uiSize = useUiSize();
   const [out, setOut] = useState('');
   const [inp, setInp] = useState('');
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -122,6 +124,16 @@ export default function Settings() {
         <div className="flex flex-col gap-1">
           <Volume label="효과음" get={getVolume} set={setVolume} muted={isMuted} mute={setMuted} test={() => play('coin')} />
           <Volume label="배경음악" get={getBgmVolume} set={setBgmVolume} muted={isBgmMuted} mute={setBgmMuted} />
+        </div>
+        <Title>화면</Title>
+        <div className="flex flex-col gap-1">
+          <Row label="글자 크기">
+            {UI_SIZES.map(([id, name]) => (
+              <button key={id} className={`px-btn min-h-10 flex-1 whitespace-nowrap !px-1 text-[13px] ${uiSize === id ? 'gold' : ''}`} data-testid={`ui-size-${id}`} onClick={() => setUiSize(id)}>
+                {name}
+              </button>
+            ))}
+          </Row>
         </div>
         <Title>진행</Title>
         <div className="flex flex-col gap-1">
