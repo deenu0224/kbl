@@ -35,6 +35,8 @@ const SAT_BASE = 45;
 const SAT_CONVERGE = 0.15;
 const NOISE_SD = 0.06;
 export const WEEK = 6;
+export const ALUMNI_STAR = 60; // 이 스타성 이상으로 35세 넘어 은퇴한 유저 팀 선수는 인스트럭터 후보
+export const ALUMNI_AGE = 35;
 export const TRAIN_MAX_AGE = 28;
 export const DECLINE_AGE = 33;
 export const DECLINE_RATE = 0.06;
@@ -773,6 +775,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
         delete p.posShift;
       }
       const franchise = t.id === core.userId && isFranchise(p, endedSeason);
+      const alumnus = t.id === core.userId && p.star >= ALUMNI_STAR && p.age >= ALUMNI_AGE - 1;
       develop(p, rng, core.season);
       if (t.id === core.userId) {
         // 보유 기간 안의 드래프트 출신은 시장가의 일부만 받는다. FA 자격을 얻고도 재계약 카드를 거치지 않았으면 시장가로 자동 재계약
@@ -787,6 +790,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       // 은퇴 → 같은 포지션 신인으로 충원. 프랜차이즈 스타는 영구결번
       if (t.id === core.userId) {
         retired.push(p.name);
+        if (alumnus) core.campaign.alumni = [...(core.campaign.alumni ?? []).slice(-4), { name: p.name, season: endedSeason, pos: p.pos }];
         if (franchise) {
           core.campaign.retired = [...(core.campaign.retired ?? []), { name: p.name, season: endedSeason, pos: p.pos }];
           addNews(core, NEWS.retiredNumber(p.name), 'good');

@@ -71,6 +71,8 @@ export interface Player {
   armyDue?: number; // 입대를 미룬 선수: 이 시즌 60경기 뒤 선택 없이 입대한다
   subFor?: string; // 부상 대체로 자동 콜업된 선수: 대신하는 부상자의 id (복귀하면 2군으로 돌아간다)
   posShift?: { from: string; pen: number; until: number }; // 포지션 전향 중: 원래 포지션 · 수비 감소분(이미 def 에 반영) · 해소되는 day
+  ban?: number; // 징계로 남은 출장 정지 경기 수 (injury 와 같이 줄어든다. 시즌을 넘기면 이월. scandal.ts)
+  lever?: number; // 다음 FA 재계약 요구 배율에 더해지는 값 (약점을 잡았으면 +, 믿어 준 선수면 −. scandal.ts)
   bat: BatStats;
   pit: PitStats;
 }
@@ -320,6 +322,7 @@ export interface SeasonRecord {
   grade: 'S' | 'A' | 'B' | 'C' | 'D';
   cleared: boolean; // 그 시즌에 스테이지 메인 목표 달성
   name?: string; // 자동 명명된 시즌 이름 ("9월의 기적")
+  tainted?: boolean; // 그해 덮었던 일이 뒤에 드러났다 (scandal.ts)
 }
 
 // 시즌 대본의 한 구간 (LEVEL_DESIGN 3절). label 이 있으면 일정표에 세계 안의 예보로 보인다.
@@ -397,6 +400,33 @@ export interface Campaign {
   penStyle?: 'trust' | 'balance' | 'swarm'; // 불펜 운영 방침 (undefined = 균형). sim.ts
   away?: Player[]; // 팀을 떠나 있는 선수 (입대). 각 선수의 away.until 시즌 개막에 돌아온다
   posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)
+  cardSeen?: Record<string, number>; // 카드 기본 id → 마지막으로 나온 시즌 (재등장 간격. events.ts cardRested)
+  alumni?: { name: string; season: number; pos: string }[]; // 유저 팀에서 은퇴한 스타성 60+ 선수 (인스트럭터 후보. 영구결번과 별개)
+  secrets?: Secret[]; // 덮은 일. 매 시즌 결산에서 적발 판정 (scandal.ts)
+  exposed?: number; // 덮은 일이 드러난 횟수 (엔딩 문구 분기)
+  ethics?: number; // 선수단 윤리 교육 누적 단계 0~3
+  ethicsSeason?: number; // 윤리 교육을 마지막으로 실시한 시즌 (시즌당 1회)
+  fixCoop?: number; // 승부조작 조사에 전면 협조: 이 시즌까지 발생 확률이 준다
+  fixClear?: string[]; // 승부조작 대상에서 빠진 선수 id (연봉을 올려 주었거나 무혐의)
+}
+/** 덮은 일 한 건 */
+export interface Secret {
+  kind: 'dope' | 'fix';
+  pid: string;
+  name: string;
+  season: number;
+}
+/** 결산에서 드러난 일 한 건 (결산 화면의 빨간 섹션) */
+export interface Exposure {
+  kind: 'dope' | 'fix';
+  name: string;
+  season: number; // 덮은 시즌
+  trust: number; // 도민 지지 변화 (음수)
+  stars: number; // 박탈된 별 수
+  wins: number; // 몰수된 승수
+  fine: number; // 벌금
+  ban: number; // 출장 정지 경기 수 (0 = 영구 제명)
+  tainted: boolean; // 우승 시즌의 일이었다
 }
 // ───────── 주간 브리핑 (briefing.ts 가 만들고 해석한다) ─────────
 export type BriefAction =
@@ -483,6 +513,7 @@ export interface SeasonVerdict {
   seasonName?: string;
   newAchievements: string[];
   fired: boolean;
+  exposures?: Exposure[]; // 이번 결산에서 드러난 덮은 일
 }
 
 export interface DraftState {

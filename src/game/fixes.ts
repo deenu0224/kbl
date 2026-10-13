@@ -143,6 +143,7 @@ export function pput(t: Team, l: PLoc, pid: string): void {
 // ───────── 불펜 부하 (할 일 · 브리핑 · 2군 셔틀 · 'arm' 사건 · 화면이 같이 쓴다) ─────────
 
 export const PEN_OVER_GAMES = 6; // 과부하가 이만큼 이어지면 'arm' 사건
+export const PEN_OVER_SUM = 'penOverSum'; // 시즌 메모: 과부하였던 경기 수의 누적 (끊겨도 지워지지 않는다. 'arm' 사건)
 export const PEN_OVER_KEY = 'penOver'; // 시즌 메모: 과부하가 이어진 경기 수 (farm.ts 가 매 경기 갱신)
 export interface BullpenLoad {
   arms: number; // 등판 가능한 1군 구원(불펜 + 마무리, 부상 제외)
