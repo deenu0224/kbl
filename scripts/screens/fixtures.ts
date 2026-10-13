@@ -65,8 +65,8 @@ const WANT: Record<string, Pred> = {
   eventFarm: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('f-'),
   briefing: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing && c.campaign.briefing.offers.length >= 2,
   // 부채: 한도의 50%·80%·초과 재무 화면, 매각 카드, 한도 초과 결산, 아카데미 뒤 2군 정원, 돔 기록 카드
-  debt50: (c) => inSeason(c) && quiet(c) && c.finance.debt >= loanLimit(c) * 0.5 && c.finance.debt < loanLimit(c) * 0.8,
-  debt80: (c) => inSeason(c) && quiet(c) && c.finance.debt >= loanLimit(c) * 0.8 && c.finance.debt <= loanLimit(c),
+  debt50: (c) => inSeason(c) && quiet(c) && c.day >= 1 && c.finance.debt >= loanLimit(c) * 0.5 && c.finance.debt < loanLimit(c) * 0.8,
+  debt80: (c) => inSeason(c) && quiet(c) && c.day >= 1 && c.finance.debt >= loanLimit(c) * 0.8 && c.finance.debt <= loanLimit(c),
   debtOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && c.finance.debt > loanLimit(c), // 개막일(0일)은 개막전 오더 화면이라 하단 탭이 없다
   debtSale: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('debtsale'),
   endedDebt: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.debtOver,
@@ -197,7 +197,7 @@ outer: for (let seed = 1; seed <= SEED_MAX; seed++) {
 }
 
 // 2군 자동 운영을 끈 부상 세이브: 선수 카드의 [부상자 명단으로] · 조치 시트의 "부상자 명단으로"
-if (found.injury) found.injuryManual = { ...found.injury, core: { ...structuredClone(found.injury.core), campaign: { ...structuredClone(found.injury.core.campaign), farmAuto: false } } };
+if (found.injury) found.injuryManual = { ...found.injury, core: { ...structuredClone(found.injury.core), campaign: { ...structuredClone(found.injury.core.campaign), farmAuto: false, eventsSeen: found.injury.core.campaign.eventsSeen.filter((x) => !x.startsWith('~subdone-')) } } }; // 카드에서 고르지 않은 부상 (할 일에 뜬다)
 // 왕조 프로젝트: 왕조 장 픽스처에서 돔 단계만 바꿔 만든다 (봇이 12시즌 안에 돔까지 가지 못한다)
 const hofOf: Record<string, string> = {};
 if (found.dynasty) {
