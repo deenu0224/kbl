@@ -63,6 +63,15 @@ export const NEWS = {
   scoutList: (pos: string) => `스카우트 팀장의 명단 도착 — ${pos} 후보 3명이 영입 시장에 올라왔습니다`,
   forecast: (label: string, inGames: number) => `예보: ${inGames}경기 뒤 「${label}」`,
   fixture: (label: string, a: string, b: string) => `잔여 일정 확정 — 「${label}」 상대는 ${a}, ${b}`,
+  debtMoodWarn: (debt: string, pct: number, next: number) => `조합장의 경고 — 부채 ${debt}(대출 한도의 ${pct}%)를 안고 결산했습니다. 다음 시즌에도 이대로면 ${TRUST_LABEL} −${next}`,
+  debtMood: (debt: string, pct: number, streak: number, cut: number) => `빚더미 구단 — 부채 ${debt}(대출 한도의 ${pct}%)를 ${streak}시즌째 안고 결산 · ${TRUST_LABEL} −${cut}`,
+};
+
+/** 빚더미 구단(loan.ts DEBT_MOOD)에 대한 조합장의 한 줄 */
+export const DEBT_MOOD_LINE = {
+  warn: '빚으로 산 승리는 조합원들이 먼저 알아보네. 올해는 내가 막아 보겠네만, 내년엔 장담 못 하네.',
+  cut: '귤 판 돈으로 이자를 갚는다고들 수군거리네. 나도 더는 할 말이 없네.',
+  brief: '빚이 한도 턱밑이네. 이대로 시즌을 넘기면 조합원들 볼 낯이 없네.',
 };
 
 /** 스캔들(scandal.ts)의 뉴스와 조합장의 한 줄. 건조하게 사실만 */

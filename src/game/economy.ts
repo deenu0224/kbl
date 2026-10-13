@@ -96,15 +96,24 @@ export const RESIGN_LEAVE_SAT = -8;
 // 감사용 스위치 (scripts/economy.ts 가 하나씩 끄고 재실행한다. 게임에서는 전부 켜 둔다)
 export const AUDIT = { benchHalf: true, farmBatBig: true, svc: true, penGrow: true, farmUpkeep: -1 };
 // 경쟁균형세(샐러리캡 · KBO 규정): 연봉 총액이 상한(리그 연봉 상위 3구단 평균 × capRate)을 넘으면 초과분 × rate 를 시즌 말 제재금으로 낸다.
-// 기본값은 꺼 둔다 (LUX_TAX_ON). 스크립트는 환경 변수 LUX=1 로 LUX_TAX.on 을 켜고 잰다
+// 8구단 리그는 꺼 둔다 (LUX_TAX_ON. 스크립트는 환경 변수 LUX=1 로 LUX_TAX.on 을 켜고 잰다).
+// 구단이 8개보다 많은 리그는 LUX_TAX_BIG 으로 켠다 (docs/TEN_TEAMS.md 5단계): 상한은 "우리 구단을 뺀" 상위 3구단 평균 — 우리 연봉이 상한을 끌어올리지 않게
 export const LUX_TAX_ON = false;
 export const LUX_TAX = { on: LUX_TAX_ON, top: 3, capRate: 1.2, rate: 0.5 };
-/** 경쟁균형세: 상한 · 유저 연봉 총액 · 낼 제재금 (꺼져 있으면 tax 0) */
-export function luxTax(core: Pick<Core, 'teams' | 'userId'>): { cap: number; payroll: number; tax: number } {
-  const pays = core.teams.map(payroll).sort((a, b) => b - a).slice(0, LUX_TAX.top);
-  const cap = Math.round(((pays.reduce((s, v) => s + v, 0) / Math.max(1, pays.length)) * LUX_TAX.capRate) / 100) * 100;
-  const mine = payroll(core.teams.find((t) => t.id === core.userId) ?? { roster: [] } as unknown as Team);
-  return { cap, payroll: mine, tax: LUX_TAX.on ? Math.round((Math.max(0, mine - cap) * LUX_TAX.rate) / 100) * 100 : 0 };
+export const LUX_TAX_BIG = { on: true, top: 3, capRate: 1.2, rate: 0.5 };
+export interface LuxTax { cap: number; payroll: number; tax: number; on?: boolean }
+/** 이 리그에 경쟁균형세가 있는가 */
+export function luxOn(core: Pick<Core, 'teams'>): boolean {
+  return leagueSize(core) > BASE_TEAMS ? LUX_TAX_BIG.on : LUX_TAX.on;
+}
+/** 경쟁균형세: 상한 · 유저 연봉 총액 · 낼 제재금 (꺼져 있으면 tax 0). add = 가정한 연봉 증가분(영입·재계약 미리 보기) */
+export function luxTax(core: Pick<Core, 'teams' | 'userId'>, add = 0): LuxTax {
+  const big = leagueSize(core) > BASE_TEAMS;
+  const k = big ? LUX_TAX_BIG : LUX_TAX;
+  const pays = core.teams.filter((t) => !big || t.id !== core.userId).map(payroll).sort((a, b) => b - a).slice(0, k.top);
+  const cap = Math.round(((pays.reduce((s, v) => s + v, 0) / Math.max(1, pays.length)) * k.capRate) / 100) * 100;
+  const mine = payroll(core.teams.find((t) => t.id === core.userId) ?? { roster: [] } as unknown as Team) + add;
+  return { cap, payroll: mine, tax: k.on ? Math.round((Math.max(0, mine - cap) * k.rate) / 100) * 100 : 0, on: k.on };
 }
 export const MIN_BATTERS = 10;
 export const MIN_PITCHERS = 8;

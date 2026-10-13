@@ -428,6 +428,7 @@ export interface Campaign {
   leagueCut?: { season: number; mult: number }; // 승부조작 적발: 이 시즌의 리그 분배금 배율 (scandal.ts)
   prevRevenue?: number; // 직전 시즌 매출(입장+매점+굿즈+분배금). 대출 한도의 기준 (economy.ts loanLimit)
   debtOver?: number; // 부채 한도 초과로 결산한 연속 시즌 수
+  debtHeavy?: number; // 부채가 한도의 80% 이상인 채 결산한 연속 시즌 수 (10구단 리그 · loan.ts DEBT_MOOD)
   bailout?: number; // 조합 특별 출자를 받은 시즌 (시즌 1회)
 }
 /** 덮은 일 한 건 */
@@ -536,8 +537,9 @@ export interface SeasonVerdict {
   newAchievements: string[];
   fired: boolean;
   exposures?: Exposure[]; // 이번 결산에서 드러난 덮은 일
-  luxTax?: { cap: number; payroll: number; tax: number }; // 경쟁균형세를 낸 시즌 (economy.ts LUX_TAX)
+  luxTax?: { cap: number; payroll: number; tax: number; on?: boolean }; // 경쟁균형세를 낸 시즌 (economy.ts LUX_TAX)
   debtOver?: { debt: number; limit: number; streak: number; trust: number }; // 부채 한도 초과로 결산 (trust = 지지 변화, 음수)
+  debtMood?: { debt: number; limit: number; streak: number; trust: number }; // 빚더미 구단: 부채가 한도의 80% 이상인 채 결산 (trust = 지지 변화, 0 = 첫 해 경고만)
 }
 
 export interface DraftState {
