@@ -2,7 +2,7 @@
 import type { Core, HintTab } from './types';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, userTeam } from './economy';
 import { svcYear } from './contract';
-import { orderIssues } from './fixes';
+import { FIX_GAIN_MIN, fixGain, orderIssues } from './fixes';
 import { fmtInt } from './format';
 import { memoGet } from './memo';
 import { runway, runwayAlert } from './runway';
@@ -45,10 +45,13 @@ export function todoList(core: Core): Todo[] {
       text: hurt.length > 1 ? `부상: ${names(hurt)} — 오더 확인` : `부상: ${hurt[0].name} ${hurt[0].injury}경기 — 오더 확인`,
     });
   }
-  // 오더에 고칠 곳 (▲벤치 · ⇄제자리 · ▲불펜)
-  const o = orderIssues(t);
-  if (o.lineup + o.pitchers > 0) {
-    out.push({ id: 'fix', tab: 'roster', hint: o.lineup ? 'lineup' : 'pitchers', icon: '▲', tone: 'warn', action: 'order', text: `오더에 고칠 곳 ${o.lineup + o.pitchers}` });
+  // 오더 점검: 추천을 전부 적용하면 전력 4칸 합이 눈에 띄게 오를 때만 (부상은 위의 줄이 대신한다)
+  if (!hurt.length) {
+    const o = orderIssues(t);
+    const g = o.lineup + o.pitchers > 0 ? fixGain(t) : null;
+    if (g && g.gain >= FIX_GAIN_MIN) {
+      out.push({ id: 'fix', tab: 'roster', hint: o.lineup ? 'lineup' : 'pitchers', icon: '▲', tone: 'warn', action: 'order', text: `오더 점검 — 추천 ${g.n}건` });
+    }
   }
   // 연투: 불펜은 거의 매일 던지므로 할 일로 올리지 않는다 (편집기의 투수 화면에 표시)
   // 1군 정원

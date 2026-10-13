@@ -72,7 +72,7 @@ interface UiState {
   orderOpen: boolean; // 개막전 오더지 (시즌이 바뀌면 다시 열린다)
   orderBase: { season: number; parts: TeamParts } | null; // 오더지를 처음 열었을 때의 전력
   orderEdit: { season: number; from: TeamParts; to: TeamParts } | null; // 제출 시점과의 차이 (개막전 요약의 "오더 수정" 줄)
-  dailyOpen: boolean; // "오늘의 오더" (액션 바의 "고칠 곳" 칩으로 연다)
+  dailyOpen: boolean; // "오늘의 오더" (승리 확률 숫자를 탭해 연다)
   chances: Record<string, number>; // 경기 전 승리 확률(%) — 키는 chanceKey(). 경기 요약의 "경기 전 44% → 승리"
   tips: Partial<Record<TipId, boolean>>; // 닫은 탭별 첫 만남 한 문장 (localStorage 유지)
   setDailyOpen(v: boolean): void;
