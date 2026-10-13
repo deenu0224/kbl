@@ -1,6 +1,8 @@
 import { ACHIEVEMENTS } from '../game/campaign';
 import { isFranchise } from '../game/franchise';
-import { SEAT_LV } from '../game/economy';
+import { SEAT_LV, SVC_YEARS } from '../game/economy';
+import { svcYear } from '../game/contract';
+import { memoNum } from '../game/memo';
 import { nickOf, type HofClub } from '../game/hof';
 import { PAST_RANKS, TRUST_LABEL } from '../game/story';
 import type { Core, PostFinish, SeasonRecord } from '../game/types';
@@ -42,7 +44,11 @@ export interface ShareData {
   code: string; // 결과 유형 (w6 · x4 · p3-post)
   url: string; // 결과가 담긴 주소 (도전 링크)
   pct: Percentile;
+  lessons?: Lesson[]; // 글의 "운영하다 깨달은 것" 후보 (세이브에서 확인된 것만. 역대 구단 한 줄에는 없다)
 }
+
+/** 글의 "깨달은 것" 한 줄이 되는 경험 */
+export type Lesson = 'money' | 'raise' | 'trade' | 'pen';
 
 const int = (n: number): string => Math.round(n).toLocaleString('en-US');
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -223,7 +229,21 @@ export function shareOf(rec: ShareRecord): ShareData {
   const pct = percentile({ seasons: rec.seasons, champAt: rec.champAt, relocated: rec.kind === 'relocated', stage: rec.stage, best: Math.min(8, ...rec.ranks) });
   return { rec, code, url: shareUrl(rec.seed, code), pct };
 }
-export const shareFromCore = (core: Core, kind: ShareKind): ShareData => shareOf(recordFromCore(core, kind));
+/**
+ * 세이브에 흔적이 남은 경험만 고른다.
+ * money = 부채가 있거나 소식에 긴급 대출·강제 매각이 남아 있다 · raise = 드래프트 출신과 재계약했거나(ask) 보유 기간이 끝난 선수가 있다
+ * trade = 이번 시즌 트레이드 성사(시즌 메모 trDone) · pen = 불펜 혹사 카드(arm)가 나온 적 있다
+ */
+export function lessonsOf(core: Core): Lesson[] {
+  const team = core.teams.find((t) => t.id === core.userId);
+  const out: Lesson[] = [];
+  if (core.finance.debt > 0 || core.news.some((x) => /긴급 대출|강제 매각/.test(x.text))) out.push('money');
+  if (team?.roster.some((p) => p.ask !== undefined || (svcYear(core, p) ?? 0) >= SVC_YEARS)) out.push('raise');
+  if (memoNum(core, 'trDone') > 0) out.push('trade');
+  if (core.campaign.cardSeen?.arm !== undefined) out.push('pen');
+  return out;
+}
+export const shareFromCore = (core: Core, kind: ShareKind): ShareData => ({ ...shareOf(recordFromCore(core, kind)), lessons: lessonsOf(core) });
 export const shareFromClub = (club: HofClub): ShareData => shareOf(recordFromClub(club));
 
 // ───────── 카드에 적는 말 ─────────

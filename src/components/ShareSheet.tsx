@@ -7,6 +7,7 @@ import { shareFromClub, shareFromCore, sheetTitle, type ShareData, type ShareKin
 import { shareText, threadsIntent, xIntent } from '../share/story';
 import { pickCore, useStore } from '../store';
 
+const NOTE_HINTS = ['예: 야구는 보는 게 제일 쉬웠다', '예: 그 단장도 사정이 있었구나'];
 const open = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
 
 async function copy(text: string): Promise<boolean> {
@@ -90,7 +91,7 @@ export default function ShareSheet({ data, scene, club = false, onClose }: { dat
             data-testid="share-note-input"
             value={note}
             maxLength={NOTE_MAX}
-            placeholder="예: 3년 걸렸다, 진짜로"
+            placeholder={NOTE_HINTS[(data.rec.seed + data.rec.seasons) % NOTE_HINTS.length]}
             enterKeyHint="done"
             onChange={(e) => setNote(e.target.value)}
           />
