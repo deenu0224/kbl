@@ -67,7 +67,7 @@ const WANT: Record<string, Pred> = {
   // 부채: 한도의 50%·80%·초과 재무 화면, 매각 카드, 한도 초과 결산, 아카데미 뒤 2군 정원, 돔 기록 카드
   debt50: (c) => inSeason(c) && quiet(c) && c.finance.debt >= loanLimit(c) * 0.5 && c.finance.debt < loanLimit(c) * 0.8,
   debt80: (c) => inSeason(c) && quiet(c) && c.finance.debt >= loanLimit(c) * 0.8 && c.finance.debt <= loanLimit(c),
-  debtOver: (c) => inSeason(c) && quiet(c) && c.finance.debt > loanLimit(c),
+  debtOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && c.finance.debt > loanLimit(c), // 개막일(0일)은 개막전 오더 화면이라 하단 탭이 없다
   debtSale: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('debtsale'),
   endedDebt: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.debtOver,
   academy: (c) => inSeason(c) && quiet(c) && (c.campaign.projects?.academy ?? 0) > 0 && c.day >= 5,

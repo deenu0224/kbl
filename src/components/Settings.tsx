@@ -139,13 +139,12 @@ export default function Settings() {
             </button>
           </Row>
           <Row label="부상 대체">
-            <span className="flex min-w-0 flex-1 items-center gap-1 text-[13px] text-white/55">
-              주전이 다치면 누가 메울지
+            <span className="flex min-w-0 flex-1 items-center">
               <Help topic="farm" />
             </span>
             {[false, true].map((v) => (
               <button key={String(v)} className={`px-btn min-h-10 shrink-0 text-[13px] ${subAuto === v ? 'gold' : ''}`} data-testid={v ? 'sub-auto' : 'sub-manual'} disabled={playback} onClick={() => setSubAuto(v)}>
-                {v ? '감독에게' : '직접 고르기'}
+                {v ? '감독에게 맡기기' : '직접 고르기'}
               </button>
             ))}
           </Row>

@@ -1017,10 +1017,10 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   core.campaign.event = null;
   const result = baseId(cd.id) === 'sub' ? resolveSubCard(core, choiceIdx, cd) : def ? def.resolve(core, choiceIdx, cd, rng) : '이벤트가 지나갔습니다';
   core.fans = Math.max(1000, Math.round(core.fans));
-  // 부상자가 팀을 떠났으면 벤치에서 메우던 선수의 대체 표시를 지운다
+  // 부상자가 팀을 떠났으면(매각·트레이드) 그 자리를 메우던 선수의 대체 표시를 지운다
   const ut = userTeam(core);
   for (const p of ut.roster) {
-    if (p.subFrom && !ut.roster.some((x) => x.id === p.subFor)) {
+    if (p.subFor && !ut.roster.some((x) => x.id === p.subFor)) {
       delete p.subFor;
       delete p.subFrom;
     }
