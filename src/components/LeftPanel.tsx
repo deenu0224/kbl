@@ -172,11 +172,9 @@ export function FarmTab() {
   const span = (v: number) => `${Math.max(0, Math.min(100, ((v - 30) / 65) * 100))}%`;
   return (
     <>
-      <div className="flex items-center justify-between gap-2 px-1 pt-1 text-[10px] text-white/60 mob:text-[11px]" data-testid="farm-head">
-        <span>
-          1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className={farm.length >= FARM_MAX ? 'text-bad' : 'text-white'}>{farm.length}/{FARM_MAX}</span>
-        </span>
-        <span className="text-white/45">2군은 실전으로 빨리 자란다 · 경기에는 못 나온다</span>
+      <div className="px-1 pt-1 text-[10px] leading-snug text-white/60 mob:text-[11px]" data-testid="farm-head">
+        1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className={farm.length >= FARM_MAX ? 'text-bad' : 'text-white'}>{farm.length}/{FARM_MAX}</span>
+        <span className="text-white/45"> · 실전으로 빨리 자라지만 경기에는 못 나온다</span>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-[3px] overflow-y-auto p-1" data-testid="farm-list">
         {farm.map((p) => {
@@ -188,40 +186,40 @@ export function FarmTab() {
               role="button"
               data-testid="farm-row"
               onClick={() => setSel(sel === p.id ? null : p.id)}
-              className={`flex cursor-pointer items-center gap-1.5 px-1 py-[3px] text-[11px] mob:min-h-11 mob:text-[12px] ${sel === p.id ? 'bg-sky/25' : 'bg-panel-2/70 hover:bg-panel-2'}`}
+              className={`flex cursor-pointer flex-col gap-[2px] px-1 py-[3px] text-[11px] mob:min-h-11 mob:text-[12px] ${sel === p.id ? 'bg-sky/25' : 'bg-panel-2/70 hover:bg-panel-2'}`}
             >
-              <span className="w-12 shrink-0 text-[10px] leading-tight text-white/55">
-                {POS_KO[p.pos]} <span className="text-white/40">{p.age}세</span>
-              </span>
-              <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate">
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0 whitespace-nowrap text-[10px] text-white/55">
+                  {POS_KO[p.pos]} <span className="text-white/40">{p.age}세</span>
+                </span>
+                <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
+                <span className="min-w-0 flex-1 truncate">
                   {p.name}
                   {p.injury > 0 && <span className="ml-1 text-[10px] text-bad">✚{p.injury}</span>}
                   {p.rookie && <span className="ml-1 text-[10px] text-good">신인</span>}
                 </span>
-                <span className="flex items-center gap-1 text-[10px] text-white/55">
-                  <span className="relative inline-block h-[5px] w-10 shrink-0" style={{ background: '#141a29' }} title={`잠재력 ${p.pot}`}>
-                    <span className="absolute inset-y-0 left-0 bg-good/40" style={{ width: span(p.pot) }} />
-                    <span className="absolute inset-y-0 left-0 bg-sky" style={{ width: span(p.ovr) }} />
-                  </span>
-                  <span className="shrink-0 text-good">→{p.pot}</span>
-                  <span className="truncate">{stat ? `퓨처스 ${stat}` : '퓨처스 기록 없음'}</span>
+                <span
+                  role="button"
+                  data-testid="farm-call"
+                  className={`shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:flex mob:min-h-8 mob:items-center mob:text-[11px] ${pv.ok ? 'bg-good/20 text-good hover:bg-good/35' : 'bg-ink/60 text-bad'}`}
+                  style={pv.ok ? { boxShadow: '0 0 0 1px #6ee07a88' } : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    callUp(p.id);
+                  }}
+                >
+                  {pv.ok ? '▲ 콜업' : pv.text}
                 </span>
-              </span>
-              <span
-                role="button"
-                data-testid="farm-call"
-                className={`flex shrink-0 flex-col items-end whitespace-nowrap px-1 py-0.5 text-[10px] leading-tight mob:min-h-8 mob:justify-center mob:px-1.5 ${pv.ok ? 'bg-good/20 text-good hover:bg-good/35' : 'bg-ink/60 text-bad'}`}
-                style={pv.ok ? { boxShadow: '0 0 0 1px #6ee07a88' } : undefined}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  callUp(p.id);
-                }}
-              >
-                {pv.ok && <span>▲ 콜업</span>}
-                <span className={pv.ok ? 'text-white' : ''}>{pv.text}</span>
-              </span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-white/55">
+                <span className="relative inline-block h-[5px] w-10 shrink-0" style={{ background: '#141a29' }} title={`잠재력 ${p.pot}`}>
+                  <span className="absolute inset-y-0 left-0 bg-good/40" style={{ width: span(p.pot) }} />
+                  <span className="absolute inset-y-0 left-0 bg-sky" style={{ width: span(p.ovr) }} />
+                </span>
+                <span className="shrink-0 text-good">잠재 {p.pot}</span>
+                <span className="min-w-0 flex-1 truncate">{stat ? `퓨처스 ${stat}` : '퓨처스 기록 없음'}</span>
+                {pv.ok && <span className="shrink-0 whitespace-nowrap text-white" data-testid="farm-call-effect">{pv.text}</span>}
+              </div>
             </div>
           );
         })}
