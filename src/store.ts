@@ -26,6 +26,7 @@ import { closeBriefing, drawBriefing, refreshBriefing, runOffer, skipOffer } fro
 import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
 import { postMatch } from './game/postseason';
 import { drawResign } from './game/contract';
+import { drawStoveTrade, toggleBlock } from './game/trade';
 import { memoGet, memoSet } from './game/memo';
 import { RUNWAY_STOP, runway } from './game/runway';
 import { applyTransfer, basketCount, type Basket } from './game/transfer';
@@ -56,6 +57,7 @@ export interface Store extends Core {
   release(pid: string): void;
   sendDown(pid: string): void;
   callUp(pid: string): void;
+  blockToggle(pid: string): void; // 이적 창구: 트레이드 시장에 내놓기 / 거두기
   transfer(basket: Basket): boolean; // 이적 창구: 바구니를 한 번에 실행 (하나라도 막히면 전체 취소)
   upgrade(kind: FacilityKind): void;
   setPrice(v: number): void;
@@ -288,6 +290,10 @@ export const useStore = create<Store>()(
           const p = findPlayer(s, pid);
           if (applyResult(callUp(pickCore(s), pid), p ? `${p.name} 1군 등록!` : '콜업 완료!')) set({ flash: { pid, at: Date.now() } });
         },
+        blockToggle(pid) {
+          if (locked()) return;
+          applyResult(toggleBlock(pickCore(get()), pid));
+        },
         transfer(basket) {
           if (locked() || !basketCount(basket)) return false;
           const r = applyTransfer(pickCore(get()), basket);
@@ -474,7 +480,13 @@ export const useStore = create<Store>()(
             set({ ...pickCore(q), summary: null });
             return;
           }
-          const r = beginDraftFn(pickCore(s), rng);
+          // 그다음 스토브리그의 트레이드 제안 1건 (AI 스토브리그 보강보다 먼저)
+          const tr = drawStoveTrade(pickCore(q), rng);
+          if (tr !== q) {
+            set({ ...pickCore(tr), summary: null });
+            if (tr.campaign.event) return;
+          }
+          const r = beginDraftFn(pickCore(get()), rng);
           if (applyResult(r)) set({ summary: null, toast: mkToast('신인 드래프트 개막!', 'good') });
         },
         draftPick(pid) {
