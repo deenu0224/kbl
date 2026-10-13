@@ -3,7 +3,7 @@ import type { StadiumScene } from '../game/types';
 import StadiumCanvas, { STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
 import { useCore, useUserTeam } from '../store';
 import { sceneExtras } from '../game/campaign';
-import { endingText } from '../game/story';
+import { SCANDAL_NEWS, endingText } from '../game/story';
 
 /** 엔딩: 우승 장면이 아니라, 바랜 깃발 옆에 두 번째 깃발이 걸린 빈 구장. 본 뒤에는 계속 플레이. */
 export default function EndingScene({ onDone }: { onDone: () => void }) {
@@ -13,7 +13,7 @@ export default function EndingScene({ onDone }: { onDone: () => void }) {
   // 제목 + 본문을 문장 단위로 한 줄씩 띄운다
   const lines = useMemo(() => {
     const e = endingText(campaign);
-    return [e.title, ...e.text.split(/(?<=\.)\s+/).filter(Boolean)];
+    return [e.title, ...e.text.split(/(?<=\.)\s+/).filter(Boolean), ...(campaign.history.some((h) => h.tainted) ? [`${SCANDAL_NEWS.tainted}.`] : [])];
   }, [campaign]);
   const [shown, setShown] = useState(0);
 

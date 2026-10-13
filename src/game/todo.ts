@@ -47,7 +47,7 @@ export function todoList(core: Core): Todo[] {
     const why = inj.why ? ` — ${inj.why}` : '';
     out.push({
       id: 'hurt', tab: 'roster', hint: hurtB.length ? 'lineup' : 'pitchers', icon: '✚', tone: 'bad', action: 'order',
-      text: hurt.length > 1 ? `부상: ${names(hurt)}${why}` : `부상: ${hurt[0].name} ${hurt[0].injury}경기${why}`,
+      text: hurt.length > 1 ? `${hurt.every((p) => p.ban) ? '징계' : '부상'}: ${names(hurt)}${why}` : `${hurt[0].ban ? '징계' : '부상'}: ${hurt[0].name} ${hurt[0].injury}경기${why}`,
     });
   }
   // 오더 점검: 추천을 전부 적용하면 전력 4칸 합이 눈에 띄게 오를 때만 (부상은 위의 줄이 대신한다)

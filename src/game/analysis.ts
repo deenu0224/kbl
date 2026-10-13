@@ -354,7 +354,7 @@ export function scoutRoom(analyst: boolean, p: Player): { lo: number; hi: number
 /** 표의 상태 칸 */
 export function statusTags(p: Player, season: number, mine: boolean): { text: string; tone: 'bad' | 'warn' | 'good' | 'hi' }[] {
   const out: { text: string; tone: 'bad' | 'warn' | 'good' | 'hi' }[] = [];
-  if (p.injury > 0) out.push({ text: `부상 ${p.injury}`, tone: 'bad' });
+  if (p.injury > 0) out.push({ text: p.ban ? `징계 ${p.ban}경기` : `부상 ${p.injury}`, tone: 'bad' });
   if ((p.tired ?? 0) > 0) out.push({ text: `연투 ${p.tired}`, tone: 'warn' });
   if (mine && p.farm) out.push({ text: '2군', tone: 'warn' });
   if (p.rookie) out.push({ text: '신인', tone: 'good' });
@@ -374,7 +374,7 @@ export function callUpPreview(core: Core, p: Player): { ok: boolean; text: strin
   if (left > 0) return { ok: false, text: `재등록 ${left}경기 뒤` };
   const n = activeRoster(t).length;
   if (n >= ROSTER_MAX) return { ok: false, text: `1군 ${n}/${ROSTER_MAX} 가득` };
-  if (p.injury > 0) return { ok: true, text: `부상 ${p.injury}경기 · 벤치로` };
+  if (p.injury > 0) return { ok: true, text: p.ban ? `징계 ${p.ban}경기 · 벤치로` : `부상 ${p.injury}경기 · 벤치로` };
   const byId = new Map(t.roster.map((x) => [x.id, x]));
   const label = POS_KO_SHORT[p.pos] ?? p.pos;
   if (p.kind === 'B') {
@@ -392,7 +392,7 @@ export function callUpPreview(core: Core, p: Player): { ok: boolean; text: strin
 /** [2군으로] 를 누르기 전에 보이는 결과 한 줄 */
 export function sendDownPreview(core: Core, p: Player): { ok: boolean; text: string } {
   const t = userTeam(core);
-  if (p.injury > 0) return { ok: false, text: '부상자는 못 내린다' };
+  if (p.injury > 0) return { ok: false, text: p.ban ? '징계 중인 선수는 못 내린다' : '부상자는 못 내린다' };
   const nf = farmRoster(t).length;
   if (nf >= FARM_MAX) return { ok: false, text: `2군 ${nf}/${FARM_MAX} 가득` };
   const same = activeRoster(t).filter((x) => x.kind === p.kind).length;

@@ -4,6 +4,7 @@ import Fold from './Fold';
 import Help from './Help';
 import { FirstTip } from './Briefing';
 import type { Core, FacilityKind, HintTab, Ledger } from '../game/types';
+import { SC, ethicsBlocked, ethicsCost, ethicsLv, ethicsMult, scandalOpen } from '../game/scandal';
 import { useCore, useStore, useUserTeam, userMatch, type RightTab } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import {
@@ -426,6 +427,9 @@ export function FinanceTab() {
   const ghost = useMemo(() => runwayPath(core), [core]);
   const inSeason = core.phase === 'season' && core.day < core.schedule.length;
   const victim = rw.forcedSale !== null ? forcedSaleTarget(core) : null;
+  const buyEthics = useStore((s) => s.buyEthics);
+  const eLv = ethicsLv(core);
+  const eBlocked = ethicsBlocked(core);
   const loanPiece = useMemo(() => {
     const r = borrowLoan(core);
     return r.error ? null : runwayPieceOf(core, r.core);
@@ -525,6 +529,25 @@ export function FinanceTab() {
         {!canRepay && <div className="mt-1 hidden text-[10px] text-white/50 mob:block">상환 불가: {finance.debt <= 0 ? '갚을 부채가 없습니다' : '현금 부족'}</div>}
         {!canBorrow && <div className="mt-1 text-[10px] text-bad">한도까지 빌렸습니다. 한도를 넘기면 선수가 강제 매각됩니다</div>}
       </div>
+
+      {(scandalOpen(core) || eLv > 0) && (
+        <>
+          <SectionTitle>선수단 관리</SectionTitle>
+          <div className="flex items-center gap-1.5 bg-panel-2 p-1.5 text-[11px] mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="ethics-line">
+            <div className="min-w-0 flex-1 leading-snug">
+              <div>
+                윤리 교육 <span className="text-hi">{eLv}/{SC.ethicsMax}단계</span> · 스캔들 확률 ×{ethicsMult(eLv)}
+                {eLv < SC.ethicsMax && <span className="text-good"> → ×{ethicsMult(eLv + 1)}</span>}
+              </div>
+              <div className="text-white/55">{eLv >= SC.ethicsMax ? '교육 과정을 모두 마쳤습니다' : `비용 ${fmtMoney(ethicsCost(core))}${eBlocked ? ` · ${eBlocked}` : ''}`}</div>
+            </div>
+            <Help topic="ethics" />
+            <button className="px-btn green" disabled={!!eBlocked} onClick={buyEthics}>
+              실시
+            </button>
+          </div>
+        </>
+      )}
 
       <SectionTitle>현금 추이</SectionTitle>
       <MiniBars values={cashHistory.slice(-84)} ghost={inSeason ? ghost : []} height={56} color={(v) => (v < 0 ? '#ff6b6b' : '#ffd84a')} />

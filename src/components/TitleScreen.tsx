@@ -1,3 +1,4 @@
+import { SCANDAL_NEWS } from '../game/story';
 import { useMemo, useState, type CSSProperties } from 'react';
 import type { StadiumScene } from '../game/types';
 import { HOF_END_KO, HOF_RECORD_KO, hofWorthy, type HofRecordKey } from '../game/hof';
@@ -108,6 +109,7 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
                     <span className="truncate">순위 {c.ranks.join('-')}</span>
                     <span className="shrink-0">{c.date}</span>
                   </div>
+                  {c.tainted && <div className="text-white/50">{SCANDAL_NEWS.tainted}</div>}
                 </div>
               ))
             ) : (

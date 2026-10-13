@@ -17,6 +17,7 @@ export interface HofClub {
   stars: number; // 모은 별(업적) 수
   end: HofEnd;
   date: string; // YYYY-MM-DD
+  tainted?: boolean; // 우승 시즌에 덮었던 일이 드러났다
 }
 export interface HofRecord {
   value: number;
@@ -71,6 +72,7 @@ export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string): Hof
     stars: c.achievements.length,
     end,
     date,
+    ...(c.history.some((h) => h.tainted) ? { tainted: true } : {}),
   };
   const i = hof.clubs.findIndex((x) => x.seed === core.seed);
   const clubs = i >= 0 ? hof.clubs.map((x, j) => (j === i ? row : x)) : [row, ...hof.clubs];
