@@ -4,11 +4,14 @@ import { PITCH_KEYS, fitsKey, type PosKey, type PosRow } from '../../game/analys
 import { fmtMoney } from '../../game/format';
 import { ScoutBadge } from '../PlayerCard';
 import { POS_KO, ratingColor } from '../ui';
+import { useIsMobile } from '../layout/useLayout';
 import PlayerTable, { type TableMode } from './PlayerTable';
 
 type Kind = 'all' | 'B' | 'P';
 type SortId = 'ovr' | 'salary' | 'age' | 'scout';
 const SORT_KO: Record<SortId, string> = { ovr: '오버롤', salary: '연봉', age: '나이', scout: '등급' };
+const BAT_POS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
+const PIT_POS = ['SP', 'RP', 'CP'] as const;
 const SCOUT_ORDER: Record<string, number> = { A: 4, B: 3, C: 2, D: 1 };
 
 function Chip({ on, onClick, children, tone = 'hi', testid }: { on: boolean; onClick: () => void; children: ReactNode; tone?: 'hi' | 'bad'; testid?: string }) {
@@ -57,17 +60,19 @@ export default function PlayerBrowser({
   const [table, setTable] = useState(!!initPos && initPos !== 'weak');
   const [kind, setKind] = useState<Kind>(initPos && initPos !== 'weak' ? (PITCH_KEYS.includes(initPos as 'SP') ? 'P' : 'B') : 'all');
   const [weak, setWeak] = useState(initPos === 'weak');
+  const [posF, setPosF] = useState<string | null>(null); // 포지션 필터 (타자·투수를 고른 뒤 둘째 줄에서)
   const sorts: SortId[] = mode === 'draft' ? ['ovr', 'scout', 'age'] : ['ovr', 'salary', 'age'];
   const [sort, setSort] = useState<SortId>('ovr');
   const draft = mode === 'draft';
+  const two = useIsMobile() && mode === 'roster' && !!rowAction;
   const needKeys = useMemo(() => (draft ? rows.filter((r) => r.thin && r.key !== 'DH') : rows.filter((r) => r.weak)).map((r) => r.key), [rows, draft]);
   const list = useMemo(() => {
     const pin = (p: Player) => (sort === 'ovr' && pinned?.includes(p.id) ? pinned.indexOf(p.id) - 99 : 0);
     const val = (p: Player) => (sort === 'salary' ? -p.salary : sort === 'age' ? p.age : sort === 'scout' ? -(SCOUT_ORDER[p.scout ?? ''] ?? 0) : -p.ovr);
     return players
-      .filter((p) => (kind === 'all' || p.kind === kind) && (!weak || needKeys.some((k) => fitsKey(p, k))))
+      .filter((p) => (kind === 'all' || p.kind === kind) && (!posF || kind === 'all' || p.pos === posF) && (!weak || needKeys.some((k) => fitsKey(p, k))))
       .sort((a, b) => pin(a) - pin(b) || val(a) - val(b) || b.ovr - a.ovr);
-  }, [players, kind, weak, needKeys, sort, pinned]);
+  }, [players, kind, posF, weak, needKeys, sort, pinned]);
 
   const toggle = (
     <button data-sfx="tab" data-testid="view-toggle" onClick={() => setTable((v) => !v)} className="shrink-0 cursor-pointer whitespace-nowrap bg-ink px-1.5 py-0.5 text-[10px] text-sky mob:min-h-9 mob:px-2.5 mob:text-[13px]">
@@ -94,7 +99,7 @@ export default function PlayerBrowser({
         <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" data-testid="list-filters">
         {chips ??
           ([['all', '전체'], ['B', '타자'], ['P', '투수']] as const).map(([k, label]) => (
-            <Chip key={k} on={kind === k} onClick={() => setKind(k)} testid={`lkind-${k}`}>
+            <Chip key={k} on={kind === k} onClick={() => (setKind(k), setPosF(null))} testid={`lkind-${k}`}>
               {label}
             </Chip>
           ))}
@@ -110,6 +115,20 @@ export default function PlayerBrowser({
         </div>
         {toggle}
       </div>
+      {/* 포지션 필터: 타자·투수를 고르면 그 아래에 한 줄 (좁으면 줄바꿈) */}
+      {!chips && kind !== 'all' && (
+        <div className="flex shrink-0 flex-wrap items-center gap-1 px-1.5 pb-1.5" data-testid="pos-filters">
+          <Chip on={!posF} onClick={() => setPosF(null)} testid="lpos-all">
+            전 포지션
+          </Chip>
+          {(kind === 'B' ? BAT_POS : PIT_POS).map((k) => (
+            <Chip key={k} on={posF === k} onClick={() => setPosF(posF === k ? null : k)} testid={`lpos-${k}`}>
+              {POS_KO[k]}
+              <span className="pl-1 opacity-60">{players.filter((p) => p.pos === k).length}</span>
+            </Chip>
+          ))}
+        </div>
+      )}
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5" data-testid="player-list">
         {list.map((p) => {
           const bd = band?.(p);
@@ -123,18 +142,32 @@ export default function PlayerBrowser({
             >
               <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 self-stretch text-left" onClick={() => onPick(p)}>
                 <span className="w-9 shrink-0 whitespace-nowrap text-[11px] text-sky mob:w-10 mob:text-[13px]">{POS_KO[p.pos]}</span>
+                {two ? (
+                  // 좁은 화면의 우리 선수단: 줄 버튼이 많아 이름이 잘리므로 두 줄로 (이름 / 역할 · 연봉)
+                  <span className="min-w-0 flex-1 leading-tight">
+                    <span className={`block truncate ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
+                    <span className="block truncate text-[13px] text-white/55">
+                      {p.farm && <span className="text-sky">2군</span>}
+                      {note?.(p)}
+                      <span className="pl-1.5">{fmtMoney(p.salary)}</span>
+                    </span>
+                  </span>
+                ) : (
+                  <>
                 <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
                   {p.name}
                   {mode === 'roster' && p.farm && <span className="ml-1 text-[10px] text-sky mob:text-[13px]">2군</span>}
                   {note?.(p)}
                 </span>
                 <span className="shrink-0 whitespace-nowrap text-[11px] text-white/60 mob:text-[13px]">{p.age}세</span>
+                  </>
+                )}
                 <span className="w-6 shrink-0 text-right font-pixel-lg text-[13px] mob:text-[15px]" style={{ color: ratingColor(p.ovr) }} aria-label={`오버롤 ${p.ovr}`}>
                   {p.ovr}
                 </span>
                 {draft ? (
                   <ScoutBadge grade={p.scout} size={20} />
-                ) : (
+                ) : two ? null : (
                   <span className="w-12 shrink-0 whitespace-nowrap text-right text-[11px] text-white/80 mob:w-[50px] mob:text-[13px]">{fmtMoney(p.salary)}</span>
                 )}
               </button>

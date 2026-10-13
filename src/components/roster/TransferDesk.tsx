@@ -154,6 +154,19 @@ function Desk() {
     <PlayerBrowser key={`m${nonce}`} mode="market" players={freeAgents} rows={rows} sel={card} onPick={(p) => setCard(p.id)} initPos={pos} band={band} rowAction={(p) => <AddChip kind="sign" pid={p.id} />} />
     </>
   );
+  // 우리 선수단: 주전인지 후보인지 이름 옆에 (2군 표시는 목록이 따로 붙인다)
+  const roleNote = (p: Player) => {
+    if (p.farm) return null;
+    const ord = team.lineup.findIndex((l) => l.pid === p.id);
+    const rot = team.rotation.indexOf(p.id);
+    const text = p.kind === 'B' ? (ord >= 0 ? `주전 ${ord + 1}번` : '백업') : rot >= 0 ? `${rot + 1}선발` : team.closer === p.id ? '마무리' : team.bullpen.includes(p.id) ? `불펜 ${team.bullpen.indexOf(p.id) + 1}` : '대기';
+    const main = p.kind === 'B' ? ord >= 0 : rot >= 0 || team.closer === p.id;
+    return (
+      <span className={`ml-1 whitespace-nowrap text-[10px] mob:ml-0 mob:text-[13px] ${main ? 'text-hi' : 'text-white/50'}`} data-testid="role-note">
+        {text}
+      </span>
+    );
+  };
   const squad = (
     <>
     {closedLine(blockWhy, 'block-closed')}
@@ -165,6 +178,7 @@ function Desk() {
       sel={card}
       onPick={(p) => setCard(p.id)}
       band={band}
+      note={roleNote}
       rowAction={(p) => [...squadKinds(p).map((k) => <AddChip key={k} kind={k} pid={p.id} />), <BlockChip key="block" pid={p.id} />]}
     />
     </>
