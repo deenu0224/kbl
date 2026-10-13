@@ -21,7 +21,7 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
   const span = (v: number) => `${Math.max(0, Math.min(100, ((v - 15) / 85) * 100))}%`;
   const who = g.mine ? '' : '입단하면 ';
   const line = 'flex gap-1 leading-snug';
-  const key = 'w-[52px] shrink-0 text-white/50';
+  const key = 'w-[52px] shrink-0 whitespace-nowrap text-white/50 mob:w-[66px]';
 
   return (
     <div className="mt-1.5 bg-ink/60 px-1.5 py-1 text-[11px]" data-testid="potential">

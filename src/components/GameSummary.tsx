@@ -139,7 +139,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
           {keyScores.map((e, i) => {
             const mine = e.teamId === userId;
             return (
-              <div key={i} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] leading-snug mob:text-[12px] ${mine ? 'bg-good/10' : 'bg-bad/10'}`} style={{ boxShadow: `inset 3px 0 0 ${mine ? '#6ee07a' : '#ff6b6b'}` }} data-testid="score-row" data-mine={mine ? '1' : '0'}>
+              <div key={i} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] leading-snug mob:text-[13px] ${mine ? 'bg-good/10' : 'bg-bad/10'}`} style={{ boxShadow: `inset 3px 0 0 ${mine ? '#6ee07a' : '#ff6b6b'}` }} data-testid="score-row" data-mine={mine ? '1' : '0'}>
                 <span className="w-9 shrink-0 text-[10px] text-white/55">
                   {e.inning}회{e.half === 0 ? '초' : '말'}
                 </span>

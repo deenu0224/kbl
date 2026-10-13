@@ -159,7 +159,7 @@ export function TodoCard({
           className={`px-panel flex shrink-0 flex-col gap-[3px] p-1.5 ${className}`}
           data-testid="todo-card"
         >
-          <div className="flex items-center justify-between px-0.5 text-[11px] text-white/55 mob:text-[12px]">
+          <div className="flex items-center justify-between px-0.5 text-[11px] text-white/55 mob:text-[13px]">
             <span>할 일 {todos.length}</span>
             {rest > 0 && <span data-testid="todo-more">+{rest}</span>}
           </div>

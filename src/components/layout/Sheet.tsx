@@ -49,7 +49,7 @@ export default function Sheet({ onClose, children, label }: { onClose: () => voi
         onTouchEnd={onEnd}
         onTouchCancel={onEnd}
       >
-        <button className="flex h-6 w-full shrink-0 cursor-pointer items-center justify-center" onClick={onClose} aria-label="닫기">
+        <button className="flex h-6 w-full shrink-0 cursor-pointer items-center justify-center" data-testid="sheet-handle" onClick={onClose} aria-label="닫기">
           <span className="h-[4px] w-12 bg-white/30" />
         </button>
         <div ref={body} className="px-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">

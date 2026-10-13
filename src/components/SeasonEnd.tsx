@@ -201,7 +201,7 @@ function SeasonEndBody() {
             </div>
             <div className="mt-0.5 text-[13px]">
               최종 <span className="font-pixel-lg text-[18px] text-hi">{rank}위</span> · {recText(team.rec)} · 승률 {fmtPct(team.rec.w, team.rec.l)}
-              {finish !== 'none' && <span className="ml-2 text-hi">{finish === 'champion' ? '한국시리즈 우승' : finish === 'KS' ? '한국시리즈 준우승' : `${POST_KO[finish]} 진출`}</span>}
+              {finish !== 'none' && <span className="ml-2 whitespace-nowrap text-hi">{finish === 'champion' ? '한국시리즈 우승' : finish === 'KS' ? '한국시리즈 준우승' : `${POST_KO[finish]} 진출`}</span>}
             </div>
           </div>
           <div
@@ -274,7 +274,7 @@ function SeasonEndBody() {
               {league.titles.map((t) => {
                 const me = t.row.teamId === core.userId;
                 return (
-                  <div key={t.cat} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] odd:bg-white/4 mob:text-[12px] ${me ? 'text-hi' : ''}`}>
+                  <div key={t.cat} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] odd:bg-white/4 mob:text-[13px] ${me ? 'text-hi' : ''}`}>
                     <span className="w-[72px] shrink-0 text-white/60">{t.label}</span>
                     <TeamDot team={byId.get(t.row.teamId)} />
                     <span className="min-w-0 flex-1 truncate">{t.row.name}</span>
@@ -291,7 +291,7 @@ function SeasonEndBody() {
                   const r = league.goldenGlove?.[pos] ?? null;
                   const me = r?.teamId === core.userId;
                   return (
-                    <div key={pos} className={`flex items-center gap-1 px-1.5 py-1 text-[11px] mob:text-[12px] ${me ? 'bg-hi/20 text-hi' : 'bg-ink/40'}`}>
+                    <div key={pos} className={`flex items-center gap-1 px-1.5 py-1 text-[11px] mob:text-[13px] ${me ? 'bg-hi/20 text-hi' : 'bg-ink/40'}`}>
                       <span className="w-7 shrink-0 text-[10px] text-white/50">{POS_KO[pos]}</span>
                       {r ? (
                         <>
@@ -398,7 +398,7 @@ function SeasonEndBody() {
 
         <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
           <button
-            className="px-btn !px-4 !py-1.5"
+            className="px-btn !px-4 !py-1.5 mob:text-[13px]"
             onClick={() => {
               if (!armNew) return setArmNew(true);
               newGame();

@@ -117,7 +117,7 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
   // 도민 지지는 숫자만 (게이지·별 3개는 캠페인 시트에서)
   const trust = (
     <span className="flex shrink-0 items-center gap-1" data-testid="chip-trust">
-      <span className="text-[10px] text-white/50 mob:text-[11px]">도민 지지</span>
+      <span className="text-[10px] text-white/50 mob:text-[13px]">도민 지지</span>
       <span style={{ color: trustColor(c.trust) }}>{Math.round(c.trust)}</span>
     </span>
   );
@@ -162,7 +162,7 @@ function ObjRow({ o, core, flag }: { o: Objective; core: Core; flag?: boolean })
   const [open, setOpen] = useState(false);
   const c = o.state === 'failed' ? '#6b7694' : d.met ? '#6ee07a' : flag ? '#ffd84a' : '#7fd3ff';
   const num = (
-    <span className="shrink-0 text-[11px] text-white/70 mob:text-[12px]">
+    <span className="shrink-0 text-[11px] text-white/70 mob:text-[13px]">
       {d.cur} <span className="text-white/40">/ {d.target}</span>
     </span>
   );
@@ -226,7 +226,7 @@ export function Chronicle({ history, rankSize = 18 }: { history: SeasonRecord[];
         .slice()
         .reverse()
         .map((h) => (
-          <div key={h.season} className="flex items-baseline gap-1.5 px-2 py-[3px] text-[11px] odd:bg-white/4 mob:text-[12px]">
+          <div key={h.season} className="flex items-baseline gap-1.5 px-2 py-[3px] text-[11px] odd:bg-white/4 mob:text-[13px]">
             <span className="w-11 shrink-0 text-white/50">{h.season}시즌</span>
             <span className={`w-7 shrink-0 ${h.rank <= 4 ? 'text-good' : h.rank >= 7 ? 'text-bad' : ''}`}>{h.rank}위</span>
             <span className="shrink-0 text-white/65">{recText(h)}</span>
@@ -243,7 +243,7 @@ export function Retired({ list }: { list: NonNullable<Campaign['retired']> }) {
   return (
     <div className="flex flex-wrap gap-1">
       {list.map((r, i) => (
-        <span key={`${r.name}-${i}`} className="bg-ink/60 px-2 py-1 text-[11px] mob:text-[12px]" style={{ boxShadow: 'inset 0 2px 0 #ffd84a' }}>
+        <span key={`${r.name}-${i}`} className="bg-ink/60 px-2 py-1 text-[11px] mob:text-[13px]" style={{ boxShadow: 'inset 0 2px 0 #ffd84a' }}>
           <span className="text-hi">{r.name}</span>
           <span className="text-white/50">
             {' '}
@@ -278,7 +278,7 @@ export function CampaignSheet() {
       </div>
 
       <div className="mt-2 flex flex-col gap-[3px]">
-        <div className="flex items-center justify-between px-0.5 text-[11px] text-white/55 mob:text-[12px]">
+        <div className="flex items-center justify-between px-0.5 text-[11px] text-white/55 mob:text-[13px]">
           <span>이번 시즌 목표</span>
           <Help topic="flag" />
         </div>

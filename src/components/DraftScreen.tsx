@@ -74,7 +74,7 @@ export default function DraftScreen() {
         .map((l, i) => {
           const me = l.teamId === userId;
           return (
-            <div key={`${l.pid}-${i}`} className={`flex items-center gap-1.5 px-1 py-[3px] text-[11px] mob:text-[12px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}>
+            <div key={`${l.pid}-${i}`} className={`flex items-center gap-1.5 px-1 py-[3px] text-[11px] mob:text-[13px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}>
               <span className="w-6 shrink-0 text-white/45">{l.round}R</span>
               <TeamDot team={byId.get(l.teamId)} />
               <span className="w-16 shrink-0 truncate text-white/65">{byId.get(l.teamId)?.name}</span>
@@ -109,7 +109,7 @@ export default function DraftScreen() {
               지명 선수는 2군으로 · 2군 {nFarm}/{FARM_MAX} <span className="text-white/45">(1군 {activeRoster(team).length}/{ROSTER_MAX})</span>
             </div>
           </div>
-          <button className="px-btn shrink-0" onClick={() => setPeek(true)}>
+          <button className="px-btn shrink-0 mob:text-[13px]" onClick={() => setPeek(true)}>
             구단 보기
           </button>
         </div>
@@ -180,7 +180,7 @@ export default function DraftScreen() {
               <span className={`min-w-0 flex-1 text-[12px] mob:text-[13px] ${myTurn ? 'text-hi' : 'text-white/60'}`}>
                 {myTurn ? `우리 차례 — ${round}라운드 (계약금 ${fmtMoney(bonus)})` : '다른 구단이 지명 중입니다'}
               </span>
-              <button className="px-btn min-h-10" disabled={!myTurn} onClick={draftSkip}>
+              <button className="px-btn min-h-10 mob:text-[13px]" disabled={!myTurn} onClick={draftSkip}>
                 패스
               </button>
             </>

@@ -104,7 +104,7 @@ export function OvrBadge({ ovr, size = 22 }: { ovr: number; size?: number }) {
       style={{
         width: size,
         height: size,
-        fontSize: size * 0.55,
+        fontSize: Math.max(13, size * 0.55),
         background: ratingColor(ovr),
         boxShadow: '0 0 0 1px #0f1420, inset 0 -2px 0 rgba(0,0,0,.25)',
       }}
@@ -163,7 +163,7 @@ export function TabBar<T extends string>({
 export function Badge({ n }: { n: number | undefined }) {
   if (!n || n <= 0) return null;
   return (
-    <span className="inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center bg-[#e2572e] px-[3px] text-[10px] leading-none text-white mob:text-[11px]" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+    <span className="inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center bg-[#e2572e] px-[3px] text-[10px] leading-none text-white mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
       {n > 9 ? '9+' : n}
     </span>
   );
@@ -174,7 +174,7 @@ export function Chips<T extends string>({ items, value, onChange }: { items: rea
   return (
     <div className="no-scrollbar flex shrink-0 flex-wrap gap-1 text-[10px] mob:flex-nowrap mob:overflow-x-auto">
       {items.map(([k, label]) => (
-        <button key={k} data-sfx="tab" onClick={() => onChange(k)} className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 mob:min-h-10 mob:px-3 mob:text-[12px] ${value === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
+        <button key={k} data-sfx="tab" onClick={() => onChange(k)} className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 mob:min-h-10 mob:px-3 mob:text-[13px] ${value === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
           {label}
         </button>
       ))}

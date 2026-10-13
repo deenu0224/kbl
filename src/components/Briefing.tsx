@@ -355,7 +355,7 @@ export default function BriefingSheet() {
         <span className="font-pixel-lg text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
           주간 브리핑
         </span>
-        <span className="text-[11px] text-white/55 mob:text-[12px]">
+        <span className="text-[11px] text-white/55 mob:text-[13px]">
           {b.day - 5}~{b.day}차전
         </span>
       </div>
@@ -416,7 +416,7 @@ export function FirstTip({ id }: { id: TipId }) {
   return (
     <div className="mx-1.5 mt-1.5 flex shrink-0 items-start gap-1 bg-sky/15 py-1 pr-0.5 pl-2 text-[12px] leading-snug text-white mob:text-[13px]" style={{ boxShadow: 'inset 2px 0 0 #7fd0ff' }} data-testid={`tip-${id}`}>
       <span className="min-w-0 flex-1 py-0.5">{TIP_TEXT[id]}</span>
-      <button className="shrink-0 cursor-pointer px-2 py-0.5 text-[14px] text-white/70 mob:min-h-8 mob:min-w-8" aria-label="닫기" onClick={() => closeTip(id)}>
+      <button className="shrink-0 cursor-pointer px-2 py-0.5 text-[14px] text-white/70 mob:min-h-10 mob:min-w-10" aria-label="닫기" onClick={() => closeTip(id)}>
         ×
       </button>
     </div>

@@ -17,7 +17,7 @@ export function ScoutBadge({ grade, size = 18 }: { grade: Player['scout']; size?
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center font-pixel-lg text-ink"
-      style={{ width: size, height: size, fontSize: size * 0.7, background: SCOUT_COLOR[grade ?? ''] ?? '#56607e', boxShadow: '0 0 0 1px #0f1420' }}
+      style={{ width: size, height: size, fontSize: Math.max(13, size * 0.7), background: SCOUT_COLOR[grade ?? ''] ?? '#56607e', boxShadow: '0 0 0 1px #0f1420' }}
     >
       {grade ?? '?'}
     </span>

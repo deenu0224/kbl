@@ -33,7 +33,7 @@ function Board({ rows, empty }: { rows: LeaderRow[]; empty: string }) {
         return (
           <div
             key={r.pid}
-            className={`flex items-center gap-1.5 px-1 py-[3px] text-[11px] mob:min-h-8 mob:text-[13px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
+            className={`flex items-center gap-1.5 px-1 py-[3px] text-[11px] mob:min-h-10 mob:text-[13px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
             style={me ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
           >
             <span className={`w-4 shrink-0 ${i === 0 ? 'text-hi' : 'text-white/50'}`}>{i + 1}</span>

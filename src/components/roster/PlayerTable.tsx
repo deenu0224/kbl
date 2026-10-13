@@ -43,7 +43,7 @@ function Chip({ on, onClick, children, tone = 'hi', testid }: { on: boolean; onC
       data-sfx="tab"
       data-testid={testid}
       onClick={onClick}
-      className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:min-h-8 mob:px-2.5 mob:text-[12px] ${on ? (tone === 'bad' ? 'bg-bad text-ink' : 'bg-hi text-ink') : tone === 'bad' ? 'bg-ink text-bad' : 'bg-ink text-white/60'}`}
+      className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:min-h-10 mob:px-2.5 mob:text-[13px] ${on ? (tone === 'bad' ? 'bg-bad text-ink' : 'bg-hi text-ink') : tone === 'bad' ? 'bg-ink text-bad' : 'bg-ink text-white/60'}`}
     >
       {children}
     </button>
@@ -206,7 +206,7 @@ export default function PlayerTable({
   }, [players, cols, sort, kind, pos, needKeys]);
   const posList: PosKey[] = kind === 'P' ? PITCH_KEYS : kind === 'B' ? FIELD_KEYS : [...FIELD_KEYS, ...PITCH_KEYS];
   const needLabel = mode === 'draft' ? '빈 뎁스만' : '우리 약점만';
-  const th = 'cursor-pointer whitespace-nowrap bg-edge px-1.5 py-1 text-[10px] font-normal mob:py-2 mob:text-[11px]';
+  const th = 'cursor-pointer whitespace-nowrap bg-edge px-1.5 py-1 text-[10px] font-normal mob:py-2 mob:text-[13px]';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={`table-${mode}`}>
@@ -246,7 +246,7 @@ export default function PlayerTable({
         </div>
       )}
       <div className="px-scroll min-h-0 flex-1 overflow-auto" data-testid="table-scroll">
-        <table className="border-separate border-spacing-0 text-[11px] mob:text-[12px]" style={{ minWidth: '100%' }}>
+        <table className="border-separate border-spacing-0 text-[11px] mob:text-[13px]" style={{ minWidth: '100%' }}>
           <thead>
             <tr>
               <th className={`${th} sticky left-0 top-0 z-20 text-left`} onClick={() => setSort({ id: 'name', dir: 1 })}>
@@ -278,9 +278,9 @@ export default function PlayerTable({
                     <span className={rowAction ? 'flex items-center gap-1.5 mob:flex-col mob:items-start mob:gap-0.5' : undefined}>
                       <span className={`block truncate ${rowAction ? 'w-[124px] shrink-0 mob:w-auto mob:max-w-[138px]' : ''} ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
                         {p.name}
-                        {mine && p.farm && <span className="ml-1 text-[9px] text-sky mob:text-[10px]">2군</span>}
+                        {mine && p.farm && <span className="ml-1 text-[9px] text-sky mob:text-[13px]">2군</span>}
                         {mode !== 'roster' && needs(p) && (
-                          <span className="ml-1 bg-bad px-1 text-[9px] text-ink mob:text-[10px]" data-testid="need-badge">
+                          <span className="ml-1 bg-bad px-1 text-[9px] text-ink mob:text-[13px]" data-testid="need-badge">
                             {mode === 'draft' ? '빈 뎁스' : '약점 보강'}
                           </span>
                         )}
