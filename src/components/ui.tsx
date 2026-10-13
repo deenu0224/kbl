@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { BatPos, FacilityKind, PitchRole, Team, Weather } from '../game/types';
+import type { BatPos, Core, FacilityKind, PitchRole, Team, Weather } from '../game/types';
+import { inPost, inWildcard, postTeams } from '../game/league';
 
 export const DOW = ['화', '수', '목', '금', '토', '일'];
 export const dowOf = (day: number) => DOW[((day % 6) + 6) % 6];
@@ -275,3 +276,33 @@ export function MiniBars({
 export const pctOf = (w: number, l: number) => (w + l > 0 ? w / (w + l) : 0);
 export const fmtPct = (w: number, l: number) => (w + l > 0 ? pctOf(w, l).toFixed(3).replace(/^0/, '') : '-');
 export const recText = (r: { w: number; l: number; t: number }) => `${r.w}승 ${r.l}패${r.t ? ` ${r.t}무` : ''}`;
+
+// ───────── 순위표 공통 (리그 탭 · 결산) ─────────
+
+/** 순위 숫자 색: 가을야구 직행권 초록, 와일드카드 자리(10구단 4·5위) 하늘색, 그 아래 흐리게 */
+export function rankTone(core: Pick<Core, 'teams'>, rank: number): string {
+  return inWildcard(core, rank) ? 'text-sky' : inPost(core, rank) ? 'text-good' : 'text-white/50';
+}
+/** 순위표 한 줄의 테두리: 내 구단은 왼쪽 노란 띠, 가을야구 막차 순위 아래에는 초록 선 */
+export function cutShadow(me: boolean, cut: boolean): CSSProperties | undefined {
+  const parts = [me ? 'inset 2px 0 0 #ffd84a' : '', cut ? 'inset 0 -2px 0 #6ee07a' : ''].filter(Boolean);
+  return parts.length ? { boxShadow: parts.join(', ') } : undefined;
+}
+/** 순위표 아래 한 줄: 초록 선과 하늘색 숫자의 뜻 */
+export function PostLegend({ teams }: { teams: Core['teams'] }) {
+  const n = postTeams({ teams });
+  const wc = inWildcard({ teams }, n);
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 px-1 pt-1 text-[10px] text-white/50 mob:text-[12px]" data-testid="post-legend">
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-[2px] w-3 bg-good" />
+        {n}위까지 가을야구
+      </span>
+      {wc && (
+        <span>
+          <span className="text-sky">{n - 1}·{n}위</span> 와일드카드 결정전
+        </span>
+      )}
+    </div>
+  );
+}

@@ -53,6 +53,14 @@ export function postRounds(core: Pick<Core, 'teams'>): PostRound[] {
 export function inPost(core: Pick<Core, 'teams'>, rank: number): boolean {
   return rank <= postTeams(core);
 }
+/** 와일드카드 결정전 자리인가 (5팀 포스트시즌의 4·5위. 4팀 포스트시즌에는 없다) */
+export function inWildcard(core: Pick<Core, 'teams'>, rank: number): boolean {
+  return postTeams(core) >= 5 && rank >= postTeams(core) - 1 && rank <= postTeams(core);
+}
+/** 하위권인가 (아래에서 두 팀 — 순위를 빨갛게 적는 기준. 8구단 7·8위, 10구단 9·10위) */
+export function inCellar(core: Pick<Core, 'teams'>, rank: number): boolean {
+  return rank > leagueSize(core) - 2;
+}
 /** 꼴찌인가 (순위 = 구단 수) */
 export function isLast(core: Pick<Core, 'teams'>, rank: number): boolean {
   return rank >= leagueSize(core);

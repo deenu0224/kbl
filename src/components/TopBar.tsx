@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import { useCore, useStore, useUserTeam } from '../store';
+import { inCellar, inPost } from '../game/league';
 import { fmtInt, fmtMoney } from '../game/format';
 import { payroll } from '../game/economy';
 import { teamStrength } from '../game/ratings';
@@ -71,7 +72,7 @@ export default function TopBar() {
       <CampaignChip className="w-[210px] shrink-0 max-[1279px]:w-[176px]" />
       <Sep />
       <Cell label="순위">
-        <span className={rank <= 3 ? 'text-hi' : rank >= 7 ? 'text-bad' : ''}>{rank}위</span>
+        <span className={inPost({ teams }, rank) ? 'text-hi' : inCellar({ teams }, rank) ? 'text-bad' : ''}>{rank}위</span>
       </Cell>
       <Cell label="전적">
         {recText(team.rec)}
@@ -144,7 +145,7 @@ export function MobileTopBar() {
       {/* 한 줄: 구단 색 점 · 순위 · 전적 · 현금 (자금 경고가 있을 때만 "n경기 뒤 바닥") */}
       <button className="flex min-h-10 min-w-0 flex-1 cursor-pointer items-center gap-1.5 px-2 py-1 text-left text-[13px] leading-tight" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="m-top">
         <TeamDot team={team} size={14} />
-        <span className={`shrink-0 font-pixel-lg text-[15px] ${rank <= 3 ? 'text-hi' : rank >= 7 ? 'text-bad' : ''}`}>{rank}위</span>
+        <span className={`shrink-0 font-pixel-lg text-[15px] ${inPost({ teams }, rank) ? 'text-hi' : inCellar({ teams }, rank) ? 'text-bad' : ''}`}>{rank}위</span>
         <span className="shrink-0 text-white/85">{recText(team.rec)}</span>
         <span className="ml-auto flex min-w-0 items-center gap-1">
           <span className={`shrink-0 text-[14px] ${cash < 0 ? 'text-bad' : 'text-hi'}`}>{fmtMoney(cash)}</span>

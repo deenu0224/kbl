@@ -22,8 +22,12 @@ export const CHARACTERS: Record<CharId, Character> = {
   player: { id: 'player', name: '', title: '선수', seed: 0, trait: '관련 선수 본인 (이름은 카드의 pid 로)' },
 };
 
-/** 부임 전 다섯 시즌의 순위 (구단사 순위열 앞에 흐리게 붙는다) */
-export const PAST_RANKS = [8, 8, 7, 8, 8];
+/** 부임 전 다섯 시즌의 순위 (구단사 순위열 앞에 흐리게 붙는다): 꼴찌-꼴찌-한 칸 위-꼴찌-꼴찌. 8구단 8-8-7-8-8, 10구단 10-10-9-10-10 */
+const PAST_FROM_LAST = [0, 0, 1, 0, 0];
+const NEW_TEAMS = 10; // 새 게임의 구단 수 (generate.ts LEAGUE_TEAMS 와 같다 — 순환 import 를 피해 여기 적는다)
+export const pastRanks = (teams: number = NEW_TEAMS): number[] => PAST_FROM_LAST.map((d) => teams - d);
+/** 새 게임(10구단) 기준의 부임 전 순위. 세이브를 읽는 화면은 pastRanks(구단 수)를 쓴다 */
+export const PAST_RANKS = pastRanks();
 /** 바랜 깃발의 우승이 몇 시즌 전이었는지 */
 export const TITLE_YEARS_AGO = 31;
 
@@ -35,11 +39,12 @@ export const TRUST_LABEL = '도민 지지';
 export const OVER_LABEL = '연고 이전';
 
 /** 새 게임 첫 뉴스 (위가 최신). 부임 기사 + 지난 다섯 시즌 순위 */
-export const PREMISE_NEWS: string[] = [
+export const premiseNews = (teams: number = NEW_TEAMS): string[] => [
   `감귤 조합, ${TITLE_YEARS_AGO}년 전 우승 멤버를 새 단장으로 선임 — "귤밭에서 다시 야구장으로"`,
   `리그, 관중·성적 미달 구단 연고 이전 심사 착수… 육지의 한 도시가 신축 돔구장을 내걸었다`,
-  `도민 구단 제주 {team}, 지난 다섯 시즌 ${PAST_RANKS.join('-')}위. 낡은 구장엔 바랜 우승 깃발 하나`,
+  `도민 구단 제주 {team}, 지난 다섯 시즌 ${pastRanks(teams).join('-')}위. 낡은 구장엔 바랜 우승 깃발 하나`,
 ];
+export const PREMISE_NEWS: string[] = premiseNews();
 
 export const NEWS = {
   seasonOpen: (season: number) => `시즌 ${season} 개막 — 연봉이 재산정되고 새 FA 시장이 열렸습니다`,
@@ -269,9 +274,9 @@ export function nameSeason(r: SeasonRecord, x: SeasonCtx): string {
   return r.rank <= nPost(x) ? '위를 보던 해' : '버틴 해';
 }
 
-/** 구단사 순위열 "8-8-7-5-3-1" (부임 전 순위 포함 여부 선택) */
-export function rankLine(history: SeasonRecord[], withPast = false): string {
-  return [...(withPast ? PAST_RANKS : []), ...history.map((h) => h.rank)].join('-');
+/** 구단사 순위열 "10-10-9-7-5-3-1" (부임 전 순위 포함 여부 선택) */
+export function rankLine(history: SeasonRecord[], withPast = false, teams: number = NEW_TEAMS): string {
+  return [...(withPast ? pastRanks(teams) : []), ...history.map((h) => h.rank)].join('-');
 }
 
 /** 문구의 {team} 자리에 유저가 정한 별칭을 넣는다 */

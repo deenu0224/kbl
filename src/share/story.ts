@@ -1,6 +1,7 @@
 import { TITLE_YEARS_AGO } from '../game/story';
 import { NOTE_MAX, SHARE_TAG } from './config';
-import { ASK, ASK_KEEP, type Lesson, type ShareData, type ShareRecord } from './shareData';
+import { postTeamsFor } from '../game/league';
+import { ASK, ASK_KEEP, teamsOf, type Lesson, type ShareData, type ShareRecord } from './shareData';
 
 /** 공유하는 글 = 야구팬의 자조와 농담. 구단사에 맞는 문장을 골라 잇는다 (연대기·숫자 나열 금지). 전부 순수 함수 */
 
@@ -50,8 +51,10 @@ const CLOSE = ['너라면 몇 시즌 만에?', '답답하면 네가 해 봐. 진
 /** 이번 시즌 한 줄: 가을야구를 못 간 시즌의 순위로 고른다 */
 function seasonLine(r: ShareRecord): string {
   const rank = r.last.rank;
-  if (rank >= 8) return LAST;
-  if (rank <= 5 && rank >= 4 && !r.firstPostAt) return RACE;
+  const teams = teamsOf(r);
+  const cut = postTeamsFor(teams); // 가을야구 막차 순위
+  if (rank >= teams) return LAST;
+  if (rank <= cut + 1 && rank >= cut && !r.firstPostAt) return RACE;
   return NEXT;
 }
 

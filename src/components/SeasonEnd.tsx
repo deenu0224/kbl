@@ -14,6 +14,8 @@ import { rankOf, seasonAwards, standings } from '../game/season';
 import { STAGES, TRUST_MAX, objDisplay } from '../game/campaign';
 import { leagueAwards, type LeaderRow } from '../game/leaders';
 import Bracket from './Bracket';
+import { PostLegend, cutShadow, rankTone } from './ui';
+import { postTeams } from '../game/league';
 import { Flag, POST_KO, StageTrail, silhouette, stageName } from './Campaign';
 import EndingScene from './EndingScene';
 import { ShareButton } from './ShareSheet';
@@ -396,9 +398,9 @@ function SeasonEndBody() {
                 <div
                   key={t.id}
                   className={`flex items-center gap-1.5 px-1.5 py-1 text-[12px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
-                  style={me ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
+                  style={cutShadow(me, i + 1 === postTeams(core))}
                 >
-                  <span className={`w-4 ${i < 4 ? 'text-good' : 'text-white/50'}`}>{i + 1}</span>
+                  <span className={`w-4 ${rankTone(core, i + 1)}`}>{i + 1}</span>
                   <TeamDot team={t} />
                   <span className="min-w-0 flex-1 truncate">
                     {t.city} {t.name}
@@ -411,6 +413,7 @@ function SeasonEndBody() {
                 </div>
               );
             })}
+            <PostLegend teams={core.teams} />
           </div>
 
           <div>

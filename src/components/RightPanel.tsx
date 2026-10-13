@@ -31,6 +31,8 @@ import { deadlinesSoon } from '../game/economy';
 import { RUNWAY_DANGER, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import { teamStrength } from '../game/ratings';
 import Bracket from './Bracket';
+import { PostLegend, cutShadow, rankTone } from './ui';
+import { postTeams } from '../game/league';
 import Leaders from './Leaders';
 import { useUi, type LeagueSub } from './layout/uiStore';
 import { Badge, Bar, Chips, FAC_KO, MiniBars, MoneyBar, SectionTitle, TabBar, TeamDot, TONE_CLASS, dowOf, fmtPct, isNightDay } from './ui';
@@ -110,9 +112,10 @@ export function LeagueTab() {
           <div
             key={t.id}
             className={`flex items-center px-1 py-[3px] text-[11px] mob:py-1 mob:text-[13px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
-            style={me ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
+            style={cutShadow(me, i + 1 === postTeams({ teams }))}
+            data-testid="standing-row"
           >
-            <span className={`w-5 ${i < 4 ? 'text-good' : 'text-white/50'}`}>{i + 1}</span>
+            <span className={`w-5 ${rankTone({ teams }, i + 1)}`}>{i + 1}</span>
             <span className="flex min-w-0 flex-1 items-center gap-1">
               <TeamDot team={t} />
               <span className="truncate">{t.name}</span>
@@ -124,6 +127,7 @@ export function LeagueTab() {
           </div>
         );
       })}
+      <PostLegend teams={teams} />
       <Fold label="자세히: 승률 · 최근 10경기 · 타구장 결과" className="mt-1" testid="fold-league">
         {table.map((t) => (
           <div key={t.id} className="flex items-center px-1 py-[3px] text-[11px] mob:text-[13px]">
