@@ -59,7 +59,7 @@ function TodayCards() {
           <span className="text-[13px] text-white/60">{idle}</span>
         )}
       </div>
-      <div className="px-panel shrink-0">
+      <div className="px-panel shrink-0 por:hidden">
         <CampaignChip className="w-full" />
       </div>
       <button
