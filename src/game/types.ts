@@ -64,6 +64,8 @@ export interface Player {
   farm?: boolean; // 2군(퓨처스) 소속. 없으면 1군 등록 (유저 구단만 쓴다)
   farmUntil?: number; // 2군으로 내려간 선수가 다시 1군에 등록될 수 있는 day (말소 후 10경기)
   farmStat?: FarmStat; // 이번 시즌 퓨처스 누적 기록
+  svc?: number; // 보유 기간(서비스 타임)의 기준: 유저 팀에 드래프트로 입단해 데뷔한 시즌. 있으면 6시즌 동안 연봉이 시장가의 일부 (contract.ts)
+  ask?: number; // FA 재계약 때 합의한 배율 (시장가 × 이 값. 유저 팀에 있는 동안 유지)
   bat: BatStats;
   pit: PitStats;
 }
@@ -376,6 +378,7 @@ export interface Campaign {
   opening?: string; // 장 시작 때 인물의 한 줄 (TopBar/캠페인 시트 표시용)
   briefing?: Briefing | null; // 대기 중인 주간 브리핑 (닫아야 다음 경기 진행)
   briefMemo?: BriefMemo; // 주간 브리핑의 기억: 지난주 수치 · 실행한 제안 · 넘긴 제안
+  resignQueue?: string[]; // 스토브리그 재계약 대기열: FA 자격을 얻은 선수 id (contract.ts drawResign 이 채우고 카드로 하나씩 처리)
   posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)
 }
 // ───────── 주간 브리핑 (briefing.ts 가 만들고 해석한다) ─────────

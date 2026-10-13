@@ -39,7 +39,15 @@ export const FARM_GROW = 2.2; // 2군의 주간 성장 확률 = 훈련장 확률
 export const FARM_GROW_MIN = 0.25; // 훈련장이 없어도 2군은 실전으로 이만큼은 자란다
 export const BENCH_GROW = 0.5; // 1군 벤치의 25세 이하: 안 쓰면 썩는다
 export const FARM_LOCK = 10; // 2군으로 내린 뒤 재등록까지 걸리는 경기 수
-export const FARM_UPKEEP = 4; // 2군 운영비 (만원/경기 · 선수 1명당)
+export const FARM_UPKEEP = 12; // 2군 운영비 (만원/경기 · 선수 1명당. 20명이면 시즌 약 2억)
+// 보유 기간(서비스 타임): 유저 팀의 드래프트 출신은 입단 후 SVC_YEARS 시즌 동안 연봉 = 시장가 × SVC_RATE[n년차−1] (0 = 최저연봉). 그 뒤 FA 자격
+export const SVC_YEARS = 6;
+export const SVC_RATE = [0, 0.25, 0.4, 0.55, 0.7, 0.85];
+export const RESIGN_ASK_MAX = 0.15; // FA 자격 재계약 요구: 시장가 × (1 ~ 1 + 이 값), 스타성이 높을수록 많이 부른다
+export const RESIGN_LEAVE_FANS = 8; // 프랜차이즈 스타를 FA 로 보내면 팬 − star × 이 값, 만족도 RESIGN_LEAVE_SAT
+export const RESIGN_LEAVE_SAT = -8;
+// 감사용 스위치 (scripts/economy.ts 가 하나씩 끄고 재실행한다. 게임에서는 전부 켜 둔다)
+export const AUDIT = { benchHalf: true, farmBatBig: true, svc: true, penGrow: true, farmUpkeep: -1 };
 export const MIN_BATTERS = 10;
 export const MIN_PITCHERS = 8;
 
@@ -65,11 +73,12 @@ export const STAR_DIV = 420;
 export const OPS_COST = 1050; // 구단 운영비 기본 (만원/경기)
 export const OPS_FAN2 = 1.8e-5; // 팬 규모에 따라 커지는 운영비: (팬 − OPS_FAN_FREE)² × 이 값 (만원/경기) — 프런트·안전·홍보 인력. 큰 구단일수록 가파르다
 export const OPS_FAN_FREE = 5200;
+export const OPS_FAN_CAP = 24000; // 운영비가 따라 커지는 팬 규모의 상한 (최대 구장 24,000석 — 자리가 없는 팬까지 프런트가 커지지는 않는다). 없으면 팬 3만에서 운영비만 시즌 100억
 export const SALARY_INFLATION = 0.07; // 리그 연봉 인플레 (시즌당, 스타급일수록 크게 — season.ts develop)
 export const SALARY_INFLATION_MAX = 0.8;
-// 재계약 프리미엄: 가을야구를 한 팀의 선수는 비싸진다. 최근 3시즌의 성적별 가산을 더한다 (유저 구단 연봉에만)
-export const RENEW_PREMIUM: Record<string, number> = { none: 0, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.12 };
-export const RENEW_SEASONS = 3;
+// 재계약 프리미엄: 가을야구를 한 팀의 선수는 비싸진다. 최근 RENEW_SEASONS 시즌의 성적별 가산을 더한다 (유저 구단 연봉에만)
+export const RENEW_PREMIUM: Record<string, number> = { none: 0, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.1 };
+export const RENEW_SEASONS = 2; // 3시즌 합산(최대 +36%)은 왕조 팀의 연봉을 시즌마다 40억씩 올렸다 — 2시즌(최대 +20%)
 export const LEAGUE_BASE = 2100; // 리그 분배금·스폰서 기본 (만원/경기)
 export const LEAGUE_PER_FAN = 0.04;
 export const LEAGUE_PER_RANK = 45; // 순위 한 계단당
@@ -98,7 +107,7 @@ export function farmRoster(t: Team): Player[] {
 
 /** 2군 운영비 (만원/경기) */
 export function farmUpkeep(t: Team): number {
-  return farmRoster(t).length * FARM_UPKEEP;
+  return farmRoster(t).length * (AUDIT.farmUpkeep >= 0 ? AUDIT.farmUpkeep : FARM_UPKEEP);
 }
 
 /** 2군의 주간 성장 확률 */
@@ -132,7 +141,7 @@ export function upgradeCost(kind: FacilityKind, f: Facilities): number | null {
 
 /** 구단 운영비 (만원/경기). 팬 규모가 커질수록 프런트가 커진다 */
 export function opsCost(core: Pick<Core, 'fans'>): number {
-  const over = Math.max(0, core.fans - OPS_FAN_FREE);
+  const over = Math.max(0, Math.min(core.fans, OPS_FAN_CAP) - OPS_FAN_FREE);
   return Math.round(OPS_COST + over * over * OPS_FAN2);
 }
 
