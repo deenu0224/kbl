@@ -111,6 +111,27 @@ export function pput(t: Team, l: PLoc, pid: string): void {
   else t.closer = pid;
 }
 
+// ───────── 불펜 부하 (할 일 · 브리핑 · 2군 셔틀 · 'arm' 사건 · 화면이 같이 쓴다) ─────────
+
+export const PEN_OVER_GAMES = 6; // 과부하가 이만큼 이어지면 'arm' 사건
+export const PEN_OVER_KEY = 'penOver'; // 시즌 메모: 과부하가 이어진 경기 수 (farm.ts 가 매 경기 갱신)
+export interface BullpenLoad {
+  arms: number; // 등판 가능한 1군 구원(불펜 + 마무리, 부상 제외)
+  rested: number; // 어제 쉰 투수
+  tired2: number; // 이틀 이상 연투한 투수 (오늘 나서면 3연투)
+  label: '여유' | '보통' | '과부하';
+}
+/** 1군 불펜의 부하. 과부하 = 쉰 투수가 없거나 절반 이상이 이틀 연투, 보통 = 쉰 투수가 절반 미만 */
+export function bullpenLoad(team: Team): BullpenLoad {
+  const byId = new Map(team.roster.map((p) => [p.id, p]));
+  const pen = [...team.bullpen, ...(team.closer ? [team.closer] : [])].map((id) => byId.get(id)).filter((p): p is Player => !!p && !p.farm && p.injury === 0);
+  const arms = pen.length;
+  const rested = pen.filter((p) => !(p.tired ?? 0)).length;
+  const tired2 = pen.filter((p) => (p.tired ?? 0) >= 2).length;
+  const label = arms > 0 && (rested === 0 || tired2 * 2 >= arms) ? '과부하' : rested * 2 < arms ? '보통' : '여유';
+  return { arms, rested, tired2, label };
+}
+
 /** 연투 피로(2일 이상)인데 필승조 맨 앞(마무리·불펜 1번)에 선 투수와, 그 자리를 대신할 쉰 불펜 투수 */
 export function tiredFront(team: Team): { tired: Player; fresh: Player | null } | null {
   const byId = new Map(team.roster.map((p) => [p.id, p]));

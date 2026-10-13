@@ -8,6 +8,8 @@ import {
 } from '../src/game/economy';
 import { FOREIGN_MAX } from '../src/game/events';
 import { autoBatting, autoPitching, slotValue } from '../src/game/lineup';
+import { bullpenLoad } from '../src/game/fixes';
+import { shuttleArms } from '../src/game/farm';
 
 // ───────── 동사 ─────────
 
@@ -241,6 +243,21 @@ function doPen(c: Core): Core {
   return ok(signPlayer(core, cand.id), core);
 }
 
+const PEN_FA_SALARY = 15000; // 과부하 때 사는 구원: 연봉 1.5억 이하
+const PEN_MAX = 9; // 불펜(마무리 포함)을 이 인원 넘게 늘리지는 않는다
+/** sensible: 할 일에 "불펜 과부하"가 뜨면 2군 구원 콜업, 없으면 저가 FA 구원 1명 */
+function relievePen(c: Core): Core {
+  const t = userTeam(c);
+  const load = bullpenLoad(t);
+  if (load.label !== '과부하' || load.arms >= PEN_MAX || activeRoster(t).length >= ROSTER_MAX) return c;
+  const up = shuttleArms(c)[0];
+  if (up) return ok(callUp(c, up.id), c);
+  const fa = c.freeAgents
+    .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.salary <= PEN_FA_SALARY && (!p.foreign || foreignN(c) < FOREIGN_MAX) && c.finance.cash - signingBonus(p) >= RESERVE)
+    .sort((a, b) => b.ovr - a.ovr)[0];
+  return fa ? ok(signPlayer(c, fa.id), c) : c;
+}
+
 function bestProspect(c: Core, score: (p: Player) => number): string | null {
   // 2군이 가득이어도 지명한다: 자동 운영 중에는 2군 코치가 지명 직전에 한 명을 방출한다
   if (!c.draft) return null;
@@ -326,6 +343,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
     let c = c0;
     const day = c.day;
     const weekly = pre || day % 6 === 0;
+    if (name === 'sensible' && !pre) c = relievePen(c);
     if (!weekly && day !== 13) return c;
     if (pre) while (c.finance.debt > 0 && c.finance.cash > RESERVE * 3) c = ok(repay(c), c);
     if (pre && v.has('sign')) c = shedPayroll(c);
