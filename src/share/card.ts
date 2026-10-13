@@ -19,6 +19,8 @@ const EDGE = '#0f1420';
 const HI = '#ffd84a';
 const SKY = '#7fd3ff';
 
+/** 폭죽은 한 순간에 한두 발만 떠 있다: 선수들이 모인 뒤(6초~)의 여러 순간을 한 장에 겹친다 */
+const FX_TIMES = [6.1, 6.9, 7.6, 8.4, 9.3];
 const DEF = TEAM_DEFS.find((d) => d.id === USER_ID)!;
 
 /** 순간에 맞춘 구장 장면: 결산 = 지금 시설·깃발·응원 그대로, 우승 = 만원 관중과 폭죽, 연고 이전 = 불 꺼진 빈 구장 */
@@ -77,8 +79,30 @@ export function stadiumFrame(scene: StadiumScene): HTMLCanvasElement {
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
   const layers = buildStatic(scene.facilities, scene.homeColor, scene.homeColor2);
-  // 폭죽이 가장 많이 터져 있는 때의 한 프레임
-  drawFrame({ ctx, scene, layers, t: 3.2, fxT: scene.fx.kind === 'none' ? 60 : 3.2, night: scene.night ? buildNightTint() : null });
+  const night = scene.night ? buildNightTint() : null;
+  const frame = (s: StadiumScene, fxT: number) => drawFrame({ ctx, scene: s, layers, t: 3.2, fxT, night });
+  if (scene.fx.kind === 'none') {
+    frame(scene, 60);
+    return c;
+  }
+  // 폭죽 없는 같은 장면과 달라진 픽셀(폭죽·색종이)만 골라 첫 프레임 위에 얹는다
+  frame({ ...scene, fx: { kind: 'none' } }, 60);
+  const ref = ctx.getImageData(0, 0, STADIUM_W, STADIUM_H).data;
+  const extra = FX_TIMES.slice(1).map((t) => {
+    frame(scene, t);
+    return ctx.getImageData(0, 0, STADIUM_W, STADIUM_H).data;
+  });
+  frame(scene, FX_TIMES[0]);
+  const out = ctx.getImageData(0, 0, STADIUM_W, STADIUM_H);
+  for (const e of extra) {
+    for (let k = 0; k < e.length; k += 4) {
+      if (e[k] === ref[k] && e[k + 1] === ref[k + 1] && e[k + 2] === ref[k + 2]) continue;
+      out.data[k] = e[k];
+      out.data[k + 1] = e[k + 1];
+      out.data[k + 2] = e[k + 2];
+    }
+  }
+  ctx.putImageData(out, 0, 0);
   return c;
 }
 
@@ -158,6 +182,26 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
   line(ctx, SHARE_BASE.replace(/^https:\/\//, '').replace(/\/$/, ''), 'Galmuri11', [22], PAD, 1304, '#aab6d6');
 
   return new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('카드 이미지를 만들지 못했습니다'))), 'image/png'));
+}
+
+/** 링크 미리보기 이미지(public/og.png, 1200×630): 처음 구장 위에 제목 로고. scripts/screens/cards.mjs --og 가 부른다 */
+export async function renderOg(): Promise<Blob> {
+  const W = 1200;
+  const H = 630;
+  const sub = '만년 꼴찌 제주 야구단의 단장이 되는 픽셀 야구 구단 타이쿤';
+  await loadFonts(`${SHARE_QUESTION}${sub}`);
+  const c = canvas(W, H);
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  const art = stadiumFrame({ ...clubScene({ seed: 0, nick: DEF.name, seasons: 0, ranks: [], titles: 0, stage: 0, stars: 0, end: 'abandoned', date: '' }), fill: 0.12 });
+  ctx.drawImage(art, (STADIUM_W - W / SCALE) / 2, 70, W / SCALE, H / SCALE, 0, 0, W, H);
+  ctx.fillStyle = 'rgba(15,20,32,0.62)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  line(ctx, '답답해서 내가', 'Galmuri14', [154], W / 2, 120, HI, 8, W - 80);
+  line(ctx, '야구 단장을 해도 될까?', 'Galmuri14', [70], W / 2, 318, '#ffffff', 5, W - 80);
+  line(ctx, sub, 'Galmuri11', [33], W / 2, 462, '#dfe6f5', 3, W - 80);
+  return new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('og 이미지를 만들지 못했습니다'))), 'image/png'));
 }
 
 /** 지금 세이브의 공유 카드 */

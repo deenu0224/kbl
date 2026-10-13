@@ -134,7 +134,14 @@ export default function ShareSheet({ data, scene, onClose }: { data: ShareData; 
           </button>
         </div>
         <div className="min-h-[36px] text-center leading-snug text-white/55" data-testid="share-note">
-          {msg ? <span className="text-hi">{msg}</span> : 'X·스레드에는 글만 들어갑니다. 이미지는 [공유하기]나 [이미지 저장]으로'}
+          {msg ? (
+            <span className="text-hi">{msg}</span>
+          ) : (
+            <>
+              <span className="block">X·스레드에는 글만 들어갑니다</span>
+              <span className="block">이미지는 [공유하기]나 [이미지 저장]으로</span>
+            </>
+          )}
         </div>
       </div>
     </div>

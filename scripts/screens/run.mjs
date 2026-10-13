@@ -133,7 +133,7 @@ async function shoot(browser, base, vp, screen, fixtures) {
   page.on('pageerror', (e) => push('pageerror', e.message));
   page.on('requestfailed', (r) => !r.url().includes('favicon') && push('requestfailed', `${r.url().replace(base, '')} ${r.failure()?.errorText ?? ''}`));
   try {
-    await page.goto(base, { waitUntil: 'load' });
+    await page.goto(base + (screen.query ?? ''), { waitUntil: 'load' });
     await page.waitForSelector('#root > *', { timeout: 20000 });
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(300);
