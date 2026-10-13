@@ -110,7 +110,7 @@ function Desk() {
   ];
 
   return (
-    <FullScreen title="이적 창구" sub={`현금 ${fmtMoney(core.finance.cash)} · 1군 ${pv.active.a}/${ROSTER_MAX} · 2군 ${pv.farm.a}/${FARM_MAX} · 담는 동안 실제 선수단은 그대로`} onClose={close} testid="transfer-desk" hold={!!cardP}>
+    <FullScreen title="이적 창구" sub="담는 동안 실제 선수단은 그대로" onClose={close} testid="transfer-desk" hold={!!cardP}>
       {mobile ? (
         <>
           <div className="mt-1 flex shrink-0 gap-1 px-1.5" data-testid="desk-sides">
@@ -353,42 +353,30 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
             <span className="text-white/50">담은 선수 없음 · 줄의 버튼으로 담는다</span>
           ) : (
             <>
-              <span className="text-hi">{pv.n}건</span>
-              {pv.exact && (
-                <>
-                  <span className="text-white/35"> · </span>
-                  {moved.length ? (
-                    moved.map((k, i) => (
-                      <span key={k} className={pv.parts.b[k] > pv.parts.a[k] ? 'text-good' : 'text-bad'}>
-                        {i > 0 && ' '}
-                        {PART_KO[k]} {pv.parts.a[k]}→{pv.parts.b[k]}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-white/60">전력 변화 없음</span>
-                  )}
-                  <span className="text-white/35"> · </span>
-                  <span className={wins >= 0 ? 'text-good' : 'text-bad'}>{winText}</span>
-                </>
-              )}
-              <span className="text-white/35"> · </span>
-              <span className="whitespace-nowrap">
-                현금 {fmtMoney(pv.cash.a)}→<span className={pv.cash.b < 0 ? 'text-bad' : ''}>{fmtMoney(pv.cash.b)}</span>
-              </span>
-              <span className="text-white/35"> · </span>
-              <span className="whitespace-nowrap">
-                연봉 {pv.payroll.b === pv.payroll.a ? '그대로' : signed(pv.payroll.b - pv.payroll.a)}
-              </span>
-              <span className="text-white/35"> · </span>
-              <span className={`whitespace-nowrap ${pv.active.b > ROSTER_MAX ? 'text-bad' : ''}`}>
-                1군 {pv.active.a}→{pv.active.b}/{ROSTER_MAX}
-              </span>
-              {pv.outs.length > 0 && (
-                <div className="truncate text-white/70">
-                  <span className="text-bad">잃는 것 </span>
-                  {pv.outs.map((o) => `${o.p.name} ${o.p.ovr} ${o.role}${o.franchise ? ' ★프랜차이즈' : ''}`).join(' · ')}
-                </div>
-              )}
+              {/* 기본 3줄: 전력 변화(바뀐 칸만) · 연봉 총액 변화 · 현금 변화. 나머지는 [자세히 ▲] */}
+              <div data-testid="sum3-power">
+                <span className="text-white/55">전력 </span>
+                {!pv.exact ? (
+                  <span className="text-white/50">불가 사유가 풀리면 계산</span>
+                ) : moved.length ? (
+                  moved.map((k, i) => (
+                    <span key={k} className={pv.parts.b[k] > pv.parts.a[k] ? 'text-good' : 'text-bad'}>
+                      {i > 0 && ' · '}
+                      {PART_KO[k]} {pv.parts.a[k]}→{pv.parts.b[k]}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-white/60">변화 없음</span>
+                )}
+              </div>
+              <div data-testid="sum3-payroll">
+                <span className="text-white/55">연봉 총액 </span>
+                {pv.payroll.b === pv.payroll.a ? '그대로' : signed(pv.payroll.b - pv.payroll.a)}
+              </div>
+              <div data-testid="sum3-cash">
+                <span className="text-white/55">현금 </span>
+                {fmtMoney(pv.cash.a)} → <span className={pv.cash.b < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(pv.cash.b)}</span>
+              </div>
             </>
           )}
         </div>

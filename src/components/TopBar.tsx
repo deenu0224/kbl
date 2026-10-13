@@ -86,35 +86,11 @@ export default function TopBar() {
         <span className={cash < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(cash)}</span>
         <RunwayWarn className="ml-1 text-[11px]" />
       </Cell>
-      <Cell label="부채">
-        <span className={debt > 0 ? 'text-bad' : 'text-white/60'}>{fmtMoney(debt)}</span>
-      </Cell>
-      <span className="flex max-[1399px]:hidden">
-        <Cell label="연봉 총액">{fmtMoney(pay)}</Cell>
-      </span>
-      <Sep />
-      <Cell label="최근 관중" title="마지막 홈경기 관중">
-        {crowd ? (
-          <>
-            {fmtInt(crowd.attendance)}
-            {crowd.soldOut && <span className="ml-1 text-[10px] text-hi">매진</span>}
-          </>
-        ) : (
-          <span className="text-white/40">-</span>
-        )}
-      </Cell>
-      <Cell label="팬 수">{fmtInt(Math.round(fans))}</Cell>
-      <Cell label="만족도" title={`팬 만족도 ${Math.round(fanSat)}/100`}>
-        <span className="flex items-center gap-1">
-          <span style={{ color: fanSat >= 60 ? '#6ee07a' : fanSat >= 40 ? '#ffd84a' : '#ff6b6b' }}>{Math.round(fanSat)}</span>
-          <span className="w-10">
-            <Bar ratio={fanSat / 100} color={fanSat >= 60 ? '#6ee07a' : fanSat >= 40 ? '#ffd84a' : '#ff6b6b'} h={5} />
-          </span>
-        </span>
-      </Cell>
-      <Cell label="전력">
-        <span style={{ color: ratingColor(str) }}>{Math.round(str)}</span>
-      </Cell>
+      {debt > 0 && (
+        <Cell label="부채">
+          <span className="text-bad">{fmtMoney(debt)}</span>
+        </Cell>
+      )}
       <div className="ml-auto flex items-center gap-1">
         <SoundButton />
         <button className="px-btn !px-2" data-testid="menu" title="설정" aria-label="메뉴: 설정" onClick={() => useUi.getState().setSettingsOpen(true)}>
@@ -161,47 +137,16 @@ export function MobileTopBar() {
 
   return (
     <div className="px-panel relative z-30 flex shrink-0 flex-col land:flex-row">
-      <button className="flex min-w-0 flex-1 cursor-pointer flex-col justify-center gap-0.5 px-2 py-1 text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <div className="flex w-full items-center gap-1.5 text-[13px] leading-tight">
-          <TeamDot team={team} size={14} />
-          <span className="min-w-0 truncate font-pixel-lg text-[14px]" style={{ color: team.color, textShadow: '1px 1px 0 #0f1420' }}>
-            {team.name}
-          </span>
-          <span className="shrink-0 text-[11px] text-white/55">
-            {Math.min(day, total)}/{total}
-          </span>
-          <span className="ml-auto flex shrink-0 items-center gap-1.5">
-            <span className={rank <= 3 ? 'text-hi' : rank >= 7 ? 'text-bad' : ''}>{rank}위</span>
-            <span className="text-white/85">{recText(team.rec)}</span>
-            {Math.abs(streak) >= 2 && (
-              <span className={`text-[11px] ${streak > 0 ? 'text-good' : 'text-bad'}`}>
-                {Math.abs(streak)}
-                {streak > 0 ? '연승' : '연패'}
-              </span>
-            )}
-          </span>
-        </div>
-        <div className="flex w-full items-center gap-2.5 text-[13px] leading-tight">
-          <span>
-            <span className="text-[11px] text-white/50">현금 </span>
-            <span className={cash < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(cash)}</span>
-            <RunwayWarn className="ml-1 text-[12px]" />
-          </span>
-          <span>
-            <span className="text-[11px] text-white/50">팬 </span>
-            {fmtInt(Math.round(fans))}
-          </span>
-          <span className="flex min-w-0 flex-1 items-center gap-1">
-            <span className="shrink-0 text-[11px] text-white/50">만족</span>
-            <span className="shrink-0" style={{ color: satColor }}>
-              {Math.round(fanSat)}
-            </span>
-            <span className="w-full max-w-14 min-w-6">
-              <Bar ratio={fanSat / 100} color={satColor} h={5} />
-            </span>
-          </span>
-          <span className="shrink-0 px-1 text-[16px] text-white/80 mob:!text-[18px]" data-testid="menu">{open ? '▲' : '≡'}</span>
-        </div>
+      {/* 한 줄: 구단 색 점 · 순위 · 전적 · 현금 (자금 경고가 있을 때만 "n경기 뒤 바닥") */}
+      <button className="flex min-h-10 min-w-0 flex-1 cursor-pointer items-center gap-1.5 px-2 py-1 text-left text-[13px] leading-tight" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="m-top">
+        <TeamDot team={team} size={14} />
+        <span className={`shrink-0 font-pixel-lg text-[15px] ${rank <= 3 ? 'text-hi' : rank >= 7 ? 'text-bad' : ''}`}>{rank}위</span>
+        <span className="shrink-0 text-white/85">{recText(team.rec)}</span>
+        <span className="ml-auto flex min-w-0 items-center gap-1">
+          <span className={`shrink-0 text-[14px] ${cash < 0 ? 'text-bad' : 'text-hi'}`}>{fmtMoney(cash)}</span>
+          <RunwayWarn className="truncate text-[12px]" />
+        </span>
+        <span className="shrink-0 px-1 text-[16px] text-white/80 mob:!text-[18px]" data-testid="menu">{open ? '▲' : '≡'}</span>
       </button>
       {/* 캠페인: 세로는 한 줄, 가로는 옆에 두 줄 */}
       <div className="hidden bg-ink/35 por:block" style={{ boxShadow: 'inset 0 2px 0 #0f1420' }}>
@@ -217,7 +162,8 @@ export function MobileTopBar() {
           <div className="px-panel anim-fade absolute inset-x-0 top-full mt-[4px] p-2">
             <div className="mb-1.5 flex items-center gap-2 text-[11px] text-white/55">
               <span className="shrink-0">
-                {team.city} {team.name} · {season}시즌
+                {team.city} {team.name} · {season}시즌 {Math.min(day, total)}/{total}
+                {Math.abs(streak) >= 2 && ` · ${Math.abs(streak)}${streak > 0 ? '연승' : '연패'}`}
               </span>
               <Bar ratio={total ? day / total : 0} color="#7fd3ff" h={6} />
             </div>

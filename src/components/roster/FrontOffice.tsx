@@ -8,6 +8,7 @@ import { fmtMoney } from '../../game/format';
 import { useCore, useStore, useUserTeam } from '../../store';
 import PlayerCard from '../PlayerCard';
 import Dialog from '../layout/Dialog';
+import Help from '../Help';
 import { Bar, OvrBadge, POS_KO, TabBar } from '../ui';
 import Diamond, { RankText, diagSummary, rankTone } from './Diamond';
 import PlayerTable from './PlayerTable';
@@ -84,7 +85,6 @@ function DepthRows({ line, onPick }: { line: DepthLine; onPick: (p: Player) => v
             <span className="ml-1 text-[10px] text-white/45 mob:text-[11px]">본 {POS_KO[s.p.pos]}</span>
           </span>
           <span className="shrink-0 text-right text-[10px] text-white/70 mob:text-[11px]">
-            {line.key.length <= 2 && s.p.kind === 'B' && <span className="text-white">자리 점수 {s.score.toFixed(0)} · </span>}
             {s.p.age}세 · {fmtMoney(s.p.salary)}
           </span>
         </button>
@@ -96,7 +96,7 @@ function DepthRows({ line, onPick }: { line: DepthLine; onPick: (p: Player) => v
 function DiagView({ rows, onCard }: { rows: PosRow[]; onCard: (p: Player) => void }) {
   const core = useCore();
   const freeAgents = useStore((s) => s.freeAgents);
-  const { weak, up } = diagSummary(rows);
+  const { weak } = diagSummary(rows);
   const [sel, setSel] = useState<PosKey | null>(weak[0]?.key ?? null);
   const depth = useMemo(() => depthChart(core, rows), [core, rows]);
   const row = rows.find((r) => r.key === sel);
@@ -105,19 +105,11 @@ function DiagView({ rows, onCard }: { rows: PosRow[]; onCard: (p: Player) => voi
   return (
     <div className="px-scroll flex min-h-0 flex-1 flex-row gap-2 overflow-y-auto p-2 por:flex-col">
       <div className="flex w-[min(54%,calc((100dvh-190px)*1.02))] shrink-0 flex-col gap-1.5 por:w-full">
-        <div className="bg-ink/60 px-1.5 py-1 text-[11px] leading-snug mob:text-[12px]" data-testid="diag-summary">
-          <span className="text-white/60">약점 {weak.length}곳: </span>
-          <span className="text-bad">{weak.length ? weak.map((r) => `${r.label} ${r.rank}위`).join(' · ') : '없음'}</span>
-          {up.length > 0 && (
-            <>
-              <span className="text-white/35"> / </span>
-              <span className="text-white/60">개막 이후 보강: </span>
-              <span className="text-good">{up.map((r) => `${r.label} ${r.rank0}위 → ${r.rank}위`).join(' · ')}</span>
-            </>
-          )}
+        <div className="flex items-center gap-1.5 bg-ink/60 px-1.5 py-1 text-[11px] leading-snug mob:text-[12px]" data-testid="diag-summary">
+          <span className="min-w-0 flex-1 text-white/60">빨간 테두리 = 가장 약한 두 자리. 칸을 누르면 뎁스가 보입니다</span>
+          <Help topic="posRank" />
         </div>
         <Diamond rows={rows} sel={sel} onPick={setSel} />
-        <div className="text-[10px] text-white/45 mob:text-[11px]">칸의 숫자 = 주전의 자리 점수(타격 + 그 자리 수비) · 투수는 OVR 평균 · 순위는 리그 {rows[0]?.of ?? 8}구단 중</div>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1" data-testid="diag-detail">
         {row && line ? (
@@ -126,7 +118,7 @@ function DiagView({ rows, onCard }: { rows: PosRow[]; onCard: (p: Player) => voi
               <span className="font-pixel-lg text-[15px] text-white">{row.label}</span>
               <RankText row={row} className="text-[13px]" />
               <span className="text-[11px] text-white/60">
-                우리 {row.score.toFixed(0)} · 리그 평균 {row.avg.toFixed(0)} ({row.diff >= 0 ? '+' : '−'}{Math.abs(row.diff).toFixed(1)})
+                자리 점수 {row.score.toFixed(0)} · 리그 평균 {row.avg.toFixed(0)}
               </span>
             </div>
             <DepthRows line={line} onPick={onCard} />
@@ -136,7 +128,7 @@ function DiagView({ rows, onCard }: { rows: PosRow[]; onCard: (p: Player) => voi
               </div>
             )}
             <button className="px-btn primary mt-1 mob:min-h-11" disabled={!fas.length} onClick={() => goMarket(sel)} data-testid="go-fa">
-              {fas.length ? `이 자리 FA ${fas.length}명 보기 ▶ (최고 OVR ${fas[0].ovr})` : '이 자리 FA 없음'}
+              {fas.length ? `이 자리 FA ${fas.length}명 보기 ▶` : '이 자리 FA 없음'}
             </button>
           </>
         ) : (

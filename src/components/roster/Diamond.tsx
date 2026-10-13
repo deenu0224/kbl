@@ -16,22 +16,16 @@ export function rankTone(r: Pick<PosRow, 'rank' | 'of'>): 'good' | 'mid' | 'bad'
 const TONE_TEXT = { good: 'text-good', mid: 'text-white/80', bad: 'text-bad' } as const;
 const TONE_BG = { good: '#6ee07a', mid: '#8a95b5', bad: '#ff6b6b' } as const;
 
-/** "8위 → 4위 ▲" (개막 순위와 같으면 "4위") */
-export function RankText({ row, className = '', compact = false }: { row: PosRow; className?: string; compact?: boolean }) {
-  const moved = row.rank0 !== undefined && row.rank0 !== row.rank;
-  return (
-    <span className={`whitespace-nowrap ${TONE_TEXT[rankTone(row)]} ${className}`}>
-      {moved && <span className="text-white/45">{compact ? `${row.rank0}→` : `${row.rank0}위 → `}</span>}
-      {row.rank}위
-      {moved && <span className={row.rank < row.rank0! ? 'text-good' : 'text-bad'}> {row.rank < row.rank0! ? '▲' : '▼'}</span>}
-    </span>
-  );
+/** "4위" — 순위 색만 (개막 대비 변화는 보여 주지 않는다) */
+export function RankText({ row, className = '' }: { row: PosRow; className?: string; compact?: boolean }) {
+  return <span className={`whitespace-nowrap ${TONE_TEXT[rankTone(row)]} ${className}`}>{row.rank}위</span>;
 }
 
 function Cell({ row, sel, flash, onPick, style, className = '' }: { row: PosRow; sel: boolean; flash: boolean; onPick: (k: PosKey) => void; style?: CSSProperties; className?: string }) {
   const tone = rankTone(row);
   const name = row.kind === 'B' ? (row.players[0]?.name ?? '빈 자리') : row.key === 'CP' ? (row.players[0]?.name ?? '없음') : `${row.players.length}명 평균`;
-  const edge = flash ? '#6ee07a' : row.weak ? '#ff6b6b' : sel ? '#ffd84a' : row.strong ? '#6ee07a' : '#0f1420';
+  // 가장 약한 2칸만 빨간 테두리 (라벨 없음)
+  const edge = flash ? '#6ee07a' : row.weak ? '#ff6b6b' : sel ? '#ffd84a' : '#0f1420';
   return (
     <button
       data-pos={row.key}
@@ -39,19 +33,13 @@ function Cell({ row, sel, flash, onPick, style, className = '' }: { row: PosRow;
       data-flash={flash || undefined}
       onClick={() => onPick(row.key)}
       className={`flex cursor-pointer flex-col px-1 py-0.5 text-left leading-tight transition-colors ${flash ? 'bg-good/40' : sel ? 'bg-panel-2' : 'bg-panel/95'} ${className}`}
-      style={{ boxShadow: `0 0 0 ${row.weak || flash ? 3 : sel || row.strong ? 2 : 1}px ${edge}`, ...style }}
+      style={{ boxShadow: `0 0 0 ${row.weak || flash ? 3 : sel ? 2 : 1}px ${edge}`, ...style }}
     >
       <span className="flex items-baseline justify-between gap-1 text-[10px] mob:text-[11px]">
         <span className="text-sky">{row.label}</span>
-        <RankText row={row} compact />
+        <RankText row={row} />
       </span>
       <span className="truncate text-[12px] text-white mob:text-[13px]">{name}</span>
-      <span className="flex items-baseline justify-between gap-1 text-[10px] mob:text-[11px]">
-        <span className={TONE_TEXT[tone]}>
-          {row.score.toFixed(0)} <span className="text-white/45">평균 {row.diff >= 0 ? '+' : '−'}{Math.abs(row.diff).toFixed(0)}</span>
-        </span>
-        {row.weak ? <span className="bg-bad px-1 text-ink">약점</span> : row.strong ? <span className="bg-good px-1 text-ink">강점</span> : null}
-      </span>
     </button>
   );
 }
@@ -95,7 +83,7 @@ export function diagSummary(rows: PosRow[]): { weak: PosRow[]; strong: PosRow[];
   return {
     weak: rows.filter((r) => r.weak).sort((a, b) => b.rank - a.rank),
     strong: rows.filter((r) => r.strong).sort((a, b) => a.rank - b.rank),
-    up: rows.filter((r) => r.rank0 !== undefined && r.rank < r.rank0).sort((a, b) => b.rank0! - b.rank - (a.rank0! - a.rank)),
+    up: [],
   };
 }
 
@@ -107,7 +95,7 @@ const DOT: Record<string, [number, number]> = {
 /** 선수단 탭 상단의 작은 다이아몬드. 탭하면 프런트 오피스(진단)가 전체 화면으로 열린다 */
 export function MiniDiamond({ rows, onOpen }: { rows: PosRow[]; onOpen: () => void }) {
   const flash = useRankFlash(rows);
-  const { weak, strong, up } = diagSummary(rows);
+  const { weak, strong } = diagSummary(rows);
   const dot = (r: PosRow, style: CSSProperties) => {
     const f = flash.includes(r.key);
     return (
@@ -147,12 +135,6 @@ export function MiniDiamond({ rows, onOpen }: { rows: PosRow[]; onOpen: () => vo
           <span className="text-white/55">강점 </span>
           {strong.length ? strong.map((r) => `${r.label} ${r.rank}위`).join(' · ') : '없음'}
         </span>
-        {up.length > 0 && (
-          <span className="truncate text-good">
-            <span className="text-white/55">보강 </span>
-            {up.slice(0, 2).map((r) => `${r.label} ${r.rank0}→${r.rank}위`).join(' · ')}
-          </span>
-        )}
       </span>
       <span className="shrink-0 self-center bg-panel-2 px-1 py-1 text-center text-[10px] leading-tight text-hi mob:px-1.5 mob:text-[11px]">
         크게

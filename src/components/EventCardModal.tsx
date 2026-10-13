@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { EventCard } from '../game/types';
 import { findPlayer, useStore } from '../store';
 import { CHARACTERS } from '../game/story';
@@ -25,6 +26,31 @@ function useSpeaker(card: EventCard): { id: string; name: string; title: string;
   // 유치위원장은 우리 구단 사람이 아니다
   const outsider = card.who === 'suitor';
   return { id: `char-${ch.seed}`, name: ch.name, title: ch.title, color: outsider ? '#56607e' : color, color2: outsider ? '#cfd6ea' : color2, foreign: false };
+}
+
+/** 선택지 설명: 조각(" · ")이 3개를 넘으면 앞 2개만 보이고 "…자세히"로 펼친다 */
+function ChoiceDesc({ desc }: { desc: string }) {
+  const [open, setOpen] = useState(false);
+  const parts = desc.split(' · ');
+  const cut = parts.length > 3 && !open;
+  return (
+    <span className="text-[11px] leading-snug text-white/75 mob:text-[12px]">
+      {cut ? parts.slice(0, 2).join(' · ') : desc}
+      {cut && (
+        <span
+          role="button"
+          data-testid="choice-more"
+          className="ml-1 text-sky underline"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+        >
+          …자세히
+        </span>
+      )}
+    </span>
+  );
 }
 
 function CardBody({ card }: { card: EventCard }) {
@@ -70,7 +96,7 @@ function CardBody({ card }: { card: EventCard }) {
             onClick={() => resolveEvent(i)}
           >
             <span className="text-[13px] leading-tight">{ch.label}</span>
-            {ch.desc && <span className="text-[11px] leading-snug text-white/75">{ch.desc}</span>}
+            {ch.desc && <ChoiceDesc desc={ch.desc} />}
             {ch.disabled && <span className="text-[11px] leading-snug text-[#ffb0b0]">{ch.disabled}</span>}
           </button>
         ))}

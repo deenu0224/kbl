@@ -39,7 +39,19 @@ function loadTips(): Partial<Record<TipId, boolean>> {
   }
 }
 
+const TODO_KEY = 'kbl-todo-dismissed-v1';
+function loadDismissed(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(TODO_KEY) ?? '[]');
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
 interface UiState {
+  dismissed: string[]; // [×]로 닫은 "할 일" id (확인만 하면 되는 항목, localStorage 유지)
+  dismissTodo(id: string): void;
   screen: Screen; // 앱을 열면 항상 초기 화면부터
   hasSave: boolean; // 이어할 세이브가 있는가 (초기 화면의 이어하기)
   settingsOpen: boolean;
@@ -109,6 +121,18 @@ export const useUi = create<UiState>()((set) => ({
   dailyOpen: false,
   chances: {},
   tips: loadTips(),
+  dismissed: loadDismissed(),
+  dismissTodo: (id) =>
+    set((s) => {
+      if (s.dismissed.includes(id)) return s;
+      const dismissed = [...s.dismissed, id].slice(-60);
+      try {
+        localStorage.setItem(TODO_KEY, JSON.stringify(dismissed));
+      } catch {
+        /* 이번 세션만 */
+      }
+      return { dismissed };
+    }),
   setDailyOpen: (dailyOpen) => set({ dailyOpen }),
   setChance: (key, pct) =>
     set((s) => {

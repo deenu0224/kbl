@@ -2,6 +2,10 @@ import type { Campaign, Core, Objective, SeasonRecord } from '../game/types';
 import { useCore, useStore } from '../store';
 import { STAGES, TRUST_MAX, flagForecast, objDisplay } from '../game/campaign';
 import { PAST_RANKS, TITLE_YEARS_AGO } from '../game/story';
+import { useState } from 'react';
+import { fmtInt } from '../game/format';
+import Fold from './Fold';
+import Help from './Help';
 import Dialog from './layout/Dialog';
 import { useUi } from './layout/uiStore';
 import { Bar, SectionTitle, recText } from './ui';
@@ -110,57 +114,79 @@ export function CampaignChip({ line = false, className = '' }: { line?: boolean;
       <span className="truncate">{stageLabel(c.stage)}</span>
     </span>
   );
+  // 도민 지지는 숫자만 (게이지·별 3개는 캠페인 시트에서)
   const trust = (
-    <span className="flex shrink-0 items-center gap-1">
-      <span className="text-[10px] text-white/50">도민 지지</span>
-      <TrustGauge trust={c.trust} w={line ? 28 : 36} />
+    <span className="flex shrink-0 items-center gap-1" data-testid="chip-trust">
+      <span className="text-[10px] text-white/50 mob:text-[11px]">도민 지지</span>
+      <span style={{ color: trustColor(c.trust) }}>{Math.round(c.trust)}</span>
     </span>
   );
+  // 깃발 예측은 뒤처졌을 때만
+  const behind = !fc.ok ? pace : null;
 
   if (line) {
     return (
-      <button className={`flex min-h-10 w-full cursor-pointer items-center gap-2 px-2 text-left text-[13px] leading-tight short:min-h-9 ${className}`} onClick={() => open(true)} aria-label="캠페인">
-        {title}
-        <span className="min-w-6 flex-1">{flagBar}</span>
-        {pace}
-        <StarRow objs={stars} core={core} size={13} />
-        {trust}
-      </button>
+      <div className={`flex w-full items-center pr-1.5 ${className}`}>
+        <button className="flex min-h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 px-2 text-left text-[13px] leading-tight short:min-h-9" onClick={() => open(true)} aria-label="캠페인">
+          {title}
+          <span className="min-w-6 flex-1">{flagBar}</span>
+          {behind}
+          {trust}
+        </button>
+        <Help topic="trust" />
+      </div>
     );
   }
   return (
-    <button className={`flex min-w-0 cursor-pointer flex-col justify-center gap-[3px] px-2 text-left text-[12px] leading-tight mob:min-h-10 mob:text-[13px] ${className}`} onClick={() => open(true)} aria-label="캠페인">
-      <span className="flex w-full items-center justify-between gap-2">
-        {title}
-        <StarRow objs={stars} core={core} size={12} />
-      </span>
-      <span className="flex w-full items-center gap-2">
-        <span className="min-w-6 flex-1">{flagBar}</span>
-        {pace}
-        {/* 깃발 예측과 도민 지지는 다른 이야기다 — 가는 세로선으로 띄운다 */}
-        {pace && <span className="h-3 w-px shrink-0 bg-white/25" />}
-        {trust}
-      </span>
-    </button>
+    <div className={`flex min-w-0 items-center ${className}`}>
+      <button className="flex min-w-0 flex-1 cursor-pointer flex-col justify-center gap-[3px] self-stretch px-2 text-left text-[12px] leading-tight mob:min-h-10 mob:text-[13px]" onClick={() => open(true)} aria-label="캠페인">
+        <span className="flex w-full items-center justify-between gap-2">
+          {title}
+          {trust}
+        </span>
+        <span className="flex w-full items-center gap-2">
+          <span className="min-w-6 flex-1">{flagBar}</span>
+          {behind}
+        </span>
+      </button>
+      <Help topic="trust" className="mr-1" />
+    </div>
   );
 }
 
 // ───────── 캠페인 시트 ─────────
 
+/** 깃발 = 한 줄 + 막대. 별 = 문장과 달성 표시만, 진행 수치는 탭하면 */
 function ObjRow({ o, core, flag }: { o: Objective; core: Core; flag?: boolean }) {
   const d = objDisplay(core, o);
+  const [open, setOpen] = useState(false);
   const c = o.state === 'failed' ? '#6b7694' : d.met ? '#6ee07a' : flag ? '#ffd84a' : '#7fd3ff';
-  return (
-    <div className="bg-ink/50 px-2 py-1.5">
-      <div className="flex items-center gap-1.5 text-[12px] mob:text-[13px]">
-        {flag ? <Flag size={13} color={c} /> : <Star o={o} met={d.met} />}
-        <span className={`min-w-0 flex-1 ${o.state === 'failed' ? 'text-white/45' : ''}`}>{o.text}</span>
-        <span className="shrink-0 text-[11px] text-white/70">
-          {d.cur} <span className="text-white/40">/ {d.target}</span>
-        </span>
+  const num = (
+    <span className="shrink-0 text-[11px] text-white/70 mob:text-[12px]">
+      {d.cur} <span className="text-white/40">/ {d.target}</span>
+    </span>
+  );
+  if (flag) {
+    return (
+      <div className="bg-ink/50 px-2 py-1.5" data-testid="obj-flag">
+        <div className="flex items-center gap-1.5 text-[12px] mob:text-[13px]">
+          <Flag size={13} color={c} />
+          <span className="min-w-0 flex-1">{o.text}</span>
+          {num}
+        </div>
+        <Bar ratio={d.ratio} color={c} h={7} className="mt-1" />
       </div>
-      <Bar ratio={d.ratio} color={c} h={flag ? 7 : 5} className="mt-1" />
-    </div>
+    );
+  }
+  return (
+    <button type="button" className="w-full cursor-pointer bg-ink/50 px-2 py-1.5 text-left mob:min-h-10" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="obj-star">
+      <div className="flex items-center gap-1.5 text-[12px] mob:text-[13px]">
+        <Star o={o} met={d.met} />
+        <span className={`min-w-0 flex-1 ${o.state === 'failed' ? 'text-white/45' : ''}`}>{o.text}</span>
+        {open ? num : <span className={`shrink-0 text-[11px] ${d.met ? 'text-good' : 'text-white/35'}`}>{o.state === 'done' ? '달성' : d.met ? '충족 중' : '▾'}</span>}
+      </div>
+      {open && <Bar ratio={d.ratio} color={c} h={5} className="mt-1" />}
+    </button>
   );
 }
 
@@ -236,6 +262,7 @@ export function CampaignSheet() {
   if (!isOpen) return null;
   const history = c.history ?? [];
   const retired = c.retired ?? [];
+  const fc = flagForecast(core);
 
   return (
     <Dialog onClose={() => setOpen(false)} label="캠페인">
@@ -246,15 +273,19 @@ export function CampaignSheet() {
         <div className="flex shrink-0 items-center gap-1 text-[12px]">
           <span className="text-[11px] text-white/50">도민 지지</span>
           <TrustGauge trust={c.trust} w={64} h={7} />
+          <Help topic="trust" />
         </div>
       </div>
-      {c.opening && <div className="mt-1 text-[12px] leading-snug text-white/75 mob:text-[13px]">“{c.opening}”</div>}
 
       <div className="mt-2 flex flex-col gap-[3px]">
+        <div className="flex items-center justify-between px-0.5 text-[11px] text-white/55 mob:text-[12px]">
+          <span>이번 시즌 목표</span>
+          <Help topic="flag" />
+        </div>
         {main && <ObjRow o={main} core={core} flag />}
-        {main && flagForecast(core).text !== '—' && (
-          <div className={`px-1 text-[12px] leading-snug mob:text-[13px] ${flagForecast(core).ok ? 'text-good' : 'text-white/85'}`} data-testid="sheet-forecast">
-            {flagForecast(core).text}
+        {main && fc.text !== '—' && !fc.ok && (
+          <div className="px-1 text-[12px] leading-snug text-white/85 mob:text-[13px]" data-testid="sheet-forecast">
+            {fc.text}
           </div>
         )}
         {stars.map((o) => (
@@ -262,30 +293,35 @@ export function CampaignSheet() {
         ))}
       </div>
 
-      <SectionTitle>걸어온 길</SectionTitle>
-      <StageTrail stage={c.stage} />
-
-      <SectionTitle
-        right={
-          <span className="flex items-center gap-1 text-white/50">
-            <Flag size={10} color="#b9a36a" faded />
-            {TITLE_YEARS_AGO}시즌 전
-            {Array.from({ length: Math.min(5, c.titles ?? 0) }, (_, i) => (
-              <Flag key={i} size={10} />
-            ))}
-          </span>
-        }
-      >
-        구단사
-      </SectionTitle>
-      <Chronicle history={history} />
-
-      {retired.length > 0 && (
-        <>
-          <SectionTitle>영구결번</SectionTitle>
-          <Retired list={retired} />
-        </>
-      )}
+      <div className="mt-2 flex flex-col gap-[3px]">
+        <Fold label="팬 · 걸어온 길" testid="fold-trail">
+          <div className="mb-1 bg-ink/50 px-2 py-1.5 text-[12px] mob:text-[13px]">
+            팬 <span className="text-hi">{fmtInt(Math.round(core.fans))}</span>명 · 만족도 <span className="text-hi">{Math.round(core.fanSat)}</span>/100
+          </div>
+          {c.opening && <div className="mb-1 px-1 text-[12px] leading-snug text-white/75 mob:text-[13px]">“{c.opening}”</div>}
+          <StageTrail stage={c.stage} />
+        </Fold>
+        <Fold
+          testid="fold-history"
+          label={
+            <span className="flex items-center gap-1">
+              구단사
+              <Flag size={10} color="#b9a36a" faded />
+              <span className="text-white/45">{TITLE_YEARS_AGO}시즌 전</span>
+              {Array.from({ length: Math.min(5, c.titles ?? 0) }, (_, i) => (
+                <Flag key={i} size={10} />
+              ))}
+            </span>
+          }
+        >
+          <Chronicle history={history} />
+        </Fold>
+        {retired.length > 0 && (
+          <Fold label={`영구결번 ${retired.length}`} testid="fold-retired">
+            <Retired list={retired} />
+          </Fold>
+        )}
+      </div>
     </Dialog>
   );
 }

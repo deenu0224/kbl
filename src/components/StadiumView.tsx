@@ -292,16 +292,16 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                   className="absolute bottom-[4%] left-1/2 -translate-x-1/2 whitespace-nowrap text-center"
                   style={{ ...chip, fontSize: 'max(1.9cqw, 13px)', padding: '3px 6px', color: '#fff', lineHeight: 1.2 }}
                 >
-                  {FAC_KO[k]} Lv{facilities[k] + 1}{' '}
-                  {cost != null ? <span style={{ color: '#ffd84a' }}>▲{fmtMoney(cost)}</span> : <span style={{ color: '#6ee07a' }}>MAX</span>}
+                  {FAC_KO[k]} Lv{facilities[k] + 1}
+                  {cost == null && <span style={{ color: '#6ee07a' }}> MAX</span>}
                 </span>
               ) : (
                 <span
                   className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap opacity-0 group-hover:opacity-100"
                   style={{ ...chip, bottom: '100%', marginBottom: '0.6cqw', color: '#fff', fontSize: '1.5cqw' }}
                 >
-                  {FAC_KO[k]} Lv{facilities[k] + 1}{' '}
-                  {cost != null ? <span style={{ color: '#ffd84a' }}>▲{fmtMoney(cost)}</span> : <span style={{ color: '#6ee07a' }}>MAX</span>}
+                  {FAC_KO[k]} Lv{facilities[k] + 1}
+                  {cost == null && <span style={{ color: '#6ee07a' }}> MAX</span>}
                 </span>
               )}
               {built && fxUp && (
@@ -332,16 +332,13 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             <>
               <span>
                 관중 <span className="text-hi">{fmtInt(shownCrowd.attendance)}</span>
-                {/* 매진이면 정원은 생략한다 — 폰에서 "매진!"·🚶 숫자가 간판스타 칩과 겹치지 않게 */}
-                {!shownCrowd.soldOut && <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>}
+                <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>
               </span>
               {shownCrowd.soldOut && (
                 <span className="anim-blink font-pixel-lg shrink-0" style={{ color: '#ff6b6b' }}>
                   매진!
                 </span>
               )}
-              {/* 디오라마의 게이트 밖 줄은 폰에서 작다 — 발길 돌린 팬 수를 함께 적는다 */}
-              {shownCrowd.turnedAway > 0 && <span className="shrink-0" style={{ color: '#ffb38a' }}>🚶 +{fmtInt(shownCrowd.turnedAway)}</span>}
             </>
           ) : (
             <span className="text-white/70">좌석 {fmtInt(cap)}석 · 개막 대기</span>
@@ -350,14 +347,6 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           {report?.post && <span className="text-hi">{report.post.name}</span>}
           {mobile && !away && <span className="text-hi">티켓 ▸</span>}
         </button>
-
-        {/* 간판스타 칩 */}
-        {star && !away && (
-          <div className="pointer-events-none absolute" style={{ ...chipM, right: '1.2cqw', top: '1.2cqw' }}>
-            <span className="text-white/55">간판스타 </span>
-            <span className="text-hi">★ {star.name}</span>
-          </div>
-        )}
 
         {/* 하이라이트 배너 */}
         {report && ev && (

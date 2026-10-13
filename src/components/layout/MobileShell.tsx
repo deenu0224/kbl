@@ -1,5 +1,4 @@
 import { useEffect, useMemo, type ReactNode } from 'react';
-import type { HintTab } from '../../game/types';
 import { useStore, userMatch, useUserTeam } from '../../store';
 import { MobileActionBar, PreGame, useMatchActions } from '../BottomBar';
 import GameSummary from '../GameSummary';
@@ -12,9 +11,10 @@ import { FinanceTab, LeagueTab, NewsTab, StadiumTab, useHintTabs } from '../Righ
 import StadiumView from '../StadiumView';
 import { MobileTopBar, RunwayWarn } from '../TopBar';
 import { CampaignChip } from '../Campaign';
+import { TodoCard, TodoLines } from '../Todo';
 import { useWinChance } from '../useWinChance';
 import { TabBar, TeamDot } from '../ui';
-import MobileNav from './MobileNav';
+import MobileNav, { TAB_TODO } from './MobileNav';
 import Sheet from './Sheet';
 import { tripInfo } from './away';
 import { useUi, type ClubSub, type RosterSub } from './uiStore';
@@ -29,16 +29,11 @@ const CLUB_SUBS: { id: ClubSub; label: string }[] = [
   { id: 'news', label: '뉴스' },
 ];
 
-const TONE = { good: 'text-good', bad: 'text-bad', info: 'text-white/80' } as const;
-
-/** 홈 탭의 "오늘" 카드 스택: 다음 경기 · 깃발 진행 · 최근 소식 2줄 */
+/** 홈 탭: "다음 경기" 카드 1장 + "할 일" 카드 (없으면 숨김) */
 function TodayCards() {
   const { next, opp, inPost, when, idle } = useMatchActions();
-  const news = useStore((s) => s.news);
-  const setTab = useUi((s) => s.setTab);
-  const setClubSub = useUi((s) => s.setClubSub);
   return (
-    <div className="px-scroll flex min-h-0 flex-1 flex-col gap-[4px] overflow-y-auto" data-testid="today">
+    <div className="flex shrink-0 flex-col gap-[4px] land:min-h-0 land:flex-1 land:overflow-y-auto" data-testid="today">
       <div className="px-panel flex min-h-12 shrink-0 items-center gap-2 px-2 py-1.5">
         {next && opp ? (
           <>
@@ -46,10 +41,7 @@ function TodayCards() {
             <TeamDot team={opp} size={16} />
             <span className="min-w-0 flex-1 leading-tight">
               <span className="block truncate font-pixel-lg text-[16px]">vs {opp.name}</span>
-              <span className={`block truncate text-[13px] ${inPost ? 'text-hi' : 'text-white/55'}`}>
-                {when}
-                {!inPost && ` · 상대 ${opp.rec.w}승 ${opp.rec.l}패`}
-              </span>
+              <span className={`block truncate text-[13px] ${inPost ? 'text-hi' : 'text-white/55'}`}>{when}</span>
             </span>
             <span className="flex shrink-0 flex-col items-end gap-1">
               <PreGame short />
@@ -59,27 +51,7 @@ function TodayCards() {
           <span className="text-[13px] text-white/60">{idle}</span>
         )}
       </div>
-      <div className="px-panel shrink-0 por:hidden">
-        <CampaignChip className="w-full" />
-      </div>
-      <button
-        className="px-panel flex min-h-12 shrink-0 cursor-pointer flex-col justify-center gap-1 px-2 py-1.5 text-left"
-        data-sfx="tab"
-        onClick={() => {
-          setClubSub('news');
-          setTab('club');
-        }}
-      >
-        {news.length ? (
-          news.slice(0, 2).map((n) => (
-            <span key={n.id} className={`line-clamp-2 text-[13px] leading-snug ${TONE[n.tone]}`}>
-              · {n.text}
-            </span>
-          ))
-        ) : (
-          <span className="text-[13px] text-white/50">아직 소식이 없습니다</span>
-        )}
-      </button>
+      <TodoCard />
     </div>
   );
 }
@@ -91,20 +63,14 @@ function MobilePanel() {
   const clubSub = useUi((s) => s.clubSub);
   const setRosterSub = useUi((s) => s.setRosterSub);
   const setClubSub = useUi((s) => s.setClubSub);
-  const clearHint = useStore((s) => s.clearHint);
-  // 지금 보이는 하위 탭의 배지는 지운다
-  const active: HintTab | null = tab === 'home' ? null : tab === 'roster' ? (rosterSub === 'farm' ? 'lineup' : rosterSub) : tab === 'club' ? clubSub : tab;
   const nFarm = useStore((s) => (s.teams.find((t) => t.id === s.userId)?.roster ?? []).filter((p) => p.farm).length);
-  const rosterTabs: { id: RosterSub; label: string; badge?: ReactNode }[] = [...useHintTabs(ROSTER_SUBS, tab === 'roster' && rosterSub !== 'farm' ? rosterSub : null), { id: 'farm', label: `2군 ${nFarm}/${FARM_MAX}` }];
-  const clubTabs = useHintTabs(CLUB_SUBS, tab === 'club' ? clubSub : null);
-  const activeN = useStore((s) => (active ? (s.campaign.hints?.[active] ?? 0) : 0));
-  useEffect(() => {
-    if (active && activeN > 0) clearHint(active);
-  }, [active, activeN, clearHint]);
+  const rosterTabs: { id: RosterSub; label: string; badge?: ReactNode }[] = [...useHintTabs(ROSTER_SUBS), { id: 'farm', label: `2군 ${nFarm}/${FARM_MAX}` }];
+  const clubTabs = useHintTabs(CLUB_SUBS);
 
   if (tab === 'home') return <TodayCards />;
   return (
     <div className="px-panel m-shell flex min-h-0 flex-1 flex-col" data-testid="m-panel">
+      <TodoLines tab={TAB_TODO[tab]} className="p-1 pb-0" />
       {tab === 'roster' && (
         <>
           <TabBar tabs={rosterTabs} value={rosterSub} onChange={setRosterSub} />
@@ -264,7 +230,8 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
       {home && (
         <>
           {!playback && <TripLine />}
-          <div className="relative w-full shrink-0" style={{ height: playback ? '65dvh' : '57dvh' }} data-testid="stadium-box">
+          {/* 구장이 남는 높이를 채운다: 다음 경기·할 일 카드는 제 높이만큼만 */}
+          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[34dvh] flex-1'}`} style={playback ? { height: '65dvh' } : undefined} data-testid="stadium-box">
             <div className="absolute inset-0">
               <StadiumView pan />
             </div>
