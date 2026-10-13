@@ -245,7 +245,9 @@ function marketingOffer(core: Core): Cand | null {
       const add = lv.cap - SEAT_LV[core.facilities.seats].cap;
       const r = upgradeFacility(core, 'seats');
       const then = perGame(r.core);
-      if (passGate(now, then)) return offer(
+      // 증축으로 금고가 20경기 안에 비게 되면 들고 오지 않는다
+      const out = runway(r.core).cashOut;
+      if (passGate(now, then) && !(out !== null && out <= SIGN_RUNWAY_MIN)) return offer(
         45,
         'seats',
         'gate',

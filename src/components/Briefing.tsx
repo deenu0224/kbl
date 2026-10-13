@@ -307,7 +307,7 @@ function DetailSheet({ o, r, mobile, onClose }: { o?: BriefOffer; r?: BriefResul
     );
   }
   return (
-    <div className="fixed inset-0 z-[37] flex items-center justify-center bg-ink/70 p-3 font-pixel text-[12px] select-none" role="dialog" aria-label="제안 상세" data-testid="brief-detail">
+    <div className="fixed inset-0 z-[37] flex items-center justify-center bg-ink/95 p-3 font-pixel text-[12px] select-none" role="dialog" aria-label="제안 상세" data-testid="brief-detail">
       <div className="px-panel anim-pop flex max-h-[min(720px,100%)] w-full max-w-[520px] flex-col">{body}</div>
     </div>
   );

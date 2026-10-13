@@ -136,7 +136,7 @@ export default function StadiumView() {
   const evTeam = ev ? teams.find((t) => t.id === ev.teamId) : undefined;
   // 득점 장면은 왼쪽 띠로 편을 가른다: 우리 팀 초록, 상대 빨강
   const scoreEv = ev?.type === 'hr' || ev?.type === 'score' || ev?.type === 'walkoff';
-  const band = scoreEv ? `, inset 0.9cqw 0 0 ${mineEv ? '#6ee07a' : '#ff6b6b'}` : '';
+  const band = scoreEv ? `max(1.2cqw, 6px) solid ${mineEv ? '#6ee07a' : '#ff6b6b'}` : undefined;
   const tagged = !!ev && ev.type !== 'start' && ev.type !== 'final';
 
   return (
@@ -280,7 +280,8 @@ export default function StadiumView() {
               className="anim-pop text-center"
               style={{
                 background: 'rgba(15,20,32,.82)',
-                boxShadow: `0 0 0 0.3cqw ${mineEv ? user.color : '#0f1420'}, 0 0.8cqw 0 rgba(0,0,0,.25)${band}`,
+                boxShadow: `0 0 0 0.3cqw ${mineEv ? user.color : '#0f1420'}, 0 0.8cqw 0 rgba(0,0,0,.25)`,
+                borderLeft: band,
                 padding: '1.2cqw 3cqw',
                 maxWidth: mobile ? '92%' : '80%',
               }}
