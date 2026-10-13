@@ -62,17 +62,22 @@ export const SCREENS = [
   S('title-hof', 'over', st(['open-hof'])),
   S('title-hof-empty', null, st(['open-hof'])),
   // 도전 링크(?l=시드)로 연 초기 화면: 세이브 없음 · 있음 · [같은 리그로 시작] 뒤
-  S('title-challenge', null, [], { query: '?l=lz3k9f2a' }),
-  S('title-challenge-save', 'opened', [], { query: '?l=lz3k9f2a' }),
-  S('title-challenge-nick', null, st(['challenge-start']), { query: '?l=lz3k9f2a' }),
-  S('title-challenge-overwrite', 'opened', st(['challenge-start']), { query: '?l=lz3k9f2a' }),
+  S('title-challenge', null, [], { query: '?l=lz3k9f2a&from=w6' }),
+  S('title-challenge-over', null, [], { query: '?l=lz3k9f2a&from=x4' }),
+  S('title-challenge-plain', null, [], { query: '?l=lz3k9f2a' }),
+  S('title-challenge-save', 'opened', [], { query: '?l=lz3k9f2a&from=p3-post' }),
+  S('title-challenge-nick', null, st(['challenge-start']), { query: '?l=lz3k9f2a&from=w6' }),
+  S('title-challenge-overwrite', 'opened', st(['challenge-start']), { query: '?l=lz3k9f2a&from=w6' }),
 
   // ── 공유 시트 (결산 · 우승 엔딩 · 연고 이전 · 명예의 전당의 역대 구단 줄)
+
   S('share-ended', 'ended', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
   S('share-ended-fail', 'endedFail', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
   S('share-ending', 'ending', game('share-open', { wait: 900 })),
   S('share-over', 'over', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
   S('share-hof', 'over', st(['open-hof', 'share-club', { wait: 900 }])),
+  S('share-text', 'ended', game({ scroll: 'bottom' }, 'share-open', { wait: 900 }, 'share-text-toggle')),
+  S('share-note', 'ended', game({ scroll: 'bottom' }, 'share-open', { wait: 900 }, { fill: 'share-note-input', text: '답답해서 내가 해 봤다. 3년 걸렸다' }, 'share-text-toggle')),
   S('share-copied', 'ended', game({ scroll: 'bottom' }, 'share-open', { wait: 900 }, 'share-copy')),
 
   // ── 개막전 오더 (선수단 화면 + 감독 대사 + [오더 제출])

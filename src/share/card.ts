@@ -141,11 +141,6 @@ function line(ctx: Ctx, text: string, family: Family, sizes: number[], x: number
   ctx.textAlign = 'left';
   return s;
 }
-const widthOf = (ctx: Ctx, text: string, family: Family, size: number): number => {
-  ctx.font = `${size}px ${family}`;
-  return ctx.measureText(text).width;
-};
-
 function box(ctx: Ctx, x: number, y: number, w: number, h: number, fill: string, edge = INK, t = 4): void {
   ctx.fillStyle = edge;
   ctx.fillRect(x - t, y - t, w + t * 2, h + t * 2);
@@ -183,24 +178,25 @@ interface MapCell {
  * 시즌 지도: 한 칸 = 한 시즌, 색 = 순위, 우승은 금색 테두리. 부임 전 다섯 시즌은 속이 빈 칸으로 앞에 둔다.
  * (경기별 승패 기록은 세이브에 남지 않아, 시즌이 적을 때도 승패 칸 대신 이 지도를 쓴다)
  */
-function seasonMap(ctx: Ctx, cells: MapCell[], x: number, y: number, maxW: number, maxRows: number, sizes = [66, 55, 44, 33]): number {
+function seasonMap(ctx: Ctx, cells: MapCell[], x: number, y: number, maxW: number, maxH: number, sizes = [66, 55, 44, 33]): void {
   const gap = 6;
-  const size = sizes.find((s) => Math.ceil(cells.length / Math.floor((maxW + gap) / (s + gap))) <= maxRows) ?? sizes[sizes.length - 1];
-  const per = Math.floor((maxW + gap) / (size + gap));
-  const shown = cells.slice(-per * maxRows);
-  const fs = size >= 44 ? 22 : 11;
+  const perOf = (s: number) => Math.floor((maxW + gap) / (s + gap));
+  const rowsOf = (s: number) => Math.floor((maxH + gap) / (s + gap));
+  const size = sizes.find((s) => perOf(s) * rowsOf(s) >= cells.length) ?? sizes[sizes.length - 1];
+  const per = perOf(size);
+  const shown = cells.slice(-per * rowsOf(size));
+  const fs = size >= 66 ? 33 : 22;
   shown.forEach((c, i) => {
     const cx = x + (i % per) * (size + gap);
     const cy = y + Math.floor(i / per) * (size + gap);
     const col = rankColor(c.rank);
     ctx.fillStyle = c.champ ? GOLD : c.gone ? RED : c.past ? col : INK;
     ctx.fillRect(cx, cy, size, size);
-    const t = c.champ ? 6 : c.past ? 3 : 3;
+    const t = c.champ ? 6 : 3;
     ctx.fillStyle = c.past ? SHEET : col;
     ctx.fillRect(cx + t, cy + t, size - t * 2, size - t * 2);
-    if (size >= 33) line(ctx, String(c.rank), 'Galmuri11', [fs], cx + size / 2, cy + (size - fs) / 2 - 1, c.past ? MUTE : c.rank <= 3 ? '#ffffff' : INK, size, 'center');
+    line(ctx, String(c.rank), 'Galmuri11', [fs], cx + size / 2, cy + (size - fs) / 2 - 1, c.past ? MUTE : c.rank <= 3 ? '#ffffff' : INK, size, 'center');
   });
-  return Math.ceil(shown.length / per) * (size + gap) - gap;
 }
 
 const cellsOf = (ranks: number[], champs: number[], gone: boolean): MapCell[] => [
@@ -269,7 +265,7 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
   const mapW = 500;
   line(ctx, '시즌 지도', 'Galmuri11', [22], PAD, by, GREEN, mapW);
   line(ctx, '빈 칸 = 부임 전', 'Galmuri11', [22], PAD + mapW, by, MUTE, 300, 'right');
-  seasonMap(ctx, cellsOf(r.ranks, r.champs, gone), PAD, by + 36, mapW, 3);
+  seasonMap(ctx, cellsOf(r.ranks, r.champs, gone), PAD, by + 36, mapW, 180);
 
   const px = PAD + mapW + 44;
   const pw = CARD_W - PAD - px;
@@ -345,6 +341,7 @@ export async function renderOgFor(code: string): Promise<Blob> {
   line(ctx, info.lead, 'Galmuri14', [42], x, 106, INK, lw);
   const bs = 168;
   line(ctx, info.big, 'Galmuri14', [bs], x - 6, 168, accent, lw);
+  line(ctx, info.big, 'Galmuri14', [bs], x - 6 + bs / 14, 168, accent, lw); // 한 픽셀 옆에 한 번 더 찍어 굵게
   line(ctx, info.tail.replace(/^[,\s]+/, ''), 'Galmuri14', [56, 42], x, 360, INK, lw);
   line(ctx, info.ask, 'Galmuri11', [33], x, 478, GREEN, lw);
   line(ctx, SHARE_HOST, 'Galmuri11', [22], x, 540, MUTE, lw);
@@ -357,7 +354,7 @@ export async function renderOgFor(code: string): Promise<Blob> {
   const my = 80 + MINI_H + 26;
   line(ctx, '시즌 지도', 'Galmuri11', [22], cx + 24, my, GREEN, 200);
   line(ctx, '빈 칸 = 부임 전', 'Galmuri11', [22], cx + cw - 24, my, MUTE, 200, 'right');
-  seasonMap(ctx, cellsOf(typicalRanks(info), info.type === 'w' ? [info.n] : [], gone), cx + 24, my + 36, MINI_W, 4, [44, 33]);
+  seasonMap(ctx, cellsOf(typicalRanks(info), info.type === 'w' ? [info.n] : [], gone), cx + 24, my + 36, MINI_W, OG_H - 56 - 24 - (my + 36), [66, 44, 33]);
   return toBlob(c);
 }
 
@@ -385,7 +382,7 @@ export async function renderOg(): Promise<Blob> {
   const cx = OG_W - 64 - (MINI_W + 48);
   box(ctx, cx, 150, MINI_W + 48, MINI_H + 48 + 96, SHEET);
   miniStadium(ctx, { ...clubScene({ seed: 0, nick: DEF.name, seasons: 0, ranks: [], titles: 0, stage: 0, stars: 0, end: 'abandoned', date: '' }), fill: 0.2 }, cx + 24, 174);
-  seasonMap(ctx, cellsOf([], [], false), cx + 24, 174 + MINI_H + 28, MINI_W, 1, [55]);
+  seasonMap(ctx, cellsOf([], [], false), cx + 24, 174 + MINI_H + 28, MINI_W, 60, [55]);
   return toBlob(c);
 }
 
