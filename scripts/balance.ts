@@ -147,6 +147,12 @@ function summarize(start: Core, end: Core): Summary {
   };
 }
 
+// 홈 이점 실측: 리그 전체 홈 승률, 유저 구단의 원정 승률 (원정 응원단 economy.awaySupport 의 영향 확인용)
+const HOME = { w: 0, n: 0, uaw: 0, uan: 0 };
+process.on('exit', () => {
+  if (HOME.n) console.log(`\n홈 이점: 리그 전체 홈 승률 ${(HOME.w / HOME.n).toFixed(3)} (${HOME.n}경기, KBO 약 .52) · 유저 구단 원정 승률 ${(HOME.uaw / Math.max(1, HOME.uan)).toFixed(3)} (${HOME.uan}경기) · 원정 응원단: 팬 5,000 에서 0 → 30,000 에서 홈 이점 35% 상쇄`);
+});
+
 /** 시즌을 돌리면서 매진·입장 못한 팬을 직접 집계 */
 function play(core: Core, seed: number, start: Core = core, fixed = false): Summary {
   const rng = mulberry32(seed * 7919 + 13);
@@ -164,6 +170,21 @@ function play(core: Core, seed: number, start: Core = core, fixed = false): Summ
     const { core: next, report } = advanceDay(c, rng);
     if (report.crowd?.soldOut) sellouts++;
     turnedAway += report.crowd?.turnedAway ?? 0;
+    // 홈 승률 (무승부 제외): 리그 전체 / 유저 구단의 원정 경기
+    if (report.result && report.won !== null && report.won !== undefined) {
+      const homeWon = report.isHome ? report.won : !report.won;
+      HOME.w += homeWon ? 1 : 0;
+      HOME.n++;
+      if (!report.isHome) {
+        HOME.uaw += report.won ? 1 : 0;
+        HOME.uan++;
+      }
+    }
+    for (const o of report.others) {
+      if (o.home === o.away) continue;
+      HOME.w += o.home > o.away ? 1 : 0;
+      HOME.n++;
+    }
     c = next;
   }
   const s = summarize(start, c);
