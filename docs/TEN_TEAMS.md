@@ -299,7 +299,7 @@ sensible 장별 (수정 후): 깃발 0장 73% · 1장 100% · 2장 67% · 3장 5
 | `npm run balance` | 위 표 (리그 환경 목표 안) |
 | `npm run economy` | 완주 |
 | `npm run achv -- 2 6` | 목록 검사·판정 예외 0건 |
-| `TEAMS=8 npx tsx scripts/campaign.ts 6 8 0 0` | 수정 전 출력과 지표 전부 일치 (다른 줄은 목표 표시 문구 4줄 + 새 표시 줄 1개뿐) |
+| `TEAMS=8 npx tsx scripts/campaign.ts 6 8 0 0` | 수정 전 출력과 지표 전부 일치 (다른 줄은 목표 표시 문구 3줄 + 새 표시 줄 2개뿐) |
 | `TEAMS=8 npm run balance` | 수정 전 출력과 일치 |
 
 ## 3-6. 못 한 것 · 넘기는 일
