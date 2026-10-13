@@ -315,13 +315,12 @@ wildcardFixtures();
     const p = stepDay(base, rng);
     if (p.phase === 'post' && quiet(p)) found.eightPost = { core: structuredClone(p), seed: 8, bot: '8구단 forced 4위' };
   }
-  // 옛 세이브처럼: 구단 이름은 그때 이름 그대로, 용인(YIN)의 id 는 HAN (세이브는 migrate 로 이름·id 를 바꾸지 않는다)
-  const OLD: Record<string, [string, string]> = { SEL: ['서울', '스카이라인즈'], YIN: ['한강', '그리폰즈'], BUS: ['부산', '씨호크스'], DGU: ['대구', '썬더킹스'], GWJ: ['광주', '레드폭스'], DJN: ['대전', '팰컨스'] };
+  // 옛 세이브처럼: 구단 이름은 그때 이름 그대로 (세이브는 migrate 로 이름·id 를 바꾸지 않는다)
+  const OLD: Record<string, [string, string]> = { SEL: ['서울', '스카이라인즈'], HAN: ['한강', '그리폰즈'], BUS: ['부산', '씨호크스'], DGU: ['대구', '썬더킹스'], GWJ: ['광주', '레드폭스'], DJN: ['대전', '팰컨스'] };
   for (const k of ['eight', 'eightPost']) {
     const f = found[k];
     if (!f) continue;
     for (const t of f.core.teams) if (OLD[t.id]) [t.city, t.name] = OLD[t.id];
-    f.core = JSON.parse(JSON.stringify(f.core).replaceAll('"YIN"', '"HAN"')) as Core;
   }
 }
 
