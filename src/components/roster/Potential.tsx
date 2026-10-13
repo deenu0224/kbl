@@ -39,13 +39,13 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
           </div>
           <div className={line}>
             <span className={key}>뜻</span>
-            <span className="text-white/70">잠재력 = 자랄 수 있는 OVR 상한. 지금 OVR {p.ovr}</span>
+            <span className="text-white/70">잠재력 = 자랄 수 있는 오버롤 상한. 지금 오버롤 {p.ovr}</span>
           </div>
         </div>
       ) : (
         <>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-white/60">잠재력 <span className="text-white/40">(성장 상한 OVR)</span></span>
+            <span className="text-white/60">잠재력 <span className="text-white/40">(성장 상한 오버롤)</span></span>
             <span data-testid="pot-bar">
               <span style={{ color: ratingColor(p.ovr) }}>{p.ovr}</span> → <span style={{ color: ratingColor(p.pot) }}>{p.pot}</span>
               <span className={g.room > 0 ? 'text-good' : 'text-white/45'}> · 여지 +{g.room}</span>
@@ -63,7 +63,7 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
           {g.trains || prospect ? (
             <span>
               {who}{g.maxAge}세 이하 · 여지가 있으면 {g.week}경기마다 훈련. {g.facility}에서 주당 <span className="text-hi">{pct(prospect ? g.base : g.chance)}</span> 확률로 능력치 +1~2 와 +1
-              {g.capped ? <span className="text-bad"> (2군 상한 OVR {g.farmCap} 도달 — 1군에서만 더 자란다)</span> : g.farm ? <span className="text-good"> (2군 실전{p.kind === 'B' ? ' · 타자는 +2~3 · +1~2 · +1' : ''})</span> : g.playing ? <span className="text-good"> ({g.playAge}세 이하 주전 ×{g.playMult})</span> : g.mine && p.age <= g.playAge ? <span className="text-bad"> ({g.playAge}세 이하 벤치 — 안 쓰면 썩는다)</span> : null}
+              {g.capped ? <span className="text-bad"> (2군 상한 오버롤 {g.farmCap} 도달 — 1군에서만 더 자란다)</span> : g.farm ? <span className="text-good"> (2군 실전{p.kind === 'B' ? ' · 타자는 +2~3 · +1~2 · +1' : ''})</span> : g.playing ? <span className="text-good"> ({g.playAge}세 이하 주전 ×{g.playMult})</span> : g.mine && p.age <= g.playAge ? <span className="text-bad"> ({g.playAge}세 이하 벤치 — 안 쓰면 썩는다)</span> : null}
             </span>
           ) : (
             <span className="text-white/70">{g.room <= 0 ? '잠재력에 닿아 시즌 중 훈련 성장 없음' : `${g.maxAge}세를 넘어 시즌 중 훈련 성장 없음`}</span>
@@ -79,14 +79,14 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
                   {label} {pct(v)}
                 </span>
               ))}
-              <span className="text-white/50"> (2군은 OVR {g.farmCap} 까지)</span>
+              <span className="text-white/50"> (2군은 오버롤 {g.farmCap} 까지)</span>
             </span>
           </div>
         )}
         {prospect && (
           <div className={line} data-testid="pot-rates">
             <span className={key}>2군</span>
-            <span className="text-white/70">지명하면 2군에서 시작 · 주당 <span className="text-hi">{pct(g.rates.farm)}</span> (1군 주전 {pct(g.rates.starter)} · 벤치 {pct(g.rates.bench)}) · 2군은 OVR {g.farmCap} 까지</span>
+            <span className="text-white/70">지명하면 2군에서 시작 · 주당 <span className="text-hi">{pct(g.rates.farm)}</span> (1군 주전 {pct(g.rates.starter)} · 벤치 {pct(g.rates.bench)}) · 2군은 오버롤 {g.farmCap} 까지</span>
           </div>
         )}
         {g.decline && (
@@ -99,7 +99,7 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
           <div className={line} data-testid="pot-expect">
             <span className={key}>예상</span>
             <span>
-              이번 시즌 남은 훈련 <span className="text-hi">{g.left}회</span> · 기대 성장 OVR 약 <span className="text-good">+{g.expect.toFixed(1)}</span>
+              이번 시즌 남은 훈련 <span className="text-hi">{g.left}회</span> · 기대 성장 오버롤 약 <span className="text-good">+{g.expect.toFixed(1)}</span>
             </span>
           </div>
         )}

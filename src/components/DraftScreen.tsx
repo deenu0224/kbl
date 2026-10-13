@@ -8,7 +8,7 @@ import PlayerCard from './PlayerCard';
 import Sheet from './layout/Sheet';
 import { useLayout } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
-import { POS_KO, SectionTitle, TeamDot } from './ui';
+import { POS_FULL, POS_KO, SectionTitle, TeamDot } from './ui';
 import PlayerBrowser from './roster/PlayerBrowser';
 import { usePosReport } from './roster/rosterUi';
 
@@ -57,7 +57,7 @@ export default function DraftScreen() {
   }, [pick]);
 
   const card = selP && (
-    <PlayerCard player={selP} prospect roleLabel={`${POS_KO[selP.pos]} · ${school(selP)}`}>
+    <PlayerCard player={selP} prospect roleLabel={`${POS_FULL[selP.pos]} · ${school(selP)}`}>
       <button className="px-btn primary mob:min-h-11 mob:flex-1 mob:text-[15px]" data-sfx="none" disabled={!!reason} onClick={() => draftPick(selP.id)}>
         지명 · 계약금 {fmtMoney(bonus)}
       </button>

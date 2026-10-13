@@ -54,7 +54,7 @@ export function PenLoadLine({ className }: { className?: string }) {
       <span className="text-white/60">불펜</span>
       <span className={LOAD_TONE[load.label]}>{load.label}</span>
       <span className="text-white/60">
-        쉰 투수 {load.rested}/{load.arms}
+        등판 가능 {load.rested}/{load.arms}
       </span>
     </div>
   );

@@ -174,7 +174,7 @@ const BAT_TITLES: { cat: BatCat; label: string }[] = [
   { cat: 'sb', label: '도루왕' },
 ];
 const PIT_TITLES: { cat: PitCat; label: string }[] = [
-  { cat: 'era', label: '평균자책 1위' },
+  { cat: 'era', label: '평균자책점 1위' },
   { cat: 'w', label: '다승왕' },
   { cat: 'so', label: '탈삼진왕' },
   { cat: 'sv', label: '세이브왕' },

@@ -165,7 +165,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
         </div>
       )}
 
-      <Fold label="자세히: 이닝별 점수 · 투수 · 관중 · 정산" className="mt-2" testid="fold-summary">
+      <Fold label="자세히: 이닝별 득점 · 투수 · 관중 · 정산" className="mt-2" testid="fold-summary">
       {/* 라인스코어 */}
       <div className="mt-2 shrink-0 overflow-x-auto bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
         <table className="w-full border-collapse text-center text-[12px]">

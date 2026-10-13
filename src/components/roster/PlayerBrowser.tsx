@@ -9,7 +9,7 @@ import PlayerTable, { type TableMode } from './PlayerTable';
 
 type Kind = 'all' | 'B' | 'P';
 type SortId = 'ovr' | 'salary' | 'age' | 'scout';
-const SORT_KO: Record<SortId, string> = { ovr: 'OVR', salary: '연봉', age: '나이', scout: '등급' };
+const SORT_KO: Record<SortId, string> = { ovr: '오버롤', salary: '연봉', age: '나이', scout: '등급' };
 const SCOUT_ORDER: Record<string, number> = { A: 4, B: 3, C: 2, D: 1 };
 
 function Chip({ on, onClick, children, tone = 'hi', testid }: { on: boolean; onClick: () => void; children: ReactNode; tone?: 'hi' | 'bad'; testid?: string }) {
@@ -128,7 +128,7 @@ export default function PlayerBrowser({
                   {note?.(p)}
                 </span>
                 <span className="shrink-0 whitespace-nowrap text-[11px] text-white/60 mob:text-[13px]">{p.age}세</span>
-                <span className="w-6 shrink-0 text-right font-pixel-lg text-[13px] mob:text-[15px]" style={{ color: ratingColor(p.ovr) }} aria-label={`OVR ${p.ovr}`}>
+                <span className="w-6 shrink-0 text-right font-pixel-lg text-[13px] mob:text-[15px]" style={{ color: ratingColor(p.ovr) }} aria-label={`오버롤 ${p.ovr}`}>
                   {p.ovr}
                 </span>
                 {draft ? (

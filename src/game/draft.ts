@@ -178,7 +178,7 @@ export function beginDraft(core0: Core, rng: Rng): { core: Core; error?: string 
   core.phase = 'draft';
   addNews(core, `신인 드래프트 개막 — 유망주 ${DRAFT_POOL}명, ${DRAFT_ROUNDS}라운드`, 'info');
   const out = farmAutoOn(core) && farmRoster(userTeam(core)).length >= FARM_MAX ? farmCutCandidate(core) : null;
-  if (out) addNews(core, `2군 코치: 2군이 가득합니다 — 지명하면 ${out.name}(${out.age}세 · OVR ${out.ovr})부터 방출합니다`, 'info');
+  if (out) addNews(core, `2군 코치: 2군이 가득합니다 — 지명하면 ${out.name}(${out.age}세 · 오버롤 ${out.ovr})부터 방출합니다`, 'info');
   runAi(core, rng);
   return { core };
 }

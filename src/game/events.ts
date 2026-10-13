@@ -635,7 +635,7 @@ export const CARDS: CardDef[] = [
             label: '믿어 준다',
             desc: `${p.name} ${N.vetGames}경기 고정 출전 · 다음 드래프트 풀 품질 ${sgn(N.trustYouth)}`,
             detail: {
-              rows: [rowInfo(p.name, `${N.vetGames}경기 고정 출전`, p.kind === 'B' ? `OPS ${ops(p).toFixed(3)}` : `평균자책 ${era(p).toFixed(2)}`, 'bad'), rowAdd('다음 드래프트 풀 품질', N.trustYouth)],
+              rows: [rowInfo(p.name, `${N.vetGames}경기 고정 출전`, p.kind === 'B' ? `OPS ${ops(p).toFixed(3)}` : `평균자책점 ${era(p).toFixed(2)}`, 'bad'), rowAdd('다음 드래프트 풀 품질', N.trustYouth)],
               pids: [p.id],
               lasts: `고정 출전 ${N.vetGames}경기 · 품질은 다음 드래프트`,
             },

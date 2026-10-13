@@ -15,7 +15,7 @@ export const FIELD_KEYS: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'R
 export const PITCH_KEYS: ('SP' | 'RP' | 'CP')[] = ['SP', 'RP', 'CP'];
 export const POS_KEYS: PosKey[] = [...FIELD_KEYS, ...PITCH_KEYS];
 export const POS_LABEL: Record<PosKey, string> = {
-  C: '포수', '1B': '1루', '2B': '2루', '3B': '3루', SS: '유격', LF: '좌익', CF: '중견', RF: '우익', DH: '지명',
+  C: '포수', '1B': '1루', '2B': '2루', '3B': '3루', SS: '유격', LF: '좌익', CF: '중견', RF: '우익', DH: '지타',
   SP: '선발진', RP: '불펜', CP: '마무리',
 };
 // 포지션 점수에서 수비가 차지하는 비중 (lineup.ts 의 자리 가치와 같은 값)
@@ -202,7 +202,7 @@ const GROUPS: [string, (p: Player) => boolean][] = [
   ['포수', (p) => p.pos === 'C'],
   ['내야', (p) => ['1B', '2B', '3B', 'SS'].includes(p.pos)],
   ['외야', (p) => ['LF', 'CF', 'RF'].includes(p.pos)],
-  ['지명', (p) => p.pos === 'DH'],
+  ['지타', (p) => p.pos === 'DH'],
   ['선발', (p) => p.pos === 'SP'],
   ['불펜', (p) => p.pos === 'RP' || p.pos === 'CP'],
 ];
@@ -365,7 +365,7 @@ export function statusTags(p: Player, season: number, mine: boolean): { text: st
 
 // ───────── 2군 ─────────
 
-const POS_KO_SHORT: Record<string, string> = { C: '포수', '1B': '1루', '2B': '2루', '3B': '3루', SS: '유격', LF: '좌익', CF: '중견', RF: '우익', DH: '지명', SP: '선발', RP: '불펜', CP: '마무리' };
+const POS_KO_SHORT: Record<string, string> = { C: '포수', '1B': '1루', '2B': '2루', '3B': '3루', SS: '유격', LF: '좌익', CF: '중견', RF: '우익', DH: '지타', SP: '선발', RP: '불펜', CP: '마무리' };
 
 /** [콜업] 을 누르기 전에 보이는 결과 한 줄. ok=false 면 지금은 올릴 수 없다 */
 export function callUpPreview(core: Core, p: Player): { ok: boolean; text: string } {
@@ -402,6 +402,6 @@ export function sendDownPreview(core: Core, p: Player): { ok: boolean; text: str
   const now = growChance(core, t, p);
   const then = growChance(core, t, { ...p, farm: true });
   if (p.age > TRAIN_MAX_AGE || p.ovr >= p.pot) return { ok: true, text: `${lock} · 더 자라지 않는 선수` };
-  if (p.ovr >= FARM_CAP) return { ok: true, text: `${lock} · OVR ${FARM_CAP} 이상은 2군에서 안 자란다` };
+  if (p.ovr >= FARM_CAP) return { ok: true, text: `${lock} · 오버롤 ${FARM_CAP} 이상은 2군에서 안 자란다` };
   return { ok: true, text: `${lock} · 주당 성장 확률 ${pc(now)} → ${pc(then)}` };
 }

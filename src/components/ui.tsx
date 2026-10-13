@@ -14,7 +14,23 @@ export const POS_KO: Record<BatPos | PitchRole, string> = {
   LF: '좌익',
   CF: '중견',
   RF: '우익',
-  DH: '지명',
+  DH: '지타',
+  SP: '선발',
+  RP: '불펜',
+  CP: '마무리',
+};
+
+/** 넓은 곳(카드 제목·상세·문장)용 포지션 이름. 좁은 칸은 POS_KO */
+export const POS_FULL: Record<BatPos | PitchRole, string> = {
+  C: '포수',
+  '1B': '1루수',
+  '2B': '2루수',
+  '3B': '3루수',
+  SS: '유격수',
+  LF: '좌익수',
+  CF: '중견수',
+  RF: '우익수',
+  DH: '지명타자',
   SP: '선발',
   RP: '불펜',
   CP: '마무리',

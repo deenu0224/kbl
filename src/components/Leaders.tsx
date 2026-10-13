@@ -14,7 +14,7 @@ const BAT: readonly (readonly [BatCat, string])[] = [
   ['r', '득점'],
 ];
 const PIT: readonly (readonly [PitCat, string])[] = [
-  ['era', '평균자책'],
+  ['era', '평균자책점'],
   ['w', '다승'],
   ['sv', '세이브'],
   ['so', '탈삼진'],
@@ -90,7 +90,7 @@ export default function Leaders() {
           <Env label="출루율" value={fmtOps(env.obp)} />
           <Env label="장타율" value={fmtOps(env.slg)} />
           <Env label="OPS" value={fmtOps(env.obp + env.slg)} />
-          <Env label="평균자책" value={fmtEra(env.era, 27)} />
+          <Env label="평균자책점" value={fmtEra(env.era, 27)} />
           <Env label="경기당 득점" value={env.rpg.toFixed(2)} />
           <Env label="경기당 홈런" value={env.hrPerGame.toFixed(2)} />
           <Env label="경기당 도루" value={env.sbPerGame.toFixed(2)} />

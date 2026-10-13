@@ -9,7 +9,7 @@ import { useCore, useStore, useUserTeam } from '../../store';
 import PlayerCard from '../PlayerCard';
 import Dialog from '../layout/Dialog';
 import Help from '../Help';
-import { Bar, OvrBadge, POS_KO, TabBar } from '../ui';
+import { Bar, OvrBadge, POS_FULL, POS_KO, TabBar } from '../ui';
 import Diamond, { RankText, diagSummary, rankTone } from './Diamond';
 import PlayerBrowser from './PlayerBrowser';
 import { usePosReport, useRosterUi, type OfficeView } from './rosterUi';
@@ -82,7 +82,7 @@ function DepthRows({ line, onPick }: { line: DepthLine; onPick: (p: Player) => v
           <OvrBadge ovr={s.p.ovr} size={20} />
           <span className={`min-w-0 flex-1 truncate ${s.p.injury > 0 ? 'text-bad' : ''}`}>
             {s.p.name}
-            <span className="ml-1 text-[10px] text-white/45 mob:text-[11px]">본 {POS_KO[s.p.pos]}</span>
+            <span className="ml-1 text-[10px] text-white/45 mob:text-[11px]">원래 {POS_FULL[s.p.pos]}</span>
           </span>
           <span className="shrink-0 text-right text-[10px] text-white/70 mob:text-[11px]">
             {s.p.age}세 · {fmtMoney(s.p.salary)}
@@ -234,7 +234,7 @@ function SalaryView({ onCard }: { onCard: (p: Player) => void }) {
         {list('고평가 (기대 연봉보다 비싼) 상위 3', r.over, false)}
         {list('저평가 (기대 연봉보다 싼) 상위 3', r.under, true)}
       </div>
-      <div className="text-[10px] text-white/45 mob:text-[11px]">기대 연봉 = 이번 시즌 시장가 (OVR·나이로 정해지는 연봉 곡선)</div>
+      <div className="text-[10px] text-white/45 mob:text-[11px]">기대 연봉 = 이번 시즌 시장가 (오버롤·나이로 정해지는 연봉 곡선)</div>
       <div className="mt-2 mb-1 text-[11px] text-sky">▸ 연령 분포</div>
       <div className="grid grid-cols-3 gap-1 text-center">
         {r.ages.map((a) => (

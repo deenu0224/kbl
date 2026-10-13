@@ -13,7 +13,7 @@ import { FirstTip } from './Briefing';
 import { useHintTabs } from './RightPanel';
 import Sheet from './layout/Sheet';
 import { useIsMobile } from './layout/useLayout';
-import { OvrBadge, POS_KO, SectionTitle, TabBar } from './ui';
+import { OvrBadge, POS_FULL, POS_KO, SectionTitle, TabBar } from './ui';
 import { MiniDiamond } from './roster/Diamond';
 import FrontOffice, { CardPop } from './roster/FrontOffice';
 import PlayerBrowser from './roster/PlayerBrowser';
@@ -58,7 +58,7 @@ const shortPv = (text: string) =>
     .replace(/(\d+)경기 동안 재등록 불가/, '재등록 $1경기')
     .replace('시즌 전: 재등록 제한 없음', '재등록 제한 없음')
     .replace('주당 성장 확률', '성장')
-    .replace(/OVR (\d+) 이상은 2군에서 안 자란다/, 'OVR $1 이상 성장 없음')
+    .replace(/오버롤 (\d+) 이상은 2군에서 안 자란다/, '오버롤 $1 이상 성장 없음')
     .replace('더 자라지 않는 선수', '성장 없음');
 
 export function FarmMoveButton({ player, onDone }: { player: Player; onDone?: () => void }) {
@@ -109,7 +109,7 @@ export function FarmTab() {
       </div>
       <CardDock open={!!selP} onClose={() => setSel(null)} placeholder={farm.length ? '선수를 누르면 카드가 열립니다' : undefined}>
         {selP && (
-          <PlayerCard player={selP} team={team} roleLabel={`2군 · ${POS_KO[selP.pos]}`}>
+          <PlayerCard player={selP} team={team} roleLabel={`2군 · ${POS_FULL[selP.pos]}`}>
             <EditButton pid={selP.id} onDone={() => setSel(null)} />
             <FarmMoveButton player={selP} onDone={() => setSel(null)} />
             <ReleaseButton player={selP} team={team} />
@@ -146,7 +146,7 @@ export function ReleaseButton({ player }: { player: Player; team?: Team }) {
       <button className="px-btn" data-testid="release-to-desk" title="이적 창구에 방출로 담는다 (확정 전까지 실제 선수단은 그대로)" onClick={() => openDesk({ add: [['release', player.id]] })}>
         방출 담기 ⤢
       </button>
-      <span className="text-[10px] text-white/50 mob:text-[13px]" data-testid="release-cost" title="방출 위약금">−{fmtMoney(cost)}</span>
+      <span className="text-[10px] text-white/50 mob:text-[13px]" data-testid="release-cost" title="방출 시 잔여 연봉 지급">−{fmtMoney(cost)}</span>
     </>
   );
 }
@@ -289,7 +289,7 @@ export function LineupTab() {
       </div>
       <CardDock open={!!selP} onClose={() => setSel(null)} placeholder="선수를 누르면 카드가 열립니다">
         {selP && (
-          <PlayerCard player={selP} team={team} roleLabel={selSlot >= 0 ? `${selSlot + 1}번 · ${POS_KO[team.lineup[selSlot].pos]}` : `벤치 · ${POS_KO[selP.pos]}`}>
+          <PlayerCard player={selP} team={team} roleLabel={selSlot >= 0 ? `${selSlot + 1}번 · ${POS_FULL[team.lineup[selSlot].pos]}` : `벤치 · ${POS_FULL[selP.pos]}`}>
             <EditButton pid={selP.id} onDone={() => setSel(null)} />
             <FarmMoveButton player={selP} onDone={() => setSel(null)} />
             <ReleaseButton player={selP} team={team} />

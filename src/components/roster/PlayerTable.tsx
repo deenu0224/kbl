@@ -117,7 +117,7 @@ export default function PlayerTable({
     const out: Col[] = [
       { id: 'pos', label: '포지션', group: 'core', val: (p) => [...FIELD_KEYS, ...PITCH_KEYS].indexOf(p.pos as PosKey), cell: (p) => <span className="text-sky">{POS_KO[p.pos]}</span>, left: true, asc: true },
       { id: 'age', label: '나이', group: 'core', val: (p) => p.age, cell: (p) => p.age, asc: true },
-      { id: 'ovr', label: 'OVR', group: 'core', val: (p) => p.ovr, cell: (p) => rate(p.ovr) },
+      { id: 'ovr', label: '오버롤', group: 'core', val: (p) => p.ovr, cell: (p) => rate(p.ovr) },
     ];
     if (mode === 'draft') {
       out.push(
@@ -139,7 +139,7 @@ export default function PlayerTable({
       abil('stf', '구위', 'P'), abil('ctl', '제구', 'P'), abil('sta', '체력', 'P'),
       {
         id: 'field', label: '수비 가능', group: 'abil', kind: 'B', val: (p) => canPlay(p).length, left: true,
-        cell: (p) => (p.kind === 'B' ? <span className="text-white/65">{canPlay(p).map((x) => POS_KO[x]).join('·') || '지명'}</span> : dash),
+        cell: (p) => (p.kind === 'B' ? <span className="text-white/65">{canPlay(p).map((x) => POS_KO[x]).join('·') || '지타'}</span> : dash),
       },
     );
     if (mode !== 'draft') {

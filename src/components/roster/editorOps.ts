@@ -164,7 +164,7 @@ export interface Rec {
   to: string; // "4번 지명"
 }
 
-const POS: Record<string, string> = { C: '포수', '1B': '1루', '2B': '2루', '3B': '3루', SS: '유격', LF: '좌익', CF: '중견', RF: '우익', DH: '지명' };
+const POS: Record<string, string> = { C: '포수', '1B': '1루수', '2B': '2루수', '3B': '3루수', SS: '유격수', LF: '좌익수', CF: '중견수', RF: '우익수', DH: '지명타자' };
 
 export function recommend(team: Team): Rec[] {
   const byId = new Map(team.roster.map((p) => [p.id, p]));

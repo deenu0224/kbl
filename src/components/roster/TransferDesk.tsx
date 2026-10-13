@@ -5,7 +5,7 @@ import { fmtInt, fmtMoney } from '../../game/format';
 import { FARM_MAX, FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTransfer, type BasketKind, type TransferPreview } from '../../game/transfer';
 import { useCore, useStore, useUserTeam } from '../../store';
 import { useIsMobile } from '../layout/useLayout';
-import { POS_KO } from '../ui';
+import { POS_FULL } from '../ui';
 import { CardPop, FullScreen } from './FrontOffice';
 import PlayerBrowser from './PlayerBrowser';
 import { PART_KO } from './labels';
@@ -244,7 +244,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
         {oneOff ? (
           <>
             <span className="text-bad">−{fmtMoney(oneOff)}</span>
-            <span className="text-white/50"> (계약금 {fmtMoney(pv.bonus)} + 위약금 {fmtMoney(pv.penalty)})</span>
+            <span className="text-white/50"> (계약금 {fmtMoney(pv.bonus)} + 잔여 연봉 지급 {fmtMoney(pv.penalty)})</span>
           </>
         ) : (
           <span className="text-white/75">0</span>
@@ -282,13 +282,13 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
       {pv.ins.map(({ p, bonus }) => (
         <div key={p.id} className="truncate" data-testid="sum-in">
           <span className="text-good">+ 영입 </span>
-          {p.name} <span className="text-white/60">OVR {p.ovr} · {POS_KO[p.pos]} · 연 {fmtMoney(p.salary)} · 계약금 {fmtMoney(bonus)}</span>
+          {p.name} <span className="text-white/60">오버롤 {p.ovr} · {POS_FULL[p.pos]} · 연 {fmtMoney(p.salary)} · 계약금 {fmtMoney(bonus)}</span>
         </div>
       ))}
       {ups.map((p) => (
         <div key={p.id} className="truncate" data-testid="sum-up">
           <span className="text-sky">▲ 콜업 </span>
-          {p.name} <span className="text-white/60">OVR {p.ovr} · {POS_KO[p.pos]}</span>
+          {p.name} <span className="text-white/60">오버롤 {p.ovr} · {POS_FULL[p.pos]}</span>
         </div>
       ))}
       {pv.outs.map((o) => (
@@ -296,8 +296,8 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
           <span className={o.to === 'release' ? 'text-bad' : 'text-[#f0a35a]'}>{o.to === 'release' ? '− 방출 ' : '▼ 2군 '}</span>
           {o.p.name}{' '}
           <span className="text-white/60">
-            OVR {o.p.ovr} · <span className={o.starter ? 'text-hi' : ''}>{o.role}</span>
-            {o.to === 'release' && ` · 위약금 ${fmtMoney(o.cost)}`}
+            오버롤 {o.p.ovr} · <span className={o.starter ? 'text-hi' : ''}>{o.role}</span>
+            {o.to === 'release' && ` · 잔여 연봉 지급 ${fmtMoney(o.cost)}`}
           </span>
           {o.franchise && <span className="text-bad"> · 프랜차이즈 (팬 감소)</span>}
         </div>
@@ -314,7 +314,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
     <div key={b.fa.id} className="flex flex-wrap items-center gap-1" data-testid="sum-bump">
       <span>
         <span className="text-white/55">{b.fa.name} 영입 시 {b.starter ? '밀려나는 선수' : '남는 선수'}: </span>
-        {b.p.name} <span className="text-white/60">(OVR {b.p.ovr}, 연봉 {fmtMoney(b.p.salary)})</span>
+        {b.p.name} <span className="text-white/60">(오버롤 {b.p.ovr}, 연봉 {fmtMoney(b.p.salary)})</span>
       </span>
       <button className="cursor-pointer whitespace-nowrap bg-ink px-1.5 py-0.5 text-bad mob:min-h-8 mob:px-2" style={{ boxShadow: 'inset 0 0 0 1px #ff6b6b88' }} data-sfx="tab" data-testid="bump-release" onClick={() => put('release', b.p.id)}>
         이 선수 방출도 담기
