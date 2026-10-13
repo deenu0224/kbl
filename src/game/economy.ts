@@ -225,7 +225,7 @@ export function signingBonus(p: Player): number {
 // mult[n] = 이번 시즌에 이미 n명을 영입한 뒤의 배율. 표를 넘어가면 한 명마다 step 씩 더 오른다.
 // 한 시즌 = 결산 뒤(스토브리그)부터 다음 결산까지 — 스토브리그의 영입은 다음 시즌 몫이다.
 // pay 는 측정용 대안(영입 선수의 연봉에도 n × pay 를 건다). 게임에서는 0
-export const FA_HEAT = { on: true, mult: [1, 1.25, 1.6, 2.2, 3], step: 1, pay: 0 };
+export const FA_HEAT = { on: true, mult: [1, 1.5, 2.5, 4, 6], step: 2, pay: 0 };
 type HeatCore = Pick<Core, 'teams'> & Partial<Pick<Core, 'campaign' | 'season' | 'phase'>>;
 /** 이 리그에 계약금 누진이 있는가 (8구단 옛 세이브에는 없다) */
 export function faHeatOn(core: Pick<Core, 'teams'>): boolean {
