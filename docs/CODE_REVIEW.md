@@ -3,7 +3,7 @@
 범위: `src/game/**` → `src/store.ts` → `src/components/**` → `scripts/**`(도구가 죽는 경우만).
 버그만 고친다 (리팩터링·밸런스·문구 수정 없음). 상태: **고침** / **남김**(확인했으나 이번에 고치지 않음) / **추정**(재현 못 함 — 코드는 그대로).
 
-기준 통계(수정 전 `npm run balance`): 허용오차 밖 지표 1개(다승 1위 +18.5%), 리그 홈 승률 0.507 (21228경기). 전체 출력은 수정 뒤와 diff 로 비교한다.
+기준 통계(수정 전 `npm run balance`): 허용오차 밖 지표 1개(다승 1위 +18.5%), 리그 홈 승률 0.507 (21228경기). 수정 후 출력 전체가 수정 전과 **완전히 같다**(diff 0줄).
 
 ## 발견 목록
 
@@ -40,3 +40,16 @@
 ## 검증 환경 메모
 
 - 이 워크트리에는 `node_modules` 가 없어 메인 체크아웃의 것을 심볼릭 링크로 걸었다(커밋 안 됨, `.gitignore`). 그 때문에 `npm run screens` 에서 폰트 요청이 Vite 허용 목록 밖이라 실패해 "콘솔 에러·실패한 요청"이 화면마다 잡힌다 — 코드 문제가 아니다.
+
+## 최종 검증 (마지막 커밋 기준)
+
+- `npm run typecheck` 통과 · `npm run build` 통과
+- `npx tsx scripts/farmcheck.ts 12 6` — 위반 0건 (자동 운영 258시즌 + 끔 24시즌)
+- `npm run balance` — 수정 전 출력과 diff 0줄 (AVG/ERA/R/G 포함 전 지표 동일)
+- `npx tsx scripts/campaign.ts 6 8 0 0` — 크래시 0 (봇 4종). 3·8·9번 수정 뒤에 시작한 실행이며, 10번(카드 라벨 대조)은 실행 도중에 들어갔을 수 있다 — 10번은 farmcheck 12 6 재실행으로 확인
+- `npm run screens -- --only=home --viewport=1920 --jobs=3` — 화면 10개, missing 0. "높음" 128건은 전부 폰트 요청 실패(아래 환경 메모)
+
+## 세이브 호환
+
+- 타입 변경은 `GameResult.pitOrder?`(optional) 하나. `GameResult` 는 저장되지 않는다(경기 보고는 세이브 대상이 아님).
+- 칸 메모 `subslot-<pid>` 의 값 끝에 넘겨받은 선수 id 한 칸이 붙을 수 있다(`L~i~pos~mover~mpos~via`). 예전 값(칸 5개 이하)은 그대로 읽힌다. 시즌 메모라 시즌이 바뀌면 비워진다.
