@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BatPos, Player } from '../../game/types';
 import { FARM_MAX } from '../../game/economy';
 import { applyFixes, offPos } from '../../game/fixes';
@@ -67,6 +67,26 @@ function WinChance({ label, note }: { label: string; note?: ReactNode }) {
         <div className={`h-full ${bar}`} style={{ width: `${pct ?? 0}%`, transition: 'width .3s' }} />
       </div>
       {note && <div className="mt-1 text-[13px] text-white/70">{note}</div>}
+    </div>
+  );
+}
+
+/** 가로 칩 줄. 넘칠 때만 가로로 스크롤되고, 그때는 칩을 위아래로 끌거나 길게 눌러 집는다 */
+function Tray({ testid, children }: { testid: string; children: (pan: 'none' | 'x') => ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setScrolls(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+  return (
+    <div ref={ref} className="flex shrink-0 gap-1.5 overflow-x-auto p-1" data-testid={testid}>
+      {children(scrolls ? 'x' : 'none')}
     </div>
   );
 }
@@ -292,9 +312,11 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
       opacity: drag?.pid === pid ? 0.45 : s.dim ? 0.38 : 1,
     };
   };
-  const delta = (plan: PlanResult | undefined, fallback: ReactNode): ReactNode => {
+  const delta = (plan: PlanResult | undefined, fallback: ReactNode, tight = true): ReactNode => {
     if (!active || !isPlan(plan)) return fallback;
-    return <span className={plan.sum < 0 ? 'text-bad' : plan.sum > 0 ? 'text-good' : 'text-white/70'} data-testid="delta">{plan.text || '±0'}</span>;
+    // 좁은 칸에서는 붙여 쓴다: "수비+5 타선+2"
+    const text = tight ? plan.text.replace(/ · /g, '  ').replace(/ ([+−])/g, '$1') : plan.text;
+    return <span className={plan.sum < 0 ? 'text-bad' : plan.sum > 0 ? 'text-good' : 'text-white/70'} data-testid="delta">{text || '±0'}</span>;
   };
   const itemProps = (pid: string, pan: DragState['pan']) => ({
     'data-item': pid,
@@ -322,7 +344,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
 
   const fieldView = (
     <>
-      <div className="relative mx-auto h-[330px] w-full max-w-[560px] shrink-0 overflow-hidden lg:h-[380px]" style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="editor-field">
+      <div className="relative mx-auto h-[330px] w-full max-w-[560px] shrink-0 overflow-hidden" style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="editor-field">
         {/* 내야 흙과 잔디 */}
         <div className="absolute left-1/2 top-[62%] aspect-square w-[46%] -translate-x-1/2 -translate-y-1/2 rotate-45" style={{ background: '#a8794d' }}>
           <div className="absolute inset-[16%]" style={{ background: '#337a45' }} />
@@ -339,9 +361,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
         <span>벤치 {bench.length}</span>
         {farmToggle()}
       </div>
-      <div className="flex shrink-0 gap-1.5 overflow-x-auto p-1" data-testid="editor-bench">
-        {bench.map((p) => tile(p, POS_KO[p.pos], { pan: 'x', className: 'w-[104px] shrink-0' }))}
-      </div>
+      <Tray testid="editor-bench">{(pan) => bench.map((p) => tile(p, POS_KO[p.pos], { pan, className: 'w-[84px] shrink-0' }))}</Tray>
       {farmTray()}
     </>
   );
@@ -360,7 +380,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
             <span className="w-4 shrink-0 text-[15px] text-hi">{i + 1}</span>
             <span className={`w-9 shrink-0 text-[13px] ${off ? 'text-bad' : 'text-white/60'}`}>{POS_KO[l.pos]}</span>
             <span className={`min-w-0 flex-1 truncate text-[14px] ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
-            <span className="shrink-0 text-[13px]">{delta(stateOf(p.id).plan, null)}</span>
+            <span className="shrink-0 text-[13px]">{delta(stateOf(p.id).plan, null, false)}</span>
             <OvrBadge ovr={p.ovr} size={22} />
           </div>
         );
@@ -401,13 +421,18 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
   function farmTray() {
     if (!farmOpen) return null;
     return (
-      <div className="flex shrink-0 gap-1.5 overflow-x-auto p-1" data-testid="editor-farm">
-        {farm.map((p) => {
-          const left = farmLockLeft(core, p);
-          return tile(p, left > 0 ? `${POS_KO[p.pos]} · 잠금 ${left}` : POS_KO[p.pos], { pan: 'x', subBad: left > 0, className: 'w-[104px] shrink-0', style: { background: '#1c2740' } });
-        })}
-        {!farm.length && <span className="px-1 py-3 text-[13px] text-white/45">0/{FARM_MAX}</span>}
-      </div>
+      <Tray testid="editor-farm">
+        {(pan) =>
+          farm.length ? (
+            farm.map((p) => {
+              const left = farmLockLeft(core, p);
+              return tile(p, left > 0 ? `${POS_KO[p.pos]} 잠금${left}` : POS_KO[p.pos], { pan, subBad: left > 0, className: 'w-[104px] shrink-0', style: { background: '#1c2740' } });
+            })
+          ) : (
+            <span className="px-1 py-3 text-[13px] text-white/45">0/{FARM_MAX}</span>
+          )
+        }
+      </Tray>
     );
   }
 
