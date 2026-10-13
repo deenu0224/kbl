@@ -1,6 +1,6 @@
 import type { BatPos, Core, Player } from './types';
 import { gameView, lineupKey, userOf, type AchvCat, type AchvCtx, type AchvDef, type AchvOn } from './achievements';
-import { avg, era, leagueAwards, qualOuts, qualPA } from './leaders';
+import { leagueAwards } from './leaders';
 import { memoGet } from './memo';
 
 // 도전과제 목록 1: 첫걸음 · 경기 · 시즌. 조건은 전부 DayReport 와 상태에서 읽는다 (게임 수치를 바꾸지 않는다)
@@ -150,4 +150,4 @@ const SEASON: AchvDef[] = [
 ];
 
 export const LIST1: AchvDef[] = [...START, ...GAME, ...SEASON];
-export { avg, era, qualOuts, qualPA, postRank, pct, some, won, g as gv };
+export { some, won, g as gv };

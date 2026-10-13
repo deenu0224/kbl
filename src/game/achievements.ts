@@ -87,7 +87,7 @@ export const lineupKey = (t: Team): string => `${t.lineup.map((l) => l.pid + l.p
 const squadKey = (t: Team): string => t.roster.map((p) => `${p.id}${p.farm ? 'f' : ''}`).join(',');
 const storyKey = (c: Core): string => {
   const k = c.campaign;
-  return [c.phase, k.stage, k.trust, k.achievements.length, k.titles, k.ending, k.dealt, k.analyst, k.ethics, k.bailout, k.exposed, k.secrets?.length, k.retired?.length, k.alumni?.length, JSON.stringify(k.projects ?? {}), k.farmAuto, k.subAuto, k.penStyle, k.briefMemo?.done.length, k.block?.length, c.fans, Math.round(c.fanSat)].join('/');
+  return [c.phase, k.stage, k.trust, k.achievements.length, k.titles, k.ending, k.dealt, k.analyst, k.ethics, k.bailout, k.exposed, k.secrets?.length, k.retired?.length, k.alumni?.length, k.away?.length, JSON.stringify(k.projects ?? {}), k.farmAuto, k.subAuto, k.penStyle, k.briefMemo?.done.length, k.block?.length, c.fans, Math.round(c.fanSat)].join('/');
 };
 const manageKey = (c: Core): string => [c.finance.cash, c.finance.debt, c.finance.ticketPrice, c.facilities.seats, c.facilities.food, c.facilities.training].join('/');
 
@@ -163,6 +163,7 @@ export interface GameView {
   maxBehind: number; // 이닝이 끝난 시점 기준으로 가장 크게 뒤졌던 점수 차
   maxAhead: number;
   walkoff: boolean; // 홈에서 9회 이후 마지막 공격으로 이겼다
+  walkoffLoss: boolean; // 원정에서 끝내기를 맞았다
 }
 export function gameView(r: DayReport): GameView {
   const g = r.result;
@@ -192,13 +193,14 @@ export function gameView(r: DayReport): GameView {
       maxAhead = Math.max(maxAhead, d);
     }
   }
-  const walkoff = r.isHome && g.home > g.away && g.innings >= 9 && g.line[1].length === g.innings && hBeforeLast <= aBeforeLast;
+  const lastBat = g.home > g.away && g.innings >= 9 && g.line[1].length === g.innings && hBeforeLast <= aBeforeLast;
+  const walkoff = r.isHome && lastBat;
   return {
     my, opp, side, myLine, oppLine,
     myHits: g.hits[side], oppHits: g.hits[1 - side],
     myErrs: g.errs?.[side]?.length ?? 0, oppErrs: g.errs?.[1 - side]?.length ?? 0,
     bat: g.box?.[side]?.bat ?? [], pit: g.box?.[side]?.pit ?? [],
-    maxBehind, maxAhead, walkoff,
+    maxBehind, maxAhead, walkoff, walkoffLoss: !r.isHome && lastBat,
   };
 }
 
