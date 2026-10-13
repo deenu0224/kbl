@@ -71,7 +71,7 @@ export const SC = {
 
 type Kind = Secret['kind'];
 type AbilKey = 'con' | 'pow' | 'eye' | 'spd' | 'def' | 'stf' | 'ctl' | 'sta';
-const KIND_KO: Record<Kind, string> = { dope: '금지 약물', fix: '승부조작' };
+const KIND_KO: Record<Kind, string> = { dope: '금지 약물 사용', fix: '승부조작' };
 const sgn = (v: number) => (v >= 0 ? `+${v}` : `−${-v}`);
 const pctTxt = (v: number) => `${Math.round(v * 100)}%`;
 const find = (core: Core, pid?: string) => (pid ? userTeam(core).roster.find((p) => p.id === pid) : undefined);
@@ -541,7 +541,7 @@ export function exposureLines(ex: Exposure): { what: string; lost: string[] } {
   if (ex.stars) lost.push(`이번 시즌 별 ${ex.stars}개 박탈`);
   if (ex.wins) lost.push(`${ex.wins}승 몰수`);
   if (ex.fine) lost.push(`벌금 ${fmtMoney(ex.fine)}`);
-  lost.push(ex.kind === 'fix' ? `${ex.name} 영구 제명` : ex.ban ? `${ex.name} ${ex.ban}경기 정지 · 시즌 기록 삭제` : `${ex.name}은(는) 이미 팀을 떠났습니다`);
+  lost.push(ex.kind === 'fix' ? `${ex.name} 영구 제명` : ex.ban ? `${ex.name} ${ex.ban}경기 정지 · 시즌 기록 삭제` : '선수는 이미 팀을 떠났습니다');
   if (ex.tainted) lost.push(SCANDAL_NEWS.tainted);
-  return { what: `${ex.season}번째 시즌에 덮은 ${ex.name}의 ${KIND_KO[ex.kind]}이(가) 드러났습니다`, lost };
+  return { what: `${ex.season}번째 시즌에 덮은 ${ex.name}의 ${KIND_KO[ex.kind]} 사실이 드러났습니다`, lost };
 }
