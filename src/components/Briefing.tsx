@@ -1,9 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { play } from '../audio/sfx';
-import type { BriefOffer } from '../game/types';
+import type { BriefDetail, BriefOffer, BriefResult, Player } from '../game/types';
+import { PART_LABELS } from '../game/briefing';
 import { flagForecast } from '../game/campaign';
 import { CHARACTERS } from '../game/story';
-import { useCore, useStore, useUserTeam } from '../store';
+import { findPlayer, useCore, useStore, useUserTeam } from '../store';
+import PlayerCard from './PlayerCard';
+import { Bar, ratingColor } from './ui';
 import { Flag } from './Campaign';
 import PixelFace from './PixelFace';
 import { useIsMobile } from './layout/useLayout';
@@ -50,7 +53,7 @@ function ChairAlert({ text }: { text: string }) {
 }
 
 /** 스태프 제안 한 장: 초상 + 한 줄 + 예상 결과 숫자 + [실행] 한 번 탭 / 넘기기 */
-function OfferCard({ o }: { o: BriefOffer }) {
+function OfferCard({ o, onOpen }: { o: BriefOffer; onOpen: () => void }) {
   const team = useUserTeam();
   const run = useStore((s) => s.briefRun);
   const skip = useStore((s) => s.briefSkip);
@@ -59,21 +62,27 @@ function OfferCard({ o }: { o: BriefOffer }) {
   const skipped = o.state === 'skipped';
   return (
     <div className={`bg-ink/55 p-2 ${skipped ? 'opacity-50' : ''}`} style={{ boxShadow: done ? 'inset 3px 0 0 #6ee07a' : 'inset 3px 0 0 #ffd84a' }} data-testid="brief-offer" data-offer={o.id} data-state={o.state ?? 'open'}>
-      <div className="flex items-start gap-2">
-        <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
-          <PixelFace id={`char-${ch.seed}`} color={team.color} color2={team.color2} size={44} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[12px] leading-tight mob:text-[13px]">
-            {ch.name} <span className="text-[11px] text-white/55">{ch.title}</span>
+      {/* 카드를 누르면 상세 시트 */}
+      <button className="block w-full cursor-pointer text-left" data-testid="brief-open" onClick={onOpen}>
+        <div className="flex items-start gap-2">
+          <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
+            <PixelFace id={`char-${ch.seed}`} color={team.color} color2={team.color2} size={44} />
           </div>
-          <div className="mt-0.5 text-[12px] leading-snug text-white/85 mob:text-[13px]">“{o.line}”</div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2 text-[12px] leading-tight mob:text-[13px]">
+              <span>
+                {ch.name} <span className="text-[11px] text-white/55">{ch.title}</span>
+              </span>
+              <span className="shrink-0 text-[11px] text-sky">상세 ▸</span>
+            </div>
+            <div className="mt-0.5 text-[12px] leading-snug text-white/85 mob:text-[13px]">“{o.line}”</div>
+          </div>
         </div>
-      </div>
-      <div className="mt-1.5 text-[12px] leading-snug text-hi mob:text-[13px]" data-testid="brief-effect">
-        {o.effect}
-        {o.flag && <span className="text-good"> · {o.flag}</span>}
-      </div>
+        <div className="mt-1.5 text-[12px] leading-snug text-hi mob:text-[13px]" data-testid="brief-effect">
+          {o.effect}
+          {o.flag && <span className="text-good"> · {o.flag}</span>}
+        </div>
+      </button>
       <div className="mt-1.5 flex items-center gap-2">
         {done ? (
           <span className="text-[12px] text-good mob:text-[13px]">✓ 실행됨 — 결과는 다음 주 브리핑에</span>
@@ -94,6 +103,216 @@ function OfferCard({ o }: { o: BriefOffer }) {
   );
 }
 
+// ───────── 상세 시트 ─────────
+
+const B_STATS: [keyof Player, string][] = [['ovr', '종합'], ['con', '컨택'], ['pow', '파워'], ['eye', '선구'], ['spd', '주력'], ['def', '수비'], ['pot', '잠재']];
+const P_STATS: [keyof Player, string][] = [['ovr', '종합'], ['stf', '구위'], ['ctl', '제구'], ['sta', '체력'], ['pot', '잠재']];
+
+/** 들어오는 선수 vs 밀려나는 주전: 능력치마다 막대 2줄 */
+function Compare({ a, b }: { a: Player; b: Player }) {
+  const line = (v: number, name: string, hi: boolean) => (
+    <div className="flex items-center gap-1.5 text-[11px] leading-none">
+      <span className={`w-14 shrink-0 truncate ${hi ? 'text-white' : 'text-white/55'}`}>{name}</span>
+      <Bar ratio={(v - 15) / 85} color={ratingColor(v)} h={7} />
+      <span className="w-5 shrink-0 text-right" style={{ color: ratingColor(v) }}>
+        {v}
+      </span>
+    </div>
+  );
+  return (
+    <div className="bg-ink/55 p-2" data-testid="detail-compare">
+      <div className="mb-1 text-[11px] text-sky">
+        ▸ {a.name}(위) vs 지금 주전 {b.name}(아래)
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {(a.kind === 'B' ? B_STATS : P_STATS).map(([k, label]) => {
+          const va = a[k] as number;
+          const vb = b[k] as number;
+          return (
+            <div key={k} className="flex items-center gap-1.5">
+              <span className="w-8 shrink-0 text-[11px] text-white/60">{label}</span>
+              <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
+                {line(va, a.name, true)}
+                {line(vb, b.name, false)}
+              </div>
+              <span className={`w-7 shrink-0 text-right text-[11px] ${va > vb ? 'text-good' : va < vb ? 'text-bad' : 'text-white/45'}`}>{va === vb ? '=' : `${va > vb ? '+' : '−'}${Math.abs(va - vb)}`}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** 전력 4칸 전 → 후 (cols 가 3개면 실행 전 · 예상 · 지금) */
+function PartsTable({ cols }: { cols: { label: string; v: number[] }[] }) {
+  const base = cols[0].v;
+  return (
+    <div className="bg-ink/55 p-2" data-testid="detail-parts">
+      <div className="mb-1 text-[11px] text-sky">▸ 전력 4칸</div>
+      <table className="w-full border-collapse text-center text-[12px] mob:text-[13px]">
+        <thead>
+          <tr className="text-[11px] text-white/50">
+            <th className="text-left font-normal" />
+            {PART_LABELS.map((l) => (
+              <th key={l} className="font-normal">
+                {l}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {cols.map((c, ci) => (
+            <tr key={c.label}>
+              <td className="text-left text-[11px] text-white/60">{c.label}</td>
+              {c.v.map((v, i) => (
+                <td key={i} className={ci === 0 || v === base[i] ? 'text-white/80' : v > base[i] ? 'text-good' : 'text-bad'}>
+                  {v}
+                  {ci > 0 && v !== base[i] && <span className="text-[10px]"> {v > base[i] ? `+${v - base[i]}` : `−${base[i] - v}`}</span>}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DetailBody({ d }: { d: BriefDetail }) {
+  const teams = useStore((s) => s.teams);
+  const freeAgents = useStore((s) => s.freeAgents);
+  const team = useUserTeam();
+  const p = findPlayer({ teams, freeAgents }, d.pid);
+  const vs = findPlayer({ teams, freeAgents }, d.vsPid);
+  const mine = !!p && team.roster.some((x) => x.id === p.id);
+  return (
+    <>
+      {p && <PlayerCard player={p} team={mine ? team : undefined} />}
+      {p && vs && <Compare a={p} b={vs} />}
+      {d.shifts && (
+        <div className="bg-ink/55 p-2" data-testid="detail-shifts">
+          <div className="mb-1 text-[11px] text-sky">▸ 바뀌는 자리</div>
+          {d.shifts.map((x) => (
+            <div key={x.name + x.from} className="flex items-baseline gap-1.5 text-[12px] leading-relaxed mob:text-[13px]">
+              <span className="w-16 shrink-0 truncate text-white">{x.name}</span>
+              <span className="text-white/60">{x.from}</span>
+              <span className="text-white/40">→</span>
+              <span className={/벤치|불펜|대기|방출/.test(x.to) ? 'text-bad' : 'text-good'}>{x.to}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {d.parts && <PartsTable cols={[{ label: '지금', v: d.parts.a }, { label: '실행 후', v: d.parts.b }]} />}
+      {d.rows && (
+        <div className="bg-ink/55 p-2" data-testid="detail-rows">
+          <div className="mb-1 flex text-[11px] text-sky">
+            <span className="flex-1">▸ 돈과 관중</span>
+            <span className="w-[26%] text-right text-white/50">지금</span>
+            <span className="w-[30%] text-right text-white/50">실행 후</span>
+          </div>
+          {d.rows.map((r) => (
+            <div key={r.label} className="flex items-baseline text-[12px] leading-relaxed mob:text-[13px]">
+              <span className="min-w-0 flex-1 truncate text-white/70">{r.label}</span>
+              <span className="w-[26%] text-right text-white/70">{r.a}</span>
+              <span className={`w-[30%] text-right ${r.tone === 'good' ? 'text-good' : r.tone === 'bad' ? 'text-bad' : 'text-white'}`}>{r.b}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+type Open = { t: 'offer'; id: string } | { t: 'result'; i: number };
+
+/** 제안·결과 줄을 눌렀을 때의 상세 시트. 하단에 [실행]/[넘기기] — 카드의 한 번 탭 [실행]과 같은 동작 */
+function DetailSheet({ o, r, mobile, onClose }: { o?: BriefOffer; r?: BriefResult; mobile: boolean; onClose: () => void }) {
+  const run = useStore((s) => s.briefRun);
+  const skip = useStore((s) => s.briefSkip);
+  const ch = o ? CHARACTERS[o.who] : null;
+  const body = (
+    <>
+      <div className="flex shrink-0 items-center gap-2 px-2 pt-1.5">
+        <button className="px-btn min-h-9 !px-2 text-[12px]" data-testid="detail-back" onClick={onClose}>
+          ◂ 브리핑
+        </button>
+        <span className="min-w-0 truncate font-pixel-lg text-[16px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+          {o && ch ? `${ch.name} ${ch.title}의 제안` : `지난주 ${r?.label ?? ''}`}
+        </span>
+      </div>
+      <div className="px-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-2 pb-1">
+        {o && (
+          <div className="bg-ink/55 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #ffd84a' }}>
+            <div className="text-white/85">“{o.line}”</div>
+            <div className="mt-1 text-hi">
+              {o.effect}
+              {o.flag && <span className="text-good"> · {o.flag}</span>}
+            </div>
+          </div>
+        )}
+        {o?.detail && <DetailBody d={o.detail} />}
+        {o && !o.detail && <div className="text-[12px] text-white/60">상세 내역이 없습니다.</div>}
+        {r && (
+          <>
+            <div className="bg-ink/55 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #ffd84a' }} data-testid="detail-expect">
+              <div className="text-[11px] text-white/55">실행할 때의 예상</div>
+              <div className="text-hi">{r.expect ?? '—'}</div>
+            </div>
+            <div className="bg-good/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="detail-actual">
+              <div className="text-[11px] text-white/55">실제</div>
+              <div className="text-white">{r.text.replace(/^지난주 [^:]+: /, '')}</div>
+            </div>
+            {r.parts && <PartsTable cols={[{ label: '실행 전', v: r.parts.a }, { label: '예상', v: r.parts.b }, { label: '지금', v: r.parts.now }]} />}
+          </>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2 px-2 pt-1.5 pb-2">
+        {o && !o.state ? (
+          <>
+            <button
+              className="px-btn primary min-h-11 flex-[2] text-[15px]"
+              data-testid="detail-run"
+              onClick={() => {
+                run(o.id);
+                onClose();
+              }}
+            >
+              실행
+            </button>
+            <button
+              className="px-btn min-h-11 flex-1 text-[13px]"
+              data-testid="detail-skip"
+              onClick={() => {
+                skip(o.id);
+                onClose();
+              }}
+            >
+              넘기기
+            </button>
+          </>
+        ) : (
+          <button className="px-btn primary min-h-11 flex-1 text-[15px]" onClick={onClose}>
+            {o?.state === 'done' ? '✓ 실행됨 — 돌아가기' : '돌아가기'}
+          </button>
+        )}
+      </div>
+    </>
+  );
+  if (mobile) {
+    return (
+      <div className="anim-fade fixed inset-0 z-[37] flex h-[100dvh] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label="제안 상세" data-testid="brief-detail">
+        {body}
+      </div>
+    );
+  }
+  return (
+    <div className="fixed inset-0 z-[37] flex items-center justify-center bg-ink/70 p-3 font-pixel text-[12px] select-none" role="dialog" aria-label="제안 상세" data-testid="brief-detail">
+      <div className="px-panel anim-pop flex max-h-[min(720px,100%)] w-full max-w-[520px] flex-col">{body}</div>
+    </div>
+  );
+}
+
 /**
  * 주간 브리핑: 정규시즌 6경기마다 결정이 유저에게 온다. 이벤트 카드·경기 요약이 먼저고, 닫아야 다음 경기를 치른다.
  * 모바일은 전체 화면, 데스크톱은 중앙 모달.
@@ -103,10 +322,15 @@ export default function BriefingSheet() {
   const show = useStore((s) => !!s.campaign.briefing && !s.campaign.event && !s.summary && !s.playback && s.phase === 'season');
   const close = useStore((s) => s.briefClose);
   const mobile = useIsMobile();
+  const [open0, setOpen] = useState<Open | null>(null);
   useEffect(() => {
     if (show) play('event');
+    else setOpen(null);
   }, [show]);
   if (!b || !show) return null;
+  const openOffer = open0?.t === 'offer' ? b.offers.find((o) => o.id === open0.id) : undefined;
+  const openResult = open0?.t === 'result' ? b.resultInfo?.[open0.i] : undefined;
+  const detail = openOffer || openResult ? <DetailSheet o={openOffer} r={openResult} mobile={mobile} onClose={() => setOpen(null)} /> : null;
   const open = b.offers.filter((o) => !o.state).length;
 
   const body = (
@@ -120,10 +344,11 @@ export default function BriefingSheet() {
         </span>
       </div>
       <div className="px-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-2 pb-1">
-        {b.results.map((r) => (
-          <div key={r} className="bg-good/15 px-2 py-1.5 text-[12px] leading-snug text-white mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="brief-result">
-            {r}
-          </div>
+        {b.results.map((r, i) => (
+          <button key={r} className="flex cursor-pointer items-baseline gap-2 bg-good/15 px-2 py-1.5 text-left text-[12px] leading-snug text-white mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="brief-result" disabled={!b.resultInfo?.[i]} onClick={() => setOpen({ t: 'result', i })}>
+            <span className="min-w-0 flex-1">{r}</span>
+            {b.resultInfo?.[i] && <span className="shrink-0 text-[11px] text-sky">상세 ▸</span>}
+          </button>
         ))}
         <div className="bg-ink/55 px-2 py-1.5">
           <div className="text-[11px] text-white/55">지난 6경기</div>
@@ -134,7 +359,7 @@ export default function BriefingSheet() {
         </div>
         {b.alert && <ChairAlert text={b.alert} />}
         {b.offers.map((o) => (
-          <OfferCard key={o.id} o={o} />
+          <OfferCard key={o.id} o={o} onOpen={() => setOpen({ t: 'offer', id: o.id })} />
         ))}
       </div>
       <div className="shrink-0 px-2 pt-1.5 pb-2">
@@ -149,12 +374,14 @@ export default function BriefingSheet() {
     return (
       <div className="anim-fade fixed inset-0 z-[36] flex h-[100dvh] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label="주간 브리핑" data-testid="briefing">
         {body}
+        {detail}
       </div>
     );
   }
   return (
     <div className="fixed inset-0 z-[36] flex items-center justify-center bg-ink/70 p-3 font-pixel text-[12px] select-none" role="dialog" aria-label="주간 브리핑" data-testid="briefing">
       <div className="px-panel anim-pop flex max-h-[min(720px,100%)] w-full max-w-[520px] flex-col">{body}</div>
+      {detail}
     </div>
   );
 }
