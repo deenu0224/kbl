@@ -870,9 +870,9 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   // 지난 시즌 남은 FA 로 AI 스토브리그 → 새 FA 시장
   for (const p of core.freeAgents) develop(p, rng, core.season);
   aiStoveLeague(core, rng, ctx);
-  core.freeAgents = genFreeAgents(ctx);
+  core.freeAgents = genFreeAgents(ctx, core.teams.length);
   for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
-  core.schedule = buildSchedule(core.teams.map((t) => t.id), rng);
+  core.schedule = buildSchedule(core.teams.map((t) => t.id), rng, core.userId);
   core.crowd = null; // 관중 칩·게이트 줄은 개막 전으로
   core.finance.ledger = ledgerZero();
   core.attHistory = [];
