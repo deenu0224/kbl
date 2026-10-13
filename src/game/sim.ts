@@ -9,9 +9,9 @@ import { KBO_AVG } from './kbo';
 // ── 보정 계수: 능력치 분포가 비대칭이라 "평균 능력치의 확률" ≠ "리그 평균 확률". balance 스크립트로 맞춘 값 ──
 const CAL = {
   BB: 0.975,
-  K: 1.025,
-  HR: 0.82,
-  BABIP: -0.009, // 자동 편성이 수비 위치를 정리하면서 오른 리그 수비력만큼 보정
+  K: 1.05,
+  HR: 0.79,
+  BABIP: -0.0105, // 자동 편성이 수비 위치를 정리하면서 오른 리그 수비력만큼 보정
   D2: 0.95,
   D3: 0.92,
 };
@@ -74,12 +74,18 @@ export const SIM = {
   FAT_CTL: 2.0,
   SP_HOOK_RUNS: 6, // 선발 즉시 강판 실점
   RP_HOOK_RUNS: 3,
-  TIRED_1: 13, // 연투 피로: 전날 던진 불펜 구위 하락
-  TIRED_2: 26, // 2일 연속 던진 뒤 (3연투째)
+  TIRED_1: 16, // 연투 피로: 전날 던진 불펜 구위 하락
+  TIRED_2: 32, // 2일 연속 던진 뒤 (3연투째)
   TIRED_CTL_1: 6, // 연투 피로의 제구 하락
   TIRED_CTL_2: 12,
   TIRED_INJ_1: 1.6, // 연투 상태로 등판한 경기의 부상 확률 배율
   TIRED_INJ_2: 2.5,
+  // 타순 바퀴 수: 같은 투수를 두·세·네 번째 만나는 타자는 공이 눈에 익는다 (구위 하락). 구위가 낮은 투수일수록 크게 읽힌다
+  TTO_STF: [0, 2, 9, 14],
+  TTO_REF: 60, // 가중 = 1 + (TTO_REF − 구위) / TTO_SLOPE, TTO_MIN~TTO_MAX
+  TTO_SLOPE: 12,
+  TTO_MIN: 0.3,
+  TTO_MAX: 2.0,
   SHORT_BF: 4, // 구원이 한 경기에서 상대한 타자가 이 수 이하인 동안은 전력 투구
   SHORT_STF: 3, // 전력 투구의 구위 가산
   // 불펜 운영 방침 (믿음 / 균형 / 벌떼)
@@ -438,7 +444,8 @@ export function simulateGame(
 
       // ── 타석 확률 ──
       const fat = Math.max(0, ps.bf - ps.limit);
-      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - ps.tiredPen + (!ps.starter && ps.bf <= SIM.SHORT_BF ? SIM.SHORT_STF + (fld.style === 'swarm' ? SIM.SWARM_STF : 0) : 0));
+      const tto = SIM.TTO_STF[Math.min(SIM.TTO_STF.length - 1, Math.floor((ps.bf - 1) / 9))] * clamp(1 + (SIM.TTO_REF - ps.p.stf) / SIM.TTO_SLOPE, SIM.TTO_MIN, SIM.TTO_MAX);
+      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - tto - ps.tiredPen + (!ps.starter && ps.bf <= SIM.SHORT_BF ? SIM.SHORT_STF + (fld.style === 'swarm' ? SIM.SWARM_STF : 0) : 0));
       const stf = norm(stfRaw);
       const ctl = norm(Math.max(20, ps.p.ctl - fat * SIM.FAT_CTL - ps.tiredCtl));
       const pBB = clamp((SIM.BB * Math.pow(norm(b.eye), SIM.BB_EYE)) / Math.pow(ctl, SIM.BB_CTL), 0.02, 0.28);
