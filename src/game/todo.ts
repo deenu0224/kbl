@@ -2,7 +2,7 @@
 import type { Core, HintTab } from './types';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, userTeam } from './economy';
 import { svcYear } from './contract';
-import { orderIssues } from './fixes';
+import { bullpenLoad, orderIssues } from './fixes';
 import { fmtInt } from './format';
 import { memoGet } from './memo';
 import { runway, runwayAlert } from './runway';
@@ -50,7 +50,9 @@ export function todoList(core: Core): Todo[] {
   if (o.lineup + o.pitchers > 0) {
     out.push({ id: 'fix', tab: 'roster', hint: o.lineup ? 'lineup' : 'pitchers', icon: '▲', tone: 'warn', action: 'order', text: `오더에 고칠 곳 ${o.lineup + o.pitchers}` });
   }
-  // 연투: 불펜은 거의 매일 던지므로 할 일로 올리지 않는다 (편집기의 투수 화면에 표시)
+  // 불펜 과부하: 쉰 팔이 없다 (상태 항목 — 2군 구원 콜업·FA 영입·하루 휴식으로 풀린다)
+  const pen = bullpenLoad(t);
+  if (pen.label === '과부하') out.push({ id: 'pen', tab: 'roster', hint: 'pitchers', icon: '♨', tone: 'warn', action: 'pitchers', text: `불펜 과부하 — 쉰 투수 ${pen.rested}명` });
   // 1군 정원
   const act = activeRoster(t);
   const nb = act.filter((p) => p.kind === 'B').length;

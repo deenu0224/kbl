@@ -4,11 +4,11 @@ import type { BatPos, BriefDetail, BriefDone, BriefMemo, BriefMove, BriefOffer, 
 import { teamParts, type TeamParts } from './ratings';
 import { BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, FOOD_LV, LOAN_RATE, LOAN_STEP, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SEAT_LV, TRAIN_LV, activeRoster, farmRoster, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
-import { farmAutoOn } from './farm';
+import { farmAutoOn, shuttleArms } from './farm';
 import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, callUp, farmLockLeft, farmStatText, growChance, sendDown, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
 import { RUNWAY_DANGER, runway, runwayAfter, runwayPieceOf, type Runway } from './runway';
 import { isFranchise } from './franchise';
-import { applyFixes, orderIssues, ploc, pput, tiredFront, todayIssues } from './fixes';
+import { PEN_OVER_KEY, applyFixes, bullpenLoad, orderIssues, ploc, pput, tiredFront, todayIssues } from './fixes';
 import { stageOf } from './campaign';
 import { memoGet, memoNum } from './memo';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
@@ -263,6 +263,36 @@ function marketingOffer(core: Core): Cand | null {
   }
   if (fill < 0.7) return priceStep(-1, '빈자리가 자꾸 눈에 밟혀요. 표값을 내리면 채울 수 있어요!', 36);
   return null;
+}
+
+export const PEN_OFFER_DAYS = 2; // 불펜 보강 제안: 과부하가 이만큼 이어졌거나 지금 과부하일 때
+export const PEN_SIGN_SALARY = 15000; // 보강용 FA 는 연봉 1.5억 이하의 구원만
+const PEN_SIGN_GAP = 4; // 불펜 최약 팔보다 이만큼 넘게 처지는 FA 는 들고 오지 않는다
+
+/** 투수 코치: 불펜이 과부하면 팔을 하나 늘린다 — 2군 구원 콜업(공짜)이 먼저, 없으면 저가 FA 구원 */
+function penOffer(core: Core): Cand | null {
+  const t = userTeam(core);
+  const load = bullpenLoad(t);
+  if (load.label !== '과부하' && memoNum(core, PEN_OVER_KEY) < PEN_OFFER_DAYS) return null;
+  if (activeRoster(t).length >= ROSTER_MAX) return null;
+  const line = `불펜이 쉬지를 못합니다. 쉰 팔이 ${load.rested}명입니다 — 한 명만 더 있으면 돌아갑니다.`;
+  const up = shuttleArms(core)[0];
+  if (up) {
+    const r = callUp(core, up.id);
+    if (!r.error) return { ...offer(44, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: 2군 ${up.name}(OVR ${up.ovr}) 콜업 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명`, { t: 'fix' }, undefined, [{ t: up.id, d: 1 }]), farm: { up: up.id } };
+  }
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const floor = Math.min(...t.bullpen.map((id) => byId.get(id)?.ovr ?? 99)) - PEN_SIGN_GAP;
+  const foreignFull = t.roster.filter((p) => p.foreign).length >= FOREIGN_MAX;
+  const fa = core.freeAgents
+    .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.injury === 0 && p.salary <= PEN_SIGN_SALARY && p.ovr >= floor && signingBonus(p) <= core.finance.cash && !(p.foreign && foreignFull))
+    .sort((a, b) => b.ovr - a.ovr || a.salary - b.salary)[0];
+  if (!fa) return null;
+  const r = signPlayer(core, fa.id);
+  if (r.error) return null;
+  const out = runway(r.core).cashOut;
+  if (out !== null && out <= SIGN_RUNWAY_MIN) return null;
+  return offer(40, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: FA ${fa.name}(OVR ${fa.ovr}) 영입 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명 · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))}${cashTail(core, r.core)}`, { t: 'sign', pid: fa.id }, undefined, [{ t: fa.id, d: 1 }]);
 }
 
 /** 감독: 고칠 곳(칩)을 한 번에. 투수 코치: 연투한 팔을 뒤로 */
@@ -722,7 +752,7 @@ export function weeklyBriefing(core: Core): Briefing {
     home.length ? `평균 관중 ${fmtInt(avg(home))}` : '홈경기 없음',
   ].join(' · ');
 
-  const cands = [scoutOffer(core, m), marketingOffer(core), ...fieldOffers(core), farmOffer(core), chairOffer(core)].filter((c): c is Cand => !!c);
+  const cands = [scoutOffer(core, m), marketingOffer(core), ...fieldOffers(core), penOffer(core), farmOffer(core), chairOffer(core)].filter((c): c is Cand => !!c);
   const themed = STAGE_WHO[Math.min(core.campaign.stage, STAGE_WHO.length - 1)] ?? [];
   const kinds = new Set<string>();
   const picked: Cand[] = [];

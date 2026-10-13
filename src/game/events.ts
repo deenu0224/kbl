@@ -6,6 +6,7 @@ import type { BatPos, Buff, CharId, Core, EventCard, Player } from './types';
 import { clamp, pick, randInt, type Rng } from './rng';
 import { calcOvr } from './ratings';
 import { fixLineup, slotNewcomer, slotValue } from './lineup';
+import { PEN_OVER_GAMES, PEN_OVER_KEY } from './fixes';
 import { ROSTER_MAX, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { addNews } from './season';
@@ -223,7 +224,13 @@ function promotedYoung(core: Core): Player | null {
   return t.roster.find((p) => ids.has(p.id) && p.age <= 23 && !before.has(p.id)) ?? null;
 }
 
-const overworked = (core: Core) => userTeam(core).roster.filter((p) => p.kind === 'P' && (p.tired ?? 0) >= 3 && p.injury === 0);
+// 불펜 과부하가 PEN_OVER_GAMES 경기 이어졌을 때의 가장 지친 구원들 (쉰 팔이 있으면 3연투는 나오지 않는다 — sim.ts manage)
+const overworked = (core: Core) => {
+  if (memoNum(core, PEN_OVER_KEY) < PEN_OVER_GAMES) return [];
+  const t = userTeam(core);
+  const ids = new Set([...t.bullpen, ...(t.closer ? [t.closer] : [])]);
+  return t.roster.filter((p) => ids.has(p.id) && !p.farm && (p.tired ?? 0) >= 1 && p.injury === 0).sort((a, b) => (b.tired ?? 0) - (a.tired ?? 0));
+};
 const retiree = (core: Core) =>
   userTeam(core)
     .roster.filter((p) => !p.farm && p.age >= N.retireAge && p.star >= N.retireStar)
@@ -390,13 +397,13 @@ export const CARDS: CardDef[] = [
     forced: true,
     when: (c) => c.campaign.stage >= 3 && overworked(c).length > 0,
     make: (c) => {
-      const p = overworked(c).sort((a, b) => b.ovr - a.ovr)[0];
+      const p = overworked(c).sort((a, b) => (b.tired ?? 0) - (a.tired ?? 0) || b.ovr - a.ovr)[0];
       if (!p) return null;
       return card('arm', 'arm', {
         title: '팔은 소모품이 아니다',
         icon: '💪',
         pid: p.id,
-        body: `${p.name}(${posKo(p.pos)}, OVR ${p.ovr})이 사흘 연속 마운드에 올랐습니다.`,
+        body: `불펜이 ${PEN_OVER_GAMES}경기째 쉬지 못하고 있습니다. ${p.name}(${posKo(p.pos)}, OVR ${p.ovr})의 팔이 먼저 한계에 왔습니다.`,
         choices: [
           { label: '휴식을 보장한다', desc: `${p.name} ${N.restGames}경기 등판 불가` },
           { label: '강행한다', desc: `부상 위험 ${Math.round(N.armInjury * 100)}% (8~15경기 결장)` },
@@ -405,6 +412,7 @@ export const CARDS: CardDef[] = [
     },
     resolve: (c, i, cd, rng) => {
       const p = findUser(c, cd.pid);
+      memoSet(c, PEN_OVER_KEY, 0);
       if (!p) return '없던 일이 되었습니다';
       if (i === 0) {
         addBuff(c, { kind: 'rest', value: 1, until: c.day + N.restGames, label: `${p.name} 휴식 보장`, pid: p.id });

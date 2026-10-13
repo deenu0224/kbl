@@ -7,6 +7,7 @@ import type { BatPos, Buff, CharId, Core, EventCard, Player, Team } from './type
 import { clamp, pick, type Rng } from './rng';
 import { calcOvr } from './ratings';
 import { fixLineup, slotValue } from './lineup';
+import { PEN_OVER_KEY, bullpenLoad } from './fixes';
 import { FARM_CAP, FARM_LOCK, FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmGrow, farmRoster, userTeam } from './economy';
 import { fmtAvg, fmtEra, fmtMoney } from './format';
 import { memoAdd, memoGet, memoNum, memoSet } from './memo';
@@ -283,6 +284,42 @@ function depthEmpty(t: Team, inj: Player): boolean {
   return act.filter((p) => p.kind === 'P' && !t.rotation.includes(p.id)).length < 5;
 }
 
+export const SHUTTLE_OVR_GAP = 6; // 셔틀: 올라올 팔이 내려갈 팔보다 이만큼 넘게 처지면 하지 않는다 (10경기를 그 팔로 버텨야 한다)
+const SHUTTLE_WEEK = 6; // 주당 1회
+
+/** 셔틀로 올릴 수 있는 2군 구원: 선발 제외, 건강하고 재등록 잠금이 없는 팔 (OVR 순) */
+export function shuttleArms(core: Core): Player[] {
+  return farmRoster(userTeam(core)).filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.injury === 0 && lockLeft(core, p) === 0).sort((a, b) => b.ovr - a.ovr);
+}
+
+/**
+ * 2군 셔틀: 1군 불펜의 절반 이상이 이틀 연투면 가장 지친(그리고 OVR 낮은) 추격조 1명을 내리고 2군 최고 구원을 올린다.
+ * 필승조(불펜 상위 2명)와 마무리는 대상이 아니다. 내려간 팔은 재등록 잠금을 그대로 받는다 — 그게 셔틀의 대가.
+ */
+function shuttleMut(core: Core, notes: string[]): void {
+  const t = userTeam(core);
+  const load = bullpenLoad(t);
+  if (!load.arms || load.tired2 * 2 < load.arms) return;
+  const week = String(Math.floor(core.day / SHUTTLE_WEEK));
+  if (memoGet(core, 'shuttle') === week) return;
+  const up = shuttleArms(core)[0];
+  if (!up) return;
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const down = t.bullpen
+    .slice(2)
+    .map((id) => byId.get(id))
+    .filter((p): p is Player => !!p && p.injury === 0 && !p.subFor && (p.tired ?? 0) >= 1)
+    .sort((a, b) => (b.tired ?? 0) - (a.tired ?? 0) || a.ovr - b.ovr)[0];
+  if (!down || up.ovr < down.ovr - SHUTTLE_OVR_GAP) return;
+  markUpMut(core, up);
+  delete up.farm;
+  delete up.farmUntil;
+  t.bullpen[t.bullpen.indexOf(down.id)] = up.id; // 내려간 팔의 자리를 그대로 받는다
+  demoteMut(core, t, down, true);
+  memoSet(core, 'shuttle', week);
+  say(core, notes, `${FARM_COACH}지친 불펜 교대 — ${down.name} ↓ ${up.name} ↑`);
+}
+
 /**
  * 매 경기 후 (advanceDay 끝, mutate). 규칙으로 정해진 일(전향 해소·미룬 입대)은 항상,
  * 2군 코치의 일(부상 대체 콜업·복귀, 벤치 유망주 2군행)은 자동 운영이 켜져 있을 때만 한다.
@@ -298,7 +335,12 @@ export function farmDailyMut(core: Core, notes: string[]): void {
   if (core.day >= F.armyDay) {
     for (const p of t.roster.filter((x) => x.armyDue !== undefined && x.armyDue <= core.season)) enlistMut(core, p, notes);
   }
+  // 불펜 과부하가 이어진 경기 수 (하루 쉬면 하나 줄어든다 — 'arm' 사건과 브리핑이 읽는다)
+  const load = bullpenLoad(t);
+  if (load.label === '과부하') memoAdd(core, PEN_OVER_KEY);
+  else if (memoNum(core, PEN_OVER_KEY) > 0) memoAdd(core, PEN_OVER_KEY, -1);
   if (!farmAutoOn(core)) return;
+  shuttleMut(core, notes);
 
   // ── 부상자가 돌아오면 대체 선수는 2군으로 (맹활약 중이면 사건 B3 로 넘긴다) ──
   const pend = pending(core);
