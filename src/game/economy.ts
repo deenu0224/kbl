@@ -79,7 +79,7 @@ export const SALARY_INFLATION_MAX = 0.8;
 // 재계약 프리미엄: 가을야구를 한 팀의 선수는 비싸진다. 최근 RENEW_SEASONS 시즌의 성적별 가산을 더한다 (유저 구단 연봉에만)
 export const RENEW_PREMIUM: Record<string, number> = { none: 0, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.1 };
 export const RENEW_SEASONS = 2; // 3시즌 합산(최대 +36%)은 왕조 팀의 연봉을 시즌마다 40억씩 올렸다 — 2시즌(최대 +20%)
-export const LEAGUE_BASE = 2700; // 리그 분배금·스폰서 기본 (만원/경기)
+export const LEAGUE_BASE = 2400; // 리그 분배금·스폰서 기본 (만원/경기)
 export const LEAGUE_PER_FAN = 0.04;
 export const LEAGUE_PER_RANK = 45; // 순위 한 계단당
 export const MERCH_K = 0.03; // 팬 1명 × 스타합/100 당 (만원/경기)
