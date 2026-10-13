@@ -20,6 +20,7 @@ import PlayerBrowser from './roster/PlayerBrowser';
 import { AddChip } from './roster/TransferDesk';
 import { openDesk, useTransferUi } from './roster/transferUi';
 import { usePosReport, useRosterUi } from './roster/rosterUi';
+import { PenLoadLine } from './roster/PenStyle';
 import { callUpPreview, sendDownPreview } from '../game/analysis';
 
 // ───────── 공용 행 ─────────
@@ -343,6 +344,7 @@ export function PitchersTab() {
   return (
     <>
       <RosterTop team={team} />
+      <PenLoadLine className="shrink-0 px-2 pt-1.5 !text-[11px] mob:!text-[13px]" />
       <div ref={box} className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5" data-testid="pitcher-list">
         <SectionTitle>선발 로테이션</SectionTitle>
         {team.rotation.map((pid, i) =>
