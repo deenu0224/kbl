@@ -130,6 +130,7 @@ function useFlashPid(): string | null {
  * [교체]를 눌러야 바뀐다 (그 위에 예상 변화).
  */
 function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; rows: PosRow[]; onClose: () => void; onSwap: (plan: Plan) => void; onCard: (pid: string) => void }) {
+  const [more, setMore] = useState(false);
   const team = useUserTeam();
   const core = useCore();
   const o = team.roster.find((p) => p.id === owner);
@@ -156,6 +157,10 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
       {right}
     </div>
   );
+  // 이득이 큰 후보부터. 기본은 3명만 보이고 나머지는 접는다
+  const sorted = cands.slice().sort((x, y) => (isPlan(y.plan) ? y.plan.sum : -99) - (isPlan(x.plan) ? x.plan.sum : -99));
+  const shown = more ? sorted : sorted.slice(0, 3);
+  const hidden = sorted.length - shown.length;
   return (
     <Dialog onClose={onClose} label="자리" width={460}>
       <div className="flex max-h-[calc(70dvh-34px)] flex-col gap-1" data-testid="slot-sheet">
@@ -168,7 +173,7 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
         </div>
         <div className="px-scroll flex min-h-0 flex-1 flex-col gap-[3px] overflow-y-auto [&>*]:shrink-0">
           {o ? line(o, '주전', null) : <div className="bg-bad/15 px-2 py-2 text-[13px] text-bad">마무리 비어 있음 — 불펜 투수를 고르세요</div>}
-          {cands.map((c) => {
+          {shown.map((c) => {
             const plan = c.plan;
             const ok = isPlan(plan);
             return line(
@@ -185,6 +190,11 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
               c.farm ? farmLockLeft(core, c.p) : 0,
             );
           })}
+          {hidden > 0 && (
+            <button className="px-btn min-h-10 text-[13px]" data-testid="slot-more" onClick={() => setMore(true)}>
+              후보 {hidden}명 더 보기 ▾
+            </button>
+          )}
           {!cands.length && <div className="px-1 py-2 text-[13px] text-white/45">바꿀 수 있는 후보가 없습니다</div>}
         </div>
         {o && <div className="shrink-0 truncate text-[13px] text-white/55">교체하면 {o.name} → {slot ? '벤치' : '상대의 보직'}</div>}
@@ -396,11 +406,13 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
   /** 테두리: 놓을 곳 > 끄는 선수 > 방금 들어온 선수 > 가장 약한 자리(굵은 빨강) > 순위 색 */
   const frame = (pid: string, row?: PosRow): CSSProperties => {
     const s = stateOf(pid);
-    const edge = row ? TONE_EDGE[rankTone(row)] : '#0f1420';
+    // 칸 색은 팀 안에서 가장 약한 2곳(빨강)·가장 강한 2곳(초록)만. 리그 순위는 자리 시트에서 보여 준다
+    const tileTone = row ? (row.weak ? 'bad' : row.strong ? 'good' : 'mid') : 'mid';
+    const edge = row ? TONE_EDGE[tileTone] : '#0f1420';
     return {
       boxShadow: s.over ? '0 0 0 3px #6ee07a' : s.mine || flashPid === pid ? '0 0 0 2px #ffd84a' : s.ok ? '0 0 0 2px #6ee07a' : row?.weak ? '0 0 0 3px #ff6b6b' : `0 0 0 1px ${edge}`,
       opacity: s.mine ? 0.45 : s.dim ? 0.38 : 1,
-      ...(row ? { background: TONE_BG[rankTone(row)] } : null),
+      ...(row ? { background: TONE_BG[tileTone] } : null),
     };
   };
   const delta = (plan: PlanResult | undefined, fallback: ReactNode, tight = true): ReactNode => {
