@@ -30,18 +30,26 @@ export const PROJECT_RESERVE = 300000; // 30억
 function buyProjects(c0: Core, order: ProjectId[], give: boolean): Core {
   if (!projectsOpen(c0) || c0.phase === 'over') return c0;
   let c = c0;
-  // 빚부터 갚고, 관중석을 끝까지 올린다 (돔은 2층 스타디움 위에 짓는다)
-  while (c.finance.debt > 0 && c.finance.cash >= LOAN_STEP + PROJECT_RESERVE) {
-    const r = repay(c);
-    if (r.error) break;
-    c = r.core;
+  if (give) {
+    // sensible: 빚부터 갚고, 관중석을 끝까지 올린 다음에 프로젝트 (돈을 버는 투자가 먼저 · 돔은 2층 스타디움 위에 짓는다)
+    while (c.finance.debt > 0 && c.finance.cash >= LOAN_STEP + PROJECT_RESERVE) {
+      const r = repay(c);
+      if (r.error) break;
+      c = r.core;
+    }
+    if (c.finance.debt > 0) return c;
+    for (let seat = upgradeCost('seats', c.facilities); seat !== null; seat = upgradeCost('seats', c.facilities)) {
+      if (c.finance.cash < seat + PROJECT_RESERVE) return c;
+      c = ok(upgradeFacility(c, 'seats'), c);
+      if (upgradeCost('seats', c.facilities) === seat) return c;
+    }
   }
-  if (c.finance.debt > 0) return c;
-  const seat = upgradeCost('seats', c.facilities);
-  if (seat !== null && order.includes('dome') && c.finance.cash >= seat + PROJECT_RESERVE) c = ok(upgradeFacility(c, 'seats'), c);
   for (const id of order) {
     const pv = projectPreview(c, id);
-    if (pv.done || pv.error || c.finance.cash < pv.cost + PROJECT_RESERVE) continue;
+    if (pv.done) continue;
+    // 순서대로: 앞의 것을 살 돈이 모자라면 뒤의 것을 사지 않고 모은다 (규칙으로 막힌 것 — 한 시즌 한 단계·영구결번 없음 — 은 건너뛴다)
+    if (c.finance.cash < pv.cost + PROJECT_RESERVE) break;
+    if (pv.error) continue;
     c = ok(buyProject(c, id), c);
   }
   // 남으면 도민 환원: 돔을 다 지었으면 여유만 남기고, 짓는 중이면 다음 단계 대금까지 남긴다
