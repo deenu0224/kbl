@@ -5,7 +5,7 @@
 // - drawStoveTrade: 스토브리그(결산 후 · 드래프트 전)의 제안 1건
 import type { Core, EventCard, EventDetail, Player, Team } from './types';
 import { clamp, pick, randInt, type Rng } from './rng';
-import { FARM_MAX, LOAN_LIMIT, TRADE_DEADLINE, blockClosedWhy, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmRoster, payroll, userTeam } from './economy';
+import { FARM_MAX, LOAN_LIMIT, blockClosedWhy, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmRoster, payroll, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { isFranchise } from './franchise';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
@@ -21,7 +21,7 @@ import { CHARACTERS, NEWS } from './story';
 // ── 튜닝 상수 ──
 export const TR = {
   from: 18, // 트레이드 기간: 이 경기 뒤부터
-  to: TRADE_DEADLINE, // 마감일
+  to: 54, // 마감일 (economy.ts TRADE_DEADLINE 과 같은 값 — 모듈 순환을 피하려고 따로 둔다)
   warn: 6, // 마감 이 경기 전에 뉴스 한 줄
   max: 2, // AI 가 먼저 거는 제안: 시즌 최대 장수
   gap: 12, // 제안끼리 최소 경기 수
