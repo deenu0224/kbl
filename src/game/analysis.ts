@@ -317,8 +317,8 @@ export function growthInfo(core: Core, p: Player): GrowthInfo {
 }
 
 /** 스카우트 등급의 뜻: 추정 잠재력 구간과 오차(표준편차). 분석원을 채용하면 오차가 준다 */
-export function scoutInfo(core: Pick<Core, 'campaign'>, grade: Player['scout']): { lo: number; hi: number | null; noise: number; cuts: string } {
-  const noise = core.campaign.analyst ? ANALYST_NOISE : SCOUT_NOISE;
+export function scoutInfo(analyst: boolean, grade: Player['scout']): { lo: number; hi: number | null; noise: number; cuts: string } {
+  const noise = analyst ? ANALYST_NOISE : SCOUT_NOISE;
   const i = SCOUT_CUT.findIndex(([, g]) => g === grade);
   const lo = i >= 0 ? SCOUT_CUT[i][0] : 0;
   const hi = i > 0 ? SCOUT_CUT[i - 1][0] - 1 : i === 0 ? null : SCOUT_CUT[SCOUT_CUT.length - 1][0] - 1;
@@ -327,8 +327,8 @@ export function scoutInfo(core: Pick<Core, 'campaign'>, grade: Player['scout']):
 }
 
 /** 등급으로 본 성장 여지 추정 구간 (신인: 실제 잠재력은 숨겨져 있다) */
-export function scoutRoom(core: Pick<Core, 'campaign'>, p: Player): { lo: number; hi: number | null } {
-  const s = scoutInfo(core, p.scout);
+export function scoutRoom(analyst: boolean, p: Player): { lo: number; hi: number | null } {
+  const s = scoutInfo(analyst, p.scout);
   return { lo: Math.max(0, s.lo - p.ovr), hi: s.hi === null ? null : Math.max(0, s.hi - p.ovr) };
 }
 
