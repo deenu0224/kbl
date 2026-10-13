@@ -110,6 +110,8 @@ export default function Settings() {
   };
 
   return (
+    // 초기 화면(z-65) 위에도 뜬다
+    <div className="relative z-[80]">
     <Dialog onClose={close} label="설정" width={480}>
       <div className="m-shell text-[13px]" data-testid="settings">
         <div className="font-pixel-lg text-[16px] text-hi">설정</div>
@@ -188,5 +190,6 @@ export default function Settings() {
         </div>
       </div>
     </Dialog>
+    </div>
   );
 }

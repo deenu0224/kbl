@@ -46,7 +46,7 @@ function Backdrop({ dim = 0.55 }: { dim?: number }) {
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#0f1420]">
       <StadiumCanvas scene={scene} className="pixel absolute top-0 left-1/2 block h-[62%] w-auto max-w-none -translate-x-1/2" />
-      <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(15,20,32,${dim * 0.5}) 0%, rgba(15,20,32,${dim}) 38%, #141a29 66%)` }} />
+      <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(15,20,32,${dim * 0.8}) 0%, rgba(15,20,32,${Math.min(0.92, dim + 0.2)}) 38%, #141a29 66%)` }} />
     </div>
   );
 }

@@ -257,3 +257,7 @@ canvas.pixel {
     2px -2px 0 #0f1420,
     -2px 2px 0 #0f1420;
 }
+/* mob:text-[11px] 처럼 직접 지정한 작은 글자도 13px 로 올린다 (구장 오버레이는 인라인 cqw 라 해당 없음) */
+:root:is([data-layout='portrait'], [data-layout='landscape']) :is([class*='text-[9px]'], [class*='text-[10px]'], [class*='text-[11px]'], [class*='text-[12px]']) {
+  font-size: 13px;
+}
