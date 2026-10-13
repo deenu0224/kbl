@@ -80,8 +80,7 @@ function OfferCard({ o, onOpen }: { o: BriefOffer; onOpen: () => void }) {
           </div>
         </div>
         <div className="mt-1.5 text-[12px] leading-snug text-hi mob:text-[13px]" data-testid="brief-effect">
-          {o.effect}
-          {o.flag && <span className="text-good"> · {o.flag}</span>}
+          {o.effect.split(' · ')[0]}
         </div>
       </button>
       <div className="mt-1.5 flex items-center gap-2">
@@ -336,6 +335,9 @@ export default function BriefingSheet() {
   const show = useStore((s) => !!s.campaign.briefing && !s.campaign.event && !s.summary && !s.playback && s.phase === 'season');
   const close = useStore((s) => s.briefClose);
   const mobile = useIsMobile();
+  const core = useCore();
+  const fc = flagForecast(core);
+  const behind = fc.text !== '—' && !fc.ok;
   const [open0, setOpen] = useState<Open | null>(null);
   useEffect(() => {
     if (show) play('event');
@@ -365,11 +367,11 @@ export default function BriefingSheet() {
           </button>
         ))}
         <div className="bg-ink/55 px-2 py-1.5">
-          <div className="text-[11px] text-white/55">지난 6경기</div>
-          <div className="text-[13px] leading-snug mob:text-[14px]" data-testid="brief-summary">
-            {b.summary}
+          <div className="truncate text-[13px] leading-snug mob:text-[14px]" data-testid="brief-summary">
+            {b.summary.split(' · ').slice(0, 2).join(' · ')}
           </div>
-          <FlagForecast className="mt-1" />
+          {/* 깃발 예측은 뒤처졌을 때만 */}
+          {behind && <FlagForecast className="mt-1" />}
         </div>
         {b.alert && <ChairAlert text={b.alert} />}
         {b.offers.map((o) => (
