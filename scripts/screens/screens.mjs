@@ -61,7 +61,7 @@ export const SCREENS = [
   S('fac-seats', 'season3', game(m('fac-fixed-seats'), d('fac-seats'))),
   S('fac-food', 'season3', game(m('fac-fixed-food'), d('fac-food'))),
   S('fac-training', 'season3', game(m('fac-fixed-training'), d('fac-training'))),
-  S('ticket', 'season3', game('crowd-chip')),
+  S('ticket', 'season3', game(m('crowd-chip'), d('구장'))),
   S('menu', 'season3', game('m-top'), { only: 'mobile' }),
   S('campaign', 'season3', game('캠페인')),
   S('campaign-dynasty', 'dynasty', game('캠페인')),
@@ -95,8 +95,8 @@ export const SCREENS = [
   S('desk', 'season3', game(...DESK)),
   S('desk-table', 'season3', game(...DESK, 'view-toggle')),
   S('desk-added', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }))),
-  S('desk-summary', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), 'sum-toggle')),
-  S('desk-squad', 'season3', game(...DESK, 'side-squad')),
+  S('desk-summary', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), m('sum-toggle'))),
+  S('desk-squad', 'season3', game(...DESK, m('side-squad'))),
 
   // ── 리그
   S('league-table', 'season3', game('리그')),
@@ -123,7 +123,7 @@ export const SCREENS = [
   S('play-away', 'away', game(...PLAY, { wait: 1000 })),
   S('summary', 'season3', game(...SUMMARY)),
   S('summary-more', 'season3', game(...SUMMARY, '자세히: 이닝별')),
-  S('summary-opener', 'fresh', game('order-submit', { wait: 400 }, ...SUMMARY)),
+  S('summary-opener', 'fresh', game('order-submit', { wait: 600 }, c('▶ 경기 진행', { optional: true }), { wait: 600 }, c('건너뛰기 ▶▶', { optional: true }), { wait: 500 })),
   S('week', 'opened', game('1주', { wait: 1500 })),
 
   // ── 시즌 끝
