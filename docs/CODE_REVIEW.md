@@ -13,8 +13,9 @@
 | 2 | 중간 | `src/game/farm.ts` farmDailyMut (콜업 대체 선수 정리) | 콜업된 대체 선수가 다친 채 선발 칸에 남아 있으면(짧은 부상·감독에게 맡김) 원래 주전이 나아도 대체 선수가 나을 때까지 자리를 돌려받지 못한다 | **고침** — 칸은 바로 돌려주고 2군행만 나은 뒤로 | farmcheck 6 4 위반 0 |
 | 3 | 중간 | `src/game/remedy.ts` injuryPlan / subHurtMut | (알려진 b) 부상 카드에서 "감독에게 맡긴다"를 고른 짧은 부상이, 다른 부상 때문에 열린 조치 시트의 "대체 선수 넣기"에 함께 묶여 편성이 영구히 바뀐다 (복귀 때 되돌려 줄 표시도 없다) | **고침** — 카드에서 이미 정한 부상(`subdone-<pid>`, todo.ts 와 같은 기준)은 조치 시트의 대상·실행에서 뺀다 | 임시 스크립트: A 를 감독에게 맡긴 뒤 B 가 다친 상태에서 "대체 선수 넣기" — 수정 전 A·B 둘 다 교체("외 1명"), 수정 후 B 만 · farmcheck 6 4 위반 0 |
 | 4 | 중간 | `src/game/season.ts` boxOf · `src/game/sim.ts` | (알려진 c) 경기 기록의 투수 순서가 등판 순서가 아니라 명단 순서 | **고침** — sim 이 `GameResult.pitOrder`(optional)로 등판 순서를 싣고 boxOf 가 그 순서로 정렬. 난수 소비 변화 없음 | 임시 스크립트: 30경기 60개 박스(3명 이상 등판 45개) 전부 등판 순서와 일치 · balance 는 최종 검증에서 비교 |
-| 5 | 중간 | `src/store.ts` setFarmAuto · setSubAuto · setPenStyle | 경기 재생 중에 바꾼 설정(2군 자동 운영·부상 대체 방식·불펜 방침)이 재생이 끝나면 재생 시작 시점 값으로 되돌아간다 (commitPlayback 이 스냅샷으로 덮어쓴다) | 코드로 확인 | 코드 확인 · typecheck |
-| 6 | 중간 | `src/game/farm.ts` subBackMut | 카드로 고른 벤치 대체 선수의 표시(subFor)가, 부상자가 건강한 채 2군(재활 명단 아님)에 있으면 영영 지워지지 않는다 → 트레이드 불가·셔틀/말소 후보 제외가 풀리지 않는다 | 추정 | — |
+| 5 | 낮음 | `src/store.ts` setFarmAuto · setSubAuto · setPenStyle | 스토어 액션에 재생 중(playback) 가드가 없어, 재생 중에 부르면 커밋 때 스냅샷으로 덮여 되돌아간다. 단 화면(Settings · PenStyle)이 재생 중에는 버튼을 막고 있어 유저는 겪지 않는다 | **남김** — 화면에서 닿지 않는 방어 코드라 건드리지 않음 | 호출부 확인 (`disabled={playback}`, `busy`) |
+| 6 | — | `src/game/farm.ts` subBackMut | 벤치 대체 선수의 표시가 `orig.farm` 조건 때문에 안 지워질 수 있다고 의심 | **문제 아님** — 부상자가 2군에 있는 경우는 재활 명단뿐이고(복귀하면 그날 정리), 건강한 1군 부상자는 같은 날 처리된다. 닿는 경로 없음 | 코드 추적 |
+| 9 | 낮음 | `src/game/trade.ts` applyTradeMut | 포지션 전향 중(posShift)인 선수를 트레이드로 보내면 표시만 지워져, 깎인 수비(−6)가 그 선수에게 영구히 남는다 (방출은 복구한다) | **고침** — 보낼 때 수비·오버롤 복구 | 임시 스크립트: 수정 전 수비 66 → 60, 수정 후 66 → 66 |
 | 7 | 낮음 | `src/game/campaign.ts` unfixMut · `src/game/season.ts` forceStarter | (알려진 d) 고정 출전 점검 — 아래 메모 | 점검 중 | — |
 | 8 | 낮음 | `src/components/layout/uiScale.ts` | (알려진 e) zoom 좌표 — 점검 예정 | 점검 중 | — |
 
