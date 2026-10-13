@@ -14,7 +14,7 @@ import { applyFixes, bullpenLoad, orderIssues, ploc, pput } from './fixes';
 import { fmtInt, fmtMoney } from './format';
 import { isFranchise } from './franchise';
 import { slotValue } from './lineup';
-import { memoGet } from './memo';
+import { memoGet, memoNum } from './memo';
 import { teamParts, type TeamParts } from './ratings';
 import { runway, runwayAfter, type Runway } from './runway';
 import { POS_NAME } from './script';
@@ -87,13 +87,15 @@ function mutTeam(core0: Core, fn: (t: Team) => void): Core {
 // ───────── 부상 ─────────
 
 interface Swap { out: Player; in: Player; where: string }
+/** 부상 대체 카드에서 이미 정한 부상자 (subpick.ts 의 `subdone-<pid>`. todo.ts 와 같은 기준): "감독에게 맡긴다"를 고른 짧은 부상은 편성에 남아 있어도 건드리지 않는다 */
+const subDone = (core: Core): Set<string> => new Set(userTeam(core).roster.filter((p) => memoNum(core, `subdone-${p.id}`, -1) >= core.day).map((p) => p.id));
 /** 부상 주전·선발 자리에 1군의 건강한 대체 선수를 넣는다 (mutate). 경기 중 자동 대체(sim)와 같은 기준 */
-function subHurtMut(t: Team): Swap[] {
+function subHurtMut(t: Team, skip?: Set<string>): Swap[] {
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const out: Swap[] = [];
   t.lineup.forEach((s, i) => {
     const h = byId.get(s.pid);
-    if (!h || h.injury === 0) return;
+    if (!h || h.injury === 0 || skip?.has(h.id)) return;
     const inLu = new Set(t.lineup.map((l) => l.pid));
     const c = activeRoster(t).filter((p) => p.kind === 'B' && p.injury === 0 && !inLu.has(p.id)).sort((a, b) => slotValue(b, s.pos) - slotValue(a, s.pos))[0];
     if (!c) return;
@@ -102,7 +104,7 @@ function subHurtMut(t: Team): Swap[] {
   });
   t.rotation.forEach((id, i) => {
     const h = byId.get(id);
-    if (!h || h.injury === 0) return;
+    if (!h || h.injury === 0 || skip?.has(h.id)) return;
     const c = t.bullpen.map((x) => byId.get(x)).filter((p): p is Player => !!p && p.injury === 0).sort((a, b) => (b.pos === 'SP' ? 100 : 0) + b.ovr - ((a.pos === 'SP' ? 100 : 0) + a.ovr))[0];
     if (!c) return;
     const lc = ploc(t, c.id);
@@ -125,8 +127,9 @@ export function injuryPlan(core: Core): InjuryPlan {
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const hurtB = t.lineup.map((l) => byId.get(l.pid)).filter((p): p is Player => !!p && p.injury > 0);
   const hurtP = t.rotation.map((id) => byId.get(id)).filter((p): p is Player => !!p && p.injury > 0);
-  const hurt = [...hurtB, ...hurtP];
-  const subs = hurt.length ? subHurtMut(structuredClone(t)) : [];
+  const done = subDone(core);
+  const hurt = [...hurtB, ...hurtP].filter((p) => !done.has(p.id));
+  const subs = hurt.length ? subHurtMut(structuredClone(t), done) : [];
   const covered = subs.length >= hurt.length;
   let farm: InjuryPlan['farm'] = null;
   let farmBlock: string | null = null;
@@ -168,7 +171,7 @@ export function injuryNotice(core: Core): { show: boolean; why: string } {
 function applyCallupSub(core: Core, pid: string, down?: string): Res {
   const r = chain(core, [...(down ? [(c: Core) => sendDown(c, down)] : []), (c) => callUp(c, pid)]);
   if (r.error) return r;
-  return { core: mutTeam(r.core, (t) => void subHurtMut(t)) };
+  return { core: mutTeam(r.core, (t) => void subHurtMut(t, subDone(r.core))) };
 }
 
 function applyIl(core: Core, pid: string, up?: string): Res {
@@ -207,7 +210,7 @@ function injuryRemedies(core: Core): Remedy[] {
   const out: Remedy[] = [];
   if (pl.subs.length) {
     const c = structuredClone(t);
-    subHurtMut(c);
+    subHurtMut(c, subDone(core));
     const s = pl.subs[0];
     out.push({
       id: 'sub', run: { t: 'sub' }, tone: 'good',
@@ -614,7 +617,7 @@ export function applyRemedy(core: Core, r: Remedy): Res {
   const a = r.run;
   switch (a.t) {
     case 'sub':
-      return { core: mutTeam(core, (t) => void subHurtMut(t)) };
+      return { core: mutTeam(core, (t) => void subHurtMut(t, subDone(core))) };
     case 'callupSub':
       return applyCallupSub(core, a.pid, a.down);
     case 'fixAll':
