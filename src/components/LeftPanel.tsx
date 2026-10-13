@@ -2,10 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BatPos, Player, Team } from '../game/types';
 import { pitcherLoc, putPitcher, useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
-import { FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, activeRoster, farmRoster, releaseCost, signingBonus } from '../game/economy';
-import { slotNewcomer } from '../game/lineup';
-import { farmStatText, signPlayer } from '../game/season';
-import { runwayPieceOf } from '../game/runway';
+import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, releaseCost, signingBonus } from '../game/economy';
+import { farmStatText } from '../game/season';
+import { basketCount } from '../game/transfer';
 import { betterArms, betterBats, homeSwap, offPos, orderIssues } from '../game/fixes';
 import { effDef, teamParts, type TeamParts } from '../game/ratings';
 import PlayerCard from './PlayerCard';
@@ -15,7 +14,8 @@ import Sheet from './layout/Sheet';
 import { useIsMobile } from './layout/useLayout';
 import { OvrBadge, POS_KO, SectionTitle, Stars, TabBar } from './ui';
 import { MiniDiamond } from './roster/Diamond';
-import FrontOffice, { MarketBoard } from './roster/FrontOffice';
+import FrontOffice from './roster/FrontOffice';
+import { openDesk, useTransferUi } from './roster/transferUi';
 import { usePosReport, useRosterUi } from './roster/rosterUi';
 import { callUpPreview, fitsKey, sendDownPreview } from '../game/analysis';
 
@@ -241,40 +241,16 @@ export function FarmTab() {
   );
 }
 
-/** 방출 버튼 + 불가 사유 */
-function ReleaseButton({ player, team }: { player: Player; team: Team }) {
+/** [방출 담기]: 즉시 방출하지 않고 이적 창구에 담는다 (얻는 것·잃는 것을 한 화면에서 보고 확정) */
+export function ReleaseButton({ player }: { player: Player; team?: Team }) {
   const core = useCore();
-  const release = useStore((s) => s.release);
-  const [arm, setArm] = useState(false);
-  useEffect(() => setArm(false), [player.id]);
-
-  const nBat = activeRoster(team).filter((x) => x.kind === 'B').length;
-  const nPit = activeRoster(team).length - nBat;
   const cost = releaseCost(player, core);
-  const reason =
-    !player.farm && player.kind === 'B' && nBat <= MIN_BATTERS
-      ? `타자는 최소 ${MIN_BATTERS}명`
-      : !player.farm && player.kind === 'P' && nPit <= MIN_PITCHERS
-        ? `투수는 최소 ${MIN_PITCHERS}명`
-        : core.finance.cash < cost
-          ? `위약금 부족 (${fmtMoney(cost)})`
-          : null;
-
   return (
     <>
-      <button
-        className={`px-btn ${arm ? 'primary' : ''}`}
-        disabled={!!reason}
-        title={reason ?? `위약금 ${fmtMoney(cost)} (잔여 연봉의 20%)`}
-        onClick={() => {
-          if (!arm) return setArm(true);
-          setArm(false);
-          release(player.id);
-        }}
-      >
-        {arm ? '정말 방출?' : '방출'}
+      <button className="px-btn" data-testid="release-to-desk" title="이적 창구에 방출로 담는다 (확정 전까지 실제 선수단은 그대로)" onClick={() => openDesk({ add: [['release', player.id]] })}>
+        방출 담기 ⤢
       </button>
-      <span className={`text-[10px] ${reason ? 'text-bad' : 'text-white/50'}`}>{reason ?? `위약금 ${fmtMoney(cost)}`}</span>
+      <span className="text-[10px] text-white/50">위약금 {fmtMoney(cost)}</span>
     </>
   );
 }
@@ -672,107 +648,67 @@ export function PitchersTab({ order = false }: { order?: boolean }) {
   );
 }
 
-// ───────── 영입 ─────────
+// ───────── 이적 ─────────
 
+/** 이적 탭: 이적 창구(전체 화면)로 들어가는 문. 목록의 선수를 누르면 담은 채로 창구가 열린다 */
 export function MarketTab() {
   const team = useUserTeam();
   const freeAgents = useStore((s) => s.freeAgents);
   const cash = useStore((s) => s.finance.cash);
-  const sign = useStore((s) => s.sign);
-  const core = useCore();
-  const [sel, setSel] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'B' | 'P'>('all');
-  // 팀 진단에서 넘어온 포지션 필터 ('weak' = 우리 약점 두 자리)
+  const basket = useTransferUi((s) => s.basket);
   const rows = usePosReport();
-  const posFilter = useRosterUi((s) => s.marketPos);
-  const setPosFilter = useRosterUi((s) => s.setMarketPos);
   const weakKeys = useMemo(() => rows.filter((r) => r.weak).map((r) => r.key), [rows]);
-  const fits = (p: Player) => posFilter === null || (posFilter === 'weak' ? weakKeys.some((k) => fitsKey(p, k)) : fitsKey(p, posFilter));
+  const [weakOnly, setWeakOnly] = useState(false);
 
-  // 스카우트 팀장의 명단은 시장 맨 위에 따로 올린다 (맨 앞이 그가 고른 선수)
+  // 스카우트 팀장의 명단은 맨 위에 따로 올린다 (맨 앞이 그가 고른 선수)
   const scoutIds = useStore((s) => s.campaign.eventsSeen.find((x) => x.startsWith('~scoutList='))?.slice(11) ?? '');
   const list = useMemo(() => {
     const ids = scoutIds ? scoutIds.split(',') : [];
     const rank = (p: Player) => (ids.includes(p.id) ? ids.indexOf(p.id) - 9 : 0);
-    return freeAgents.filter((p) => (filter === 'all' || p.kind === filter) && fits(p)).sort((a, b) => rank(a) - rank(b) || b.ovr - a.ovr);
-  }, [freeAgents, filter, scoutIds, posFilter, weakKeys]);
+    return freeAgents.filter((p) => !weakOnly || weakKeys.some((k) => fitsKey(p, k))).sort((a, b) => rank(a) - rank(b) || b.ovr - a.ovr);
+  }, [freeAgents, scoutIds, weakOnly, weakKeys]);
   const scoutPick = scoutIds.split(',')[0];
-  const selP = sel ? freeAgents.find((p) => p.id === sel) : undefined;
-  const full = activeRoster(team).length >= ROSTER_MAX;
-  const bonus = selP ? signingBonus(selP) : 0;
-  // 영입하면: 자동으로 들어갈 자리를 복제본에 적용해 본 전력 변화
-  const preview = useMemo(() => {
-    if (!selP) return null;
-    const t = structuredClone(team);
-    const p = structuredClone(selP);
-    t.roster.push(p);
-    const role = slotNewcomer(t, p);
-    const a = teamParts(team);
-    const b = teamParts(t);
-    const moved = PART_LABEL.filter(([k]) => a[k] !== b[k])
-      .sort(([x], [y]) => Math.abs(b[y] - a[y]) - Math.abs(b[x] - a[x]))
-      .slice(0, 2)
-      .map(([k, label]) => ({ label, from: a[k], to: b[k] }));
-    return { role, moved };
-  }, [selP, team]);
-  // 영입하면 금고가 언제 비는가 (안전하면 없음)
-  const signPiece = useMemo(() => {
-    if (!selP) return null;
-    const r = signPlayer(core, selP.id);
-    return r.error ? null : runwayPieceOf(core, r.core);
-  }, [core, selP]);
-  const reason = !selP ? null : full ? `로스터 정원 초과 (${ROSTER_MAX}명)` : cash < bonus ? `현금 부족 (계약금 ${fmtMoney(bonus)})` : null;
+  const nAct = activeRoster(team).length;
+  const nFarm = farmRoster(team).length;
+  const n = basketCount(basket);
 
   return (
     <>
       <FirstTip id="market" />
-      <div className="flex shrink-0 items-center gap-1 px-1.5 pt-1.5 text-[10px]">
-        {(
-          [
-            ['all', '전체'],
-            ['B', '타자'],
-            ['P', '투수'],
-          ] as const
-        ).map(([k, label]) => (
-          <button key={k} onClick={() => setFilter(k)} className={`cursor-pointer px-1.5 py-0.5 mob:min-h-9 mob:px-3 ${filter === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
-            {label}
+      <div className="flex shrink-0 flex-col gap-1 px-1.5 pt-1.5">
+        <button className="px-btn primary min-h-9 text-[13px] mob:min-h-11 mob:text-[15px]" data-testid="open-desk" onClick={() => openDesk()}>
+          이적 창구 열기 ⤢{n > 0 && ` (담은 ${n}건)`}
+        </button>
+        <div className="text-[10px] leading-snug text-white/60 mob:text-[11px]" data-testid="desk-head">
+          영입·방출·2군 이동을 한 화면에서 담고, 합산 결과를 본 뒤 한 번에 확정
+          <br />
+          현금 <span className="text-hi">{fmtMoney(cash)}</span> · 1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className="text-white">{nFarm}/{FARM_MAX}</span> · FA {freeAgents.length}명
+        </div>
+        <div className="flex items-center gap-1 text-[10px]">
+          <button onClick={() => openDesk({ side: 'squad' })} className="cursor-pointer whitespace-nowrap bg-ink px-1.5 py-0.5 text-white/70 mob:min-h-9 mob:px-2" data-testid="open-desk-squad">
+            우리 선수단에서 담기 ⤢
           </button>
-        ))}
-        <button
-          data-testid="weak-only"
-          onClick={() => setPosFilter(posFilter === 'weak' ? null : 'weak')}
-          className={`cursor-pointer whitespace-nowrap px-1.5 py-0.5 mob:min-h-9 mob:px-2 ${posFilter === 'weak' ? 'bg-bad text-ink' : 'bg-ink text-bad'}`}
-        >
-          우리 약점만
-        </button>
-        <span className={`ml-auto whitespace-nowrap ${full ? 'text-bad' : 'text-white/50'}`}>
-          1군 {activeRoster(team).length}/{ROSTER_MAX}
-        </span>
-        <button className="cursor-pointer whitespace-nowrap bg-panel-2 px-1.5 py-0.5 text-hi mob:min-h-9 mob:px-2" data-testid="market-table" onClick={() => useRosterUi.setState({ board: true })}>
-          표로 보기 ⤢
-        </button>
-      </div>
-      {posFilter !== null && (
-        <div className="flex shrink-0 items-center gap-1.5 px-1.5 pt-1 text-[11px]" data-testid="pos-filter">
-          <span className="text-white/60">
-            {posFilter === 'weak' ? `약점 자리(${weakKeys.map((k) => POS_KO[k]).join(' · ') || '없음'})` : `${POS_KO[posFilter]} 자리`}에 들어갈 선수 <span className="text-hi">{list.length}명</span>
-          </span>
-          <button className="cursor-pointer bg-ink px-1.5 py-0.5 text-white/70 mob:min-h-8" onClick={() => setPosFilter(null)}>
-            전체 보기 ✕
+          <button
+            data-testid="weak-only"
+            onClick={() => setWeakOnly((v) => !v)}
+            className={`cursor-pointer whitespace-nowrap px-1.5 py-0.5 mob:min-h-9 mob:px-2 ${weakOnly ? 'bg-bad text-ink' : 'bg-ink text-bad'}`}
+          >
+            우리 약점만{weakKeys.length > 0 && ` (${weakKeys.map((k) => POS_KO[k]).join('·')})`}
           </button>
         </div>
-      )}
-      <MarketBoard />
-      <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
+      </div>
+      <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5" data-testid="market-list">
         {list.map((p) => {
           const b = signingBonus(p);
-          const afford = cash >= b;
+          const on = basket.sign.includes(p.id);
           return (
             <button
               key={p.id}
-              onClick={() => setSel(p.id === sel ? null : p.id)}
-              className={`mb-[3px] flex w-full cursor-pointer items-center gap-1.5 px-1 py-1 text-left mob:min-h-12 mob:gap-2 mob:px-1.5 ${sel === p.id ? 'bg-hi/20' : 'bg-ink/40 hover:bg-white/8'}`}
-              style={sel === p.id ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
+              data-pid={p.id}
+              onClick={() => openDesk({ add: [['sign', p.id]] })}
+              title="담은 채로 이적 창구를 연다"
+              className={`mb-[3px] flex w-full cursor-pointer items-center gap-1.5 px-1 py-1 text-left mob:min-h-12 mob:gap-2 mob:px-1.5 ${on ? 'bg-good/20' : 'bg-ink/40 hover:bg-white/8'}`}
+              style={on ? { boxShadow: 'inset 3px 0 0 #6ee07a' } : undefined}
             >
               <OvrBadge ovr={p.ovr} size={22} />
               <span className="min-w-0 flex-1">
@@ -796,50 +732,14 @@ export function MarketTab() {
               </span>
               <span className="shrink-0 text-right text-[10px] leading-tight">
                 <span className="block text-white/80">연 {fmtMoney(p.salary)}</span>
-                <span className={`block ${afford ? 'text-hi' : 'text-bad'}`}>계약금 {fmtMoney(b)}</span>
+                <span className={`block ${cash >= b ? 'text-hi' : 'text-bad'}`}>계약금 {fmtMoney(b)}</span>
               </span>
+              <span className={`shrink-0 text-[10px] mob:text-[11px] ${on ? 'text-good' : 'text-white/45'}`}>{on ? '✓ 담음' : '담기 ⤢'}</span>
             </button>
           );
         })}
         {!list.length && <div className="p-2 text-center text-[11px] text-white/40">시장에 남은 선수가 없습니다</div>}
       </div>
-      <CardDock open={!!selP} onClose={() => setSel(null)} placeholder="선수를 누르면 카드가 열립니다">
-        {selP && (
-          <PlayerCard
-            player={selP}
-            extra={
-              <div className="mt-1 bg-ink/60 px-1.5 py-1 text-[11px]" data-testid="sign-preview">
-                <div>
-                  <span className="text-white/60">영입하면: </span>
-                  {preview?.moved.length ? (
-                    preview.moved.map((m, i) => (
-                      <span key={m.label}>
-                        {i > 0 && ' · '}
-                        {m.label} {m.from} → <span className={m.to > m.from ? 'text-good' : 'text-bad'}>{m.to}</span>
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-white/75">{preview?.role} · 전력 변화 없음</span>
-                  )}
-                </div>
-                <div className="text-white/60">
-                  연봉 <span className="text-white">+{fmtMoney(selP.salary)}/시즌</span> · 계약금 <span className="text-hi">{fmtMoney(bonus)}</span>
-                </div>
-                {signPiece && (
-                  <div className="text-hi" data-testid="runway-piece">
-                    {signPiece}
-                  </div>
-                )}
-              </div>
-            }
-          >
-            <button className="px-btn primary" data-sfx="none" disabled={!!reason} onClick={() => sign(selP.id)}>
-              영입
-            </button>
-            {reason && <span className="text-[10px] text-bad">{reason}</span>}
-          </PlayerCard>
-        )}
-      </CardDock>
     </>
   );
 }
@@ -849,7 +749,7 @@ export function MarketTab() {
 const TABS: { id: Exclude<LeftTab, 'farm'>; label: string }[] = [
   { id: 'lineup', label: '타선' },
   { id: 'pitchers', label: '투수' },
-  { id: 'market', label: '영입' },
+  { id: 'market', label: '이적' },
 ];
 
 /** [자동 편성]: 감독이 승복하기 전(0장 클리어 전)에는 "감독에게 맡기기"다 */

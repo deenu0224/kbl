@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Player } from '../../game/types';
-import { depthChart, fitsKey, salaryReport, signImpact, type DepthLine, type PosKey, type PosRow } from '../../game/analysis';
-import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, signingBonus } from '../../game/economy';
-import { FarmMoveButton } from '../LeftPanel';
+import { depthChart, fitsKey, salaryReport, type DepthLine, type PosKey, type PosRow } from '../../game/analysis';
+import { FARM_MAX, ROSTER_MAX, farmRoster } from '../../game/economy';
+import { FarmMoveButton, ReleaseButton } from '../LeftPanel';
 import { fmtMoney } from '../../game/format';
 import { useCore, useStore, useUserTeam } from '../../store';
 import PlayerCard from '../PlayerCard';
 import Dialog from '../layout/Dialog';
-import { useUi } from '../layout/uiStore';
 import { Bar, OvrBadge, POS_KO, TabBar } from '../ui';
 import Diamond, { RankText, diagSummary, rankTone } from './Diamond';
 import PlayerTable from './PlayerTable';
-import { PART_KO, fmtDelta } from './labels';
 import { usePosReport, useRosterUi, type OfficeView } from './rosterUi';
+import { openDesk } from './transferUi';
 
 const safe = {
   paddingTop: 'max(env(safe-area-inset-top), 0px)',
@@ -52,14 +51,13 @@ export function FullScreen({ title, sub, onClose, children, testid, hold = false
   );
 }
 
-/** 영입 시장으로: 그 포지션으로 걸러서 연다 */
+/** 이적 창구의 영입 시장으로: 그 포지션으로 걸러서 연다 */
 export function goMarket(key: PosKey | 'weak' | null): void {
-  useRosterUi.setState({ office: null, marketPos: key });
-  useStore.getState().setTab('left', 'market');
-  useUi.getState().setTab('market');
+  useRosterUi.setState({ office: null });
+  openDesk({ side: 'market', pos: key });
 }
 
-function CardPop({ player, onClose, children, extra }: { player: Player; onClose: () => void; children?: ReactNode; extra?: ReactNode }) {
+export function CardPop({ player, onClose, children, extra }: { player: Player; onClose: () => void; children?: ReactNode; extra?: ReactNode }) {
   const team = useUserTeam();
   const mine = team.roster.some((p) => p.id === player.id);
   return (
@@ -307,66 +305,7 @@ function Office({ view, onClose }: { view: OfficeView; onClose: () => void }) {
       {cardP && (
         <CardPop player={cardP} onClose={() => setCard(null)}>
           <FarmMoveButton player={cardP} onDone={() => setCard(null)} />
-        </CardPop>
-      )}
-    </FullScreen>
-  );
-}
-
-// ───────── 영입 시장 표 ─────────
-
-/** 영입 시장을 표로 본다 (영입 탭의 [표로 보기]) */
-export function MarketBoard() {
-  const open = useRosterUi((s) => s.board);
-  if (!open) return null;
-  return <Board />;
-}
-
-function Board() {
-  const team = useUserTeam();
-  const rows = usePosReport();
-  const freeAgents = useStore((s) => s.freeAgents);
-  const cash = useStore((s) => s.finance.cash);
-  const sign = useStore((s) => s.sign);
-  const initPos = useRosterUi((s) => s.marketPos);
-  const [card, setCard] = useState<string | null>(null);
-  const p = card ? freeAgents.find((x) => x.id === card) : undefined;
-  const im = useMemo(() => (p ? signImpact(team, p) : null), [p, team]);
-  const close = () => useRosterUi.setState({ board: false });
-  const bonus = p ? signingBonus(p) : 0;
-  const reason = !p ? null : activeRoster(team).length >= ROSTER_MAX ? `1군 가득 (${ROSTER_MAX}명) — 먼저 한 명을 2군으로 내리세요` : cash < bonus ? `현금 부족 (계약금 ${fmtMoney(bonus)})` : null;
-  const deltas = Object.entries(im?.delta ?? {}) as [keyof typeof PART_KO, number][];
-  return (
-    <FullScreen title="영입 시장" sub={`FA ${freeAgents.length}명 · 현금 ${fmtMoney(cash)} · 1군 ${activeRoster(team).length}/${ROSTER_MAX}`} onClose={close} testid="market-board" hold={!!p}>
-      <PlayerTable mode="market" players={freeAgents} rows={rows} sel={card} onPick={(x) => setCard(x.id)} initPos={initPos} />
-      {p && (
-        <CardPop
-          player={p}
-          onClose={() => setCard(null)}
-          extra={
-            <div className="mt-1 bg-ink/60 px-1.5 py-1 text-[11px]" data-testid="sign-preview">
-              <span className="text-white/60">영입하면: </span>
-              {im?.role}
-              {deltas.length ? deltas.map(([k, d]) => <span key={k} className={d > 0 ? 'text-good' : 'text-bad'}> · {PART_KO[k]} {fmtDelta(d)}</span>) : <span className="text-white/60"> · 전력 변화 없음</span>}
-              <div className="text-white/60">
-                연봉 <span className="text-white">+{fmtMoney(p.salary)}/시즌</span> · 계약금 <span className="text-hi">{fmtMoney(bonus)}</span>
-              </div>
-            </div>
-          }
-        >
-          <button
-            className="px-btn primary mob:min-h-11"
-            data-sfx="none"
-            disabled={!!reason}
-            onClick={() => {
-              sign(p.id);
-              setCard(null);
-              close();
-            }}
-          >
-            영입
-          </button>
-          {reason && <span className="text-[10px] text-bad">{reason}</span>}
+          <ReleaseButton player={cardP} />
         </CardPop>
       )}
     </FullScreen>

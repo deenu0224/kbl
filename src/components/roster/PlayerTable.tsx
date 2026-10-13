@@ -60,6 +60,8 @@ export default function PlayerTable({
   sel,
   onPick,
   initPos = null,
+  rowAction,
+  band,
 }: {
   mode: TableMode;
   players: Player[];
@@ -67,6 +69,8 @@ export default function PlayerTable({
   sel?: string | null;
   onPick: (p: Player) => void;
   initPos?: PosKey | 'weak' | null;
+  rowAction?: (p: Player) => ReactNode; // 이름 칸의 담기 버튼 (이적 창구)
+  band?: (p: Player) => { color: string; bg: string } | undefined; // 담은 줄의 색 띠
 }) {
   const mobile = useIsMobile();
   const team = useUserTeam();
@@ -87,6 +91,7 @@ export default function PlayerTable({
   const role = useMemo(() => {
     const m = new Map<string, string>();
     if (!mine) return m;
+    team.roster.forEach((p) => p.farm && m.set(p.id, '2군'));
     team.lineup.forEach((l, i) => m.set(l.pid, `${i + 1}번`));
     team.rotation.forEach((id, i) => m.set(id, `${i + 1}선발`));
     team.bullpen.forEach((id, i) => m.set(id, `불펜${i + 1}`));
@@ -259,12 +264,22 @@ export default function PlayerTable({
           </thead>
           <tbody>
             {list.map((p, i) => {
-              const bg = sel === p.id ? '#4a4a2c' : i % 2 ? '#283149' : '#232c42';
+              const bd = band?.(p);
+              const bg = bd ? bd.bg : sel === p.id ? '#4a4a2c' : i % 2 ? '#283149' : '#232c42';
               return (
-                <tr key={p.id} data-pid={p.id} className="cursor-pointer" onClick={() => onPick(p)}>
-                  <td className="sticky left-0 z-[5] max-w-[150px] whitespace-nowrap px-1.5 py-1 mob:py-2" style={{ background: bg, boxShadow: 'inset -1px 0 0 #0f1420' }}>
-                    <span className={`block truncate ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
+                <tr key={p.id} data-pid={p.id} data-band={bd ? '' : undefined} className="cursor-pointer" onClick={() => onPick(p)}>
+                  <td
+                    className={`sticky left-0 z-[5] whitespace-nowrap px-1.5 py-1 ${rowAction ? 'max-w-[240px] mob:max-w-[150px] mob:py-1' : 'max-w-[150px] mob:py-2'}`}
+                    style={{ background: bg, boxShadow: `${bd ? `inset 4px 0 0 ${bd.color}, ` : ''}inset -1px 0 0 #0f1420` }}
+                  >
+                    {rowAction && (
+                      <span className="mr-1.5 inline-flex gap-1 align-middle mob:mr-0 mob:mb-0.5 mob:flex" onClick={(e) => e.stopPropagation()}>
+                        {rowAction(p)}
+                      </span>
+                    )}
+                    <span className={`truncate align-middle ${rowAction ? 'inline-block max-w-[120px] mob:block mob:max-w-none' : 'block'} ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
                       {p.name}
+                      {mine && p.farm && <span className="ml-1 text-[9px] text-sky mob:text-[10px]">2군</span>}
                       {mode !== 'roster' && needs(p) && (
                         <span className="ml-1 bg-bad px-1 text-[9px] text-ink mob:text-[10px]" data-testid="need-badge">
                           {mode === 'draft' ? '빈 뎁스' : '약점 보강'}

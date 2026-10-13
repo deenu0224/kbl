@@ -1,32 +1,24 @@
 import { create } from 'zustand';
 import { useEffect, useMemo } from 'react';
-import { positionReport, rankMap, type PosKey, type PosRow } from '../../game/analysis';
+import { positionReport, rankMap, type PosRow } from '../../game/analysis';
 import { pickCore, useCore, useStore } from '../../store';
 
 export type OfficeView = 'diag' | 'table' | 'depth' | 'salary';
 
 interface RosterUi {
   office: OfficeView | null; // 프런트 오피스 전체 화면 (null = 닫힘)
-  board: boolean; // 영입 시장 표 전체 화면
-  marketPos: PosKey | 'weak' | null; // 영입 시장 포지션 필터 ('weak' = 우리 약점만)
   seen: { key: string; ranks: Record<string, number> } | null; // 다이아몬드가 마지막으로 보여 준 순위
   flash: string[]; // 방금 순위가 오른 칸 (잠깐 초록)
   openOffice(v?: OfficeView): void;
   close(): void;
-  setBoard(v: boolean): void;
-  setMarketPos(k: PosKey | 'weak' | null): void;
 }
 
 export const useRosterUi = create<RosterUi>()((set) => ({
   office: null,
-  board: false,
-  marketPos: null,
   seen: null,
   flash: [],
   openOffice: (v = 'diag') => set({ office: v }),
   close: () => set({ office: null }),
-  setBoard: (board) => set({ board }),
-  setMarketPos: (marketPos) => set({ marketPos }),
 }));
 
 /** 팀 진단 (스토어의 현재 상태 기준) */
