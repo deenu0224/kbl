@@ -168,7 +168,7 @@ export default function RemedySheet({
                 <span
                   className={`text-[14px] leading-snug ${quiet ? "text-white/80" : "text-white"}`}
                 >
-                  {r.label}
+                  {r.run.t === "go" && r.run.to === "order" ? "선수단에서 직접 고치기" : r.label}
                   {r.run.t === "go" && (
                     <span className="text-white/55"> ›</span>
                   )}

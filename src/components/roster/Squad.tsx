@@ -187,7 +187,7 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
           })}
           {!cands.length && <div className="px-1 py-2 text-[13px] text-white/45">바꿀 수 있는 후보가 없습니다</div>}
         </div>
-        {o && <div className="shrink-0 text-[13px] text-white/55">교체하면 {o.name} → {slot ? '벤치' : '상대의 보직'} (1군이 가득 차 있고 2군에서 올리면 2군으로)</div>}
+        {o && <div className="shrink-0 truncate text-[13px] text-white/55">교체하면 {o.name} → {slot ? '벤치' : '상대의 보직'}</div>}
         <button className="px-btn min-h-10 shrink-0 text-[13px]" data-testid="go-fa" disabled={!nFa} onClick={() => goMarket(key)}>
           {nFa ? `이 자리 FA 보기 ›` : '이 자리 FA 없음'}
         </button>
@@ -440,7 +440,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
 
   const fieldView = (
     <>
-      <div className="relative mx-auto h-[min(300px,max(250px,calc(100dvh-400px)))] w-full max-w-[560px] shrink-0 overflow-hidden" style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="squad-field">
+      <div className={`relative mx-auto ${top ? 'h-[250px] lg:h-[300px]' : 'h-[min(360px,max(250px,calc(100dvh-350px)))]'} w-full max-w-[560px] shrink-0 overflow-hidden`} style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="squad-field">
         {/* 내야 흙과 잔디 */}
         <div className="absolute left-1/2 top-[62%] aspect-square w-[46%] -translate-x-1/2 -translate-y-1/2 rotate-45" style={{ background: '#a8794d' }}>
           <div className="absolute inset-[16%]" style={{ background: '#337a45' }} />
