@@ -34,7 +34,7 @@ export type RemedyAction =
   | { t: 'borrow' }
   | { t: 'seats' } // 관중석 증축
   | { t: 'penStyle' } // 불펜 방침을 균형으로
-  | { t: 'go'; to: RemedyGo; sub?: 'lineup' | 'pitchers' } // 화면 이동 (core 는 그대로 — 화면이 처리한다)
+  | { t: 'go'; to: RemedyGo; sub?: 'lineup' | 'pitchers'; pid?: string } // 화면 이동 (core 는 그대로 — 화면이 처리한다)
   | { t: 'dismiss' } // 확인하고 닫기
   | { t: 'none' }; // 그대로 둔다
 
@@ -411,14 +411,14 @@ function scoutRemedies(core: Core): Remedy[] {
   const ids = (memoGet(core, 'scoutList') ?? '').split(',');
   const ps = core.freeAgents.filter((p) => ids.includes(p.id)).sort((a, b) => b.ovr - a.ovr);
   if (!ps.length) return [CLOSE];
-  return [{ id: 'go', run: { t: 'go', to: 'market' }, tone: 'good', label: `이적 창구 열기 — 추천 ${ps.length}명`, effect: ps.slice(0, 2).map((p) => `${p.name}(${posKo(p.pos)} 오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ') }, CLOSE];
+  return [{ id: 'go', run: { t: 'go', to: 'market', pid: ps[0].id }, tone: 'good', label: `이적 창구 열기 — 추천 ${ps.length}명`, effect: ps.slice(0, 2).map((p) => `${p.name}(${posKo(p.pos)} 오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ') }, CLOSE];
 }
 
 function faRemedies(core: Core): Remedy[] {
   const t = userTeam(core);
   const fa = t.roster.filter((p) => (svcYear(core, p) ?? 0) >= SVC_YEARS).sort((a, b) => b.ovr - a.ovr);
   if (!fa.length) return [CLOSE];
-  return [{ id: 'go', run: { t: 'go', to: 'squad' }, label: `선수단 열기 — 재계약 대기 ${fa.length}명`, effect: `${fa.slice(0, 2).map((p) => `${p.name}(오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ')} — 시즌이 끝나면 조건을 부른다` }, CLOSE];
+  return [{ id: 'go', run: { t: 'go', to: 'squad', pid: fa[0].id }, label: `선수단 열기 — 재계약 대기 ${fa.length}명`, effect: `${fa.slice(0, 2).map((p) => `${p.name}(오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ')} — 시즌이 끝나면 조건을 부른다` }, CLOSE];
 }
 
 const pct = (v: number) => `${Math.round(Math.abs(v) * 100)}%`;

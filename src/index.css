@@ -261,3 +261,9 @@ canvas.pixel {
 :root:is([data-layout='portrait'], [data-layout='landscape']) :is([class*='text-[9px]'], [class*='text-[10px]'], [class*='text-[11px]'], [class*='text-[12px]']) {
   font-size: 13px;
 }
+
+/* 할 일에서 이동해 온 선수의 줄 강조 (Todo.tsx spotlight) */
+.spot {
+  background: rgba(255, 216, 74, 0.3) !important;
+  box-shadow: inset 0 0 0 2px #ffd84a !important;
+}

@@ -667,7 +667,7 @@ export const FARM_CARDS: FarmCardDef[] = [
         choices: [
           {
             label: '믿고 쓴다',
-            desc: `${F.painFix}경기 ${p.kind === 'B' ? '고정 출전' : '보직 유지'} · 성장 확률 ×${F.painGrow}`,
+            desc: p.kind === 'B' ? `${F.painFix}경기 고정 출전 · 성장 확률 ×${F.painGrow}` : `${F.painFix}경기 동안 성장 확률 ×${F.painGrow}`,
             detail: {
               rows: [
                 rowInfo('주전', `${p.name} ${p.ovr}`, `${p.name} ${p.ovr}`),
