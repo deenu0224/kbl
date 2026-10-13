@@ -43,7 +43,7 @@ export const SC = {
   // 약물
   dopeAge: 28,
   dopeLead: [12, 18],
-  dopeUp: [3, 4],
+  dopeUp: [4, 6],
   reportBan: 48,
   reportExtra: 1, // 자진 신고: 올랐던 능력치를 되돌리고 이만큼 더
   reportStar: -15,
@@ -66,12 +66,12 @@ export const SC = {
   loyal: -0.1, // 무혐의로 끝난 선수의 다음 재계약 요구
   hushRate: 0.3, // 연봉을 올려 주고 넘겼을 때 덮은 일로 남을 확률
   forfeit: 6, // 적발 시 몰수 승수
-  // 제재금 = max(최소액, 현금 × 비율). 구단의 돈 규모에 비례한다
+  // 제재금 = max(최소액, (현금 + 직전 시즌 영업이익) × 비율). 돈을 잘 버는 구단일수록 크다
   fine: {
-    dopeReport: [20000, 0.08], // 약물 자진 신고 (관리 책임)
-    fixCoop: [40000, 0.12], // 승부조작 전면 협조
-    dopeExposed: [80000, 0.25], // 약물 적발 (덮었다가)
-    fixExposed: [150000, 0.4], // 승부조작 적발
+    dopeReport: [30000, 0.15], // 약물 자진 신고 (관리 책임)
+    fixCoop: [60000, 0.22], // 승부조작 전면 협조
+    dopeExposed: [80000, 0.35], // 약물 적발 (덮었다가)
+    fixExposed: [150000, 0.5], // 승부조작 적발
   },
   leagueCut: 0.75, // 승부조작 적발: 다음 시즌 리그 분배금 배율
 };
@@ -86,9 +86,11 @@ const chairSays = (line: string) => `${CHARACTERS.chair.name} ${CHARACTERS.chair
 const secretsN = (core: Core) => (core.campaign.secrets ?? []).filter((x) => !x.unknown).length;
 const rowSecret = (core: Core) => rowInfo('말하지 않은 일', `${secretsN(core) + 1}건`, `${secretsN(core)}건`, 'bad');
 type FineKey = keyof typeof SC.fine;
-/** 제재금: 지금 현금 기준. 표시와 적용이 같이 쓴다 */
-export const fineOf = (core: Pick<Core, 'finance'>, key: FineKey): number => Math.max(SC.fine[key][0], Math.round((Math.max(0, core.finance.cash) * SC.fine[key][1]) / 100) * 100);
-const fineRule = (key: FineKey) => `최소 ${fmtMoney(SC.fine[key][0])} · 그때 현금의 ${pctTxt(SC.fine[key][1])}`;
+/** 제재금의 기준액: 지금 현금 + 직전 시즌 영업이익 (적자는 0) */
+export const fineBase = (core: Pick<Core, 'finance' | 'campaign'>): number => Math.max(0, core.finance.cash) + Math.max(0, core.campaign.history[core.campaign.history.length - 1]?.profit ?? 0);
+/** 제재금. 표시와 적용이 같이 쓴다 */
+export const fineOf = (core: Pick<Core, 'finance' | 'campaign'>, key: FineKey): number => Math.max(SC.fine[key][0], Math.round((fineBase(core) * SC.fine[key][1]) / 100) * 100);
+const fineRule = (key: FineKey) => `최소 ${fmtMoney(SC.fine[key][0])} · 그때 (현금 + 직전 시즌 영업이익)의 ${pctTxt(SC.fine[key][1])}`;
 function payFineMut(core: Core, key: FineKey): number {
   const v = fineOf(core, key);
   core.finance.cash -= v; // 모자라면 다음 정산에서 부채로 넘어간다 (season.ts settleCash)
