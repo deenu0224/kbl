@@ -25,7 +25,7 @@ export const rowFans = (core: Core, d: number): Row => ({ label: '팬', before: 
 export const rowTrust = (core: Core, d: number): Row => ({ label: '도민 지지', before: `${core.campaign.trust}`, after: `${trustAfter(core, d)}`, tone: tone(d) });
 export const rowPayroll = (core: Core, d: number): Row => ({ label: '연봉 총액', before: fmtMoney(payroll(core)), after: fmtMoney(payroll(core) + d), tone: tone(d, false) });
 /** 배율 효과 (관중 수요·입장 수입·굿즈 매출) */
-export const rowMult = (label: string, m: number): Row => ({ label, before: '기준', after: m >= 1 && Number.isInteger(m) && m > 1.5 ? `×${m}` : pct(m), tone: tone(m - 1) });
+export const rowMult = (label: string, m: number): Row => ({ label, before: '기준', after: m === 1 ? '기준' : Number.isInteger(m) ? `×${m}` : pct(m), tone: tone(m - 1) });
 /** 더해지는 수치 (집중력·드래프트 품질 등) */
 export const rowAdd = (label: string, d: number, goodUp = true): Row => ({ label, before: '±0', after: sgn(d), tone: tone(d, goodUp) });
 /** 자리의 오버롤 전 → 후 */
