@@ -58,7 +58,7 @@ function Row({
       data-issue={issue || undefined}
       data-done={done || undefined}
     >
-      <span className="w-9 shrink-0 text-[10px] text-white/55">{lead}</span>
+      <span className="w-9 max-lg:w-auto max-lg:min-w-[52px] shrink-0 whitespace-nowrap text-[10px] text-white/55">{lead}</span>
       <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
       <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : ''}`}>
         {p.name}
