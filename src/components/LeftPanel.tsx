@@ -14,6 +14,10 @@ import { useHintTabs } from './RightPanel';
 import Sheet from './layout/Sheet';
 import { useIsMobile } from './layout/useLayout';
 import { OvrBadge, POS_KO, SectionTitle, Stars, TabBar } from './ui';
+import { MiniDiamond } from './roster/Diamond';
+import FrontOffice, { MarketBoard } from './roster/FrontOffice';
+import { usePosReport, useRosterUi } from './roster/rosterUi';
+import { fitsKey } from '../game/analysis';
 
 // ───────── 공용 행 ─────────
 
@@ -259,6 +263,21 @@ function useFlash(box: React.RefObject<HTMLDivElement | null>): string | null {
 
 export { orderIssues };
 
+/** 선수단 탭 맨 위: 전력 막대 + 팀 진단 미니맵. 어느 쪽을 눌러도 프런트 오피스(전체 화면)가 열린다 */
+function RosterTop({ team }: { team: Team }) {
+  const rows = usePosReport();
+  const openOffice = useRosterUi((s) => s.openOffice);
+  return (
+    <>
+      <div className="shrink-0 cursor-pointer" onClick={() => openOffice('table')} title="선수단 크게 보기" data-testid="teambar-open">
+        <TeamBar team={team} />
+      </div>
+      <MiniDiamond rows={rows} onOpen={() => openOffice('diag')} />
+      <FrontOffice />
+    </>
+  );
+}
+
 // ───────── 타선 ─────────
 
 /** order: 개막전 오더지 안 (전력 막대·자동 편성은 오더지가 따로 놓고, 문제 있는 줄에 빨간 띠) */
@@ -355,7 +374,7 @@ export function LineupTab({ order = false }: { order?: boolean }) {
 
   return (
     <>
-      {!order && <TeamBar team={team} />}
+      {!order && <RosterTop team={team} />}
       <div ref={box} className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle right={!order && <AutoButton />}>선발 타순</SectionTitle>
         {team.lineup.map((l, i) => {
@@ -502,7 +521,7 @@ export function PitchersTab({ order = false }: { order?: boolean }) {
 
   return (
     <>
-      {!order && <TeamBar team={team} />}
+      {!order && <RosterTop team={team} />}
       <div ref={box} className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         <SectionTitle right={!order && <AutoButton />}>선발 로테이션</SectionTitle>
         {team.rotation.map((pid, i) =>
@@ -552,14 +571,20 @@ export function MarketTab() {
   const core = useCore();
   const [sel, setSel] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'B' | 'P'>('all');
+  // 팀 진단에서 넘어온 포지션 필터 ('weak' = 우리 약점 두 자리)
+  const rows = usePosReport();
+  const posFilter = useRosterUi((s) => s.marketPos);
+  const setPosFilter = useRosterUi((s) => s.setMarketPos);
+  const weakKeys = useMemo(() => rows.filter((r) => r.weak).map((r) => r.key), [rows]);
+  const fits = (p: Player) => posFilter === null || (posFilter === 'weak' ? weakKeys.some((k) => fitsKey(p, k)) : fitsKey(p, posFilter));
 
   // 스카우트 팀장의 명단은 시장 맨 위에 따로 올린다 (맨 앞이 그가 고른 선수)
   const scoutIds = useStore((s) => s.campaign.eventsSeen.find((x) => x.startsWith('~scoutList='))?.slice(11) ?? '');
   const list = useMemo(() => {
     const ids = scoutIds ? scoutIds.split(',') : [];
     const rank = (p: Player) => (ids.includes(p.id) ? ids.indexOf(p.id) - 9 : 0);
-    return freeAgents.filter((p) => filter === 'all' || p.kind === filter).sort((a, b) => rank(a) - rank(b) || b.ovr - a.ovr);
-  }, [freeAgents, filter, scoutIds]);
+    return freeAgents.filter((p) => (filter === 'all' || p.kind === filter) && fits(p)).sort((a, b) => rank(a) - rank(b) || b.ovr - a.ovr);
+  }, [freeAgents, filter, scoutIds, posFilter, weakKeys]);
   const scoutPick = scoutIds.split(',')[0];
   const selP = sel ? freeAgents.find((p) => p.id === sel) : undefined;
   const full = team.roster.length >= ROSTER_MAX;
@@ -602,10 +627,31 @@ export function MarketTab() {
             {label}
           </button>
         ))}
-        <span className={`ml-auto ${full ? 'text-bad' : 'text-white/50'}`}>
-          로스터 {team.roster.length}/{ROSTER_MAX}
+        <button
+          data-testid="weak-only"
+          onClick={() => setPosFilter(posFilter === 'weak' ? null : 'weak')}
+          className={`cursor-pointer whitespace-nowrap px-1.5 py-0.5 mob:min-h-9 mob:px-2 ${posFilter === 'weak' ? 'bg-bad text-ink' : 'bg-ink text-bad'}`}
+        >
+          우리 약점만
+        </button>
+        <span className={`ml-auto whitespace-nowrap ${full ? 'text-bad' : 'text-white/50'}`}>
+          {team.roster.length}/{ROSTER_MAX}
         </span>
+        <button className="cursor-pointer whitespace-nowrap bg-panel-2 px-1.5 py-0.5 text-hi mob:min-h-9 mob:px-2" data-testid="market-table" onClick={() => useRosterUi.setState({ board: true })}>
+          표로 보기 ⤢
+        </button>
       </div>
+      {posFilter !== null && (
+        <div className="flex shrink-0 items-center gap-1.5 px-1.5 pt-1 text-[11px]" data-testid="pos-filter">
+          <span className="text-white/60">
+            {posFilter === 'weak' ? `약점 자리(${weakKeys.map((k) => POS_KO[k]).join(' · ') || '없음'})` : `${POS_KO[posFilter]} 자리`}에 들어갈 선수 <span className="text-hi">{list.length}명</span>
+          </span>
+          <button className="cursor-pointer bg-ink px-1.5 py-0.5 text-white/70 mob:min-h-8" onClick={() => setPosFilter(null)}>
+            전체 보기 ✕
+          </button>
+        </div>
+      )}
+      <MarketBoard />
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
         {list.map((p) => {
           const b = signingBonus(p);
@@ -627,6 +673,7 @@ export function MarketTab() {
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px]">
                   <Stars star={p.star} />
+                  {weakKeys.includes(p.pos as (typeof weakKeys)[number]) && <span className="shrink-0 bg-bad px-1 text-ink">약점 보강</span>}
                   {p.pot - p.ovr >= 6 && <span className="text-good">잠재 {p.pot}</span>}
                   {scoutIds.includes(p.id) && (
                     <span className={`truncate ${p.id === scoutPick ? 'text-hi' : 'text-sky'}`}>
