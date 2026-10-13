@@ -3,7 +3,7 @@ import { clamp, gauss, mulberry32, pick, randInt, shuffle, type Rng } from './rn
 import { MIN_SALARY, calcOvr, calcSalary } from './ratings';
 import { autoLineup } from './lineup';
 import { buildSchedule } from './schedule';
-import { PREMISE_NEWS, withTeam } from './story';
+import { premiseNews, withTeam } from './story';
 
 // ── 밸런스 상수 ──
 const ABIL_SD = 7.5; // 능력치 편차
@@ -47,18 +47,22 @@ interface TeamDef {
 
 // tier: KBO 기준으로 시뮬 민감도를 키운 만큼 구단 간 격차가 벌어지지 않도록 AI 구단을 한두 단계 낮췄다 (유저 팀 연봉·경제 밸런스는 그대로)
 export const TEAM_DEFS: TeamDef[] = [
-  { id: 'SEL', city: '서울', name: '스카이라인즈', color: '#c2185b', color2: '#1b2233', tier: 63, pop: 0.95, stars: 4 },
-  { id: 'HAN', city: '한강', name: '그리폰즈', color: '#1a3a8f', color2: '#ffffff', tier: 61, pop: 0.85, stars: 4 },
-  { id: 'BUS', city: '부산', name: '씨호크스', color: '#0e7fb8', color2: '#f26a1b', tier: 59, pop: 0.9, stars: 3 },
-  { id: 'DGU', city: '대구', name: '썬더킹스', color: '#1e56c4', color2: '#ffd23f', tier: 59, pop: 0.7, stars: 3 },
-  { id: 'GWJ', city: '광주', name: '레드폭스', color: '#d32f2f', color2: '#111111', tier: 60, pop: 0.8, stars: 4 },
-  { id: 'ICN', city: '인천', name: '앵커스', color: '#b71c1c', color2: '#f5c518', tier: 57, pop: 0.6, stars: 3 },
-  { id: 'DJN', city: '대전', name: '팰컨스', color: '#f57c00', color2: '#212121', tier: 54, pop: 0.55, stars: 2 },
+  { id: 'SEL', city: '서울', name: '듀오스', color: '#c2185b', color2: '#1b2233', tier: 63, pop: 0.95, stars: 4 },
+  { id: 'YIN', city: '용인', name: '판다스', color: '#1a3a8f', color2: '#ffffff', tier: 61, pop: 0.85, stars: 4 },
+  { id: 'BUS', city: '부산', name: '타이탄스', color: '#2a9fd6', color2: '#f26a1b', tier: 59, pop: 0.9, stars: 3 },
+  { id: 'DGU', city: '대구', name: '라이거스', color: '#1e56c4', color2: '#ffd23f', tier: 59, pop: 0.7, stars: 3 },
+  { id: 'GWJ', city: '광주', name: '재규어스', color: '#e53935', color2: '#111111', tier: 60, pop: 0.8, stars: 4 },
+  { id: 'ICN', city: '인천', name: '앵커스', color: '#8e1b1b', color2: '#f5c518', tier: 57, pop: 0.6, stars: 3 },
+  { id: 'DJN', city: '대전', name: '호크스', color: '#f57c00', color2: '#212121', tier: 54, pop: 0.55, stars: 2 },
   { id: USER_ID, city: '제주', name: '탠저린즈', color: '#f08a1c', color2: '#1f6b3a', tier: 55, pop: 0.25, stars: 1 },
   // 10구단 체제의 두 구단 (가상). 전력은 리그의 가운데~아래 — 유저 구단의 출발선(최하위 전력)을 지킨다. 반드시 맨 뒤에 둔다 (8구단 리그의 생성 순서 유지)
-  { id: 'SUW', city: '수원', name: '스톤월즈', color: '#6d3fb8', color2: '#e9dcb0', tier: 58, pop: 0.6, stars: 3, exp: true },
-  { id: 'CHW', city: '창원', name: '하버라이츠', color: '#00897b', color2: '#ffe082', tier: 56, pop: 0.5, stars: 2, exp: true },
+  { id: 'SUW', city: '수원', name: '매직스', color: '#6d3fb8', color2: '#e9dcb0', tier: 58, pop: 0.6, stars: 3, exp: true },
+  { id: 'CHW', city: '창원', name: '랩터스', color: '#00897b', color2: '#ffe082', tier: 56, pop: 0.5, stars: 2, exp: true },
 ];
+// 옛 세이브에 남아 있는 구단 id → 지금 id (세이브의 이름·id 는 바꾸지 않는다. 정의를 찾을 때만 쓴다)
+const LEGACY_TEAM_ID: Record<string, string> = { HAN: 'YIN' };
+/** 구단 id 로 정의를 찾는다 (옛 세이브의 id 도 받는다) */
+export const teamDef = (id: string | undefined): TeamDef | undefined => TEAM_DEFS.find((d) => d.id === ((id && LEGACY_TEAM_ID[id]) || id));
 export const LEAGUE_TEAMS = TEAM_DEFS.length; // 새 게임의 구단 수 (10)
 // 점검용 스위치 (scripts 가 TEAMS=8 로 원년 8구단 리그를 만들어 돌린다. 게임에서는 건드리지 않는다)
 export const NEW_GAME = { teams: LEAGUE_TEAMS };
@@ -489,8 +493,8 @@ export function newCore(seed: number, arg?: string | NewCoreOpts): Core {
     attHistory: [],
     cashHistory: [START_CASH],
     // 첫 뉴스: 부임 기사 + 지난 다섯 시즌 순위 (story.ts)
-    news: PREMISE_NEWS.map((text, i) => ({ id: PREMISE_NEWS.length - 1 - i, season: 1, day: 0, text: withTeam(text, teams.find((t) => t.id === USER_ID)?.name ?? ''), tone: 'info' as const })),
-    newsSeq: PREMISE_NEWS.length,
+    news: premiseNews(teams.length).map((text, i, all) => ({ id: all.length - 1 - i, season: 1, day: 0, text: withTeam(text, teams.find((t) => t.id === USER_ID)?.name ?? ''), tone: 'info' as const })),
+    newsSeq: premiseNews(teams.length).length,
     campaign: campaignZero(),
     post: null,
     draft: null,

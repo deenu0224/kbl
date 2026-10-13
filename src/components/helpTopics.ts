@@ -1,6 +1,7 @@
 // "?" 버튼 뒤의 설명. 한 주제에 3~5줄, 한 줄에 한 문장. 숫자는 실제 규칙 값만.
 import { BAILOUT_TRUST, DEBT_OVER_TRUST, DEBT_OVER_TRUST2, DEBT_SALE_RATE, FARM_CAP, FARM_LOCK, FARM_MAX, FARM_MAX_ACADEMY, LOAN_LIMIT, LOAN_RATE, LOAN_RATE_HI, LOAN_REV_SHARE, LOAN_TIER, ROSTER_MAX, SVC_YEARS, loanInterest, loanLimit } from '../game/economy';
 import type { Core } from '../game/types';
+import { leagueSize, postTeams, seasonGames } from '../game/league';
 import { TRUST_MAX, TRUST_START } from '../game/campaign';
 import { RUNWAY_DANGER, RUNWAY_SHOW } from '../game/runway';
 import { VALUE_FAIR } from '../game/analysis';
@@ -27,9 +28,26 @@ export type HelpTopic =
   | 'demand'
   | 'ethics'
   | 'secrets'
-  | 'projects';
+  | 'projects'
+  | 'postseason';
 
 export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: Core) => string[]) }> = {
+  postseason: {
+    title: '가을야구',
+    lines: (core: Core) => {
+      const n = postTeams(core);
+      const head = `${leagueSize(core)}개 구단이 ${seasonGames(core)}경기를 치르고, 정규시즌 ${n}위까지 가을야구에 나갑니다.`;
+      const ladder = '아래 순위부터 한 계단씩 올라갑니다: 준플레이오프(3전 2선승) → 플레이오프(5전 3선승) → 한국시리즈(7전 4선승).';
+      if (n < 5) return [head, ladder, '순위가 높은 팀이 홈경기를 더 많이 치릅니다.', '포스트시즌에는 무승부가 없습니다.'];
+      return [
+        head,
+        `와일드카드 결정전: ${n - 1}위와 ${n}위가 ${n - 1}위 구장에서만 최대 2경기를 치릅니다. ${n - 1}위는 1승을 안고 시작해서 한 번 이기거나 비기면 통과하고, ${n}위는 두 경기를 모두 이겨야 합니다.`,
+        ladder,
+        '순위가 높은 팀이 홈경기를 더 많이 치릅니다.',
+        '무승부는 와일드카드 결정전에만 있고, 그 뒤로는 승부가 날 때까지 연장합니다.',
+      ];
+    },
+  },
   projects: {
     title: '왕조 프로젝트',
     lines: [
@@ -123,7 +141,7 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: 
   },
   posRank: {
     title: '포지션 순위',
-    lines: ['그 자리 주전을 리그 8개 구단과 비교한 순위입니다.', '1~2위는 초록, 아래 세 순위는 빨강입니다.', '빨간 테두리는 우리 팀에서 가장 약한 두 자리입니다.', '칸을 누르면 그 자리의 주전·백업과 영입 후보가 보입니다.'],
+    lines: (core: Core) => [`그 자리 주전을 리그 ${leagueSize(core)}개 구단과 비교한 순위입니다.`, '1~2위는 초록, 아래 세 순위는 빨강입니다.', '빨간 테두리는 우리 팀에서 가장 약한 두 자리입니다.', '칸을 누르면 그 자리의 주전·백업과 영입 후보가 보입니다.'],
   },
   demand: { title: '관중 수요', lines: ['오고 싶어 하는 사람 수입니다.', '좌석보다 많으면 매진이고, 못 들어온 팬은 발길을 돌립니다.', '표값을 올리면 줄어듭니다.', '관중석을 늘리면 그만큼 더 받을 수 있습니다.'] },
 };

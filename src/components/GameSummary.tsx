@@ -204,11 +204,12 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
           {r.post && (
             <div className="mt-1 text-[13px]">
               시리즈 <span className="font-pixel-lg text-[16px] text-hi">{r.post.myW}승 {r.post.oppW}패</span>
-              <span className="ml-1 text-[11px] text-white/50">{Math.floor(r.post.bestOf / 2) + 1}선승제</span>
+              {r.post.round !== 'WC' && <span className="ml-1 text-[11px] text-white/50">{Math.floor(r.post.bestOf / 2) + 1}선승제</span>}
+              {r.post.round === 'WC' && <div className="text-[11px] text-white/50">4위가 안고 시작한 1승 포함</div>}
             </div>
           )}
         </div>
-        <div className="text-right text-[11px]">
+        <div className="shrink-0 text-right text-[11px]">
           <div className="text-white/50">{r.post ? '정규시즌' : '순위'}</div>
           <RankMove before={r.rankBefore} after={r.rankAfter} />
         </div>

@@ -1,13 +1,14 @@
 import { sceneExtras } from '../game/campaign';
 import type { HofClub } from '../game/hof';
-import { TEAM_DEFS, USER_ID } from '../game/generate';
+import { LEAGUE_TEAMS, TEAM_DEFS, USER_ID } from '../game/generate';
 import type { Core, StadiumScene } from '../game/types';
 import { buildNightTint, drawFrame } from '../stadium/dynamicLayer';
 import { STADIUM_H, STADIUM_W } from '../stadium/geometry';
 import { buildStatic } from '../stadium/staticLayer';
-import { PAST_RANKS } from '../game/story';
+import { pastRanks } from '../game/story';
+import { postTeamsFor } from '../game/league';
 import { SHARE_HOST } from './config';
-import { cardItems, codeInfo, endingLine, serialOf, shareFromCore, SHARE_CITY, SHARE_TITLE, type CodeInfo, type ShareData, type ShareKind } from './shareData';
+import { cardItems, codeInfo, endingLine, serialOf, shareFromCore, teamsOf, SHARE_CITY, SHARE_TITLE, type CodeInfo, type ShareData, type ShareKind } from './shareData';
 import { askOf } from './story';
 import { BENCH, relocatedPct } from './bench';
 
@@ -166,7 +167,8 @@ export const MINI_H = STADIUM_H / 2;
 
 /** 순위 → 칸 색 (위일수록 초록, 아래일수록 흐린 갈색) */
 const RANK_COLOR = ['#1f6b3a', '#2f8a4c', '#5fae6a', '#9cc77f', '#e3c46a', '#e0a15a', '#c9896a', '#a89a8c'];
-const rankColor = (rank: number) => RANK_COLOR[Math.max(1, Math.min(8, rank)) - 1];
+/** 구단 수가 달라도 1위 = 첫 색, 꼴찌 = 마지막 색이 되도록 눈금을 맞춘다 */
+const rankColor = (rank: number, teams: number) => RANK_COLOR[Math.round(((Math.max(1, Math.min(teams, rank)) - 1) * (RANK_COLOR.length - 1)) / Math.max(1, teams - 1))];
 
 interface MapCell {
   rank: number;
@@ -179,7 +181,7 @@ interface MapCell {
  * 시즌 지도: 한 칸 = 한 시즌, 색 = 순위, 우승은 금색 테두리. 부임 전 다섯 시즌은 속이 빈 칸으로 앞에 둔다.
  * (경기별 승패 기록은 세이브에 남지 않아, 시즌이 적을 때도 승패 칸 대신 이 지도를 쓴다)
  */
-function seasonMap(ctx: Ctx, cells: MapCell[], x: number, y: number, maxW: number, maxH: number, sizes = [66, 55, 44, 33]): void {
+function seasonMap(ctx: Ctx, cells: MapCell[], x: number, y: number, maxW: number, maxH: number, sizes = [66, 55, 44, 33], teams = LEAGUE_TEAMS): void {
   const gap = 6;
   const perOf = (s: number) => Math.floor((maxW + gap) / (s + gap));
   const rowsOf = (s: number) => Math.floor((maxH + gap) / (s + gap));
@@ -190,7 +192,7 @@ function seasonMap(ctx: Ctx, cells: MapCell[], x: number, y: number, maxW: numbe
   shown.forEach((c, i) => {
     const cx = x + (i % per) * (size + gap);
     const cy = y + Math.floor(i / per) * (size + gap);
-    const col = rankColor(c.rank);
+    const col = rankColor(c.rank, teams);
     ctx.fillStyle = c.champ ? GOLD : c.gone ? RED : c.past ? col : INK;
     ctx.fillRect(cx, cy, size, size);
     const t = c.champ ? 6 : 3;
@@ -200,8 +202,8 @@ function seasonMap(ctx: Ctx, cells: MapCell[], x: number, y: number, maxW: numbe
   });
 }
 
-const cellsOf = (ranks: number[], champs: number[], gone: boolean): MapCell[] => [
-  ...PAST_RANKS.map((rank) => ({ rank, past: true })),
+const cellsOf = (ranks: number[], champs: number[], gone: boolean, teams = LEAGUE_TEAMS): MapCell[] => [
+  ...pastRanks(teams).map((rank) => ({ rank, past: true })),
   ...ranks.map((rank, i) => ({ rank, champ: champs.includes(i + 1), gone: gone && i === ranks.length - 1 })),
 ];
 
@@ -266,7 +268,7 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
   const mapW = 500;
   line(ctx, '시즌 지도', 'Galmuri11', [22], PAD, by, GREEN, mapW);
   line(ctx, '빈 칸 = 부임 전', 'Galmuri11', [22], PAD + mapW, by, MUTE, 300, 'right');
-  seasonMap(ctx, cellsOf(r.ranks, r.champs, gone), PAD, by + 36, mapW, 180);
+  seasonMap(ctx, cellsOf(r.ranks, r.champs, gone, teamsOf(r)), PAD, by + 36, mapW, 180, undefined, teamsOf(r));
 
   const px = PAD + mapW + 44;
   const pw = CARD_W - PAD - px;
@@ -302,8 +304,11 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
 /** 그 유형의 전형적인 순위 흐름 (실제 기록이 아니라 유형을 보여 주는 그림) */
 export function typicalRanks(info: CodeInfo): number[] {
   const { n, type, answer } = info;
-  const end = type === 'w' ? 1 : type === 'x' ? 8 : { ks: 2, post: 3, flag: 5, near: 5, mid: 6, last: 8 }[answer!];
-  const start = type === 'x' ? 7 : 8;
+  // 새 게임(10구단) 기준: 꼴찌 10위에서 시작하고, 가을야구 막차는 5위
+  const last = LEAGUE_TEAMS;
+  const cut = postTeamsFor(last);
+  const end = type === 'w' ? 1 : type === 'x' ? last : { ks: 2, post: 3, flag: cut + 1, near: cut + 1, mid: cut + 3, last }[answer!];
+  const start = type === 'x' ? last - 1 : last;
   return Array.from({ length: n }, (_, i) => (n === 1 ? end : Math.round(start + ((end - start) * i) / (n - 1) + (type === 'x' && i % 2 ? 0 : 0))));
 }
 

@@ -5,7 +5,8 @@ import { svcYear } from '../game/contract';
 import { memoNum } from '../game/memo';
 import { nickOf, seatsLabel, starName, type HofClub } from '../game/hof';
 export { seatsLabel, starName };
-import { PAST_RANKS, TRUST_LABEL } from '../game/story';
+import { pastRanks, TRUST_LABEL } from '../game/story';
+import { postTeamsFor } from '../game/league';
 import type { Core, PostFinish, SeasonRecord } from '../game/types';
 import { percentile, type Percentile } from './bench';
 import { SHARE_BASE } from './config';
@@ -24,6 +25,7 @@ export interface ShareRecord {
   nick: string;
   seasons: number; // 치른 시즌 수 (1 이상)
   ranks: number[]; // 시즌별 정규시즌 순위
+  teams?: number; // 리그 구단 수 (없으면 8 — 10구단 체제 전의 기록)
   champs: number[]; // 우승한 시즌 (1-based)
   champAt: number | null; // 첫 우승 시즌
   firstPostAt: number | null; // 첫 가을야구 시즌
@@ -69,15 +71,18 @@ export function seasonAnswer(r: Pick<SeasonRecord, 'rank' | 'post' | 'cleared'>,
   if (r.post === 'KS' || r.post === 'champion') return 'ks';
   if (r.post !== 'none') return 'post';
   if (r.cleared) return 'flag';
-  if (r.rank <= Math.ceil(teams / 2) + 1) return 'near';
+  if (r.rank <= postTeamsFor(teams) + 1) return 'near'; // 가을야구 문턱 한 칸 아래까지
   return r.rank >= teams ? 'last' : 'mid';
 }
 
+/** 기록의 리그 구단 수 */
+export const teamsOf = (r: Pick<ShareRecord, 'teams'>): number => r.teams ?? 8;
+
 /** 구단사 → 결과 유형 코드. 우승한 적이 있으면 w{첫 우승 시즌}, 연고 이전이면 x{시즌 수}, 아니면 p{시즌 수}-{대답} */
-export function resultCode(r: Pick<ShareRecord, 'kind' | 'seasons' | 'champAt' | 'last'>): string {
+export function resultCode(r: Pick<ShareRecord, 'kind' | 'seasons' | 'champAt' | 'last' | 'teams'>): string {
   if (r.kind === 'relocated') return `x${clamp(r.seasons, X_MIN, X_MAX)}`;
   if (r.champAt) return `w${clamp(r.champAt, 1, W_MAX)}`;
-  return `p${clamp(r.seasons, 1, P_MAX)}-${seasonAnswer(r.last)}`;
+  return `p${clamp(r.seasons, 1, P_MAX)}-${seasonAnswer(r.last, teamsOf(r))}`;
 }
 
 /** 공유 페이지를 만들 모든 유형 (약 150종) */
@@ -169,8 +174,8 @@ const trailing = <T,>(xs: T[], f: (x: T) => boolean): number => {
 export function recordFromCore(core: Core, kind: ShareKind): ShareRecord {
   const c = core.campaign;
   const h = c.history ?? [];
-  const team = core.teams.find((t) => t.id === core.userId);
-  const last = h[h.length - 1] ?? { rank: team ? 8 : 8, post: 'none' as PostFinish, cleared: false };
+  const teams = core.teams.length;
+  const last = h[h.length - 1] ?? { rank: teams, post: 'none' as PostFinish, cleared: false };
   const champs = h.flatMap((x, i) => (x.post === 'champion' ? [i + 1] : []));
   return {
     kind,
@@ -178,6 +183,7 @@ export function recordFromCore(core: Core, kind: ShareKind): ShareRecord {
     nick: nickOf(core),
     seasons: Math.max(1, h.length),
     ranks: h.map((x) => x.rank),
+    teams,
     champs,
     champAt: champs[0] ?? (kind === 'champion' ? Math.max(1, h.length) : null),
     firstPostAt: firstAt(h, (x) => x.post !== 'none'),
@@ -206,12 +212,13 @@ export function recordFromClub(club: HofClub): ShareRecord {
     nick: club.nick,
     seasons,
     ranks: club.ranks,
+    teams: club.teams ?? 8,
     champs: champAt ? [champAt] : [],
     champAt,
     firstPostAt: null,
     firstProfitAt: null,
     bestPost: club.titles > 0 ? 'champion' : 'none',
-    last: { rank: club.ranks[club.ranks.length - 1] ?? 8, post: champAt ? 'champion' : 'none', cleared: !!champAt },
+    last: { rank: club.ranks[club.ranks.length - 1] ?? club.teams ?? 8, post: champAt ? 'champion' : 'none', cleared: !!champAt },
     failStreak: 0,
     stage: club.stage,
     stars: club.stars,
@@ -225,7 +232,7 @@ export function recordFromClub(club: HofClub): ShareRecord {
 
 export function shareOf(rec: ShareRecord): ShareData {
   const code = resultCode(rec);
-  const pct = percentile({ seasons: rec.seasons, champAt: rec.champAt, relocated: rec.kind === 'relocated', stage: rec.stage, best: Math.min(8, ...rec.ranks) });
+  const pct = percentile({ seasons: rec.seasons, champAt: rec.champAt, relocated: rec.kind === 'relocated', stage: rec.stage, best: Math.min(teamsOf(rec), ...rec.ranks), teams: teamsOf(rec) });
   return { rec, code, url: shareUrl(rec.seed, code), pct };
 }
 /**
@@ -263,15 +270,15 @@ export function endingLine(r: ShareRecord): string {
 const BEST_KO: Record<PostFinish, string> = { none: '', WC: '와일드카드 결정전', SPO: '준플레이오프', PO: '플레이오프', KS: '한국시리즈 준우승', champion: '한국시리즈 우승' };
 export function bestLine(r: ShareRecord): string {
   if (r.champs.length > 1) return `한국시리즈 우승 ${r.champs.length}회`;
-  return BEST_KO[r.bestPost] || `정규시즌 ${Math.min(8, ...r.ranks)}위`;
+  return BEST_KO[r.bestPost] || `정규시즌 ${Math.min(teamsOf(r), ...r.ranks)}위`;
 }
 
-export const TOOK_OVER = `5년간 ${PAST_RANKS.join('-')}위`;
+export const tookOver = (r: Pick<ShareRecord, 'teams'>): string => `5년간 ${pastRanks(teamsOf(r)).join('-')}위`;
 
 /** 카드의 항목 6칸 */
 export function cardItems(r: ShareRecord): { label: string; value: string }[] {
   return [
-    { label: '맡았을 때', value: TOOK_OVER },
+    { label: '맡았을 때', value: tookOver(r) },
     { label: '최고 성적', value: bestLine(r) },
     { label: r.retired.length ? '영구결번' : '간판스타', value: r.retired[0] ?? r.star ?? '—' },
     { label: '구장', value: r.seats ?? '—' },

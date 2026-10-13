@@ -110,9 +110,9 @@ const GAME: AchvDef[] = [
 
 const E = mk('season');
 const SEASON: AchvDef[] = [
-  E('se-rank7', '탈꼴찌', '정규시즌 7위 이내로 마친다', '🥾', 1, 'season', (x) => !isLast(x.core, x.rec!.rank)),
-  E('se-rank5', '희망 고문', '정규시즌 5위로 마친다 (한 칸 차이로 가을야구 탈락)', '😮‍💨', 2, 'season', (x) => x.rec!.rank === postTeams(x.core) + 1),
-  E('se-rank4', '가을 냄새', '정규시즌 4위 이내로 마친다', '🍂', 2, 'season', (x) => inPost(x.core, x.rec!.rank)),
+  E('se-rank7', '탈꼴찌', '정규시즌을 꼴찌가 아닌 순위로 마친다', '🥾', 1, 'season', (x) => !isLast(x.core, x.rec!.rank)),
+  E('se-rank5', '희망 고문', '정규시즌 6위로 마친다 (한 칸 차이로 가을야구 탈락)', '😮‍💨', 2, 'season', (x) => x.rec!.rank === postTeams(x.core) + 1),
+  E('se-rank4', '가을 냄새', '정규시즌 5위 이내로 마친다 (가을야구 진출권)', '🍂', 2, 'season', (x) => inPost(x.core, x.rec!.rank)),
   E('se-rank1', '정규시즌 우승', '정규시즌 1위로 마친다', '🥇', 3, 'season', (x) => x.rec!.rank === 1),
   E('se-500', '5할 본능', '정규시즌 승률 .500 이상', '⚖️', 1, 'season', (x) => pct(x.rec!) >= 0.5),
   E('se-600', '올해는 다르다(진짜로)', '정규시즌 승률 .600 이상', '📣', 3, 'season', (x) => pct(x.rec!) >= 0.6),
@@ -125,7 +125,7 @@ const SEASON: AchvDef[] = [
   E('se-sweep', '빗자루 들고 왔다', '포스트시즌 시리즈를 무패로 통과', '🧹', 3, 'game', (x) => won(x) && !!x.r!.post && x.r!.post.oppW === 0 && x.r!.post.myW * 2 > x.r!.post.bestOf),
   E('se-ks-win', '한국시리즈 1승', '한국시리즈 경기에서 1승', '🏟️', 3, 'game', (x) => won(x) && x.r!.post?.round === 'KS'),
   E('se-game7', '끝장 승부', '한국시리즈 7차전에서 승리', '7️⃣', 4, 'game', (x) => won(x) && x.r!.post?.round === 'KS' && x.r!.post.gameNo === 7),
-  E('se-upset', '도장 깨기', '정규시즌 4위로 한국시리즈까지 진출', '🥋', 4, 'season', (x) => x.rec!.rank === postTeams(x.core) && postRank[x.rec!.post] >= 3),
+  E('se-upset', '도장 깨기', '정규시즌 5위로 와일드카드 결정전부터 한국시리즈까지 진출', '🥋', 4, 'season', (x) => x.rec!.rank === postTeams(x.core) && postRank[x.rec!.post] >= 3),
   E('se-hrking', '홈런왕 배출', '우리 선수가 리그 홈런왕', '💣', 2, 'season', (x) => hasTitle(x, 'hr')),
   E('se-batking', '타격왕 배출', '우리 선수가 리그 타격왕', '🏏', 2, 'season', (x) => hasTitle(x, 'avg')),
   E('se-winking', '다승왕 배출', '우리 선수가 리그 다승왕', '🔟', 2, 'season', (x) => hasTitle(x, 'w')),

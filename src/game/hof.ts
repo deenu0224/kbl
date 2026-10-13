@@ -28,6 +28,7 @@ export interface HofClub {
   retired?: string[]; // 영구결번
   seats?: string; // 구장 ("24,000석" · "돔구장 30,000석")
   trust?: number; // 도민 지지
+  teams?: number; // 리그 구단 수 (없으면 8 — 10구단 체제 전의 기록)
 }
 export interface HofRecord {
   value: number;
@@ -91,6 +92,7 @@ export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string): Hof
     nick: nickOf(core),
     seasons: c.history.length,
     ranks: c.history.map((h) => h.rank),
+    teams: core.teams.length,
     titles: c.titles,
     stage: c.stage,
     stars: c.achievements.length,

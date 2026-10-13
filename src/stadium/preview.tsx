@@ -3,18 +3,10 @@ import { StrictMode, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../index.css';
 import type { FacilityKind, StadiumFx, StadiumScene, Weather } from '../game/types';
+import { TEAM_DEFS, USER_ID } from '../game/generate';
 import StadiumCanvas, { HOTSPOTS, STADIUM_H, STADIUM_W } from './StadiumCanvas';
 
-const TEAMS: { id: string; c: string; c2: string }[] = [
-  { id: 'JEJ', c: '#f08a1c', c2: '#1f6b3a' },
-  { id: 'SEL', c: '#c2185b', c2: '#1b2233' },
-  { id: 'HAN', c: '#1a3a8f', c2: '#ffffff' },
-  { id: 'BUS', c: '#0e7fb8', c2: '#f26a1b' },
-  { id: 'DGU', c: '#1e56c4', c2: '#ffd23f' },
-  { id: 'GWJ', c: '#d32f2f', c2: '#111111' },
-  { id: 'ICN', c: '#b71c1c', c2: '#f5c518' },
-  { id: 'DJN', c: '#f57c00', c2: '#212121' },
-];
+const TEAMS: { id: string; c: string; c2: string }[] = [...TEAM_DEFS].sort((a, b) => +(b.id === USER_ID) - +(a.id === USER_ID)).map((d) => ({ id: d.id, c: d.color, c2: d.color2 }));
 
 const FX: { label: string; fx: StadiumFx }[] = [
   { label: '없음', fx: { kind: 'none' } },
