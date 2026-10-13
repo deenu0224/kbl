@@ -1,3 +1,4 @@
+import { useUi } from './layout/uiStore';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { BatPos, Objective, Player, Team } from '../game/types';
 import { useCore, useStore } from '../store';
@@ -126,7 +127,7 @@ function TrustMove({ before, after }: { before: number; after: number }) {
 export default function SeasonEnd() {
   const core = useCore();
   const beginDraft = useStore((s) => s.beginDraft);
-  const newGame = useStore((s) => s.newGame);
+  const newGame = () => useUi.getState().setScreen('title');
   const [armNew, setArmNew] = useState(false);
   const [endingSeen, setEndingSeen] = useState(false);
 
@@ -375,7 +376,7 @@ export default function SeasonEnd() {
               newGame();
             }}
           >
-            {armNew ? '정말 처음부터? (저장 삭제)' : '새 게임'}
+            {armNew ? '초기 화면으로 나가기' : '초기 화면'}
           </button>
           <button className="px-btn primary min-h-11 !px-6 !py-2 text-[14px] mob:flex-1" onClick={beginDraft}>
             신인 드래프트로 ▶
