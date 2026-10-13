@@ -271,7 +271,8 @@ for (const id of never) {
   const d = ACHV_LIST.find((x) => x.id === id)!;
   console.log(`  ${probed.includes(id) ? '✓' : ' '} ${id.padEnd(18)} T${d.tier} ${d.title} — ${d.desc}`);
   console.log(`      봇은 못 하지만 사람은 가능: ${WHY[id] ?? '사유 미기재 — 조건을 다시 확인할 것'}`);
-  if (!WHY[id]) bad.push(`봇 달성 0% 인데 사유가 없다: ${id}`);
+  // 짧게 돌린 점검에서는 못 닿는 것이 당연히 많다 — 기준 규모(6 시드 × 12 시즌) 이상에서만 사유 누락을 문제로 본다
+  if (!WHY[id] && N_SEEDS >= 6 && N_SEASONS >= 12) bad.push(`봇 달성 0% 인데 사유가 없다: ${id}`);
 }
 if (process.argv.includes('--md')) {
   // docs/ACHIEVEMENTS.md: 전체 목록 (id · 제목 · 조건) + 봇 달성률
