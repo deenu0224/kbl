@@ -504,4 +504,5 @@ export interface StadiumScene {
   gateQueue?: number; // 게이트 밖 대기 줄 0~1 (발길 돌린 팬 비율)
   cheerLv?: number; // 응원 문화 0~3 (주황 물결 → 깃발 → 대형 현수막)
   retiredNums?: number; // 걸린 영구결번 수 (0~4)
+  awayFans?: number; // 원정 응원단 크기 0~1 (3루 쪽 끝 관중석의 원정 색 덩어리). 없으면 그리지 않는다
 }

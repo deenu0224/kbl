@@ -1,18 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
-import TransferDesk from './roster/TransferDesk';
 
 const BG = { good: '#2f9e4f', bad: '#c0392b', info: '#3d4c75' } as const;
 
 /** 액션 결과/오류 알림. key 가 바뀔 때마다 다시 뜬다. 모바일에선 캠페인 줄·드래프트 순서 띠를 가리지 않게 액션 바 바로 위에 띄운다. */
 export default function Toast() {
-  return (
-    <>
-      {/* 이적 창구는 어느 화면에서든 열린다 (두 레이아웃 모두에 항상 떠 있는 자리) */}
-      <TransferDesk />
-      <ToastBox />
-    </>
-  );
+  return <ToastBox />;
 }
 
 function ToastBox() {

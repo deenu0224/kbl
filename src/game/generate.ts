@@ -373,7 +373,7 @@ export function genFreeAgents(ctx: GenCtx): Player[] {
 }
 
 /** 8개 구단 + 선수 + FA + 일정 생성. 유저 = 'JEJ' */
-export function newCore(seed: number): Core {
+export function newCore(seed: number, nickname?: string): Core {
   const rng = mulberry32(seed);
   const ctx = makeCtx(rng, 'p');
 
@@ -392,7 +392,9 @@ export function newCore(seed: number): Core {
     return got;
   };
 
-  const teams = TEAM_DEFS.map((def) => {
+  const teams = TEAM_DEFS.map((def0) => {
+    // 유저 구단은 별칭만 바꿀 수 있다 (연고지·약칭·색은 고정)
+    const def = def0.id === USER_ID && nickname ? { ...def0, name: nickname } : def0;
     if (def.id === USER_ID) {
       const veteran = rng() < 0.5;
       return genTeam(ctx, def, veteran ? [ARCHETYPES[VETERAN_DH]] : [], !veteran);

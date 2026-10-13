@@ -284,6 +284,40 @@ function drawCrowd(
 }
 
 /** 외야의 오랜 팬: 관중이 없어도 늘 같은 자리에. 폰에서도 읽히도록 다른 관중의 세 배 크기(6×9)에 깃발을 든다 */
+// 원정 응원단: 3루 쪽 내야 스탠드의 외야 쪽 끝 구역을 원정 색으로 채운다 (좌석 배열별로 순서를 한 번만 만든다)
+const AWAY_ORDER = new WeakMap<Seat[], Seat[]>();
+const AWAY_MIN = 70; // 390px 폭 화면에서도 덩어리로 보이는 최소 인원
+function drawAwayFans(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number): void {
+  const share = clamp01(scene.awayFans || 0);
+  if (share <= 0) return;
+  let order = AWAY_ORDER.get(L.seats);
+  if (!order) {
+    order = L.seats.filter((s) => s.sec !== 2 && s.u < 0.5).sort((a, b) => a.u - b.u);
+    AWAY_ORDER.set(L.seats, order);
+  }
+  const n = Math.min(order.length, Math.max(AWAY_MIN, Math.round(L.seats.length * share)));
+  if (n <= 0) return;
+  const c = scene.awayColor;
+  const hi = shade(c, 0.35);
+  for (let i = 0; i < n; i++) {
+    const s = order[i];
+    // 원정 팬은 자기 팀이 칠 때(홈 공격이 아닐 때) 들썩인다
+    const up = scene.playing && !scene.homeBatting && ((f + s.ph) & 3) === 0 ? 1 : 0;
+    ctx.fillStyle = s.ph % 5 === 0 ? hi : c;
+    ctx.fillRect(s.x - 1, s.y - up, 4, 3);
+    ctx.fillStyle = s.ph & 1 ? PAL.skin2 : PAL.skin;
+    ctx.fillRect(s.x, s.y - up - 1, 2, 1);
+  }
+  // 응원 깃발 두 개
+  for (let k = 0; k < 2; k++) {
+    const s = order[Math.floor(((k + 1) * n) / 3)];
+    const w = (f + k * 3) & 2 ? 1 : 0;
+    R(ctx, s.x + 1, s.y - 9, 1, 9, '#f4f6fa');
+    R(ctx, s.x + 2 - w * 6, s.y - 9, 5, 3, c);
+    R(ctx, s.x + 2 - w * 6, s.y - 8, 5, 1, '#ffffff');
+  }
+}
+
 function drawOldFan(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number): void {
   const { x, y } = L.oldFan;
   if (L.oldFanOnGrass) {
@@ -1098,7 +1132,8 @@ export function drawFrame(inp: FrameInput): void {
   drawRetired(ctx, scene);
   if (cheerLv >= 3) drawBigBanner(ctx, scene, t, cheerLv >= 4);
   drawCrowd(ctx, L, scene, t, f, cheer, cheerLv);
-  drawOldFan(ctx, L, scene, f);
+  drawAwayFans(ctx, L, scene, f);
+  if (scene.oldBanner !== false) drawOldFan(ctx, L, scene, f);
   drawGate(ctx, L, scene, t, f);
   ctx.drawImage(L.over, 0, 0);
   for (let i = 0; i < L.flags.length; i++) {

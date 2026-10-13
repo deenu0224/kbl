@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { FacilityKind, StadiumFx, StadiumScene } from '../game/types';
 import StadiumCanvas, { HOTSPOTS, STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
 import { useCore, useStore, useUserTeam, userMatch } from '../store';
@@ -10,6 +10,8 @@ import EventCardModal from './EventCardModal';
 import GameSummary, { TeamTag } from './GameSummary';
 import { useIsMobile } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
+import { awayFacilities, awayFanShare } from './layout/away';
+import { TEAM_DEFS } from '../game/generate';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
 
 const KINDS: FacilityKind[] = ['seats', 'food', 'training'];
@@ -34,10 +36,70 @@ const chip: CSSProperties = {
   lineHeight: 1.25,
 };
 
-export default function StadiumView() {
+/** 하이라이트 재생 드라이버: 이벤트마다 타이머 하나 (App 에서 한 번). cleanup 으로 지우므로 StrictMode 이중 실행에도 안전. */
+export function usePlaybackDriver(): void {
+  const report = useStore((s) => s.playback?.report ?? null);
+  const step = useStore((s) => s.playback?.step ?? 0);
+  const stepPlayback = useStore((s) => s.stepPlayback);
+  const fast = useUi((s) => s.fast);
+  const evType = report?.result.events[step]?.type;
+  useEffect(() => {
+    if (!report) return;
+    const ms = (evType === 'hr' || evType === 'walkoff' ? 2600 : 1800) * (fast ? 0.5 : 1);
+    const id = window.setTimeout(stepPlayback, ms);
+    return () => window.clearTimeout(id);
+  }, [report, step, evType, stepPlayback, fast]);
+}
+
+/**
+ * 세로 폰의 큰 구장: 높이에 맞춰 확대하고 좌우는 끌어서 본다. 두 번 탭하면 전체 보기(폭 맞춤) ↔ 확대.
+ * 오버레이는 children 안에 있어 캔버스와 같이 움직인다.
+ */
+function PanZoom({ children }: { children: (style: CSSProperties) => ReactNode }) {
+  const [zoomed, setZoomed] = useState(true);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const lastTap = useRef(0);
+  const drag = useRef<{ x: number; left: number } | null>(null);
+  // 확대하면 내야·관중석이 가운데 오도록
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el) el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+  }, [zoomed]);
+  return (
+    <div className="h-full w-full" style={{ containerType: 'size' }} data-testid="stadium-pan" data-zoomed={zoomed ? '1' : '0'}>
+      <div
+        ref={ref}
+        className="no-scrollbar flex h-full w-full items-center overflow-x-auto overflow-y-hidden"
+        style={{ overscrollBehavior: 'contain', background: '#0f1420' }}
+        onClick={(e) => {
+          if ((e.target as Element).closest('button')) return;
+          const now = performance.now();
+          if (now - lastTap.current < 320) {
+            lastTap.current = 0;
+            setZoomed((z) => !z);
+          } else lastTap.current = now;
+        }}
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse' && ref.current) drag.current = { x: e.clientX, left: ref.current.scrollLeft };
+        }}
+        onPointerMove={(e) => {
+          if (drag.current && ref.current) ref.current.scrollLeft = drag.current.left - (e.clientX - drag.current.x);
+        }}
+        onPointerUp={() => (drag.current = null)}
+        onPointerLeave={() => (drag.current = null)}
+      >
+        {children({ width: zoomed ? `max(100cqw, calc(100cqh * ${STADIUM_W} / ${STADIUM_H}))` : '100cqw', flexShrink: 0 })}
+      </div>
+    </div>
+  );
+}
+
+export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const core = useCore();
   const playback = useStore((s) => s.playback);
-  const stepPlayback = useStore((s) => s.stepPlayback);
+  const lastReport = useStore((s) => s.lastReport);
+  const fans = useStore((s) => s.fans);
+  const setFacSheet = useUi((s) => s.setFacSheet);
   const skipPlayback = useStore((s) => s.skipPlayback);
   const fxUp = useStore((s) => s.fx);
   const summaryOpen = useStore((s) => !!s.summary);
@@ -51,29 +113,22 @@ export default function StadiumView() {
   const post = useStore((s) => s.post);
   const postLine = usePostLine();
   const setTab = useStore((s) => s.setTab);
-  const setMobileTab = useUi((s) => s.setTab);
   const user = useUserTeam();
   const mobile = useIsMobile();
-  const chipM: CSSProperties = mobile ? { ...chip, fontSize: fz(true, 1.7, 11), padding: '2px 5px' } : chip;
+  const chipM: CSSProperties = mobile ? { ...chip, fontSize: fz(true, 1.9, 13), padding: '4px 7px', color: '#fff' } : chip;
 
   const report = playback?.report ?? null;
   const step = playback?.step ?? 0;
   const ev = report ? (report.result.events[step] ?? null) : null;
-  const evType = ev?.type;
-
-  // ── 재생 드라이버: 이벤트마다 타이머 하나. cleanup 으로 지우므로 StrictMode 이중 실행에도 안전.
-  useEffect(() => {
-    if (!report) return;
-    const ms = evType === 'hr' || evType === 'walkoff' ? 2600 : 1800;
-    const id = window.setTimeout(stepPlayback, ms);
-    return () => window.clearTimeout(id);
-  }, [report, step, evType, stepPlayback]);
 
   const next = useMemo(
     () => (phase === 'season' || phase === 'post' ? userMatch({ schedule, userId, phase, post }, day) : null),
     [schedule, userId, day, phase, post],
   );
-  const oppId = report ? report.oppId : next?.oppId;
+  // 원정 경기의 재생 중과 그 요약 동안만 상대 구장을 보여 준다 (경기 사이엔 항상 우리 구장)
+  const awayRep = report ? (report.isHome ? null : report) : summaryOpen && lastReport && !lastReport.isHome ? lastReport : null;
+  const away = !!awayRep;
+  const oppId = report ? report.oppId : (awayRep?.oppId ?? next?.oppId);
   const opp = teams.find((t) => t.id === oppId);
   const cap = SEAT_LV[facilities.seats]?.cap ?? crowd?.capacity ?? 1;
   const idleFill = crowd ? Math.min(1, crowd.attendance / Math.max(1, cap)) : 0;
@@ -88,23 +143,44 @@ export default function StadiumView() {
     let fx: StadiumFx = { kind: 'none' };
     let fxKey = 0;
     let homeBatting = false;
+    if (away) fill = Math.min(0.95, 0.45 + 0.5 * (TEAM_DEFS.find((d) => d.id === oppId)?.pop ?? 0.6));
     if (report) {
-      fill = report.isHome && report.crowd ? Math.min(1, report.crowd.attendance / Math.max(1, report.crowd.capacity)) : idleFill * 0.15;
+      if (!away) fill = report.isHome && report.crowd ? Math.min(1, report.crowd.attendance / Math.max(1, report.crowd.capacity)) : idleFill * 0.15;
       fxKey = (report.day + 1) * 100 + step;
       if (ev) {
         const mine = ev.teamId === userId;
         const cheer = mine && report.isHome;
-        // 화면의 구장은 항상 우리 구장: "홈" = 유저 팀으로 매핑
-        homeBatting = report.isHome ? ev.half === 1 : ev.half === 0;
-        if (ev.type === 'hr') fx = { kind: 'hr', byHome: mine, cheer };
-        else if (ev.type === 'score') fx = { kind: 'score', cheer };
-        else if (ev.type === 'walkoff') fx = mine && report.isHome ? { kind: 'walkoff' } : { kind: 'score', cheer: false };
+        // 화면의 구장 주인("홈")은 실제 홈팀: 홈경기면 우리, 원정이면 상대 (관중은 구장 주인 편)
+        homeBatting = ev.half === 1;
+        const host = away ? !mine : mine;
+        if (ev.type === 'hr') fx = { kind: 'hr', byHome: host, cheer: away ? host : cheer };
+        else if (ev.type === 'score') fx = { kind: 'score', cheer: away ? host : cheer };
+        else if (ev.type === 'walkoff') fx = host ? { kind: 'walkoff' } : { kind: 'score', cheer: false };
         else if (ev.type === 'injury') fx = { kind: 'injury' };
         else if (ev.type === 'final' && report.isHome && report.won === true) fx = { kind: 'win' };
       }
     } else if (fxUp) {
       fx = { kind: 'build', target: fxUp.kind };
       fxKey = fxUp.key;
+    }
+    if (away && opp) {
+      return {
+        facilities: awayFacilities(opp.id),
+        homeColor: opp.color,
+        homeColor2: opp.color2,
+        awayColor: user.color,
+        fill,
+        weather: awayRep?.crowd?.weather ?? 'sunny',
+        night: !!awayRep?.night,
+        playing: !!report,
+        homeBatting,
+        fx,
+        fxKey,
+        banners: 0,
+        oldBanner: false,
+        cheerLv: 1,
+        awayFans: awayFanShare(fans),
+      };
     }
     return {
       facilities,
@@ -122,7 +198,7 @@ export default function StadiumView() {
       ...extras,
       gateQueue, // 재생 중에는 그 경기의 줄
     };
-  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp?.color, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras]);
+  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras, away, awayRep, fans, oppId]);
 
   const star = useMemo(() => user.roster.reduce<(typeof user.roster)[number] | null>((a, p) => (!a || p.star > a.star ? p : a), null), [user.roster]);
 
@@ -139,12 +215,15 @@ export default function StadiumView() {
   const band = scoreEv ? `max(1.2cqw, 6px) solid ${mineEv ? '#6ee07a' : '#ff6b6b'}` : undefined;
   const tagged = !!ev && ev.type !== 'start' && ev.type !== 'final';
 
-  return (
-    <div className="flex h-full w-full items-center justify-center" style={{ containerType: 'size' }}>
+  // 모바일은 오버레이 글자를 한 단계 키운다 (확대한 구장에서 읽히게)
+  const k = mobile ? 1.3 : 1;
+  const body = (size: CSSProperties) => (
       <div
         className="relative overflow-hidden"
+        data-testid="stadium"
+        data-away={away ? '1' : '0'}
         style={{
-          width: `min(100cqw, calc(100cqh * ${STADIUM_W} / ${STADIUM_H}))`,
+          ...size,
           aspectRatio: `${STADIUM_W} / ${STADIUM_H}`,
           containerType: 'inline-size',
           boxShadow: '0 0 0 2px #0f1420',
@@ -160,10 +239,10 @@ export default function StadiumView() {
         >
           {report && ev ? (
             <>
-              <div style={{ fontSize: '1.35cqw', color: '#7fd3ff' }}>
+              <div style={{ fontSize: `${1.35 * k}cqw`, color: '#7fd3ff' }}>
                 {ev.type === 'final' ? '경기 종료' : ev.type === 'start' ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`}
               </div>
-              <div className="font-pixel-lg flex items-center" style={{ fontSize: '2.6cqw', gap: '0.8cqw' }}>
+              <div className="font-pixel-lg flex items-center" style={{ fontSize: `${2.6 * k}cqw`, gap: '0.8cqw' }}>
                 <span style={{ fontSize: '1.5cqw', color: awayTeam?.id === userId ? '#fff' : '#b9c3e0' }}>{awayTeam?.id}</span>
                 <span key={`a${ev.away}`} className={step > 0 ? 'anim-pop' : ''}>
                   {ev.away}
@@ -177,13 +256,13 @@ export default function StadiumView() {
             </>
           ) : next && opp ? (
             <>
-              <div className="w-full truncate" style={{ fontSize: '1.25cqw', color: '#7fd3ff' }}>
+              <div className="w-full truncate" style={{ fontSize: `${1.25 * k}cqw`, color: '#7fd3ff' }}>
                 {postLine ? `${postLine.name} ${postLine.gameNo}차전` : `NEXT · ${day + 1}차전`}
               </div>
-              <div className="font-pixel-lg w-full truncate" style={{ fontSize: '1.9cqw' }}>
+              <div className="font-pixel-lg w-full truncate" style={{ fontSize: `${1.9 * k}cqw` }}>
                 vs {opp.name}
               </div>
-              <div style={{ fontSize: '1.25cqw', color: '#fff' }}>
+              <div style={{ fontSize: `${1.25 * k}cqw`, color: '#fff' }}>
                 {next.isHome ? '홈' : '원정'} · {postLine ? `${postLine.myW}승 ${postLine.oppW}패` : `${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`}
               </div>
             </>
@@ -195,7 +274,7 @@ export default function StadiumView() {
         </div>
 
         {/* 시설 핫스팟 */}
-        {KINDS.map((k) => {
+        {!away && KINDS.map((k) => {
           const cost = upgradeCost(k, facilities);
           const built = fxUp?.kind === k && !report;
           return (
@@ -203,14 +282,15 @@ export default function StadiumView() {
               key={k}
               className="group absolute cursor-pointer"
               style={rectStyle(HOTSPOTS[k])}
-              onClick={() => (mobile ? setMobileTab('stadium') : setTab('right', 'stadium'))}
+              data-testid={`fac-${k}`}
+              onClick={() => (mobile ? setFacSheet(k) : setTab('right', 'stadium'))}
             >
               <span className="absolute inset-0 opacity-0 group-hover:opacity-100" style={{ boxShadow: 'inset 0 0 0 0.3cqw #ffd84a', background: 'rgba(255,216,74,.12)' }} />
               {mobile ? (
                 // 터치에는 hover 가 없으므로 항상 작은 태그로 보인다
                 <span
                   className="absolute bottom-[4%] left-1/2 -translate-x-1/2 whitespace-nowrap text-center"
-                  style={{ ...chip, fontSize: 'max(1.5cqw, 10px)', padding: '1px 4px', color: '#fff', lineHeight: 1.2 }}
+                  style={{ ...chip, fontSize: 'max(1.9cqw, 13px)', padding: '3px 6px', color: '#fff', lineHeight: 1.2 }}
                 >
                   {FAC_KO[k]} Lv{facilities[k] + 1}{' '}
                   {cost != null ? <span style={{ color: '#ffd84a' }}>▲{fmtMoney(cost)}</span> : <span style={{ color: '#6ee07a' }}>MAX</span>}
@@ -238,10 +318,16 @@ export default function StadiumView() {
         })}
 
         {/* 관중 칩 */}
-        <div className="pointer-events-none absolute flex items-center whitespace-nowrap" style={{ ...chipM, left: '1.2cqw', top: '1.2cqw', gap: '1.2cqw' }}>
+        <button
+          className={`absolute flex items-center whitespace-nowrap text-left ${mobile && !away ? 'cursor-pointer' : 'pointer-events-none'}`}
+          data-testid="crowd-chip"
+          data-sfx="tab"
+          style={{ ...chipM, left: '1.2cqw', top: '1.2cqw', gap: '1.2cqw' }}
+          onClick={() => setFacSheet('ticket')}
+        >
           <span title={WEATHER_KO[weather]}>{WEATHER_ICON[weather]}</span>
-          {report && !report.isHome ? (
-            <span className="text-white/80">원정 경기</span>
+          {away ? (
+            <span className="text-white/80">원정 · {opp?.city} 구장</span>
           ) : shownCrowd ? (
             <>
               <span>
@@ -262,10 +348,11 @@ export default function StadiumView() {
           )}
           {report?.night && <span className="text-sky">야간</span>}
           {report?.post && <span className="text-hi">{report.post.name}</span>}
-        </div>
+          {mobile && !away && <span className="text-hi">티켓 ▸</span>}
+        </button>
 
         {/* 간판스타 칩 */}
-        {star && (
+        {star && !away && (
           <div className="pointer-events-none absolute" style={{ ...chipM, right: '1.2cqw', top: '1.2cqw' }}>
             <span className="text-white/55">간판스타 </span>
             <span className="text-hi">★ {star.name}</span>
@@ -328,6 +415,12 @@ export default function StadiumView() {
         {!mobile && <GameSummary />}
         {!mobile && <EventCardModal />}
       </div>
+  );
+
+  if (pan) return <PanZoom>{body}</PanZoom>;
+  return (
+    <div className="flex h-full w-full items-center justify-center" style={{ containerType: 'size' }}>
+      {body({ width: `min(100cqw, calc(100cqh * ${STADIUM_W} / ${STADIUM_H}))` })}
     </div>
   );
 }
