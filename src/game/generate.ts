@@ -1,6 +1,6 @@
 import type { BatPos, BatStats, Campaign, Core, Ledger, PitchRole, PitStats, Player, Team, TeamRecord } from './types';
 import { clamp, gauss, mulberry32, pick, randInt, shuffle, type Rng } from './rng';
-import { calcOvr, calcSalary } from './ratings';
+import { MIN_SALARY, calcOvr, calcSalary } from './ratings';
 import { autoLineup } from './lineup';
 import { buildSchedule } from './schedule';
 import { PREMISE_NEWS, withTeam } from './story';
@@ -22,6 +22,11 @@ const RP_OFFSET = -1;
 const RP_DEPTH_OFFSET = -12; // 불펜 5·6번째 팔(추격조): 저연봉 뎁스. 유저 초기 손익은 이 값으로 맞춘다 (scripts/economy.ts)
 const RP_DEPTH_AGE: [number, number] = [23, 29];
 const CP_OFFSET = 2;
+// 유저 팀의 초기 2군 8명 (수십 년 된 구단의 퓨처스 팀). 분포는 draft.ts 의 ORIGINS 와 같은 감각 — 순환 import 를 피해 여기에 둔다
+const FARM_START_GEMS = 2; // 고졸 원석 (타자 1 · 투수 1)
+const FARM_GEM = { age: [19, 20], ovr: [44, 50], pot: [78, 86] } as const;
+const FARM_KID = { age: [20, 23], ovr: [40, 55], pot: [55, 70] } as const;
+const FARM_LIFER = { age: [26, 28], ovr: [54, 57] } as const; // 만년 2군: 여지가 거의 없다
 const ARCH_TIER_REF = 62; // 아키타입 능력치의 기준 tier
 export const START_CASH = 150000; // 15억
 export const START_FANS = 5200;
@@ -339,6 +344,37 @@ function genTeam(ctx: GenCtx, def: TeamDef, archs: Arch[], prospect: boolean): T
   return team;
 }
 
+/** 유저 팀의 초기 2군: 타자 5(포수 1 · 내야 2 · 외야 2) + 투수 3(선발 1 · 구원 2). 원석 2 · 만년 2군 1 · 나머지 5 */
+function genStartFarm(ctx: GenCtx): Player[] {
+  const r = ctx.rng;
+  const pos: (BatPos | PitchRole)[] = [
+    'C',
+    ...shuffle(r, ['2B', 'SS', '3B'] as BatPos[]).slice(0, 2),
+    ...shuffle(r, ['LF', 'CF', 'RF'] as BatPos[]).slice(0, 2),
+    'SP', 'RP', 'RP',
+  ];
+  // 원석은 타자 1 · 투수 1, 만년 2군은 남은 자리 중 하나
+  const gems = new Set([randInt(r, 0, 4), randInt(r, 5, 7)].slice(0, FARM_START_GEMS));
+  const lifer = pick(r, pos.map((_, i) => i).filter((i) => !gems.has(i)));
+  return pos.map((ps, i) => {
+    const kind = gems.has(i) ? FARM_GEM : i === lifer ? FARM_LIFER : FARM_KID;
+    const age = randInt(r, kind.age[0], kind.age[1]);
+    const p = genPlayer(ctx, ps, 50, { age, tag: gems.has(i) ? '고졸 원석' : i === lifer ? '만년 2군' : undefined });
+    shiftToOvr(r, p, randInt(r, kind.ovr[0], kind.ovr[1]));
+    if (i === lifer) p.pot = p.ovr + randInt(r, 0, 1);
+    else {
+      const k = kind as typeof FARM_GEM;
+      p.pot = clamp(Math.max(p.ovr + 3, randInt(r, k.pot[0], k.pot[1])), p.ovr, 99);
+      // 보유 기간: 이미 2~3년차 (contract.svcYearAt = season − svc + 1). 만년 2군은 보유 기간이 끝난 일반 계약
+      p.svc = age <= 20 ? 0 : -1;
+    }
+    p.salary = MIN_SALARY;
+    p.star = clamp(Math.round((p.pot - 60) * 0.8 + gauss(r) * 6), 0, 60);
+    p.farm = true;
+    return p;
+  });
+}
+
 // 로스터 구성(타자 13 · 투수 12 = SP5·RP6·CP1)에 맞춘 FA 풀의 비중
 const FA_BAT_SHARE = 0.54;
 const FA_PIT_POS: PitchRole[] = ['SP', 'SP', 'SP', 'SP', 'SP', 'RP', 'RP', 'RP', 'RP', 'RP', 'RP', 'CP'];
@@ -411,6 +447,8 @@ export function newCore(seed: number, nickname?: string): Core {
 
   const freeAgents = genFreeAgents(ctx);
   const schedule = buildSchedule(teams.map((t) => t.id), rng);
+  // 유저 팀만 2군을 갖고 시작한다. 맨 끝에서 뽑아 기존 시드의 1군·FA·일정은 그대로 둔다
+  teams.find((t) => t.id === USER_ID)!.roster.push(...genStartFarm(ctx));
 
   return {
     seed,
