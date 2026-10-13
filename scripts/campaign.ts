@@ -18,6 +18,7 @@ import { closeBriefing, drawBriefing, runOffer } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
 import { BOTS, baseId, offVerb, passive, sensible, type Bot } from './bots';
+import { FARM_CARDS, FARM_COACH } from '../src/game/farm';
 import { fmtMoney } from '../src/game/format';
 
 const N_SEEDS = Number(process.argv[2]) || 12;
@@ -55,7 +56,12 @@ interface Run {
   drafted: number;
   retired: number;
   crash: string | null;
+  // 2군 자동 운영이 한 일 · 입대/전역
+  farm: { up: number; back: number; down: number; cut: number; army: number; armyBack: number };
 }
+const awayN = (c: Core) => c.campaign.away?.length ?? 0;
+/** 뉴스에서 지명 직전 자동 방출을 센다 */
+const cutN = (c: Core) => c.news.filter((n) => n.text.startsWith(FARM_COACH) && n.text.includes('지명 자리')).length;
 
 // 주간 브리핑 실측: 시즌당 유저에게 오는 결정 수 (브리핑 제안 + 이벤트 카드)
 const BRIEF = { seasons: 0, briefs: 0, offers: 0, byWho: {} as Record<string, { seasons: number; offers: number; cards: number }> };
@@ -97,9 +103,11 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
     if (++guard > 400) throw new Error('무한 루프 의심');
     if (c.campaign.event) {
       const card = c.campaign.event;
+      const a0 = awayN(c);
       const r = resolveEvent(c, bot.event(c, card), rng);
       if (r.error) throw new Error(`이벤트 해소 실패: ${card.id} ${r.error}`);
       c = r.core;
+      if (run) run.farm.army += Math.max(0, awayN(c) - a0);
       (BRIEF.byWho[bot.name] = BRIEF.byWho[bot.name] ?? { seasons: 0, offers: 0, cards: 0 }).cards++;
       if (run) {
         run.events++;
@@ -133,7 +141,17 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
       continue;
     }
     if (c.phase === 'season') c = bot.daily(c);
+    const a1 = awayN(c);
     const r = advanceDay(c, rng);
+    if (run) {
+      run.farm.army += Math.max(0, awayN(r.core) - a1);
+      for (const n of r.report.notes) {
+        if (!n.startsWith(FARM_COACH)) continue;
+        if (n.includes('2군 복귀')) run.farm.back++;
+        else if (n.includes('콜업')) run.farm.up++;
+        else if (n.includes('2군행')) run.farm.down++;
+      }
+    }
     if (run && r.report.post) run.postGames++;
     if (run && r.report.notes.some((n) => n.includes('강제 매각'))) run.forcedSale = true;
     c = drawBriefing(maybeDrawEvent(r.core, rng));
@@ -152,7 +170,7 @@ const AB: { stage: number; a: boolean; b: boolean }[] = [];
 
 function runOne(bot: Bot, seed: number): Run {
   const rng: Rng = mulberry32(seed * 7919 + 101);
-  const run: Run = { reach: [null, null, null, null, null, null], champ: null, over: null, forcedSale: false, snaps: [], stars: [], events: 0, cards: {}, postGames: 0, drafted: 0, retired: 0, crash: null };
+  const run: Run = { reach: [null, null, null, null, null, null], champ: null, over: null, forcedSale: false, snaps: [], stars: [], events: 0, cards: {}, postGames: 0, drafted: 0, retired: 0, crash: null, farm: { up: 0, back: 0, down: 0, cut: 0, army: 0, armyBack: 0 } };
   let c = ensureObjectives(newCore(seed), rng);
   try {
     for (let s = 1; s <= N_SEASONS; s++) {
@@ -202,7 +220,10 @@ function runOne(bot: Bot, seed: number): Run {
         c = r.error ? draftSkip(c, rng).core : r.core;
       }
       run.drafted += c.draft?.mine.length ?? 0;
+      run.farm.cut += cutN(c);
+      const a2 = awayN(c);
       c = nextSeason(c, rng);
+      run.farm.armyBack += Math.max(0, a2 - awayN(c));
     }
   } catch (e) {
     run.crash = `seed ${seed}: ${(e as Error).message}\n${(e as Error).stack?.split('\n').slice(1, 5).join('\n')}`;
@@ -340,6 +361,17 @@ for (const bot of BOTS) {
     `${bot.name.padEnd(9)} 카드 ${pad(runs.reduce((a, r) => a + r.events, 0), 4)}장 (시즌당 ${(runs.reduce((a, r) => a + r.events, 0) / Math.max(1, seasons)).toFixed(1)}) · 포스트시즌 유저 경기 ${pad(runs.reduce((a, r) => a + r.postGames, 0), 4)} · 드래프트 지명 ${pad(runs.reduce((a, r) => a + r.drafted, 0), 4)}명 · 영구결번 ${runs.reduce((a, r) => a + r.retired, 0)} · 우승 경험 ${runs.filter((r) => r.champ !== null).length}/${runs.length}`,
   );
   console.log(`          카드별: ${Object.entries(cards).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
+}
+console.log('\n── 2군 자동 운영과 2군 사건 (시즌당) ──');
+for (const bot of BOTS) {
+  const runs = all[bot.name];
+  const seasons = Math.max(1, runs.reduce((a, r) => a + r.snaps.length, 0));
+  const per = (v: number) => (v / seasons).toFixed(2);
+  const sum = (f: (r: Run) => number) => runs.reduce((a, r) => a + f(r), 0);
+  const byCard = FARM_CARDS.map((d) => `${d.id} ${per(sum((r) => r.cards[d.id] ?? 0))}`).join(' · ');
+  const farmCards = sum((r) => FARM_CARDS.reduce((a, d) => a + (r.cards[d.id] ?? 0), 0));
+  console.log(`${bot.name.padEnd(9)} 2군 사건 ${per(farmCards)}장 [${byCard}]`);
+  console.log(`          자동: 부상 대체 콜업 ${per(sum((r) => r.farm.up))} · 대체 선수 복귀 ${per(sum((r) => r.farm.back))} · 벤치 유망주 2군행 ${per(sum((r) => r.farm.down))} · 지명 직전 방출 ${per(sum((r) => r.farm.cut))} | 입대 ${sum((r) => r.farm.army)}명 · 전역 복귀 ${sum((r) => r.farm.armyBack)}명 (${seasons}시즌)`);
 }
 const names: Record<string, number> = {};
 for (const bot of BOTS) for (const r of all[bot.name]) for (const x of r.snaps) names[x.name] = (names[x.name] ?? 0) + 1;

@@ -242,10 +242,44 @@ function doPen(c: Core): Core {
 }
 
 function bestProspect(c: Core, score: (p: Player) => number): string | null {
-  if (!c.draft || farmRoster(userTeam(c)).length >= FARM_MAX) return null;
+  // 2군이 가득이어도 지명한다: 자동 운영 중에는 2군 코치가 지명 직전에 한 명을 방출한다
+  if (!c.draft) return null;
   const p = c.draft.pool.slice().sort((a, b) => score(b) - score(a))[0];
   return p ? p.id : null;
 }
+
+// ───────── 2군 사건 (farm.ts) ─────────
+// 모든 봇은 2군 자동 운영을 켠 채로 돈다 (campaign.farmAuto 기본값).
+export const isFarmCard = (card: EventCard) => baseId(card).startsWith('f-');
+
+/** sensible: 올린다 · 기다린다 · OVR 높은 쪽 · 주전이 아니면 지금 보낸다 · 전향 · 내린다 · 현금 여유 있으면 맡긴다 */
+function farmSensible(c: Core, card: EventCard): number {
+  const t = userTeam(c);
+  const p = t.roster.find((x) => x.id === card.pid);
+  switch (baseId(card)) {
+    case 'f-ready':
+      return firstEnabled(card, [0, 1]);
+    case 'f-hype':
+      return 1;
+    case 'f-sub': {
+      const orig = t.roster.find((x) => x.id === card.id.split('|')[1]);
+      return p && orig && p.ovr > orig.ovr ? 0 : 1;
+    }
+    case 'f-army': {
+      const key = !!p && !p.farm && (t.lineup.some((s) => s.pid === p.id) || t.rotation.includes(p.id) || t.closer === p.id);
+      return key ? 1 : 0;
+    }
+    case 'f-conv':
+      return 0;
+    case 'f-pain':
+      return firstEnabled(card, [1, 0]);
+    case 'f-coach':
+      return firstEnabled(card, c.finance.cash >= RESERVE * 3 ? [0, 1] : [1]);
+  }
+  return firstEnabled(card, [0]);
+}
+/** greedy: 항상 올린다 · 입대는 미룬다. passive · off-verb: 첫 선택지 */
+const farmFirst = (card: EventCard, greedyBot = false) => firstEnabled(card, greedyBot && baseId(card) === 'f-army' ? [1] : [0, 1]);
 
 // ───────── 봇 정의 ─────────
 
@@ -263,7 +297,7 @@ export const passive: Bot = {
   preseason: (c) => c,
   daily: (c) => c,
   // 감독·팀장이 하자는 대로(첫 선택지), 그 외에는 아무것도 하지 않는 쪽(마지막)
-  event: (_c, card) => firstEnabled(card, baseId(card) === 'veteran' ? [0] : [card.choices.length - 1]),
+  event: (_c, card) => (isFarmCard(card) ? farmFirst(card) : firstEnabled(card, baseId(card) === 'veteran' ? [0] : [card.choices.length - 1])),
   beforeDraft: (c) => c,
   draft: () => null,
 };
@@ -317,6 +351,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
     daily: (c) => act(c, false),
     event: (c, card) => {
       const id = baseId(card);
+      if (isFarmCard(card)) return name === 'sensible' ? farmSensible(c, card) : farmFirst(card);
       const v = verbs(c);
       // 목표 상향 약속은 실패하면 지지를 크게 잃는다 — 지지에 여유가 있을 때만 건다
       if (id === 'midcheck') return firstEnabled(card, card.id.endsWith('ahead') ? (c.campaign.trust >= PLEDGE_TRUST ? [0] : [1]) : [1]);
@@ -370,7 +405,7 @@ export const greedy: Bot = {
     return doLineup(c, true);
   },
   daily: (c) => (c.day === 42 ? doLineup(greedySign(c), true) : c.day % 12 === 0 ? doLineup(c, true) : c),
-  event: (_c, card) => firstEnabled(card, [0]),
+  event: (_c, card) => (isFarmCard(card) ? farmFirst(card, true) : firstEnabled(card, [0])),
   beforeDraft: (c) => trimRoster(c, 25),
   draft: (c) => bestProspect(c, (p) => p.ovr),
 };

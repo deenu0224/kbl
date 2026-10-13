@@ -31,9 +31,9 @@ export const FARM_N = {
   readyWait: 24, // "한 달 더": 이 경기 수 뒤 다시 보고
   hypeAvg: 0.34, hypeAb: 60, hypeEra: 2.5, hypeOuts: 90, // 퓨처스 폭격 기준 (타율·타수 / 평균자책·아웃 수)
   hypeGap: 5, hypeSat: 4, hypeWaitSat: -3, hypeGames: 12,
-  hotAvg: 0.35, hotAb: 15, hotEra: 2.0, hotOuts: 12, // 대체 선수의 맹활약 기준 (콜업 이후)
+  hotAvg: 0.35, hotAb: 10, hotEra: 2.5, hotOuts: 9, // 대체 선수의 맹활약 기준 (콜업 이후)
   hotStar: 5, hotBump: 2, hotBackSat: -2,
-  armyDay: 60, armyMin: 22, armyMax: 26, armySeasons: 2, armyLo: 0.3, armyHi: 0.5, armyAwayMax: 2,
+  armyDay: 60, armyMin: 22, armyMax: 26, armySeasons: 2, armyLo: 0.3, armyHi: 0.5, armyAwayMax: 1,
   convPot: 68, convAge: 23, convGap: 5, convHolderAge: 28, convWeak: 8, convPen: 6, convGames: 40,
   painAge: 25, painGames: 12, painAb: 30, painAvg: 0.2, painOuts: 30, painEra: 6.5, painFix: 12, painGrow: 1.5,
   coachDay: 12, coachCost: 20000, coachGrow: 0.08,
