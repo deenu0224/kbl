@@ -203,7 +203,7 @@ export default function RemedySheet({
       {!done && todo.action && !list.some((r) => r.run.t === "go") && (
         <button
           type="button"
-          className="mt-2 min-h-8 w-full cursor-pointer text-right text-[13px] text-white/55"
+          className="mt-2 min-h-10 w-full cursor-pointer text-right text-[13px] text-white/55"
           data-testid="remedy-go"
           onClick={() => {
             onClose();

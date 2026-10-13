@@ -1,4 +1,5 @@
 import type { DayReport, Team } from '../game/types';
+import { useIsMobile } from './layout/useLayout';
 import Fold from './Fold';
 import { findPlayer, useStore } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
@@ -81,7 +82,8 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
   const home = teams.find((t) => t.id === res.homeId);
   const name = (pid?: string) => findPlayer({ teams, freeAgents }, pid)?.name;
   const teamOf = (pid?: string) => (pid ? teams.find((t) => t.roster.some((p) => p.id === pid)) : undefined);
-  const tag = (t: Team | undefined) => <TeamTag team={t} mine={t?.id === userId} size={10} />;
+  const mobile = useIsMobile();
+  const tag = (t: Team | undefined) => <TeamTag team={t} mine={t?.id === userId} size={mobile ? 13 : 10} />;
   const scoring = res.events.filter((e) => e.type === 'hr' || e.type === 'score' || e.type === 'walkoff');
   const n = Math.max(9, res.innings, res.line[0].length, res.line[1].length);
   // 득점 장면은 마지막 3개 (승부가 갈린 쪽)

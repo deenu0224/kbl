@@ -90,7 +90,6 @@ export const SCREENS = [
   S('todo-action', 'post', game('매진 —')),
   // 조치 시트
   S('remedy-penover', 'penover', game('불펜 과부하')),
-  S('remedy-injury', 'injury', game('부상:')),
   S('todo-penover', 'penover', game()),
 
   // ── 선수단
@@ -102,8 +101,8 @@ export const SCREENS = [
   S('card-batter', 'farm', game(...ROSTER, 'lineup-list')),
   S('card-pitcher', 'farm', game(...ROSTER, '투수', 'pitcher-list')),
   S('card-farm', 'farm', game(...ROSTER, '2군', FARM_ROW)),
-  S('card-pot', 'farm', game(...ROSTER, '2군', FARM_ROW, 'potential')),
-  S('card-pot-toggle', 'farm', game(...ROSTER, '2군', FARM_ROW, 'pot-toggle')),
+  S('card-pot', 'farm', game(...ROSTER, '2군', FARM_ROW, '잠재력 설명')),
+  S('card-pot-toggle', 'farm', game(...ROSTER, '2군', FARM_ROW, '잠재력 설명', 'pot-toggle')),
 
   // ── 프런트 오피스
   S('fo-diag', 'season3', game(...FO, '진단')),
