@@ -5,7 +5,7 @@ import type { Core, EventCard } from '../src/game/types';
 import { mulberry32 } from '../src/game/rng';
 import { newCore } from '../src/game/generate';
 import { advanceDay, borrow, signPlayer, upgradeFacility } from '../src/game/season';
-import { LOAN_LIMIT, LOAN_STEP, ROSTER_MAX, signingBonus, upgradeCost, userTeam } from '../src/game/economy';
+import { LOAN_STEP, loanLimit, ROSTER_MAX, signingBonus, upgradeCost, userTeam } from '../src/game/economy';
 import { ensureObjectives } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent, FOREIGN_MAX } from '../src/game/events';
 import { closeBriefing, drawBriefing } from '../src/game/briefing';
@@ -25,14 +25,14 @@ function greedy(c0: Core, stars: number): Core {
     const foreign = t.roster.filter((p) => p.foreign).length;
     const star = c.freeAgents.filter((p) => !p.foreign || foreign < FOREIGN_MAX).sort((a, b) => b.star - a.star || b.ovr - a.ovr)[0];
     if (!star) break;
-    while (c.finance.cash < signingBonus(star) && c.finance.debt + LOAN_STEP <= LOAN_LIMIT) c = borrow(c).core;
+    while (c.finance.cash < signingBonus(star) && c.finance.debt + LOAN_STEP <= loanLimit(c)) c = borrow(c).core;
     const r = signPlayer(c, star.id);
     if (r.error) break;
     c = r.core;
   }
   const cost = upgradeCost('seats', c.facilities);
   if (cost !== null) {
-    while (c.finance.cash < cost && c.finance.debt + LOAN_STEP <= LOAN_LIMIT) c = borrow(c).core;
+    while (c.finance.cash < cost && c.finance.debt + LOAN_STEP <= loanLimit(c)) c = borrow(c).core;
     const r = upgradeFacility(c, 'seats');
     if (!r.error) c = r.core;
   }
