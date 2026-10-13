@@ -347,7 +347,16 @@ export interface EventCard {
   pid?: string; // 관련 선수
   who?: CharId; // 말하는 인물 (없으면 인물 없는 사건)
   line?: string; // 인물의 대사 (2문장 이하). body 는 상황 설명 한 줄
-  choices: { label: string; desc: string; disabled?: string }[]; // disabled = 선택 불가 사유
+  choices: { label: string; desc: string; disabled?: string; detail?: EventDetail }[]; // disabled = 선택 불가 사유. desc 는 핵심 2조각, 나머지는 detail
+}
+
+// 선택지 상세 (카드에서 선택지를 누르면 열리는 시트). 숫자는 resolve 가 적용하는 값과 같은 계산에서 나온다 (eventRows.ts)
+export interface EventDetail {
+  rows: { label: string; before?: string; after: string; tone?: 'good' | 'bad' | 'info' }[]; // 전 → 후 표
+  pids?: string[]; // 관련 선수 (카드로 열어 볼 수 있다)
+  compare?: [string, string]; // 나란히 비교할 두 선수
+  risk?: string; // 확률이 있는 결과 한 줄
+  lasts?: string; // 지속 기간
 }
 
 // 이벤트 지속 효과. kind 의 해석은 campaign.ts 가 소유한다.
