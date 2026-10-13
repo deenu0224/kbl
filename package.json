@@ -13,7 +13,8 @@
     "economy": "tsx scripts/economy.ts",
     "bullpen": "tsx scripts/bullpen.ts",
     "verify": "tsx scripts/verify.ts",
-    "deploy": "sh scripts/deploy.sh"
+    "deploy": "sh scripts/deploy.sh",
+    "screens": "node scripts/screens/run.mjs"
   },
   "dependencies": {
     "galmuri": "^2.40.3",
@@ -27,6 +28,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "playwright-core": "^1.64.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
