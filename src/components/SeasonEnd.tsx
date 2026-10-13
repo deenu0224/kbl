@@ -3,7 +3,8 @@ import { TRUST_LABEL } from '../game/story';
 import Sheet from './layout/Sheet';
 import { ProjectsSection } from './RightPanel';
 import { exposureLines } from '../game/scandal';
-import { CHARACTERS, SCANDAL_NEWS } from '../game/story';
+import { CHARACTERS, DEBT_MOOD_LINE, SCANDAL_NEWS } from '../game/story';
+import { luxRule } from '../game/economy';
 import Fold from './Fold';
 import { useUi } from './layout/uiStore';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -235,10 +236,17 @@ function SeasonEndBody() {
             <span className="text-white/70"> · 부채 {fmtMoney(v.debtOver.debt)} / 한도 {fmtMoney(v.debtOver.limit)}{v.debtOver.streak < 2 ? ' · 다음 시즌에도 넘기면 −30' : ''}</span>
           </div>
         )}
+        {v?.debtMood && (
+          <div className={`mt-3 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px] ${v.debtMood.trust < 0 ? 'bg-bad/15' : 'bg-[#f0a35a]/15'}`} data-testid="end-debtmood">
+            <span className={v.debtMood.trust < 0 ? 'text-bad' : 'text-[#f0a35a]'}>{v.debtMood.trust < 0 ? `빚더미 구단 — ${TRUST_LABEL} ${v.debtMood.trust}` : '빚더미 구단 — 조합장 경고'}</span>
+            <span className="text-white/70"> · 부채 {fmtMoney(v.debtMood.debt)} / 대출 한도 {fmtMoney(v.debtMood.limit)} ({Math.round((v.debtMood.debt / v.debtMood.limit) * 100)}%){v.debtMood.trust < 0 ? ` · ${v.debtMood.streak}시즌째` : ' · 다음 시즌에도 이대로면 지지가 깎입니다'}</span>
+            <div className="mt-0.5 text-white/60">{CHARACTERS.chair.name} {CHARACTERS.chair.title} — “{v.debtMood.trust < 0 ? DEBT_MOOD_LINE.cut : DEBT_MOOD_LINE.warn}”</div>
+          </div>
+        )}
         {v?.luxTax && (
           <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="lux-tax">
             <span className="text-bad">경쟁균형세 −{fmtMoney(v.luxTax.tax)}</span>
-            <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} (리그 상위 3구단 평균의 120%)</span>
+            <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} ({luxRule(core)})</span>
           </div>
         )}
         {/* 왕조 프로젝트: 스토브리그에는 이 화면에서만 열 수 있다 (전지훈련·돔 다음 단계) */}

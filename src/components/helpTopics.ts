@@ -1,5 +1,5 @@
 // "?" 버튼 뒤의 설명. 한 주제에 3~5줄, 한 줄에 한 문장. 숫자는 실제 규칙 값만.
-import { BAILOUT_TRUST, DEBT_OVER_TRUST, DEBT_OVER_TRUST2, DEBT_SALE_RATE, FARM_CAP, FARM_LOCK, FARM_MAX, FARM_MAX_ACADEMY, LOAN_LIMIT, LOAN_RATE, LOAN_RATE_HI, LOAN_REV_SHARE, LOAN_TIER, ROSTER_MAX, SVC_YEARS, loanInterest, loanLimit } from '../game/economy';
+import { BAILOUT_TRUST, DEBT_MOOD, LUX_TAX_BIG, debtMood, luxRule, luxTax, DEBT_OVER_TRUST, DEBT_OVER_TRUST2, DEBT_SALE_RATE, FARM_CAP, FARM_LOCK, FARM_MAX, FARM_MAX_ACADEMY, LOAN_LIMIT, LOAN_RATE, LOAN_RATE_HI, LOAN_REV_SHARE, LOAN_TIER, ROSTER_MAX, SVC_YEARS, loanInterest, loanLimit } from '../game/economy';
 import type { Core } from '../game/types';
 import { leagueSize, postTeams, seasonGames } from '../game/league';
 import { TRUST_MAX, TRUST_START } from '../game/campaign';
@@ -19,6 +19,7 @@ export type HelpTopic =
   | 'flag'
   | 'runway'
   | 'debt'
+  | 'luxtax'
   | 'fatigue'
   | 'penStyle'
   | 'farm'
@@ -100,6 +101,22 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: 
         '금고가 비면 모자란 돈은 긴급 대출이 되어 부채에 더해집니다.',
         `한도를 넘으면 영입·시설·프로젝트·대출이 막히고, 경기 뒤마다 선수 한 명을 보냅니다 (대금 = 시장 연봉의 ${pct(DEBT_SALE_RATE)}%). 보낼 선수가 없으면 조합 특별 출자(도민 지지 −${BAILOUT_TRUST}, 시즌 1회).`,
         `한도를 넘긴 채 결산하면 도민 지지 −${DEBT_OVER_TRUST}, 두 시즌 연속이면 −${DEBT_OVER_TRUST2}.`,
+        ...(debtMood(core, 0)
+          ? [`빚더미 구단: 부채가 한도의 ${pct(DEBT_MOOD.at)}% 이상인 채 결산하면 첫 해는 조합장 경고, 다음 해부터 연속으로 그러면 도민 지지 −${DEBT_MOOD.trust} (한도를 꽉 채웠으면 −${DEBT_MOOD.trustFull}). 한 번이라도 ${pct(DEBT_MOOD.at)}% 아래로 결산하면 처음으로 돌아갑니다.`]
+          : []),
+      ];
+    },
+  },
+  luxtax: {
+    title: '경쟁균형세',
+    lines: (core: Core) => {
+      const l = luxTax(core);
+      const k = LUX_TAX_BIG;
+      return [
+        `연봉 총액이 상한을 넘으면 넘은 금액의 ${Math.round(k.rate * 100)}%를 시즌 결산 때 제재금으로 냅니다.`,
+        `상한 ${fmtMoney(l.cap)} = ${luxRule(core)}. 다른 구단 연봉이 오르면 상한도 오릅니다.`,
+        `지금 연봉 총액 ${fmtMoney(l.payroll)} — ${l.tax > 0 ? `이대로 시즌을 마치면 제재금 ${fmtMoney(l.tax)}` : `상한까지 ${fmtMoney(l.cap - l.payroll)} 남았습니다`}.`,
+        '결산 시점의 연봉 총액으로 계산합니다. 영입·재계약 전에 예상 제재금이 함께 나옵니다.',
       ];
     },
   },

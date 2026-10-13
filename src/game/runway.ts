@@ -18,7 +18,7 @@ import { leagueMult } from './scandal';
 import type { Core, Player } from './types';
 import {
   DOW_MULT, FOOD_LV, leagueShare, MERCH_K, MIN_BATTERS, MIN_PITCHERS, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
-  capacityOf, loanInterest, loanLimit, opsCost, payroll, previewDemand, starPower, userTeam,
+  capacityOf, debtMood, loanInterest, loanLimit, luxTax, opsCost, payroll, previewDemand, starPower, userTeam,
 } from './economy';
 import { fmtMoney } from './format';
 import { rankOf } from './season';
@@ -115,13 +115,48 @@ export function forcedSaleTarget(core: Core): Player | null {
   return t.roster.filter((p) => p.farm || (p.kind === 'B' ? nb > MIN_BATTERS : np > MIN_PITCHERS)).sort((a, b) => b.salary - a.salary)[0] ?? null;
 }
 
-/** 상단 경고: 30경기 이내에 금고가 비거나 부채가 한도를 넘을 때만. danger = 12경기 이내 */
-export function runwayAlert(core: Pick<Core, 'finance'>, r: Runway): { text: string; danger: boolean } | null {
+// ───────── 결과를 미리 말한다: 빚더미 구단 여론 · 경쟁균형세 (10구단 리그. 8구단이면 전부 null) ─────────
+
+/** "부채가 대출 한도의 83% — 이대로 시즌을 마치면 도민 지지 −6". debt = 가정한 부채(대출 미리 보기). 문턱 아래·한도 초과(다른 경고가 맡는다)면 null */
+export function debtMoodText(core: Pick<Core, 'campaign' | 'teams' | 'finance'>, debt = core.finance.debt): { text: string; cut: number } | null {
+  const m = debtMood(core, debt);
+  if (!m || !m.heavy || debt > m.limit) return null;
+  const head = `부채가 대출 한도의 ${m.pct}%`;
+  return m.trust > 0
+    ? { text: `${head} — 이대로 시즌을 마치면 도민 지지 −${m.trust}`, cut: m.trust }
+    : { text: `${head} — 이대로 시즌을 마치면 조합장 경고 (다음 시즌에도 이대로면 도민 지지 −${m.next})`, cut: 0 };
+}
+/** 대출 버튼 옆: "빌리면 한도의 90% → 시즌 말 도민 지지 −6 예상" (빌려도 문턱 아래면 null) */
+export function borrowMoodText(core: Pick<Core, 'campaign' | 'teams' | 'finance'>, add: number): string | null {
+  const m = debtMood(core, core.finance.debt + add);
+  if (!m || !m.heavy || core.finance.debt + add > m.limit) return null;
+  return m.trust > 0 ? `빌리면 한도의 ${m.pct}% → 시즌 말 도민 지지 −${m.trust} 예상` : `빌리면 한도의 ${m.pct}% → 시즌 말 조합장 경고 (다음 시즌에도 이대로면 도민 지지 −${m.next})`;
+}
+/** 재무 탭의 한 줄: "연봉 총액 92억 / 경쟁균형세 상한 95억" (+ 넘었으면 예상 제재금). 경쟁균형세가 없는 리그면 null */
+export function luxLine(core: Pick<Core, 'teams' | 'userId'>): { text: string; over: boolean } | null {
+  const l = luxTax(core);
+  if (!l.on) return null;
+  return { text: `연봉 총액 ${fmtMoney(l.payroll)} / 경쟁균형세 상한 ${fmtMoney(l.cap)}${l.tax > 0 ? ` — 이대로 시즌을 마치면 제재금 ${fmtMoney(l.tax)}` : ''}`, over: l.tax > 0 };
+}
+/** 영입·재계약 줄: "연봉 총액 92억 → 101억 · 경쟁균형세 상한 95억 초과 — 시즌 말 제재금 3억 예상". add = 연봉 증가분. 실행 뒤에도 상한 안이면 null */
+export function luxPiece(core: Pick<Core, 'teams' | 'userId'>, add: number): string | null {
+  const a = luxTax(core);
+  const b = luxTax(core, add);
+  if (!b.on || b.tax <= 0 || add <= 0) return null;
+  return `연봉 총액 ${fmtMoney(a.payroll)} → ${fmtMoney(b.payroll)} · 경쟁균형세 상한 ${fmtMoney(b.cap)} 초과 — 시즌 말 제재금 ${a.tax > 0 ? `${fmtMoney(a.tax)} → ` : ''}${fmtMoney(b.tax)} 예상`;
+}
+
+/** 상단 경고: 30경기 이내에 금고가 비거나 부채가 한도를 넘을 때만. danger = 12경기 이내. 그런 경고가 없고 빚더미 문턱을 넘었으면 그 결과를 */
+export function runwayAlert(core: Pick<Core, 'finance'> & Partial<Pick<Core, 'campaign' | 'teams'>>, r: Runway): { text: string; danger: boolean } | null {
   if (core.finance.debt > 0 && r.forcedSale !== null && r.forcedSale <= RUNWAY_SHOW && (r.cashOut === null || r.cashOut <= 1 || r.forcedSale <= RUNWAY_DANGER)) {
     return { text: r.forcedSale <= 0 ? '부채 한도 초과' : `한도 초과까지 ${r.forcedSale}경기`, danger: r.forcedSale <= RUNWAY_DANGER };
   }
   if (r.cashOut !== null && core.finance.cash <= 0) return { text: '금고 바닥 · 빚 증가 중', danger: true };
   if (r.cashOut !== null && r.cashOut <= RUNWAY_SHOW) return { text: `${r.cashOut}경기 뒤 바닥`, danger: r.cashOut <= RUNWAY_DANGER };
+  if (core.campaign && core.teams) {
+    const m = debtMood(core as Pick<Core, 'campaign' | 'teams'>, core.finance.debt);
+    if (m?.heavy && core.finance.debt <= m.limit) return { text: m.trust > 0 ? `부채 한도의 ${m.pct}% · 시즌 말 지지 −${m.trust}` : `부채 한도의 ${m.pct}% · 시즌 말 경고`, danger: m.trust > 0 };
+  }
   return null;
 }
 
