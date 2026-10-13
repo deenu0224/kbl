@@ -33,6 +33,7 @@ const OLD_GAMES = 84;
 
 const bad: string[] = [];
 let crashes = 0;
+let dumped = false;
 let seasons = 0;
 let games = 0;
 let postGames = 0;
@@ -162,7 +163,15 @@ function run(file: string): void {
       const season = c.phase === 'season';
       c = drawBriefing(maybeDrawEvent(advanceDay(c, rng).core, rng));
       season ? games++ : postGames++;
+      const nb0 = bad.length;
       check(c, x, '경기 후', season && c.phase === 'season');
+      if (process.env.DBG && bad.length > nb0 && !dumped) {
+        dumped = true;
+        const t = c.teams.find((q) => q.id === c.userId)!;
+        console.log(bad[bad.length - 1]);
+        console.log(t.roster.map((p) => `${p.name} ${p.kind}${p.pos} ovr${p.ovr} age${p.age}${p.farm ? ' 2군' : ''}${p.il ? ' 재활' : ''}${p.injury ? ` 부상${p.injury}` : ''}${p.ban ? ` 징계${p.ban}` : ''}${p.subFor ? ' 대체' : ''}`).join('\n'));
+        console.log(c.news.slice(0, 14).map((n) => `${n.day} ${n.text}`).join('\n'));
+      }
       if (g % 20 === 0) smoke(c);
     }
     if (c.phase === 'over') break;

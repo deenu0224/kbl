@@ -257,6 +257,9 @@ const say = (core: Core, notes: string[], text: string, tone: 'good' | 'bad' | '
   addNews(core, text, tone);
 };
 
+/** p 를 2군으로 내려도 1군 최소 인원(타자·투수)이 지켜지는가 — 대체 선수를 돌려보내는 사이에 다른 선수가 빠졌으면(입대·방출·트레이드) 벤치에 남긴다 */
+const spareOnActive = (t: Team, p: Player): boolean => activeRoster(t).filter((x) => x.kind === p.kind).length > (p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS);
+
 /** 최소 인원이 깨지면 2군에서 채운다 */
 function refillMinMut(core: Core, notes: string[]): void {
   const t = userTeam(core);
@@ -542,7 +545,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     }
     if (asked && pend!.day === core.day) continue;
     if (orig) restoreSlotMut(core, t, orig, p);
-    if (farmRoster(t).length >= farmMax(core)) {
+    if (farmRoster(t).length >= farmMax(core) || !spareOnActive(t, p)) {
       delete p.subFor;
       continue;
     }
@@ -844,6 +847,10 @@ export const FARM_CARDS: FarmCardDef[] = [
       if (farmRoster(t).length >= farmMax(c)) {
         delete sub.subFor;
         return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로 — 2군이 가득해 ${josa(sub.name, '은', '는')} 벤치에 남습니다`;
+      }
+      if (!spareOnActive(t, sub)) {
+        delete sub.subFor;
+        return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로 — 1군 인원이 모자라 ${josa(sub.name, '은', '는')} 벤치에 남습니다`;
       }
       demoteMut(c, t, sub, false);
       return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로, ${josa(sub.name, '은', '는')} 2군으로 돌아갔습니다`;
