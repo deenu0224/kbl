@@ -28,20 +28,21 @@ const ok = (r: { core: Core; error?: string }, c: Core) => (r.error ? c : r.core
 // 왕조 프로젝트 (스토브리그): 현금이 (비용 + 여유) 이상이면 순서대로 산다. 큰 것(돔)이 남아 있으면 도민 환원은 미룬다
 export const PROJECT_RESERVE = 300000; // 30억
 function buyProjects(c0: Core, order: ProjectId[], give: boolean): Core {
-  if (!projectsOpen(c0) || c0.phase === 'over') return c0;
+  // 시설(관중석)을 다 올리고 빚이 없을 때부터 — 돈을 버는 투자가 먼저다
+  if (!projectsOpen(c0) || c0.phase === 'over' || upgradeCost('seats', c0.facilities) !== null || c0.finance.debt > 0) return c0;
   let c = c0;
   for (const id of order) {
     const pv = projectPreview(c, id);
     if (pv.done || pv.error || c.finance.cash < pv.cost + PROJECT_RESERVE) continue;
     c = ok(buyProject(c, id), c);
   }
-  // 남으면 도민 환원: 돔을 다 지었으면 여유만 남기고, 짓는 중이면 다음 단계 대금을 모으고 남는 만큼
+  // 남으면 도민 환원: 돔을 다 지었으면 여유만 남기고, 짓는 중이면 다음 단계 대금까지 남긴다
   const dome = projectPreview(c, 'dome');
-  const keep = PROJECT_RESERVE + (dome.done ? 0 : Math.max(0, dome.cost - PROJECT_SAVE));
+  const keep = PROJECT_RESERVE + (dome.done ? 0 : dome.cost);
   for (let n = 0; give && n < 30 && c.finance.cash >= GIVE_COST + keep; n++) c = ok(buyProject(c, 'give'), c);
   return c;
 }
-const PROJECT_SAVE = 600000; // 돔 다음 단계 대금 중 이만큼은 다음 시즌 수입으로 채운다고 본다
+
 const enabled = (card: EventCard, i: number) => !!card.choices[i] && !card.choices[i].disabled;
 export const firstEnabled = (card: EventCard, pref: number[]) => pref.find((i) => enabled(card, i)) ?? card.choices.map((_, i) => i).reverse().find((i) => enabled(card, i)) ?? 0;
 const SCOUT_V: Record<string, number> = { A: 84, B: 74, C: 65, D: 57 };

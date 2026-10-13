@@ -1,4 +1,5 @@
 // 동적 레이어: 관중·차량·선수·fx·날씨. 매 프레임(약 14fps) 정적 레이어 위에 다시 그린다.
+import { drawDome } from './dome';
 import type { StadiumScene } from '../game/types';
 import { DOME_FLAG, NEON, parasolSpots, queueSpots, trainActors, type TrainActor } from './buildings';
 import {
@@ -1143,6 +1144,7 @@ export function drawFrame(inp: FrameInput): void {
   drawCustomers(ctx, L, scene, f);
   drawTraining(ctx, L, scene, t, f);
   drawPlayers(ctx, scene, t, fxT, f);
+  drawDome(ctx, scene.dome, f);
 
   if (scene.weather === 'cloudy') {
     R(ctx, 0, 0, STADIUM_W, STADIUM_H, 'rgba(96,108,128,0.11)');

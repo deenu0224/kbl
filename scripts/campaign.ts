@@ -7,6 +7,7 @@
 //   greedy   — 스타 FA 올인 + 대출 한도
 //   off-verb — 그 장의 주제 동사만 빼고 다 한다 (주제 동사가 실제 열쇠인지 검증)
 // 동사: lineup(타순·편성) · sign(영입) · gate(가격·관중석·매점) · youth(훈련장·지명·젊은 선수 기용) · pitch(투수 운용)
+import { DOME_COST } from '../src/game/projects';
 import type { Core, EventCard } from '../src/game/types';
 import { mulberry32, type Rng } from '../src/game/rng';
 import { newCore } from '../src/game/generate';
@@ -29,6 +30,7 @@ const AB_REPS = process.argv[4] !== undefined ? Number(process.argv[4]) : 2; // 
 const ONLY_BOTS = process.env.BOTS ? process.env.BOTS.split(',') : null;
 const TRADE_MODE = process.env.TRADE ?? 'on';
 if (TRADE_MODE === 'off') TRADE_AUDIT.offers = false;
+if (process.env.DOME) DOME_COST.splice(0, 3, ...process.env.DOME.split(',').map((v) => Number(v) * 10000)); // 돔 단계 금액(억)을 바꿔 잰다
 if (process.env.LUX === '1') LUX_TAX.on = true; // 경쟁균형세를 켜고 잰다
 const pickOf = (bot: Bot, c: Core, card: EventCard): number => (TRADE_MODE === 'deny' && baseId(card) === 'trade' ? firstEnabled(card, [1]) : bot.event(c, card));
 
