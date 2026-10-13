@@ -9,7 +9,7 @@ import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, FORCED_SALE_RATE, RENEW_PREMIUM, RENEW_SEASONS,
   BENCH_GROW, FARM_CAP, FARM_LOCK, SVC_YEARS, FARM_MAX, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
-  awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, starPower, upgradeCost, userTeam,
+  awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingOpen, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
 import { activeBuffs, fillObjectivesMut, hintMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
@@ -511,6 +511,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
 export function signPlayer(core0: Core, pid: string): { core: Core; error?: string } {
   const fa = core0.freeAgents.find((p) => p.id === pid);
   if (!fa) return { core: core0, error: '영입 가능한 선수가 아닙니다' };
+  if (!signingOpen(core0)) return { core: core0, error: '등록 마감 — 스토브리그에 다시 열립니다' };
   if (activeRoster(userTeam(core0)).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 먼저 한 명을 2군으로 내리거나 방출하세요` };
   if (fa.foreign && userTeam(core0).roster.filter((p) => p.foreign).length >= FOREIGN_MAX) {
     return { core: core0, error: `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다` };

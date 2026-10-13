@@ -4,6 +4,7 @@ import { play } from '../../audio/sfx';
 import { fmtInt, fmtMoney } from '../../game/format';
 import { FARM_MAX, FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTransfer, type BasketKind, type TransferPreview } from '../../game/transfer';
 import { TR, tradeLeft, tradeOpen } from '../../game/trade';
+import { REG_DEADLINE, signingOpen } from '../../game/economy';
 import { useCore, useStore, useUserTeam } from '../../store';
 import { useIsMobile } from '../layout/useLayout';
 import { POS_FULL } from '../ui';
@@ -84,7 +85,12 @@ function tradeStatus(core: { phase: string; day: number }, n: number): string {
       : core.phase === 'ended'
         ? '트레이드 기간: 스토브리그'
         : '트레이드 기간: 마감';
-  return `${when} · 시장에 내놓음 ${n}/${TR.blockMax}`;
+  const reg = signingOpen(core as never)
+    ? core.phase === 'season'
+      ? ` · 영입 마감까지 ${REG_DEADLINE - core.day}경기`
+      : ''
+    : ' · 영입: 등록 마감 (스토브리그에 다시 열림)';
+  return `${when}${reg} · 시장에 내놓음 ${n}/${TR.blockMax}`;
 }
 
 const squadKinds = (p: Player): BasketKind[] => ['release', p.farm ? 'up' : 'down'];

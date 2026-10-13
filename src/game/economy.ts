@@ -32,7 +32,15 @@ export const TRAIN_LV: { grow: number; inj: number; cost: number; upkeep: number
 export const LOAN_LIMIT = 500000; // 50억
 export const LOAN_STEP = 50000; // 5억
 export const LOAN_RATE = 0.08; // 연이율
-export const ROSTER_MAX = 28; // 1군 등록 정원
+export const ROSTER_MAX = 28;
+export const REG_DEADLINE = 72; // 선수 등록 마감: 이 경기 수를 치른 뒤와 포스트시즌에는 외부 영입 불가 (1군·2군 이동은 가능)
+
+/** 지금 외부 영입(FA·트레이드)이 가능한가. 스토브리그(결산~드래프트)에는 다시 열린다 */
+export function signingOpen(core: Pick<Core, 'phase' | 'day'>): boolean {
+  if (core.phase === 'post') return false;
+  if (core.phase === 'season') return core.day < REG_DEADLINE;
+  return true;
+} // 1군 등록 정원
 export const FARM_MAX = 20; // 2군(퓨처스) 정원
 export const FARM_CAP = 64; // 2군에서는 이 OVR 까지만 자란다 (그 위는 1군에서만)
 export const FARM_GROW = 2.2; // 2군의 주간 성장 확률 = 훈련장 확률 × 이 값
