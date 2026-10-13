@@ -70,7 +70,9 @@ const N = {
   restGames: 3,
   armInjury: 0.25,
   retireDemand: 1.2,
-  retireAge: 35,
+  retireAge: 38, // 은퇴를 꺼내는 나이 (KBO 스타들은 대개 38~41세에 은퇴). 40세가 되면 season.ts 가 은퇴시킨다
+  stayBonus: 0.2, // '한 해 더' 설득 비용 (연봉 대비)
+  staySat: 2,
   retireStar: 60,
   retireCost: 4000, // 기념 경기 행사 비용 (스케일 적용)
   quietSat: -3,
@@ -728,12 +730,20 @@ export const CARDS: CardDef[] = [
         choices: [
           { label: '기념 경기', desc: `행사 비용 ${fmtMoney(cost)} · ${BUFF_GAMES} 홈경기 관중 수요 ${pctTxt(N.retireDemand)} · 그동안 ${p.name} 고정 출전(${loss}) · 시즌 뒤 은퇴${fr ? ' (영구결번)' : ''}`, disabled: cashGate(c, cost) },
           { label: '조용히', desc: `비용 없음 · 팬 만족 ${N.quietSat} · 시즌 뒤 은퇴${fr ? ' (영구결번)' : ''}` },
+          ...(p.age <= N.retireAge
+            ? [{ label: '한 해 더', desc: `잔류 보너스 ${fmtMoney(Math.round(p.salary * N.stayBonus))} · 팬 만족 +${N.staySat} · 은퇴하지 않음 (내년 ${p.age + 1}세, 능력치는 더 내려갑니다)`, disabled: cashGate(c, Math.round(p.salary * N.stayBonus)) }]
+            : []),
         ],
       });
     },
     resolve: (c, i, cd) => {
       const p = findUser(c, cd.pid);
       if (!p) return '조용히 시즌을 이어갑니다';
+      if (i === 2) {
+        spend(c, Math.round(p.salary * N.stayBonus));
+        sat(c, N.staySat);
+        return `${p.name}이(가) 한 해 더 뛰기로 했습니다`;
+      }
       memoSet(c, 'retire', p.id);
       if (i === 0) {
         spend(c, money(c, N.retireCost));
