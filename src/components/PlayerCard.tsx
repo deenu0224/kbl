@@ -4,6 +4,7 @@ import { fmtAvg, fmtEra, fmtIp, fmtMoney, fmtOps, fmtSb, fmtWhip } from '../game
 import { ops } from '../game/leaders';
 import PixelFace from './PixelFace';
 import { OvrBadge, POS_KO, Stars, StatBar } from './ui';
+import Potential from './roster/Potential';
 
 const SCOUT_COLOR: Record<string, string> = { A: '#ffd84a', B: '#6ee07a', C: '#7fd3ff', D: '#9aa5c4' };
 
@@ -94,13 +95,11 @@ export default function PlayerCard({
                 <StatBar label="체력" value={p.sta} />
               </>
             )}
-            {prospect ? (
+            {prospect && (
               <div className="flex items-center gap-1.5 text-[11px] leading-none">
                 <span className="shrink-0 text-white/60">스카우트 평가</span>
                 <ScoutBadge grade={p.scout} />
               </div>
-            ) : (
-              <StatBar label="잠재" value={p.pot} />
             )}
           </div>
         </div>
@@ -136,6 +135,8 @@ export default function PlayerCard({
           </>
         )}
       </div>
+
+      <Potential player={p} prospect={prospect} />
 
       <div className="mt-1.5 flex items-center justify-between text-[11px]">
         <span className="text-white/60">

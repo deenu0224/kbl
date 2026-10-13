@@ -9,6 +9,8 @@ import Sheet from './layout/Sheet';
 import { useLayout } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
 import { Chips, OvrBadge, POS_KO, SectionTitle, TeamDot } from './ui';
+import PlayerTable from './roster/PlayerTable';
+import { usePosReport } from './roster/rosterUi';
 
 const FILTERS = [
   ['all', '전체'],
@@ -37,6 +39,8 @@ export default function DraftScreen() {
   const [sel, setSel] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'B' | 'P'>('all');
   const curRef = useRef<HTMLDivElement | null>(null);
+  const [asTable, setAsTable] = useState(false);
+  const rows = usePosReport();
 
   const byId = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const order = draft?.order ?? [];
@@ -155,8 +159,22 @@ export default function DraftScreen() {
         <div className="flex min-h-0 flex-1 gap-2 p-2">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* 키 작은 가로 화면에선 필터도 목록과 함께 스크롤된다 */}
-            {!landscape && filterRow}
-            <div className="px-scroll mt-1 min-h-0 flex-1 overflow-y-auto">
+            <div className="flex shrink-0 items-center justify-end gap-1 pb-1 text-[11px]">
+              <span className="mr-auto text-white/50">{asTable ? '열 머리를 누르면 정렬 · 줄을 누르면 카드' : ''}</span>
+              {(
+                [
+                  [false, '목록'],
+                  [true, '표로 보기'],
+                ] as const
+              ).map(([v, label]) => (
+                <button key={label} data-testid={v ? 'draft-table' : 'draft-list'} onClick={() => setAsTable(v)} className={`cursor-pointer px-2 py-0.5 mob:min-h-9 mob:px-3 ${asTable === v ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {asTable && <PlayerTable mode="draft" players={pool} rows={rows} sel={sel} onPick={(p) => setSel(p.id)} />}
+            {!asTable && !landscape && filterRow}
+            <div className={`px-scroll mt-1 min-h-0 flex-1 overflow-y-auto ${asTable ? 'hidden' : ''}`}>
               {landscape && <div className="mb-1">{filterRow}</div>}
               {/* 키 작은 가로 화면: 두 열 + 낮은 줄로 한 화면에 6줄 이상 */}
               <div className={landscape ? 'grid grid-cols-2 gap-x-1' : ''}>
