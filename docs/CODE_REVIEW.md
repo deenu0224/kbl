@@ -17,7 +17,7 @@
 | 6 | — | `src/game/farm.ts` subBackMut | 벤치 대체 선수의 표시가 `orig.farm` 조건 때문에 안 지워질 수 있다고 의심 | **문제 아님** — 부상자가 2군에 있는 경우는 재활 명단뿐이고(복귀하면 그날 정리), 건강한 1군 부상자는 같은 날 처리된다. 닿는 경로 없음 | 코드 추적 |
 | 9 | 낮음 | `src/game/trade.ts` applyTradeMut | 포지션 전향 중(posShift)인 선수를 트레이드로 보내면 표시만 지워져, 깎인 수비(−6)가 그 선수에게 영구히 남는다 (방출은 복구한다) | **고침** — 보낼 때 수비·오버롤 복구 | 임시 스크립트: 수정 전 수비 66 → 60, 수정 후 66 → 66 |
 | 7 | 낮음 | `src/game/campaign.ts` unfixMut · `src/game/season.ts` forceStarter | (알려진 d) 고정 출전 점검 — 아래 메모 | 점검 중 | — |
-| 8 | 낮음 | `src/components/layout/uiScale.ts` | (알려진 e) zoom 좌표 — 점검 예정 | 점검 중 | — |
+| 8 | 중간 | `src/components/StadiumView.tsx` 마우스 끌기 · `src/components/layout/Sheet.tsx` 끌어내리기 | (알려진 e) `<html>` zoom 이 걸린 화면(큰 모니터 자동 확대 · 글자 크게)에서 구장을 마우스로 끌면 그림이 커서보다 zoom 배 빨리 달아난다. 터치+마우스 겸용 기기에서는 시트도 손가락보다 빨리 내려간다 | **고침** — 포인터 이동량을 `uiZoom()` 으로 나눈다 (Squad 의 끌기와 같은 방식) | Chrome 실측(zoom 1.5 · 같은 핸들러): 마우스 100px 이동에 내용이 150px 이동 → 나누면 100px · typecheck · screens home |
 
 ## 메모
 

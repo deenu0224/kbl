@@ -10,6 +10,7 @@ import EventCardModal from './EventCardModal';
 import GameSummary, { TeamTag } from './GameSummary';
 import { useIsMobile } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
+import { uiZoom } from './layout/uiScale';
 import { awayFacilities, awayFanShare } from './layout/away';
 import { TEAM_DEFS } from '../game/generate';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
@@ -111,7 +112,7 @@ function PanZoom({ children, fixed, onTagsOff }: { children: (style: CSSProperti
           if (e.pointerType === 'mouse' && ref.current) drag.current = { x: e.clientX, left: ref.current.scrollLeft };
         }}
         onPointerMove={(e) => {
-          if (drag.current && ref.current) ref.current.scrollLeft = drag.current.left - (e.clientX - drag.current.x);
+          if (drag.current && ref.current) ref.current.scrollLeft = drag.current.left - (e.clientX - drag.current.x) / uiZoom(); // 포인터 좌표는 화면 px, scrollLeft 는 zoom 전 CSS px
         }}
         onPointerUp={() => (drag.current = null)}
         onPointerLeave={() => (drag.current = null)}
