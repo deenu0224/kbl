@@ -3,6 +3,7 @@ import { clamp } from './rng';
 import { GAMES } from './schedule';
 import { activeBuffs } from './campaign';
 import { isFranchise } from './franchise';
+import { projectFx } from './projects';
 
 // ── 시설 단계 (cost = 그 단계로 올리는 비용, upkeep = 만원/경기) ──
 export const SEAT_LV: { cap: number; cost: number; upkeep: number; name: string; desc: string }[] = [
@@ -139,8 +140,8 @@ export const FORCED_SALE_RATE = 0.5;
 const LEVELS: Record<FacilityKind, { cost: number }[]> = { seats: SEAT_LV, food: FOOD_LV, training: TRAIN_LV };
 
 /** 적정 티켓가(만원). 구장이 좋아질수록 더 받을 수 있다. */
-export function refPrice(f: Facilities): number {
-  return Math.round((1.1 + f.seats * 0.03 + f.food * 0.03) * 100) / 100;
+export function refPrice(f: Facilities, core?: Pick<Core, 'campaign' | 'season'>): number {
+  return Math.round((1.1 + f.seats * 0.03 + f.food * 0.03 + (core ? projectFx(core).refPrice : 0)) * 100) / 100;
 }
 
 /** 1군 등록 선수 (경기에 관한 모든 것은 이 명단만 본다) */
@@ -179,7 +180,8 @@ export function releaseCost(p: Player, core: Core): number {
 
 /** 버프 반영 수용 인원 */
 export function capacityOf(core: Core): number {
-  return Math.round(SEAT_LV[core.facilities.seats].cap * activeBuffs(core).capacity);
+  const pj = projectFx(core);
+  return Math.round((SEAT_LV[core.facilities.seats].cap + pj.seats) * pj.capMult * activeBuffs(core).capacity);
 }
 
 export function upgradeCost(kind: FacilityKind, f: Facilities): number | null {
@@ -208,15 +210,17 @@ export function hasRoof(f: Facilities): boolean {
 }
 
 /** 날씨 수요 계수: 비 × 지붕 × 표값 */
-export function weatherMult(core: Pick<Core, 'facilities' | 'finance'>, weather: Weather, priceMult = 1): number {
+export function weatherMult(core: Pick<Core, 'facilities' | 'finance'> & Partial<Pick<Core, 'campaign' | 'season'>>, weather: Weather, priceMult = 1): number {
+  if ((core as Partial<Core>).campaign && projectFx(core as Partial<Core>).noWeather) return 1; // 돔: 날씨 무관
   if (weather !== 'rain') return WEATHER_MULT[weather];
   const base = hasRoof(core.facilities) ? RAIN_ROOF : WEATHER_MULT.rain;
-  const over = (core.finance.ticketPrice * priceMult) / refPrice(core.facilities);
+  const over = (core.finance.ticketPrice * priceMult) / refPrice(core.facilities, core as Pick<Core, 'campaign' | 'season'>);
   return base * (over > 1 ? clamp(Math.pow(1 / over, RAIN_PRICE_EXP), 0.5, 1) : 1);
 }
 
 /** 비 오는 날 매점 계수 (푸드홀 Lv5 는 감소 없음) */
-export function rainFood(f: Facilities, weather: Weather): number {
+export function rainFood(f: Facilities, weather: Weather, core?: Pick<Core, 'campaign' | 'season'>): number {
+  if (core && projectFx(core).noWeather) return 1;
   return weather === 'rain' && f.food < FOOD_LV.length - 1 ? RAIN_FOOD : 1;
 }
 
@@ -266,10 +270,10 @@ export function calcDemand(core: Core, c: DemandCtx): number {
   const star = STAR_BASE + starPower(t, core.season) / STAR_DIV;
   const opening = core.phase === 'season' && core.attHistory.length < OPENING_GAMES ? OPENING_MULT : 1;
   const opp = 0.9 + 0.26 * clamp(c.oppPop, 0, 1);
-  const ratio = refPrice(core.facilities) / Math.max(0.1, core.finance.ticketPrice * fx.price);
+  const ratio = refPrice(core.facilities, core) / Math.max(0.1, core.finance.ticketPrice * fx.price);
   const price = clamp(Math.pow(ratio, ratio < 1 ? PRICE_ELASTICITY_OVER : PRICE_ELASTICITY), 0.2, 2.5);
   const sat = 0.8 + core.fanSat / 250;
-  const v = core.fans * DEMAND_K * perf * star * opp * DOW_MULT[c.dow % 6] * weatherMult(core, c.weather, fx.price) * price * sat * c.noise * fx.demand * opening * (c.mult ?? 1);
+  const v = core.fans * DEMAND_K * perf * star * opp * DOW_MULT[c.dow % 6] * weatherMult(core, c.weather, fx.price) * price * sat * c.noise * fx.demand * projectFx(core).demand * opening * (c.mult ?? 1);
   return Math.max(0, Math.round(v));
 }
 

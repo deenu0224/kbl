@@ -284,7 +284,7 @@ export function StadiumTab({ part }: { part?: 'ticket' | FacilityKind } = {}) {
   const core = useCore();
   const setPrice = useStore((s) => s.setPrice);
   const price = core.finance.ticketPrice;
-  const ref = refPrice(core.facilities);
+  const ref = refPrice(core.facilities, core);
   const demand = useMemo(() => previewDemand(core), [core]);
   const cap = SEAT_LV[core.facilities.seats]?.cap ?? 0;
   const over = demand > cap;

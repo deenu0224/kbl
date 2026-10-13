@@ -202,7 +202,7 @@ function doGate(c0: Core): Core {
   for (let g = 0; g < 3; g++) {
     const cost = upgradeCost('seats', c.facilities);
     const cap = SEAT_LV[c.facilities.seats].cap;
-    const want = cap < needCap * 1.15 || recentFull(c) || previewDemand(setTicketPrice(c, refPrice(c.facilities))) > cap * 1.1;
+    const want = cap < needCap * 1.15 || recentFull(c) || previewDemand(setTicketPrice(c, refPrice(c.facilities, c))) > cap * 1.1;
     if (cost === null || !want || c.finance.cash - cost < RESERVE) break;
     c = ok(upgradeFacility(c, 'seats'), c);
   }
@@ -212,7 +212,7 @@ function doGate(c0: Core): Core {
   const scost = upgradeCost('seats', c.facilities);
   if (scost !== null && c.finance.cash - scost >= 500000) c = ok(upgradeFacility(c, 'seats'), c);
   // 표값: 적정가에서 시작해 수요가 좌석을 넘으면 올리고, 많이 비면 내린다
-  const ref = refPrice(c.facilities);
+  const ref = refPrice(c.facilities, c);
   let price = ref;
   const cap = capacityOf(c);
   while (price < ref * 1.4 && previewDemand(setTicketPrice(c, price + 0.1)) > cap * 1.05) price += 0.1;
@@ -441,7 +441,7 @@ function greedySign(c0: Core): Core {
 export const greedy: Bot = {
   name: 'greedy',
   preseason: (c0) => {
-    let c = setTicketPrice(c0, refPrice(c0.facilities) * 1.1);
+    let c = setTicketPrice(c0, refPrice(c0.facilities, c0) * 1.1);
     c = greedySign(c);
     const cost = upgradeCost('seats', c.facilities);
     if (cost !== null) {

@@ -10,6 +10,7 @@ import { fmtMoney } from './format';
 import { standings } from './season';
 import { addNews } from './season';
 import { activeBuffs } from './campaign';
+import { YOUTH_POT, YOUTH_TAG, projectFx } from './projects';
 
 // ── 튜닝 상수 ──
 // 뉴스용 포지션 이름 (script.ts 의 POS_NAME 과 같은 표기. 순환 참조를 피해 따로 둔다)
@@ -89,8 +90,19 @@ function genPool(core: Core, rng: Rng): Player[] {
   const ctx = makeCtx(rng, `${DRAFT_ID_PREFIX}${core.season}-`, names);
   const quality = activeBuffs(core).youth;
   const pool: Player[] = [];
-  const noise = core.campaign.analyst ? ANALYST_NOISE : SCOUT_NOISE;
+  const pj = projectFx(core);
+  const noise = (core.campaign.analyst ? ANALYST_NOISE : SCOUT_NOISE) * pj.scout; // 육성 아카데미: 오차 절반
   for (let i = 0; i < DRAFT_POOL; i++) pool.push(genProspect(ctx, rng, quality, noise));
+  if (pj.youth > 0) {
+    // 유소년 구장 기부: 제주 출신 고졸 유망주 1명 (회차마다 잠재력 기대값↑)
+    const p = genPlayer(ctx, rng() < POOL_BAT_SHARE ? pick(rng, BAT_POS) : pick(rng, PIT_POS), 50, { age: 19, tag: YOUTH_TAG });
+    shiftOvr(p, randInt(rng, 44, 52));
+    p.pot = clamp(YOUTH_POT[pj.youth - 1] + randInt(rng, -4, 4), p.ovr + 3, 99);
+    p.salary = MIN_SALARY;
+    p.star = clamp(Math.round((p.pot - 60) * 0.8 + gauss(rng) * 6) + 8, 0, 60);
+    p.scout = scoutGrade(p.pot, rng, noise);
+    pool.push(p);
+  }
   return pool.sort((a, b) => SCOUT_EST[b.scout!] + b.ovr - (SCOUT_EST[a.scout!] + a.ovr));
 }
 
@@ -131,7 +143,7 @@ function takePlayer(core: Core, t: Team, p: Player, round: number): void {
   else slotNewcomer(t, p);
   d.log.push({ round, teamId: t.id, pid: p.id, name: p.name, pos: p.pos });
   if (t.id === core.userId) {
-    p.since = core.season + 1; // 다음 시즌 데뷔
+    p.since = core.season + (p.tag === YOUTH_TAG ? 0 : 1); // 다음 시즌 데뷔 (제주 출신은 프랜차이즈 판정 연한 −1)
     p.svc = core.season + 1; // 보유 기간 1년차 = 데뷔 시즌
     const bonus = DRAFT_BONUS[round - 1] ?? DRAFT_BONUS[DRAFT_BONUS.length - 1];
     core.finance.cash -= bonus;

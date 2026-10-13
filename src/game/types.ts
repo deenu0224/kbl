@@ -410,6 +410,7 @@ export interface Campaign {
   fixCoop?: number; // 승부조작 조사에 전면 협조: 이 시즌까지 발생 확률이 준다
   fixClear?: string[]; // 승부조작 대상에서 빠진 선수 id (연봉을 올려 주었거나 무혐의)
   block?: string[]; // 트레이드 시장에 내놓은 우리 선수 id (최대 2명. trade.ts)
+  projects?: Record<string, number>; // 왕조 프로젝트 단계·누적 (projects.ts 가 해석한다)
   leagueCut?: { season: number; mult: number }; // 승부조작 적발: 이 시즌의 리그 분배금 배율 (scandal.ts)
 }
 /** 덮은 일 한 건 */
@@ -558,5 +559,6 @@ export interface StadiumScene {
   gateQueue?: number; // 게이트 밖 대기 줄 0~1 (발길 돌린 팬 비율)
   cheerLv?: number; // 응원 문화 0~3 (주황 물결 → 깃발 → 대형 현수막)
   retiredNums?: number; // 걸린 영구결번 수 (0~4)
+  dome?: 0 | 1 | 2 | 3; // 우리 돔구장 단계 (1 조감도 간판 · 2 크레인·비계 · 3 돔 지붕). 없으면 그리지 않는다
   awayFans?: number; // 원정 응원단 크기 0~1 (3루 쪽 끝 관중석의 원정 색 덩어리). 없으면 그리지 않는다
 }
