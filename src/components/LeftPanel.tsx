@@ -20,13 +20,13 @@ import PlayerBrowser from './roster/PlayerBrowser';
 import { AddChip } from './roster/TransferDesk';
 import { openDesk, useTransferUi } from './roster/transferUi';
 import { usePosReport, useRosterUi } from './roster/rosterUi';
-import { PenLoadLine } from './roster/PenStyle';
+import { ArmState, PenLoadLine } from './roster/PenStyle';
 import { callUpPreview, sendDownPreview } from '../game/analysis';
 
 // ───────── 공용 행 ─────────
 
 /** 보기 전용 한 줄: 타순(보직)·포지션 · 이름 · OVR. 고칠 곳이 있는 줄은 왼쪽 빨간 띠만 */
-function Row({ lead, player: p, selected, onClick, flash, issue }: { lead: ReactNode; player: Player; selected: boolean; onClick: () => void; flash?: boolean; issue?: boolean }) {
+function Row({ lead, player: p, selected, onClick, flash, issue, tail }: { lead: ReactNode; player: Player; selected: boolean; onClick: () => void; flash?: boolean; issue?: boolean; tail?: ReactNode }) {
   const mobile = useIsMobile();
   return (
     <button
@@ -38,6 +38,7 @@ function Row({ lead, player: p, selected, onClick, flash, issue }: { lead: React
     >
       <span className="w-12 shrink-0 whitespace-nowrap text-[10px] text-white/55 max-lg:w-auto max-lg:min-w-[58px]">{lead}</span>
       <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : ''}`}>{p.name}</span>
+      {tail}
       <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
     </button>
   );
@@ -324,13 +325,14 @@ export function PitchersTab() {
     if (team.bullpen.includes(pid)) return '불펜';
     return '대기';
   };
-  const row = (pid: string, lead: ReactNode) => {
+  const row = (pid: string, lead: ReactNode, tail?: ReactNode) => {
     const p = byId.get(pid);
     if (!p) return null;
     return (
       <Row
         key={pid}
         lead={lead}
+        tail={tail}
         player={p}
         selected={sel === pid}
         onClick={() => setSel(sel === pid ? null : pid)}
@@ -339,6 +341,7 @@ export function PitchersTab() {
       />
     );
   };
+  const pen = (pid: string) => ((byId.get(pid)?.injury ?? 0) > 0 ? undefined : <ArmState tired={byId.get(pid)?.tired} className="text-[11px] mob:text-[13px]" />);
   const nextIdx = team.rotation.length ? team.nextStarter % team.rotation.length : -1;
 
   return (
@@ -351,14 +354,15 @@ export function PitchersTab() {
           row(
             pid,
             <>
-              <span className="text-hi">{i + 1}</span> 선발{i === nextIdx && <span className="text-good"> ◀</span>}
+              <span className="text-hi">{i + 1}</span> 선발
             </>,
+            i === nextIdx ? <span className="shrink-0 whitespace-nowrap text-[11px] text-good mob:text-[13px]" data-testid="next-start">다음 등판</span> : undefined,
           ),
         )}
         <SectionTitle>마무리</SectionTitle>
-        {team.closer && row(team.closer, '마무리')}
+        {team.closer && row(team.closer, '마무리', pen(team.closer))}
         <SectionTitle>불펜 ({team.bullpen.length})</SectionTitle>
-        {team.bullpen.map((pid, i) => row(pid, `불펜${i + 1}`))}
+        {team.bullpen.map((pid, i) => row(pid, `불펜${i + 1}`, pen(pid)))}
         {spare.length > 0 && (
           <>
             <SectionTitle>대기 ({spare.length})</SectionTitle>

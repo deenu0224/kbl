@@ -45,17 +45,28 @@ function usePenForecasts(): Forecasts {
   return out;
 }
 
-/** 불펜 상태 한 줄: 여유/보통/과부하 + 쉰 투수 n/m */
+/** 구원 투수 한 명의 상태: 색 점 + 글자 (가능 / 연투 / 휴식 필요) */
+export function ArmState({ tired, className }: { tired?: number; className?: string }) {
+  const t = tired ?? 0;
+  const [dot, tone, text] = t >= 2 ? ['bg-bad', 'text-bad', '휴식 필요'] : t === 1 ? ['bg-hi', 'text-hi', '연투'] : ['bg-good', 'text-good', '가능'];
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap ${tone} ${className ?? ''}`} data-testid="arm-state">
+      <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
+      {text}
+    </span>
+  );
+}
+
+/** 불펜 상태 한 줄: 등판 가능 n/m · 여유/보통/과부하 */
 export function PenLoadLine({ className }: { className?: string }) {
   const team = useUserTeam();
   const load = bullpenLoad(team);
   return (
     <div className={`flex items-center gap-2 text-[13px] ${className ?? ''}`} data-testid="pen-load">
-      <span className="text-white/60">불펜</span>
-      <span className={LOAD_TONE[load.label]}>{load.label}</span>
-      <span className="text-white/60">
-        등판 가능 {load.rested}/{load.arms}
+      <span className="whitespace-nowrap text-white/60">
+        등판 가능 {load.rested}/{load.arms} · <span className={LOAD_TONE[load.label]}>{load.label}</span>
       </span>
+      <Help topic="fatigue" />
     </div>
   );
 }
