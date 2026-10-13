@@ -148,6 +148,7 @@ export const STAGES: StageDef[] = [
 // STAGES 는 원년 8구단 리그의 값이다. 구단이 더 많은 리그에서 뜻이 달라지는 목표만 여기서 덮어쓴다 (8구단 세이브는 STAGES 그대로).
 
 const FAIL_TRUST_0_BIG = 20; // 0장 깃발 실패 시 도민 지지 감소 (구단이 8개보다 많은 리그)
+const RAINY_ATT_BIG = 7000; // 1장 별 "장마 구간 홈 평균 관중" (구단이 8개보다 많은 리그)
 const ERA_RANK_8 = 2; // 3장 별 "팀 평균자책점 리그 n위 이내"의 8구단 기준
 const stageCache = new Map<number, StageDef[]>();
 
@@ -163,6 +164,10 @@ function stagesFor(teams: number): StageDef[] {
     // 3장 별: 리그 n위는 구단 수 비율로 (8팀의 2위 ≈ 10팀의 3위)
     const era = Math.round((ERA_RANK_8 * teams) / BASE_TEAMS);
     out[3].stars[0] = { ...out[3].stars[0], target: era, text: `팀 평균자책점 리그 ${era}위 이내` };
+    // 1장 별: 장마 구간 관중은 깃발과 같은 눈금으로 (8구단 6,500명은 깃발을 딴 런이 거의 다 땄다)
+    out[1].stars[1] = { ...out[1].stars[1], target: RAINY_ATT_BIG, text: `장마 구간 홈 평균 관중 ${fmtInt(RAINY_ATT_BIG)}명` };
+    // 2장 별: 깃발(포스트시즌 진출)이 와일드카드만큼 쉬워진 몫을 별이 진다 — 젊은 주전으로 와일드카드를 넘어 준플레이오프까지 (STAR_EVAL needSpo)
+    out[2].stars[0] = { ...out[2].stars[0], text: '25세 이하 주전 7명으로 준플레이오프 진출' };
     stageCache.set(teams, out);
   }
   return out;
@@ -333,6 +338,14 @@ export function postLevel(core: Core): number {
   return core.post ? POST_LEVEL[core.post.userFinish] : 0;
 }
 
+/** 별의 전제(깃발·가을야구·준플레이오프)가 지금 충족됐는가. cleared = 깃발 달성 여부 */
+function starPremise(core: Core, ev: StarEval | undefined, cleared: boolean): boolean {
+  if (ev?.needFlag && !cleared) return false;
+  if (ev?.needPost && postLevel(core) < 1) return false;
+  if (ev?.needSpo && postTeams(core) >= 5 && (postLevel(core) < 1 || core.post?.userFinish === 'WC')) return false;
+  return true;
+}
+
 function avgAtt(core: Core): number {
   const a = core.attHistory;
   return a.length ? Math.round(a.reduce((s, v) => s + v, 0) / a.length) : 0;
@@ -401,6 +414,7 @@ interface StarEval {
   value: (core: Core) => number;
   needFlag?: boolean; // 깃발을 달성해야 인정
   needPost?: boolean; // 포스트시즌에 나가야 인정
+  needSpo?: boolean; // 와일드카드가 있는 리그에서는 준플레이오프(와일드카드 통과 또는 3위 이내)까지 가야 인정
 }
 
 /** 별 조건 평가기. ObjKind 로 표현 안 되는 조건은 Objective.id 로 분기한다. */
@@ -414,7 +428,7 @@ export const STAR_EVAL: Record<string, StarEval> = {
   's1-2': { value: (c) => rainyAvgAtt(c) ?? 0 },
   's1-3': { value: (c) => opProfit(c.finance.ledger) },
   // 2장
-  's2-1': { value: (c) => starters(userTeam(c)).filter((p) => p.age <= 25).length },
+  's2-1': { value: (c) => starters(userTeam(c)).filter((p) => p.age <= 25).length, needSpo: true },
   's2-2': { value: (c) => memoNum(c, 'grow') },
   's2-3': { value: (c) => userTeam(c).roster.filter((p) => p.id.startsWith(DRAFT_PREFIX) && (p.bat.pa >= 260 || p.pit.outs >= 270)).length },
   // 3장
@@ -574,6 +588,8 @@ export function objDisplay(core: Core, o: Objective): ObjDisplay {
     met = !!main && objDisplay(core, main).met;
   }
   if (met && ev?.needPost) met = postLevel(core) >= 1;
+  // 준플레이오프가 전제인 별: 포스트시즌 전에는 3위 이내(직행권)일 때만 충족 중으로 본다
+  if (met && ev?.needSpo && postTeams(core) >= 5) met = core.post ? starPremise(core, ev, true) : rankOf(core.teams, core.userId) <= postTeams(core) - 2;
   ratio = clamp(Number.isFinite(ratio) ? ratio : 0, 0, 1);
   return { cur, target, ratio: met ? 1 : Math.min(ratio, 0.97), met };
 }
@@ -809,7 +825,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
       continue;
     }
     const ev = STAR_EVAL[o.id];
-    const ok = objMet(o.kind, o.target, o.progress) && (!ev?.needFlag || cleared) && (!ev?.needPost || postLevel(core) >= 1);
+    const ok = objMet(o.kind, o.target, o.progress) && starPremise(core, ev, cleared);
     o.state = ok && !exposures.length ? 'done' : 'failed';
     if (!ok) continue;
     if (exposures.length) {
