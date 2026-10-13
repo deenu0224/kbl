@@ -48,8 +48,8 @@ export const PLAY_GROW_AGE = 25;
 const TIRED_HINT = 2; // 이 이상 연투한 투수가 생기면 투수 탭 배지
 const DOW_NAME = ['화', '수', '목', '금', '토', '일'];
 // 스토브리그 (AI 구단)
-const AI_ROSTER = 23; // AI 구단 로스터 정원 (초과분 방출)
-const AI_ROSTER_B = 13; // 타자 / 투수 기준 구성
+const AI_ROSTER = 25; // AI 구단 로스터 정원 (초과분 방출)
+const AI_ROSTER_B = 13; // 타자 / 투수 기준 구성 (투수 12 = SP5·RP6·CP1)
 const AI_SIGN_MIN = 0; // AI 구단당 FA 영입 수 (0~1, 리그 전력 인플레 방지)
 const AI_SIGN_EXTRA = 0.5; // 1명 영입 확률
 const AI_SIGN_MARGIN = 2; // 기존 주전 최저 OVR 보다 이만큼 나아야 영입
@@ -697,7 +697,7 @@ function develop(p: Player, rng: Rng, season: number): void {
 }
 
 /** AI 구단 스토브리그: 남은 FA 중 전력 보강 1~2명 영입 후 정원 초과 최하위 방출 (mutate) */
-function aiStoveLeague(core: Core, rng: Rng): void {
+function aiStoveLeague(core: Core, rng: Rng, ctx: Parameters<typeof genPlayer>[0]): void {
   const pool = core.freeAgents.slice().sort((a, b) => b.ovr - a.ovr);
   // 약한 팀부터 고른다 (리그 평준화)
   const ais = standings(core.teams).reverse().filter((t) => t.id !== core.userId);
@@ -718,6 +718,12 @@ function aiStoveLeague(core: Core, rng: Rng): void {
       t.roster.push(p);
       autoLineup(t);
       addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${POS_NAME[p.pos] ?? p.pos} OVR ${p.ovr}) 영입`, 'info');
+    }
+    // 투수가 기준 구성에 못 미치면(투수 10명 시절의 세이브 포함) 남은 FA 구원, 없으면 신인 구원으로 불펜을 채운다
+    for (let g = 0; g < 4 && t.roster.filter((p) => p.kind === 'P').length < AI_ROSTER - AI_ROSTER_B; g++) {
+      const i = pool.findIndex((p) => p.kind === 'P' && p.pos !== 'SP' && !p.foreign && p.ovr <= teamStrength(t));
+      const p = i >= 0 ? pool.splice(i, 1)[0] : genPlayer(ctx, 'RP', 50, { age: randInt(rng, 20, 24), tag: '신인' });
+      t.roster.push(p);
     }
     // 정원 초과 → 남는 쪽(타자/투수)의 최하위부터 방출
     while (t.roster.length > AI_ROSTER) {
@@ -800,7 +806,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   seasonTurnFarmMut(core, rng); // 전역 선수 복귀
   // 지난 시즌 남은 FA 로 AI 스토브리그 → 새 FA 시장
   for (const p of core.freeAgents) develop(p, rng, core.season);
-  aiStoveLeague(core, rng);
+  aiStoveLeague(core, rng, ctx);
   core.freeAgents = genFreeAgents(ctx);
   for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
   core.schedule = buildSchedule(core.teams.map((t) => t.id), rng);

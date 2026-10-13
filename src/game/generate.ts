@@ -19,6 +19,8 @@ const LEGACY_VET_STAR = 16; // 이름값
 const LEGACY_NEXT = 3; // 뒤에서 기다리는 선수 중심값
 const LEGACY_NEXT_AGE: [number, number] = [23, 27];
 const RP_OFFSET = -1;
+const RP_DEPTH_OFFSET = -7; // 불펜 5·6번째 팔(추격조): 저연봉 뎁스. 유저 초기 손익은 이 값으로 맞춘다 (scripts/economy.ts)
+const RP_DEPTH_AGE: [number, number] = [23, 29];
 const CP_OFFSET = 2;
 const ARCH_TIER_REF = 62; // 아키타입 능력치의 기준 tier
 export const START_CASH = 150000; // 15억
@@ -260,6 +262,7 @@ function rosterSlots(r: Rng, tier: number, legacy = false): Slot[] {
   const pitchers: Slot[] = [
     ...SP_OFFSETS.map((d): Slot => ({ pos: 'SP', center: tier + d, starter: true })),
     ...[0, 1, 2, 3].map((): Slot => ({ pos: 'RP', center: tier + RP_OFFSET, starter: true })),
+    ...[0, 1].map((): Slot => ({ pos: 'RP', center: tier + RP_DEPTH_OFFSET, starter: false, age: RP_DEPTH_AGE })),
     { pos: 'CP', center: tier + CP_OFFSET, starter: true },
   ];
   if (legacy) {
@@ -336,11 +339,15 @@ function genTeam(ctx: GenCtx, def: TeamDef, archs: Arch[], prospect: boolean): T
   return team;
 }
 
-/** FA 풀 18명: 스타 3 / 준척 6 / 저가·유망주 9 */
+// 로스터 구성(타자 13 · 투수 12 = SP5·RP6·CP1)에 맞춘 FA 풀의 비중
+const FA_BAT_SHARE = 0.54;
+const FA_PIT_POS: PitchRole[] = ['SP', 'SP', 'SP', 'SP', 'SP', 'RP', 'RP', 'RP', 'RP', 'RP', 'RP', 'CP'];
+
+/** FA 풀 18명: 스타 3 / 준척 6 / 저가·유망주 9 (저가 베테랑 중 2명은 구원 — 시즌 중 불펜 보강용) */
 export function genFreeAgents(ctx: GenCtx): Player[] {
   const r = ctx.rng;
   const batPos: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
-  const anyPos = (): BatPos | PitchRole => (r() < 0.58 ? pick(r, batPos) : pick(r, ['SP', 'SP', 'SP', 'RP', 'RP', 'CP'] as PitchRole[]));
+  const anyPos = (): BatPos | PitchRole => (r() < FA_BAT_SHARE ? pick(r, batPos) : pick(r, FA_PIT_POS));
   const out: Player[] = [];
 
   // 스타급: 타자 1 · 선발 1 · 무작위 1
@@ -365,7 +372,7 @@ export function genFreeAgents(ctx: GenCtx): Player[] {
     const o: PlayerOpts = prospect
       ? { age: randInt(r, 19, 22), tag: '미완의 유망주', potMin: randInt(r, 72, 86) }
       : { age: randInt(r, 28, 36), tag: '저가 FA' };
-    const p = genPlayer(ctx, anyPos(), 56, o);
+    const p = genPlayer(ctx, i === 4 || i === 5 ? 'RP' : anyPos(), 56, o);
     shiftToOvr(r, p, prospect ? randInt(r, 50, 57) : randInt(r, 54, 62), o);
     out.push(p);
   }

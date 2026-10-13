@@ -76,7 +76,10 @@ export const SIM = {
   RP_HOOK_RUNS: 3,
   TIRED_1: 4, // 연투 피로: 전날 던진 불펜 구위 하락
   TIRED_2: 9, // 2일 연속 던진 뒤 (3연투째)
-  CLOSER_MAX_TIRED: 2, // 마무리는 3연투까지만 (그 이상은 쉰다)
+  CLOSER_MAX_TIRED: 1, // 마무리도 3연투는 하지 않는다: 이틀 연속 던졌으면 쉰 불펜이 9회를 맡는다 (쉰 팔이 없을 때만 나선다)
+  BLOWOUT: 5, // 이 점수 차 이상이면 추격조 1명이 길게 던진다 (필승조를 아낀다)
+  LONG_MULT: 2.2, // 그때의 한계 타자 수 배율
+  CALM: 3, // 7회 이후에도 이 점수 차 이상이면 구원 투수가 한계 타자 수까지 이닝을 이어 던진다
   INJ_RATE: 0.0035,
   MAX_INNINGS: 12,
   MAX_EVENTS: 10,
@@ -197,7 +200,8 @@ function makeSide(t: Team, isHome: boolean, rest?: Set<string>): Side {
   }
   pen = pen.filter((p) => p !== starter);
   const cl = t.closer ? byId.get(t.closer) : undefined;
-  const closer = canPitch(cl) && cl !== starter && (cl.tired ?? 0) <= SIM.CLOSER_MAX_TIRED ? cl : null;
+  // 이틀 연속 던진 마무리도 일단 대기시킨다 (쉰 불펜이 있으면 manage 가 그를 건너뛴다)
+  const closer = canPitch(cl) && cl !== starter ? cl : null;
 
   const side: Side = {
     team: t, isHome, order, idx: 0,
@@ -213,10 +217,10 @@ function makeSide(t: Team, isHome: boolean, rest?: Set<string>): Side {
 }
 
 function enter(side: Side, p: Player, starter: boolean, lead: number): void {
-  // 선발 수업을 받지 않은 구원 투수가 선발로 나서면 금방 지친다
+  // 선발 수업을 받지 않은 구원 투수가 선발로 나서면 금방 지친다. 크게 벌어진 경기의 구원은 길게 던진다
   const limit = starter
     ? (SIM.SP_LIMIT_BASE + p.sta * SIM.SP_LIMIT_STA) * (p.pos === 'SP' ? 1 : SIM.RP_AS_SP)
-    : SIM.RP_LIMIT_BASE + p.sta * SIM.RP_LIMIT_STA;
+    : (SIM.RP_LIMIT_BASE + p.sta * SIM.RP_LIMIT_STA) * (Math.abs(lead) >= SIM.BLOWOUT ? SIM.LONG_MULT : 1);
   const ps: PState = { p, bf: 0, outs: 0, runs: 0, so: 0, limit, starter, entryLead: lead, tiredPen: starter ? (p.pos === 'SP' ? 0 : SIM.RP_AS_SP_PEN) : tiredPenalty(p.tired) };
   p.pit.g++;
   if (starter) p.pit.gs++;
@@ -229,28 +233,39 @@ function manage(fld: Side, bat: Side, inning: number, atStart: boolean): void {
   const lead = fld.runs - bat.runs;
   const cur = fld.cur;
   const over = cur.bf - cur.limit;
+  const tired = (p: Player) => p.tired ?? 0;
   if (atStart && inning >= 9 && lead >= 0 && lead <= 3 && fld.closer && cur.p !== fld.closer) {
-    const c = fld.closer;
-    fld.closer = null;
-    enter(fld, c, false, lead);
-    return;
+    // 3연투 금지: 이틀 연속 던진 마무리는 쉰 불펜이 남아 있으면 내지 않는다
+    if (tired(fld.closer) < 2 || !fld.pen.some((p) => tired(p) < 2)) {
+      const c = fld.closer;
+      fld.closer = null;
+      enter(fld, c, false, lead);
+      return;
+    }
   }
   let need: boolean;
   if (atStart) {
     if (cur.starter) need = over >= -3;
-    else need = over >= 0 || (cur.outs >= 3 && !(inning <= 6 && cur.bf + 4 <= cur.limit));
+    // 한 이닝을 막은 구원: 6회까지, 그리고 승부가 기운 경기(CALM 점 차 이상)에서는 한계 타자 수까지 이어 던진다
+    else need = over >= 0 || (cur.outs >= 3 && !((inning <= 6 || Math.abs(lead) >= SIM.CALM) && cur.bf + 4 <= cur.limit));
   } else {
-    need = cur.starter ? cur.runs >= SIM.SP_HOOK_RUNS || over >= 5 : cur.runs >= SIM.RP_HOOK_RUNS || over >= 3;
+    need = cur.starter ? cur.runs >= SIM.SP_HOOK_RUNS || over >= 5 : cur.runs >= SIM.RP_HOOK_RUNS + (cur.limit > SIM.RP_LIMIT_BASE + cur.p.sta * SIM.RP_LIMIT_STA ? 2 : 0) || over >= 3;
   }
   if (!need) return;
   let next: Player | undefined;
   if (fld.pen.length) {
-    // 접전 후반은 필승조부터, 그 외에는 추격조부터. 연투한 팔은 되도록 건너뛴다
-    const key = inning >= 7 && lead >= -2;
+    // 접전 후반은 필승조부터, 그 외에는 추격조부터. 이틀 연속 던진 팔(3연투째)은 쉰 팔이 하나도 없을 때만 낸다
+    const key = inning >= 7 && lead >= -2 && lead < SIM.BLOWOUT;
     const order = key ? fld.pen : fld.pen.slice().reverse();
-    const tired = (p: Player) => p.tired ?? 0;
-    next = (key ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2) ?? order.reduce((a, p) => (tired(p) < tired(a) ? p : a));
-    fld.pen.splice(fld.pen.indexOf(next), 1);
+    next = (key ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2);
+    // 불펜이 전부 이틀 연속 던졌으면: 덜 지친 마무리가 남아 있으면 그가, 아니면 가장 덜 지친 팔이 나선다
+    if (!next && fld.closer && tired(fld.closer) < 2) {
+      next = fld.closer;
+      fld.closer = null;
+    } else {
+      next ??= order.reduce((a, p) => (tired(p) < tired(a) ? p : a));
+      fld.pen.splice(fld.pen.indexOf(next), 1);
+    }
   } else if (fld.closer) {
     next = fld.closer;
     fld.closer = null;

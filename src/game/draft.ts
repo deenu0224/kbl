@@ -18,7 +18,7 @@ const POS_KO_NEWS: Record<string, string> = { SP: '선발', RP: '불펜', CP: '�
 export const DRAFT_POOL = 28;
 export const DRAFT_ROUNDS = 3;
 export const DRAFT_BONUS = [15000, 8000, 4000]; // 라운드별 계약금 (만원)
-const POOL_BAT_SHARE = 0.55; // 풀 중 타자 비율
+const POOL_BAT_SHARE = 0.52; // 풀 중 타자 비율
 // 출신별 생성 규칙: 나이, OVR 범위, 잠재력 범위
 const ORIGINS: { w: number; age: [number, number]; ovr: [number, number]; pot: [number, number]; tag: string }[] = [
   { w: 0.4, age: [19, 19], ovr: [42, 51], pot: [70, 90], tag: '고졸 원석' },
@@ -39,7 +39,7 @@ const AI_NOISE = 4;
 export const DRAFT_ID_PREFIX = 'dr'; // 드래프트 출신 선수 id 접두 (업적 판정용)
 
 const BAT_POS: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
-const PIT_POS: PitchRole[] = ['SP', 'SP', 'SP', 'RP', 'RP', 'CP'];
+const PIT_POS: PitchRole[] = ['SP', 'SP', 'SP', 'SP', 'SP', 'RP', 'RP', 'RP', 'RP', 'RP', 'RP', 'CP']; // 로스터 구성(SP5·RP6·CP1)대로
 type AbilKey = 'con' | 'pow' | 'eye' | 'spd' | 'def' | 'stf' | 'ctl' | 'sta';
 
 /** 능력치를 고르게 밀어 목표 OVR 에 맞춘다 (pot/salary/star 는 건드리지 않음) */
@@ -114,7 +114,7 @@ function aiScore(t: Team, p: Player, rng: Rng): number {
   let s = est * AI_POT_W + p.ovr * AI_OVR_W + gauss(rng) * AI_NOISE;
   const nb = t.roster.filter((x) => x.kind === 'B').length;
   const np = t.roster.length - nb;
-  if ((p.kind === 'P' && np < 11) || (p.kind === 'B' && nb < 13)) s += AI_NEED_BONUS;
+  if ((p.kind === 'P' && np < 13) || (p.kind === 'B' && nb < 13)) s += AI_NEED_BONUS;
   const same = t.roster.filter((x) => x.pos === p.pos);
   if (!same.length || Math.max(...same.map((x) => x.ovr)) < p.ovr + 4) s += AI_NEED_BONUS * 0.6;
   return s;

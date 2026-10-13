@@ -278,7 +278,7 @@ const CMP: { group: string; rows: Cmp[] }[] = [
     rows: [
       { key: 'n300', label: '규정타석 3할 타자', kbo: scaleToTeams(T.n300), tol: TITLE, fmt: r1 },
       { key: 'n20hr', label: `20홈런급 타자 (≥${Math.ceil(scaleToSeason(20))}개)`, kbo: scaleToTeams(T.n20hr), tol: TITLE, fmt: r1 },
-      // 우리 구단 투수는 10명뿐(KBO 는 시즌 중 20명 이상 등판) → 승리가 소수에 몰려 인원 비교가 구조적으로 불가
+      // 우리 구단 투수는 12명뿐(KBO 는 시즌 중 20명 이상 등판) → 승리가 소수에 몰려 인원 비교가 구조적으로 불가
       { key: 'n10w', label: `10승급 투수 (≥${Math.ceil(scaleToSeason(10))}승, 참고)`, kbo: scaleToTeams(T.n10w), tol: null, fmt: r1 },
       { key: 'qualBat', label: '규정타석 타자 수 (참고)', kbo: scaleToTeams(T.qualBat), tol: null, fmt: r1 },
     ],
