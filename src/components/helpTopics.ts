@@ -1,5 +1,5 @@
 // "?" 버튼 뒤의 설명. 한 주제에 3~5줄, 한 줄에 한 문장. 숫자는 실제 규칙 값만.
-import { BAILOUT_TRUST, DEBT_MOOD, LUX_TAX_BIG, debtMood, luxTax, DEBT_OVER_TRUST, DEBT_OVER_TRUST2, DEBT_SALE_RATE, FARM_CAP, FARM_LOCK, FARM_MAX, FARM_MAX_ACADEMY, LOAN_LIMIT, LOAN_RATE, LOAN_RATE_HI, LOAN_REV_SHARE, LOAN_TIER, ROSTER_MAX, SVC_YEARS, loanInterest, loanLimit } from '../game/economy';
+import { BAILOUT_TRUST, DEBT_MOOD, FA_HEAT, faHeatLine, faHeatMult, LUX_TAX_BIG, debtMood, luxTax, DEBT_OVER_TRUST, DEBT_OVER_TRUST2, DEBT_SALE_RATE, FARM_CAP, FARM_LOCK, FARM_MAX, FARM_MAX_ACADEMY, LOAN_LIMIT, LOAN_RATE, LOAN_RATE_HI, LOAN_REV_SHARE, LOAN_TIER, ROSTER_MAX, SVC_YEARS, loanInterest, loanLimit } from '../game/economy';
 import type { Core } from '../game/types';
 import { leagueSize, postTeams, seasonGames } from '../game/league';
 import { TRUST_MAX, TRUST_START } from '../game/campaign';
@@ -20,6 +20,7 @@ export type HelpTopic =
   | 'runway'
   | 'debt'
   | 'luxtax'
+  | 'faheat'
   | 'fatigue'
   | 'penStyle'
   | 'farm'
@@ -117,6 +118,19 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: 
         `상한 ${fmtMoney(l.cap)} — 우리를 뺀 리그 연봉 상위 ${k.top}구단 평균의 ${Math.round(k.capRate * 100)}%. 한 번 오른 상한은 내려가지 않고, 해마다 리그 연봉 인상률만큼 오릅니다.`,
         `지금 연봉 총액 ${fmtMoney(l.payroll)} — ${l.tax > 0 ? `이대로 시즌을 마치면 제재금 ${fmtMoney(l.tax)}` : `상한까지 ${fmtMoney(l.cap - l.payroll)} 남았습니다`}.`,
         '결산 시점의 연봉 총액으로 계산합니다. 영입·재계약 전에 예상 제재금이 함께 나옵니다.',
+      ];
+    },
+  },
+  faheat: {
+    title: '달아오르는 FA 시장',
+    lines: (core: Core) => {
+      const up = (n: number) => `+${Math.round((faHeatMult(n) - 1) * 100)}%`;
+      return [
+        '같은 시즌에 FA 를 거듭 영입하면 계약금이 오릅니다. 에이전트들이 제주가 급하다는 것을 알기 때문입니다.',
+        `두 번째 영입 ${up(1)} · 세 번째 ${up(2)} · 네 번째 ${up(3)} · 다섯 번째 ${up(4)}, 그 뒤로는 한 명마다 ${Math.round(FA_HEAT.step * 100)}%p 씩 더 오릅니다. 연봉은 그대로입니다.`,
+        '시즌 결산이 끝나면 다시 0명부터 셉니다. 스토브리그의 영입은 다음 시즌 몫입니다.',
+        '외국인을 포함해 영입 시장에서 데려오는 모든 선수를 셉니다. 드래프트·트레이드·콜업·재계약은 세지 않습니다.',
+        faHeatLine(core) ?? '이 리그에는 적용되지 않습니다.',
       ];
     },
   },

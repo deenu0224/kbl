@@ -4,7 +4,7 @@ import { borrow, callUp, farmLockLeft, releasePlayer, sendDown, repay, setTicket
 import {
   activeRoster, farmRoster,
   FOOD_LV, leagueShare, LEAGUE_PER_RANK, LOAN_STEP, loanLimit, farmMax, MERCH_K, ROSTER_MAX, SEAT_LV, TRAIN_LV,
-  capacityOf, opsCost, payroll, previewDemand, refPrice, signingBonus, starPower, upgradeCost, userTeam,
+  capacityOf, opsCost, payroll, previewDemand, refPrice, signingBonusFor, starPower, upgradeCost, userTeam,
 } from '../src/game/economy';
 import { GIVE_COST, buyProject, projectPreview, projectsOpen, type ProjectId } from '../src/game/projects';
 import { FOREIGN_MAX } from '../src/game/events';
@@ -235,7 +235,7 @@ function doSign(c0: Core, n: number, only?: 'B' | 'P'): Core {
       .filter((p) => !only || p.kind === only)
       .filter((p) => !p.foreign || foreignN(c) < FOREIGN_MAX)
       .filter((p) => p.ovr >= weakest(c, p) + 5)
-      .filter((p) => pay + p.salary <= PAYROLL_CAP(c) && c.finance.cash - signingBonus(p) >= RESERVE)
+      .filter((p) => pay + p.salary <= PAYROLL_CAP(c) && c.finance.cash - signingBonusFor(c, p) >= RESERVE)
       // 주전 타자·선발의 구멍을 먼저(불펜은 덜 급하다). 살림이 빠듯하면 연봉 1.5억을 OVR 1 로 친다
       .sort((a, b) => score(b) - score(a));
     if (!cand.length) break;
@@ -292,7 +292,7 @@ function doPen(c: Core): Core {
   const bar = pen[4]?.ovr ?? 0;
   const cand = c.freeAgents
     .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.ovr >= bar + 4 && (!p.foreign || foreignN(c) < FOREIGN_MAX))
-    .filter((p) => payroll(t) + p.salary <= PAYROLL_CAP(c) + 30000 && c.finance.cash - signingBonus(p) >= RESERVE)
+    .filter((p) => payroll(t) + p.salary <= PAYROLL_CAP(c) + 30000 && c.finance.cash - signingBonusFor(c, p) >= RESERVE)
     .sort((a, b) => b.ovr - a.ovr)[0];
   if (!cand) return c;
   let core = c;
@@ -310,7 +310,7 @@ function relievePen(c: Core): Core {
   const up = shuttleArms(c)[0];
   if (up) return ok(callUp(c, up.id), c);
   const fa = c.freeAgents
-    .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.salary <= PEN_FA_SALARY && (!p.foreign || foreignN(c) < FOREIGN_MAX) && c.finance.cash - signingBonus(p) >= RESERVE)
+    .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.salary <= PEN_FA_SALARY && (!p.foreign || foreignN(c) < FOREIGN_MAX) && c.finance.cash - signingBonusFor(c, p) >= RESERVE)
     .sort((a, b) => b.ovr - a.ovr)[0];
   return fa ? ok(signPlayer(c, fa.id), c) : c;
 }
@@ -490,7 +490,7 @@ function greedySign(c0: Core): Core {
     if (activeRoster(userTeam(c)).length >= ROSTER_MAX) c = trimRoster(c, ROSTER_MAX - 1);
     const star = c.freeAgents.filter((p) => !p.foreign || foreignN(c) < FOREIGN_MAX).sort((a, b) => b.star - a.star || b.ovr - a.ovr)[0];
     if (!star || star.star < 60) break;
-    while (c.finance.cash < signingBonus(star) && c.finance.debt + LOAN_STEP <= loanLimit(c)) c = ok(borrow(c), c);
+    while (c.finance.cash < signingBonusFor(c, star) && c.finance.debt + LOAN_STEP <= loanLimit(c)) c = ok(borrow(c), c);
     const r = signPlayer(c, star.id);
     if (r.error) break;
     c = r.core;

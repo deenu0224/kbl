@@ -1,7 +1,7 @@
 import type { Core, Player, Team } from './types';
 import { positionReport } from './analysis';
 import { winDelta } from './briefing';
-import { ROSTER_MAX, activeRoster, farmRoster, payroll, releaseCost, signingBonus, userTeam } from './economy';
+import { ROSTER_MAX, activeRoster, farmRoster, payroll, releaseCost, faHeatWhy, signingBonusFor, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
 import { isFranchise } from './franchise';
 import { slotNewcomer } from './lineup';
@@ -83,7 +83,7 @@ export interface TransferPreview {
   farm: Pair; // 2군
   foreign: Pair;
   fans: Pair;
-  ins: { p: Player; bonus: number }[];
+  ins: { p: Player; bonus: number; why: string }[]; // why = 계약금 누진의 이유 ("이번 시즌 3번째 영입 · +60%". 없으면 '')
   outs: TransferOut[];
   bumps: TransferBump[]; // 교체 영입 추천: 영입으로 밀려나는 선수 (이미 담은 선수는 제외)
 }
@@ -145,7 +145,9 @@ export function previewTransfer(core: Core, basket: Basket): TransferPreview {
     }
   }
 
-  const bonus = fas.reduce((s, p) => s + signingBonus(p), 0);
+  // 계약금 누진(10구단): 담은 순서대로 영입하므로 i번째 선수는 앞의 i명만큼 배율이 오른다 (signPlayer 와 같은 식)
+  const ins = fas.map((p, i) => ({ p, bonus: signingBonusFor(core, p, i), why: faHeatWhy(core, i) }));
+  const bonus = ins.reduce((s, x) => s + x.bonus, 0);
   const penalty = rel.reduce((s, p) => s + releaseCost(p, core), 0);
   const pay0 = payroll(t0);
   const payArith = pay0 + fas.reduce((s, p) => s + p.salary, 0) - rel.reduce((s, p) => s + p.salary, 0);
@@ -188,7 +190,7 @@ export function previewTransfer(core: Core, basket: Basket): TransferPreview {
     farm: { a: nFarm, b: t1 ? farmRoster(t1).length : nFarm + down.length - up.length - count(rel, (p) => !!p.farm) },
     foreign: { a: nFor, b: nFor + count(fas, (p) => !!p.foreign) - count(rel, (p) => !!p.foreign) },
     fans: { a: core.fans, b: after ? after.fans : core.fans },
-    ins: fas.map((p) => ({ p, bonus: signingBonus(p) })),
+    ins,
     outs: [
       ...rel.map((p): TransferOut => ({ p, to: 'release', ...roleOf(t0, p), franchise: isFranchise(p, core.season), cost: releaseCost(p, core) })),
       ...down.map((p): TransferOut => ({ p, to: 'farm', ...roleOf(t0, p), franchise: false, cost: 0 })),

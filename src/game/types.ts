@@ -430,6 +430,7 @@ export interface Campaign {
   debtOver?: number; // 부채 한도 초과로 결산한 연속 시즌 수
   luxCap?: number; // 경쟁균형세 상한의 지난 결산까지 최고값 (시즌 1 물가 기준) — 상한은 내려가지 않고 연봉 인상률만큼 오른다 (10구단 리그 · economy.ts luxTax)
   debtHeavy?: number; // 부채가 한도의 80% 이상인 채 결산한 연속 시즌 수 (10구단 리그 · loan.ts DEBT_MOOD)
+  fa?: { season: number; n: number; paid: number; extra: number }; // FA 계약금 누진 (10구단 리그 · economy.ts FA_HEAT): 그 시즌(결산 뒤 ~ 다음 결산)에 영입한 FA 수 · 낸 계약금 합 · 그중 배율로 더 낸 몫
   bailout?: number; // 조합 특별 출자를 받은 시즌 (시즌 1회)
 }
 /** 덮은 일 한 건 */

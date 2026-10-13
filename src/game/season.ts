@@ -10,7 +10,7 @@ import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_STEP, OVER_LIMIT_ERR, loanInterest, loanLimit, overLimit, farmMax, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   MERCH_K, leagueShare, RENEW_PREMIUM, RENEW_SEASONS,
   BENCH_GROW, FARM_CAP, FARM_LOCK, IL_MIN, SVC_YEARS, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
-  awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingOpen, starPower, upgradeCost, userTeam,
+  awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingBonusFor, faHeatOn, faHeatWhy, faSigned, faSeason, FA_HEAT, signingOpen, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
 import { activeBuffs, fillObjectivesMut, hintMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
@@ -534,8 +534,8 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
     return { core: core0, error: `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다` };
   }
   if (overLimit(core0)) return { core: core0, error: OVER_LIMIT_ERR };
-  const bonus = signingBonus(fa);
-  if (core0.finance.cash < bonus) return { core: core0, error: `계약금이 부족합니다 (필요 ${fmtMoney(bonus)})` };
+  const bonus = signingBonusFor(core0, fa);
+  if (core0.finance.cash < bonus) return { core: core0, error: `계약금이 부족합니다 (필요 ${fmtMoney(bonus)}${faHeatWhy(core0) ? ` — ${faHeatWhy(core0)}` : ''})` };
 
   const core = structuredClone(core0);
   const t = userTeam(core);
@@ -543,6 +543,12 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
   core.freeAgents = core.freeAgents.filter((x) => x.id !== pid);
   core.finance.cash -= bonus;
   core.finance.ledger.signing += bonus;
+  if (faHeatOn(core)) {
+    const n = faSigned(core);
+    if (FA_HEAT.pay > 0) p.salary = Math.round((p.salary * (1 + FA_HEAT.pay * n)) / 100) * 100;
+    const prev = n > 0 ? core.campaign.fa : undefined;
+    core.campaign.fa = { season: faSeason(core), n: n + 1, paid: (prev?.paid ?? 0) + bonus, extra: (prev?.extra ?? 0) + bonus - signingBonus(fa) };
+  }
   p.since = core.season;
   t.roster.push(p);
   const role = slotNewcomer(t, p);

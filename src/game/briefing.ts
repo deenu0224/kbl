@@ -3,7 +3,7 @@
 import type { BatPos, BriefDetail, BriefDone, BriefMemo, BriefMove, BriefOffer, BriefResult, Briefing, CharId, Core, Player, Team } from './types';
 import { SIM, rotPenGap, type PenStyle } from './sim';
 import { teamParts, type TeamParts } from './ratings';
-import { BENCH_GROW, FARM_CAP, FARM_LOCK, farmMax, FOOD_LV, LOAN_STEP, LOAN_WARN, loanInterest, loanLimit, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SEAT_LV, TRAIN_LV, activeRoster, farmRoster, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
+import { BENCH_GROW, FARM_CAP, FARM_LOCK, farmMax, FOOD_LV, LOAN_STEP, LOAN_WARN, loanInterest, loanLimit, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SEAT_LV, TRAIN_LV, activeRoster, farmRoster, capacityOf, opProfit, payroll, previewDemand, bonusText, faHeatWhy, signingBonusFor, upgradeCost, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
 import { farmAutoOn, shuttleArms } from './farm';
 import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, callUp, farmLockLeft, farmStatText, growChance, sendDown, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
@@ -158,7 +158,7 @@ function scoutOffer(core: Core, m: BriefMemo): Cand | null {
   if (activeRoster(t).length >= ROSTER_MAX) return null;
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const foreignFull = t.roster.filter((p) => p.foreign).length >= FOREIGN_MAX;
-  const can = (p: Player) => signingBonus(p) <= core.finance.cash && !(p.foreign && foreignFull) && p.injury === 0 && (core.day > EARLY_DAYS || p.salary <= EARLY_SALARY);
+  const can = (p: Player) => signingBonusFor(core, p) <= core.finance.cash && !(p.foreign && foreignFull) && p.injury === 0 && (core.day > EARLY_DAYS || p.salary <= EARLY_SALARY);
   // 자리별 현재 주전: 타순 9칸 + 선발 로테이션 맨 뒤
   const spots: { pos: string; cur: Player }[] = [];
   for (const l of t.lineup) {
@@ -197,7 +197,7 @@ function scoutOffer(core: Core, m: BriefMemo): Cand | null {
       'sign',
       'scout',
       oldEye ? `${pos} 자리엔 ${p.name}입니다. ${p.age}세, 제가 한창때부터 본 선수입니다.` : `${pos} 자리가 비어 보입니다. ${p.name}, ${p.age}세면 아직 쓸 만합니다.`,
-      `영입: ${pos} ${s.cur.ovr} → ${p.ovr} · ${partsText(before, after) || '전력 변화 없음'} · 연봉 +${fmtMoney(p.salary)} · 계약금 ${fmtMoney(signingBonus(p))}${cashTail(core, r.core)}`,
+      `영입: ${pos} ${s.cur.ovr} → ${p.ovr} · ${partsText(before, after) || '전력 변화 없음'} · 연봉 +${fmtMoney(p.salary)} · ${bonusText(core, p)}${cashTail(core, r.core)}`,
       { t: 'sign', pid: p.id },
       flagPiece(core, { win: dw }),
       moves,
@@ -287,14 +287,14 @@ function penOffer(core: Core): Cand | null {
   const floor = Math.min(...t.bullpen.map((id) => byId.get(id)?.ovr ?? 99)) - PEN_SIGN_GAP;
   const foreignFull = t.roster.filter((p) => p.foreign).length >= FOREIGN_MAX;
   const fa = core.freeAgents
-    .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.injury === 0 && p.salary <= PEN_SIGN_SALARY && p.ovr >= floor && signingBonus(p) <= core.finance.cash && !(p.foreign && foreignFull))
+    .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.injury === 0 && p.salary <= PEN_SIGN_SALARY && p.ovr >= floor && signingBonusFor(core, p) <= core.finance.cash && !(p.foreign && foreignFull))
     .sort((a, b) => b.ovr - a.ovr || a.salary - b.salary)[0];
   if (!fa) return null;
   const r = signPlayer(core, fa.id);
   if (r.error) return null;
   const out = runway(r.core).cashOut;
   if (out !== null && out <= SIGN_RUNWAY_MIN) return null;
-  return offer(40, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: FA ${fa.name}(오버롤 ${fa.ovr}) 영입 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명 · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))}${cashTail(core, r.core)}`, { t: 'sign', pid: fa.id }, undefined, [{ t: fa.id, d: 1 }]);
+  return offer(40, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: FA ${fa.name}(오버롤 ${fa.ovr}) 영입 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명 · 연봉 +${fmtMoney(fa.salary)} · ${bonusText(core, fa)}${cashTail(core, r.core)}`, { t: 'sign', pid: fa.id }, undefined, [{ t: fa.id, d: 1 }]);
 }
 
 const STYLE_KO: Record<PenStyle, string> = { trust: '믿음', balance: '균형', swarm: '벌떼' };
@@ -730,7 +730,7 @@ function detailOf(a: Core, b: Core, o: BriefOffer): BriefDetail {
   const gated = priced || a.facilities.seats !== b.facilities.seats || a.facilities.food !== b.facilities.food;
   if (o.action.t === 'sign' && !o.rescue) {
     const p = a.freeAgents.find((x) => x.id === (o.action as { pid: string }).pid);
-    if (p) rows.push({ label: '계약금', a: '—', b: `−${fmtMoney(signingBonus(p))}`, tone: 'bad' }, { label: '이 선수 연봉/시즌', a: '—', b: fmtMoney(p.salary) });
+    if (p) rows.push({ label: faHeatWhy(a) ? `계약금 (${faHeatWhy(a)})` : '계약금', a: '—', b: `−${fmtMoney(signingBonusFor(a, p))}`, tone: 'bad' }, { label: '이 선수 연봉/시즌', a: '—', b: fmtMoney(p.salary) });
   }
   if (priced) num('티켓값', a.finance.ticketPrice, b.finance.ticketPrice, (v) => `${v.toFixed(1)}만`, 0);
   if (a.facilities.seats !== b.facilities.seats) num('좌석', capacityOf(a), capacityOf(b), (v) => `${fmtInt(v)}석`);

@@ -13,7 +13,7 @@ import { mulberry32, type Rng } from '../src/game/rng';
 import { NEW_GAME, newCore } from '../src/game/generate';
 import { postTeamsFor } from '../src/game/league';
 import { advanceDay, nextSeason, rankOf } from '../src/game/season';
-import { DEBT_MOOD, LUX_TAX, LUX_TAX_BIG, luxTax, payroll, userTeam } from '../src/game/economy';
+import { DEBT_MOOD, FA_HEAT, LUX_TAX, LUX_TAX_BIG, luxTax, payroll, userTeam } from '../src/game/economy';
 import { ensureObjectives, STAGES } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { loanLimit } from '../src/game/economy';
@@ -38,6 +38,11 @@ if (process.env.LUX === '1') LUX_TAX.on = true; // 경쟁균형세를 켜고 잰
 if (process.env.LUX === '0') LUX_TAX_BIG.on = false;
 if (process.env.LUXKEEP === '0') LUX_TAX_BIG.keep = false;
 if (process.env.LUXK) { const [a, b, d] = process.env.LUXK.split(',').map(Number); Object.assign(LUX_TAX_BIG, { top: a, capRate: b, rate: d }); }
+// FA 계약금 누진: FAHEAT=0 (끔) · FAHEAT=1,1.25,1.6,2.2,3 (배율 표) · FAHEATSTEP=1 (표 뒤 한 명당) · FAHEATPAY=0.1 (대안: 연봉에도)
+if (process.env.FAHEAT === '0') FA_HEAT.on = false;
+else if (process.env.FAHEAT) FA_HEAT.mult = process.env.FAHEAT.split(',').map(Number);
+if (process.env.FAHEATSTEP) FA_HEAT.step = Number(process.env.FAHEATSTEP);
+if (process.env.FAHEATPAY) FA_HEAT.pay = Number(process.env.FAHEATPAY);
 if (process.env.MOOD === '0') Object.assign(DEBT_MOOD, { trust: 0, trustFull: 0 }); // 연속 수는 세되 지지는 깎지 않는다 (기준 측정)
 if (process.env.MOODK) { const [a, b, d, e, f] = process.env.MOODK.split(',').map(Number); Object.assign(DEBT_MOOD, { at: a, trust: b, trustFull: d, grace: e ?? 1, full: f ?? DEBT_MOOD.full }); }
 const pickOf = (bot: Bot, c: Core, card: EventCard): number => (TRADE_MODE === 'deny' && baseId(card) === 'trade' ? firstEnabled(card, [1]) : bot.event(c, card));
@@ -69,6 +74,10 @@ interface SeasonSnap {
   heavy: number; // 한도의 80% 이상으로 결산한 연속 수
   moodCut: number; // 빚더미 여론으로 깎인 지지
   ratio: number; // 결산 시점 부채 / 한도 (%). 문턱 아래면 0
+  // 6단계(FA 계약금 누진): 그 시즌 묶음(지난 결산 뒤 ~ 이번 결산)의 FA 영입 수 · 계약금 합 · 배율로 더 낸 몫
+  faN: number;
+  faPaid: number;
+  faExtra: number;
 }
 
 interface Run {
@@ -327,6 +336,9 @@ function runOne(bot: Bot, seed: number): Run {
         ai: c.teams.filter((t) => t.id !== c.userId).map(payroll).sort((a, b) => b - a),
         heavy: c.campaign.debtHeavy ?? 0,
         moodCut: -(c.campaign.verdict?.debtMood?.trust ?? 0),
+        faN: c.campaign.fa?.season === c.season ? c.campaign.fa.n : 0,
+        faPaid: c.campaign.fa?.season === c.season ? c.campaign.fa.paid : 0,
+        faExtra: c.campaign.fa?.season === c.season ? c.campaign.fa.extra : 0,
         ratio: c.campaign.verdict?.debtMood ? Math.round((c.campaign.verdict.debtMood.debt / c.campaign.verdict.debtMood.limit) * 100) : c.campaign.verdict?.debtOver ? Math.round((c.campaign.verdict.debtOver.debt / c.campaign.verdict.debtOver.limit) * 100) : 0,
       });
       for (let k = 1; k <= 5; k++) if (run.reach[k] === null && c.campaign.stage >= k) run.reach[k] = s;
@@ -420,6 +432,7 @@ if (ONLY_BOTS) {
       `${name.padEnd(9)} 이전율 ${pct(over.length, runs.length).trim()} (평균 ${over.length ? mean(over.map((r) => r.over!)).toFixed(1) : '—'}시즌) · 우승 ${runs.filter((r) => r.champ !== null).length}/${runs.length} (중앙 ${median(runs.map((r) => r.champ).filter((x): x is number => x !== null)).toFixed(1)}시즌) · 제재금 합계 ${fmtMoney(snaps.reduce((a, x) => a + x.tax, 0))} · 빚더미 지지 −${snaps.reduce((a, x) => a + x.moodCut, 0)} · 평균 순위 ${mean(snaps.map((x) => x.rank)).toFixed(2)} · 시즌 말 현금 ${fmtMoney(mean(snaps.map((x) => x.cash)))} · 부채 ${fmtMoney(mean(snaps.map((x) => x.debt)))} · 연봉 ${fmtMoney(mean(snaps.map((x) => x.payroll)))} · 영업손익 ${fmtMoney(mean(snaps.map((x) => x.profit)))} · 트레이드 제안 ${(sum((r) => r.trade.offers) / seasons).toFixed(2)} 수락 ${(sum((r) => r.trade.accepts) / seasons).toFixed(2)}/시즌 (건당 예상 ${sum((r) => r.trade.accepts) ? (sum((r) => r.trade.wins) / sum((r) => r.trade.accepts)).toFixed(2) : '—'}승, 가치 ${sum((r) => r.trade.accepts) ? fmtMoney(Math.round(sum((r) => r.trade.net) / sum((r) => r.trade.accepts))) : '—'}) · 크래시 ${runs.filter((r) => r.crash).length}`,
     );
   }
+  faReport();
   process.exit(0);
 }
 
@@ -669,5 +682,23 @@ console.log(`\n── 경쟁균형세·빚더미 여론 (경쟁균형세 ${LUX_T
     console.log(`[${bot.name}] 제재금 ${taxed.length}/${snaps.length}시즌 · 합계 ${fmtMoney(taxed.reduce((a, x) => a + x.tax, 0))} (낸 시즌 평균 ${taxed.length ? fmtMoney(mean(taxed.map((x) => x.tax))) : '—'}) · 빚더미 결산 ${snaps.filter((x) => x.heavy > 0).length}시즌 · 지지 감소 ${snaps.filter((x) => x.moodCut > 0).length}시즌 합계 −${snaps.reduce((a, x) => a + x.moodCut, 0)}`);
     console.log('  시즌: 연봉/상한(억) 세금 낸 런·평균 | 빚더미 런(평균 부채비율) 지지 −평균');
     console.log('  ' + Array.from({ length: N_SEASONS }, (_, s) => { const xs = rs.map((r) => r.snaps[s]).filter((x): x is SeasonSnap => !!x); if (!xs.length) return ''; const tx = xs.filter((x) => x.tax > 0); const hv = xs.filter((x) => x.heavy > 0); return `${s + 1}: ${e(mean(xs.map((x) => x.payroll)))}/${e(mean(xs.map((x) => x.cap)))} ${tx.length}런·${tx.length ? (mean(tx.map((x) => x.tax)) / 10000).toFixed(1) : '0'} | ${hv.length}런(${hv.length ? Math.round(mean(hv.map((x) => x.ratio))) : 0}%) −${(mean(xs.map((x) => x.moodCut))).toFixed(1)}`; }).filter(Boolean).join('\n  '));
+  }
+}
+
+faReport();
+
+// ── 6단계(FA 계약금 누진): 시즌당 FA 영입 수 분포 · 계약금 ──
+function faReport(): void {
+  console.log(`\n── FA 계약금 누진 (${FA_HEAT.on && NEW_GAME.teams > 8 ? `배율 ${FA_HEAT.mult.join('/')} · 그 뒤 +${FA_HEAT.step}${FA_HEAT.pay ? ` · 연봉 +${FA_HEAT.pay}n` : ''}` : '끔'}) ──`);
+  for (const bot of BOTS) {
+    const rs = all[bot.name];
+    if (!rs) continue;
+    const snaps = rs.flatMap((r) => r.snaps);
+    if (!snaps.length) continue;
+    const dist: number[] = [];
+    for (const x of snaps) dist[x.faN] = (dist[x.faN] ?? 0) + 1;
+    console.log(`[${bot.name}] 시즌당 FA 영입 수 분포(${snaps.length}시즌): ` + Array.from(dist, (v, i) => `${i}명 ${v ?? 0}`).join(' · ') + ` | 평균 ${mean(snaps.map((x) => x.faN)).toFixed(2)}명 · 계약금 시즌 평균 ${fmtMoney(mean(snaps.map((x) => x.faPaid)))} (배율로 더 낸 몫 ${fmtMoney(mean(snaps.map((x) => x.faExtra)))} · 런당 합계 ${fmtMoney(snaps.reduce((a, x) => a + x.faExtra, 0) / rs.length)})`);
+    console.log('  시즌: 영입 수 평균 · 계약금 합(기본 → 실제, 억)');
+    console.log('  ' + Array.from({ length: N_SEASONS }, (_, s) => { const xs = rs.map((r) => r.snaps[s]).filter((x): x is SeasonSnap => !!x); return xs.length ? `${s + 1}: ${mean(xs.map((x) => x.faN)).toFixed(1)}명 ${(mean(xs.map((x) => x.faPaid - x.faExtra)) / 10000).toFixed(1)}→${(mean(xs.map((x) => x.faPaid)) / 10000).toFixed(1)}` : ''; }).filter(Boolean).join(' | '));
   }
 }
