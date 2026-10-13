@@ -38,7 +38,7 @@ export function FullScreen({ title, sub, onClose, children, testid, hold = false
             <div className="truncate font-pixel-lg text-[16px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
               {title}
             </div>
-            {sub && <div className="truncate text-[11px] text-white/60">{sub}</div>}
+            {sub && <div className="text-[11px] leading-snug text-white/60">{sub}</div>}
           </div>
           <button className="px-btn shrink-0" onClick={onClose} data-testid="fs-close">
             닫기 ✕
