@@ -249,7 +249,7 @@ function resume(): void {
 
 /** Call directly inside a user gesture to unlock Safari audio. */
 export function startBgm(): void {
-  if (playing && engine?.context.state === 'running') return;
+  if (isBgmRunning()) return;
   const audio = getEngine();
   if (!audio) return;
   if (!playing) {
@@ -267,7 +267,7 @@ export function startBgm(): void {
 }
 /** 실제로 소리가 나갈 수 있는 상태인가 (iOS 는 터치가 끝나는 시점의 입력에서만 풀린다) */
 export function isBgmRunning(): boolean {
-  return playing && engine?.context.state === 'running';
+  return playing && engine?.context.state === 'running' && (timer !== undefined || muted || hidden());
 }
 export function stopBgm(): void {
   playing = false;

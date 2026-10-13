@@ -21,11 +21,12 @@ export function useBgm(): void {
     // 그래서 여러 입력에 걸어 두고, 실제로 재생 상태가 될 때까지 계속 시도한다.
     const EVENTS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const;
     const off = () => EVENTS.forEach((e) => window.removeEventListener(e, start, true));
+    // 다른 앱에 다녀오면 iOS 가 소리를 다시 잠그므로, 리스너를 떼지 않고 멈춰 있을 때마다 다시 푼다.
     const start = () => {
+      if (isBgmRunning()) return;
       unlock();
       startBgm();
       setBgmMood(moodNow());
-      if (isBgmRunning()) off();
     };
     EVENTS.forEach((e) => window.addEventListener(e, start, true));
     const sync = () => setBgmMood(moodNow());
