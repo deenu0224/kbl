@@ -17,6 +17,7 @@ import { addNews, marketSalary } from './season';
 import { hintMut } from './campaign';
 import { svcSalary, svcYearAt } from './contract';
 import { batZero, pitZero } from './generate';
+import { rowCash, rowInfo, rowOvr, rowPayroll, rowSat, type Row } from './eventRows';
 
 export const FARM_EVENT_MAX = 3; // 2군 사건: 시즌 최대 장수 (일반 카드 예산과 별도)
 export const FARM_EVENT_GAP = 10; // 2군 사건끼리 최소 경기 수
@@ -424,7 +425,19 @@ function mk(id: string, lineKey: string, o: Omit<EventCard, 'id' | 'who' | 'line
 }
 const find = (core: Core, pid?: string) => (pid ? userTeam(core).roster.find((p) => p.id === pid) : undefined);
 const addBuff = (core: Core, b: Buff) => core.campaign.buffs.push(b);
-const info = (p: Player) => `${p.name}(${posKo(p.pos)}, ${p.age}세, OVR ${p.ovr} · 잠재 ${p.pot})`;
+const info = (p: Player) => `${p.name}(${posKo(p.pos)}, ${p.age}세, 오버롤 ${p.ovr} · 잠재력 ${p.pot})`;
+const pair = (a: Player, b?: Player | null) => ({ pids: [a.id, ...(b ? [b.id] : [])], ...(b ? { compare: [a.id, b.id] as [string, string] } : {}) });
+const seat = (p: Player) => (p.kind === 'B' ? '벤치' : '불펜');
+const growRow = (core: Core, k: Player): Row => rowInfo('2군 성장 확률(주)', pctTxt(k.ovr >= FARM_CAP ? 0 : farmGrow(core.facilities)), pctTxt(k.ovr >= FARM_CAP ? 0 : farmGrow(core.facilities)));
+/** 포지션 전향의 수비 페널티와 전향 직후 오버롤 (make 와 resolve 가 같이 쓴다) */
+const convPen = (k: Player) => Math.min(F.convPen, k.def - 20);
+const convOvr = (k: Player, to: BatPos) => calcOvr({ ...k, pos: to, def: k.def - convPen(k) });
+/** 올리는 선택지의 상세 행: 주전 교체·밀려나는 선수·2군행 */
+const upRows = (k: Player, cur: Player, down: Player | null): Row[] => [
+  rowOvr(`${posKo(cur.kind === 'B' ? k.pos : cur.pos)} 주전`, cur.ovr, k.ovr),
+  rowInfo(cur.name, seat(cur), '주전', 'bad'),
+  ...(down ? [rowInfo(down.name, '2군행', '1군', 'bad')] : []),
+];
 const full = (t: Team) => activeRoster(t).length >= ROSTER_MAX;
 const farmLine = (p: Player) => (p.kind === 'B' ? `${fmtAvg(p.farmStat?.h ?? 0, p.farmStat?.ab ?? 0)} ${p.farmStat?.hr ?? 0}홈런 (${p.farmStat?.ab ?? 0}타수)` : `평균자책 ${fmtEra(p.farmStat?.er ?? 0, p.farmStat?.outs ?? 0)} (${Math.floor((p.farmStat?.outs ?? 0) / 3)}이닝)`);
 
@@ -521,8 +534,7 @@ function swapUpMut(core: Core, k: Player, cur: Player | undefined, downId: strin
   promoteMut(core, t, k, cur);
   hintMut(core, k.kind === 'B' ? 'lineup' : 'pitchers');
 }
-const upDesc = (k: Player, cur: Player, down: Player | null) =>
-  `${posKo(cur.kind === 'B' ? k.pos : cur.pos)} 주전 ${cur.name}(OVR ${cur.ovr}) → ${k.name}(OVR ${k.ovr}) · 전력 ${sgn(k.ovr - cur.ovr)} · ${cur.name}은(는) ${cur.kind === 'B' ? '벤치' : '불펜'}로${down ? ` · ${down.name}(OVR ${down.ovr}) 2군행` : ''}`;
+const upDesc = (k: Player, cur: Player) => `${posKo(cur.kind === 'B' ? k.pos : cur.pos)} 주전 ${cur.ovr} → ${k.ovr} (${sgn(k.ovr - cur.ovr)})`;
 const noRoom = (core: Core, down: Player | null) => (full(userTeam(core)) && !down ? '1군이 가득하고 내릴 선수가 없습니다' : undefined);
 
 export const FARM_CARDS: FarmCardDef[] = [
@@ -542,10 +554,34 @@ export const FARM_CARDS: FarmCardDef[] = [
         title: '대체 선수의 깜짝 활약',
         icon: '🔥',
         pid: sub.id,
-        body: `${orig.name}(${orig.age}세, OVR ${orig.ovr})의 부상 공백에 올라온 ${sub.name}(${sub.age}세, OVR ${sub.ovr})이 ${stat}. 오늘 ${orig.name}이(가) 돌아왔습니다.`,
+        body: `${orig.name}(${orig.age}세, 오버롤 ${orig.ovr})의 부상 공백에 올라온 ${sub.name}(${sub.age}세, 오버롤 ${sub.ovr})이 ${stat}. 오늘 ${orig.name}이(가) 돌아왔습니다.`,
         choices: [
-          { label: '신예를 그대로 쓴다', desc: `${posKo(orig.pos)} OVR ${orig.ovr} → ${sub.ovr} (전력 ${sgn(sub.ovr - orig.ovr)}) · ${sub.name} 스타성 +${F.hotStar} · 능력치 +${F.hotBump} · ${orig.name}은(는) ${orig.kind === 'B' ? '벤치' : '불펜'}로` },
-          { label: '원래 주전에게 돌려준다', desc: `${sub.name} 2군 복귀 (재등록 잠금 없음) · 팬 만족 ${sgn(F.hotBackSat)}` },
+          {
+            label: '신예를 그대로 쓴다',
+            desc: `${posKo(orig.pos)} 주전 ${orig.ovr} → ${sub.ovr} · 스타성 +${F.hotStar}`,
+            detail: {
+              rows: [
+                rowOvr(`${posKo(orig.pos)} 주전`, orig.ovr, sub.ovr),
+                rowInfo(`${sub.name} 스타성`, `${clamp(sub.star + F.hotStar, 0, 100)}`, `${sub.star}`, 'good'),
+                rowInfo(`${sub.name} 능력치`, `합 +${F.hotBump} (영구)`, undefined, 'good'),
+                rowInfo(orig.name, seat(orig), '주전', 'bad'),
+                rowSat(c, 0),
+              ],
+              ...pair(sub, orig),
+            },
+          },
+          {
+            label: '원래 주전에게 돌려준다',
+            desc: `${sub.name} 2군 복귀 · 팬 만족도 ${sgn(F.hotBackSat)}`,
+            detail: {
+              rows: [
+                rowOvr(`${posKo(orig.pos)} 주전`, orig.ovr, orig.ovr),
+                rowInfo(sub.name, farmRoster(userTeam(c)).length >= FARM_MAX ? '벤치 (2군 가득)' : '2군 (재등록 잠금 없음)', '1군'),
+                rowSat(c, F.hotBackSat),
+              ],
+              ...pair(sub, orig),
+            },
+          },
         ],
       });
     },
@@ -561,7 +597,7 @@ export const FARM_CARDS: FarmCardDef[] = [
         grow(sub, rng, F.hotBump);
         promoteMut(c, t, sub, orig);
         hintMut(c, sub.kind === 'B' ? 'lineup' : 'pitchers');
-        return `${sub.name}이(가) 자리를 지켰습니다 — OVR ${sub.ovr}`;
+        return `${sub.name}이(가) 자리를 지켰습니다 — 오버롤 ${sub.ovr}`;
       }
       sat(c, F.hotBackSat);
       if (farmRoster(t).length >= FARM_MAX) {
@@ -589,8 +625,17 @@ export const FARM_CARDS: FarmCardDef[] = [
         line: FARM_COACH_LINE(r.name),
         body: `지난겨울 유니폼을 벗은 ${r.name}(${posKo(r.pos)})이 2군 ${kind === 'P' ? '투수' : '타격'} 인스트럭터를 자청했습니다.`,
         choices: [
-          { label: '맡긴다', desc: `인건비 ${fmtMoney(F.coachCost)} (이번 시즌) · 2군 ${kind === 'P' ? '투수' : '타자'} ${n}명의 주당 성장 확률 ${pctTxt(base)} → ${pctTxt(Math.min(1, base + F.coachGrow))}`, disabled: c.finance.cash < F.coachCost ? `현금 부족 (필요 ${fmtMoney(F.coachCost)})` : undefined },
-          { label: '사양한다', desc: '변화 없음' },
+          {
+            label: '맡긴다',
+            desc: `인건비 ${fmtMoney(F.coachCost)} · 2군 ${kind === 'P' ? '투수' : '타자'} 성장 확률 ${pctTxt(base)} → ${pctTxt(Math.min(1, base + F.coachGrow))}`,
+            disabled: c.finance.cash < F.coachCost ? `현금 부족 (필요 ${fmtMoney(F.coachCost)})` : undefined,
+            detail: {
+              rows: [rowCash(c, -F.coachCost), rowInfo(`2군 ${kind === 'P' ? '투수' : '타자'} 성장 확률(주)`, pctTxt(Math.min(1, base + F.coachGrow)), pctTxt(base), 'good'), rowInfo('대상', `${n}명`)],
+              pids: farmRoster(userTeam(c)).filter((p) => p.kind === kind).sort((a, b) => b.pot - a.pot).slice(0, 4).map((p) => p.id),
+              lasts: '이번 시즌',
+            },
+          },
+          { label: '사양한다', desc: '변화 없음', detail: { rows: [rowCash(c, 0), rowInfo(`2군 ${kind === 'P' ? '투수' : '타자'} 성장 확률(주)`, pctTxt(base), pctTxt(base))] } },
         ],
       });
     },
@@ -620,8 +665,30 @@ export const FARM_CARDS: FarmCardDef[] = [
         pid: p.id,
         body: `올해 1군에 올라온 ${info(p)}이 콜업 뒤 ${x.text}.`,
         choices: [
-          { label: '믿고 쓴다', desc: `${F.painFix}경기 ${p.kind === 'B' ? '고정 출전' : '보직 유지'} · 그동안 주당 성장 확률 ×${F.painGrow} · ${alt ? `${alt.name}(OVR ${alt.ovr}) 대신 출전 — 전력 ${sgn(-loss)}` : '대안 없음'}` },
-          { label: '내린다', desc: `${p.name} 2군행 · ${FARM_LOCK}경기 재등록 불가 · ${alt ? `${alt.name}(OVR ${alt.ovr}) 주전 — 전력 ${sgn(alt.ovr - p.ovr)}` : '빈자리는 감독이 메운다'} · 2군 주당 성장 확률 ${pctTxt(p.ovr >= FARM_CAP ? 0 : farmGrow(c.facilities))}`, disabled: farmRoster(t).length >= FARM_MAX ? '2군이 가득 찼습니다' : undefined },
+          {
+            label: '믿고 쓴다',
+            desc: `${F.painFix}경기 ${p.kind === 'B' ? '고정 출전' : '보직 유지'} · 성장 확률 ×${F.painGrow}`,
+            detail: {
+              rows: [
+                rowInfo('주전', `${p.name} ${p.ovr}`, `${p.name} ${p.ovr}`),
+                rowInfo('쓰지 않는 대안', alt ? `${alt.name} ${alt.ovr} (전력 ${sgn(-loss)})` : '없음', undefined, loss > 0 ? 'bad' : 'info'),
+                rowInfo(`${p.name} 성장 확률(주)`, `×${F.painGrow}`, '×1', 'good'),
+                rowInfo('잠재력까지', `${Math.max(0, p.pot - p.ovr)}`),
+              ],
+              ...pair(p, alt),
+              lasts: `${F.painFix}경기`,
+            },
+          },
+          {
+            label: '내린다',
+            desc: `${p.name} 2군행 · ${alt ? `주전 ${p.ovr} → ${alt.ovr}` : `${FARM_LOCK}경기 재등록 불가`}`,
+            disabled: farmRoster(t).length >= FARM_MAX ? '2군이 가득 찼습니다' : undefined,
+            detail: {
+              rows: [alt ? rowOvr('주전', p.ovr, alt.ovr) : rowInfo('주전', '빈자리는 감독이 메운다', `${p.name} ${p.ovr}`), rowInfo(`${p.name} 재등록`, `${FARM_LOCK}경기 불가`, undefined, 'bad'), growRow(c, p)],
+              ...pair(p, alt),
+              lasts: `잠금 ${FARM_LOCK}경기`,
+            },
+          },
         ],
       });
     },
@@ -653,10 +720,22 @@ export const FARM_CARDS: FarmCardDef[] = [
         title: '콜업 준비 완료',
         icon: '📣',
         pid: k.id,
-        body: `${info(k)}이 2군 상한(OVR ${FARM_CAP})에 닿았습니다. 퓨처스 ${farmLine(k)}.`,
+        body: `${info(k)}이 2군 상한(오버롤 ${FARM_CAP})에 닿았습니다. 퓨처스 ${farmLine(k)}.`,
         choices: [
-          { label: '올린다', desc: upDesc(k, cur, down), disabled: noRoom(c, down) },
-          { label: '한 달 더', desc: `2군에서는 더 자라지 않습니다 (상한 OVR ${FARM_CAP}) · ${F.readyWait}경기 뒤 다시 보고` },
+          {
+            label: '올린다',
+            desc: `${upDesc(k, cur)}${down ? ` · ${down.name} 2군행` : ` · ${cur.name} ${seat(cur)}로`}`,
+            disabled: noRoom(c, down),
+            detail: { rows: [...upRows(k, cur, down), rowInfo(`${k.name} 성장`, '1군에서 계속', `멈춤 (상한 ${FARM_CAP})`, 'good')], pids: [k.id, cur.id, ...(down ? [down.id] : [])], compare: [k.id, cur.id] },
+          },
+          {
+            label: '한 달 더',
+            desc: `2군 성장 멈춤 (상한 ${FARM_CAP}) · ${F.readyWait}경기 뒤 다시 보고`,
+            detail: {
+              rows: [rowOvr(`${posKo(cur.kind === 'B' ? k.pos : cur.pos)} 주전`, cur.ovr, cur.ovr), rowInfo(`${k.name} 성장`, `멈춤 (상한 ${FARM_CAP})`, `멈춤 (상한 ${FARM_CAP})`, 'bad'), rowInfo('다시 보고', `${F.readyWait}경기 뒤`)],
+              ...pair(k, cur),
+            },
+          },
         ],
       });
     },
@@ -682,15 +761,38 @@ export const FARM_CARDS: FarmCardDef[] = [
       const x = convCase(c);
       if (!x) return null;
       const { k, cur, to, weak } = x;
-      const after = calcOvr({ ...k, def: clamp(k.def - F.convPen, 20, 99) });
+      const after = convOvr(k, to);
       return mk(`f-conv|${to}`, 'fConv', {
         title: '포지션 전향',
         icon: '🧤',
         pid: k.id,
-        body: `${info(k)}의 자리에는 ${cur.name}(${cur.age}세, OVR ${cur.ovr})이 버티고 있습니다. 팀에서 가장 약한 자리는 ${posKo(to)}(${weak.name}, OVR ${weak.ovr})입니다.`,
+        body: `${info(k)}의 자리에는 ${cur.name}(${cur.age}세, 오버롤 ${cur.ovr})이 버티고 있습니다. 팀에서 가장 약한 자리는 ${posKo(to)}(${weak.name}, 오버롤 ${weak.ovr})입니다.`,
         choices: [
-          { label: '전향시킨다', desc: `${k.name} ${posKo(k.pos)} → ${posKo(to)} · ${F.convGames}경기 동안 수비 −${F.convPen} (OVR ${k.ovr} → ${after}) · ${posKo(to)} 뎁스: ${weak.name} ${weak.ovr} / ${k.name} ${after}(잠재 ${k.pot})` },
-          { label: '그대로 둔다', desc: `${posKo(k.pos)} 뎁스: ${cur.name} ${cur.ovr} / ${k.name} ${k.ovr}(잠재 ${k.pot}) — 자리가 날 때까지 기다린다` },
+          {
+            label: '전향시킨다',
+            desc: `${posKo(k.pos)} → ${posKo(to)} · 수비 −${convPen(k)} (${F.convGames}경기)`,
+            detail: {
+              rows: [
+                rowInfo('포지션', posKo(to), posKo(k.pos)),
+                rowInfo(`${k.name} 수비`, `${k.def - convPen(k)}`, `${k.def}`, 'bad'),
+                rowOvr(`${k.name} 오버롤`, k.ovr, after),
+                rowInfo('막고 있는 주전', `${weak.name} ${weak.ovr} (${weak.age}세)`, `${cur.name} ${cur.ovr} (${cur.age}세)`, 'good'),
+                rowInfo('잠재력', `${k.pot}`, `${k.pot}`),
+              ],
+              pids: [k.id, weak.id, cur.id],
+              compare: [k.id, weak.id],
+              lasts: `수비 페널티 ${F.convGames}경기`,
+            },
+          },
+          {
+            label: '그대로 둔다',
+            desc: `${posKo(k.pos)} 주전 ${cur.name} ${cur.ovr} · ${k.name} ${k.ovr}`,
+            detail: {
+              rows: [rowInfo('포지션', posKo(k.pos), posKo(k.pos)), rowInfo('막고 있는 주전', `${cur.name} ${cur.ovr} (${cur.age}세)`, `${cur.name} ${cur.ovr} (${cur.age}세)`), rowInfo('잠재력', `${k.pot}`, `${k.pot}`)],
+              pids: [k.id, cur.id, weak.id],
+              compare: [k.id, cur.id],
+            },
+          },
         ],
       });
     },
@@ -700,7 +802,7 @@ export const FARM_CARDS: FarmCardDef[] = [
       memoSet(c, `b5-${k.id}`, 1);
       if (i !== 0) return `${k.name}은(는) 제 포지션에서 기다립니다`;
       const to = cd.id.split('|')[1] as BatPos;
-      const pen = Math.min(F.convPen, k.def - 20);
+      const pen = convPen(k);
       k.posShift = { from: k.pos, pen, until: c.day + F.convGames };
       k.pos = to;
       k.def -= pen;
@@ -723,8 +825,22 @@ export const FARM_CARDS: FarmCardDef[] = [
         pid: k.id,
         body: `${info(k)}이 퓨처스에서 ${farmLine(k)}. 팬 게시판이 "왜 안 올리느냐"로 뒤덮였습니다.`,
         choices: [
-          { label: '여론대로 올린다', desc: `팬 만족 ${sgn(F.hypeSat)} · ${k.name} ${k.kind === 'B' ? `${F.hypeGames}경기 고정 출전` : `${cur.name}의 보직`} · ${upDesc(k, cur, down)}`, disabled: noRoom(c, down) },
-          { label: '기다린다', desc: `팬 만족 ${sgn(F.hypeWaitSat)} · 2군 주당 성장 확률 ${pctTxt(farmGrow(c.facilities))} 유지` },
+          {
+            label: '여론대로 올린다',
+            desc: `팬 만족도 ${sgn(F.hypeSat)} · ${upDesc(k, cur)}`,
+            disabled: noRoom(c, down),
+            detail: {
+              rows: [rowSat(c, F.hypeSat), ...upRows(k, cur, down)],
+              pids: [k.id, cur.id, ...(down ? [down.id] : [])],
+              compare: [k.id, cur.id],
+              lasts: k.kind === 'B' ? `고정 출전 ${F.hypeGames}경기 (뒤에 ${cur.name} 복귀)` : `${cur.name}의 보직을 맡는다`,
+            },
+          },
+          {
+            label: '기다린다',
+            desc: `팬 만족도 ${sgn(F.hypeWaitSat)} · 2군 성장 계속`,
+            detail: { rows: [rowSat(c, F.hypeWaitSat), rowOvr(`${posKo(cur.kind === 'B' ? k.pos : cur.pos)} 주전`, cur.ovr, cur.ovr), growRow(c, k), rowInfo('잠재력까지', `${Math.max(0, k.pot - k.ovr)}`)], ...pair(k, cur) },
+          },
         ],
       });
     },
@@ -758,16 +874,43 @@ export const FARM_CARDS: FarmCardDef[] = [
       const { p, loss, alt } = x;
       const room = Math.max(0, p.pot - p.ovr);
       const back = c.season + F.armySeasons;
-      const cost = p.farm ? '1군 전력 변화 없음' : loss > 0 || alt ? `${posKo(p.pos)} 주전 공백: OVR ${p.ovr} → ${alt?.ovr ?? '?'} (전력 ${sgn(-loss)})` : '1군 전력 변화 없음 (벤치)';
-      const gain = `복귀 때 OVR +${Math.round(room * F.armyLo)}~${Math.round(room * F.armyHi)} 예상`;
+      const gap: Row = p.farm ? rowInfo('1군 전력', '변화 없음 (2군)') : loss > 0 || alt ? rowInfo(`${posKo(p.pos)} 주전`, `${alt ? `${alt.name} ${alt.ovr}` : '공백'} (${sgn(-loss)})`, `${p.name} ${p.ovr}`, loss > 0 ? 'bad' : 'info') : rowInfo('1군 전력', '변화 없음 (벤치)');
+      const gain = `복귀 때 오버롤 +${Math.round(room * F.armyLo)}~${Math.round(room * F.armyHi)}`;
       return mk('f-army', 'fArmy', {
-        title: '입대 통지',
+        title: '군 입대',
         icon: '🪖',
         pid: p.id,
         body: `${info(p)}에게 입영 통지서가 나왔습니다.${p.farm ? ' 지금은 2군에 있습니다.' : ''}`,
         choices: [
-          { label: '지금 보낸다', desc: `오늘부터 이탈 · ${back}시즌 개막 복귀 (${p.age + F.armySeasons}세) · 그동안 연봉 없음 · ${gain} · ${cost}` },
-          { label: '한 시즌 미룬다', desc: `내년 ${F.armyDay}경기 뒤 선택 없이 입대 · ${back + 1}시즌 개막 복귀 (${p.age + 1 + F.armySeasons}세) · 올해는 그대로 뛴다` },
+          {
+            label: '지금 보낸다',
+            desc: `${back}시즌 개막 복귀 · ${gain}`,
+            detail: {
+              rows: [
+                rowInfo('이탈', '오늘부터', undefined, 'bad'),
+                rowInfo('복귀', `${back}시즌 개막 (${p.age + F.armySeasons}세)`),
+                rowInfo('복귀 때 오버롤', `${p.ovr + Math.round(room * F.armyLo)}~${p.ovr + Math.round(room * F.armyHi)} 예상`, `${p.ovr}`, 'good'),
+                rowPayroll(c, -p.salary),
+                gap,
+              ],
+              ...pair(p, alt),
+              lasts: `${F.armySeasons}시즌`,
+            },
+          },
+          {
+            label: '한 시즌 미룬다',
+            desc: `올해는 그대로 · 내년 ${F.armyDay}경기 뒤 입대`,
+            detail: {
+              rows: [
+                rowInfo('이탈', `내년 ${F.armyDay}경기 뒤 (미룰 수 없음)`, undefined, 'bad'),
+                rowInfo('복귀', `${back + 1}시즌 개막 (${p.age + 1 + F.armySeasons}세)`),
+                rowPayroll(c, 0),
+                rowInfo('올해 1군 전력', '변화 없음'),
+              ],
+              ...pair(p, alt),
+              lasts: `${F.armySeasons}시즌 (내년 시즌 중 이탈)`,
+            },
+          },
         ],
       });
     },
