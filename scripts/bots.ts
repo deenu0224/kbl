@@ -431,7 +431,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
         coverRotation(t);
       });
     if (name === 'sensible') c = farmMoves(c);
-    if (name === 'sensible' && !pre && c.day % 21 === 20) c = giveSpare(c, GIVE_MIDSEASON);
+    if (name === 'sensible' && !pre && c.day > 0 && c.day % 18 === 0) c = giveSpare(c, GIVE_MIDSEASON); // 주간 점검일(6의 배수) 가운데 3주에 한 번
     if (v.has('youth') && v.has('lineup') && c.campaign.stage >= 2) c = playYoung(c);
     return c;
   };
