@@ -373,7 +373,28 @@ export type BriefAction =
   | { t: 'rest'; pid: string; withPid: string } // 연투 투수와 쉰 투수의 보직 맞바꿈
   | { t: 'promote'; pid: string; slot: number } // 유망주를 주전으로
   | { t: 'repay' };
+/** 제안이 건드리는 대상과 방향: 선수 id(+1 = 주전에 넣기, −1 = 빼기) 또는 'price'(+1 = 인상, −1 = 인하) */
+export interface BriefMove {
+  t: string;
+  d: 1 | -1;
+}
+/** 제안 상세 시트의 재료 (제안을 만들 때 실행 전후를 계산해 둔다) */
+export interface BriefDetail {
+  parts?: { a: number[]; b: number[] }; // 전력 4칸 [타선, 수비, 선발, 불펜] 전 → 후
+  rows?: { label: string; a: string; b: string; tone?: 'good' | 'bad' }[]; // 전후 표
+  shifts?: { name: string; from: string; to: string }[]; // 편성: 누가 어느 자리에서 어디로
+  pid?: string; // 영입·방출 대상
+  vsPid?: string; // 영입으로 밀려나는 현재 주전
+}
+export interface BriefResult {
+  text: string; // 결과 줄 (실제)
+  label: string;
+  expect?: string; // 실행 시점의 예상 줄
+  parts?: { a: number[]; b: number[]; now: number[] }; // 전력 4칸: 실행 전 · 예상 · 지금
+}
 export interface BriefOffer {
+  moves?: BriefMove[]; // 번복 판정용
+  detail?: BriefDetail;
   id: string; // 같은 제안인지 가리는 키 ("sign:LF", "price:up" …)
   kind: string; // 종류 (같은 종류는 한 주에 한 장)
   who: CharId;
@@ -389,6 +410,7 @@ export interface Briefing {
   summary: string; // 지난 6경기 한 줄
   results: string[]; // 지난주 실행한 제안의 결과
   offers: BriefOffer[];
+  resultInfo?: BriefResult[]; // results 와 같은 순서의 상세
   alert?: string; // 조합장의 자금 경고 한 줄 (금고가 12경기 안에 빌 때만, 제안보다 위에)
 }
 /** 실행한 제안 (다음 주 브리핑의 결과 줄을 만들 재료) */
@@ -399,6 +421,9 @@ export interface BriefDone {
   label: string; // "영입 노성진"
   pid?: string;
   n?: number[]; // 실행 시점의 숫자들 (종류별 해석은 briefing.ts)
+  expect?: string; // 실행 시점의 예상 줄
+  parts?: number[]; // 실행 전 전력 4칸
+  partsExp?: number[]; // 실행 직후(예상) 전력 4칸
 }
 export interface BriefMemo {
   season: number;
@@ -406,6 +431,9 @@ export interface BriefMemo {
   done: BriefDone[];
   skipped: Record<string, number>; // 제안 id → 넘긴 경기일
   shown?: number; // 이번 시즌에 낸 제안 수 (실측용)
+  quiet?: Record<string, number>; // 종류 → 이 경기일부터 다시 낼 수 있다 (같은 종류 간격)
+  log?: { t: string; d: 1 | -1; day: number }[]; // 최근에 제안했거나 유저가 직접 한 조작의 대상·방향 (번복 금지)
+  state?: { price: number; seat: Record<string, string> }; // 지난 주 시점의 티켓값 · 주전(선수 id → 자리)
 }
 
 export interface SeasonVerdict {
