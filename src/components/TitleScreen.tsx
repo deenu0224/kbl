@@ -10,6 +10,8 @@ import { pickCore, useStore } from '../store';
 import { Flag, stageLabel } from './Campaign';
 import { hofCloseClub, useHof } from './hofStore';
 import { useUi } from './layout/uiStore';
+import { parseChallenge } from '../share/shareData';
+import { ShareClubButton } from './ShareSheet';
 
 const DEF = TEAM_DEFS.find((d) => d.id === USER_ID)!;
 export const NICK_DEFAULT = DEF.name;
@@ -102,12 +104,17 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
                     </span>
                     <span className={`shrink-0 ${c.end === 'champion' ? 'text-hi' : c.end === 'relocated' ? 'text-bad' : 'text-white/60'}`}>{HOF_END_KO[c.end]}</span>
                   </div>
-                  <div className="text-white/75">
-                    {c.seasons}시즌 · {stageLabel(c.stage)} · 우승 {c.titles}회 · ★ {c.stars}
-                  </div>
-                  <div className="flex justify-between gap-2 text-white/50">
-                    <span className="truncate">순위 {c.ranks.join('-')}</span>
-                    <span className="shrink-0">{c.date}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-white/75">
+                        {c.seasons}시즌 · {stageLabel(c.stage)} · 우승 {c.titles}회 · ★ {c.stars}
+                      </div>
+                      <div className="flex justify-between gap-2 text-white/50">
+                        <span className="truncate">순위 {c.ranks.join('-')}</span>
+                        <span className="shrink-0">{c.date}</span>
+                      </div>
+                    </div>
+                    <ShareClubButton club={c} />
                   </div>
                   {c.tainted && <div className="text-white/50">{SCANDAL_NEWS.tainted}</div>}
                 </div>
@@ -161,7 +168,7 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
 
 const VIEW = { x: 225, y: 40, w: 190, h: 95 }; // 전광판 둘레만 잘라 보여 준다
 
-function NickEntry({ onBack }: { onBack: () => void }) {
+function NickEntry({ onBack, seed }: { onBack: () => void; seed?: number }) {
   const [nick, setNick] = useState(NICK_DEFAULT);
   const name = nick.trim();
   const ok = name.length >= 1 && [...name].length <= NICK_MAX;
@@ -178,12 +185,14 @@ function NickEntry({ onBack }: { onBack: () => void }) {
       const core = pickCore(useStore.getState());
       if (hofWorthy(core)) hofCloseClub(core, 'abandoned');
     }
-    useStore.getState().newGame(name);
+    useStore.getState().newGame(name, seed);
+    // 도전 링크로 시작했으면 주소의 ?l= 을 지운다 (새로 고쳐도 다시 묻지 않게)
+    if (seed !== undefined) window.history.replaceState(null, '', window.location.pathname);
     useUi.setState({ hasSave: true, screen: 'game', tab: 'home', orderOpen: true, orderBase: null, orderEdit: null, draftPeek: false, eventHidden: null });
   };
   return (
     <div className="relative mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center gap-4" data-testid="nick-entry">
-      <div className="text-center text-[14px] text-white/75">구단 별칭을 정하세요</div>
+      <div className="text-center text-[14px] text-white/75">{seed !== undefined ? `공유받은 리그 #${seed.toString(36)} — 구단 별칭을 정하세요` : '구단 별칭을 정하세요'}</div>
       <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${VIEW.w} / ${VIEW.h}`, boxShadow: '0 0 0 2px #0f1420' }}>
         <div className="absolute" style={{ width: `${(STADIUM_W / VIEW.w) * 100}%`, left: `${(-VIEW.x / VIEW.w) * 100}%`, top: `${(-VIEW.y / VIEW.h) * 100}%`, aspectRatio: `${STADIUM_W} / ${STADIUM_H}`, containerType: 'inline-size' }}>
           <StadiumCanvas scene={scene} className="pixel absolute inset-0 block h-full w-full" />
@@ -236,6 +245,13 @@ export default function TitleScreen() {
   const setScreen = useUi((s) => s.setScreen);
   const setSettingsOpen = useUi((s) => s.setSettingsOpen);
   const [view, setView] = useState<'menu' | 'confirm' | 'nick' | 'hof'>('menu');
+  // 도전 링크(?l=시드)로 열었는가. [같은 리그로 시작]을 눌렀을 때만 그 시드를 쓴다
+  const [link] = useState(() => parseChallenge(window.location.search));
+  const [seed, setSeed] = useState<number | undefined>(undefined);
+  const begin = (s?: number) => {
+    setSeed(s);
+    setView(hasSave ? 'confirm' : 'nick');
+  };
   const team = useStore((s) => s.teams.find((t) => t.id === s.userId));
   const teams = useStore((s) => s.teams);
   const season = useStore((s) => s.season);
@@ -249,7 +265,7 @@ export default function TitleScreen() {
     <div className="fixed inset-0 z-[65] flex flex-col font-pixel text-[13px] select-none" style={safe} data-testid="title">
       <Backdrop dim={view === 'menu' ? 0.5 : 0.8} />
       {view === 'nick' ? (
-        <NickEntry onBack={() => setView('menu')} />
+        <NickEntry onBack={() => setView('menu')} seed={seed} />
       ) : (
         <div className="relative mx-auto flex w-full max-w-[420px] flex-1 flex-col land:max-w-[720px] land:flex-row land:items-center land:gap-6">
           <div className="flex flex-[5] flex-col items-center justify-center land:flex-1">
@@ -271,11 +287,20 @@ export default function TitleScreen() {
             </div>
           ) : (
             <div className="flex flex-[6] flex-col justify-center gap-3 land:flex-1 land:gap-2">
+              {link !== null && (
+                <div className="bg-panel p-2 text-center" style={{ boxShadow: '0 0 0 2px #0f1420, inset 0 0 0 2px #ffd84a' }} data-testid="challenge">
+                  <div className="text-[14px] leading-snug text-hi">공유받은 리그 #{link.toString(36)} 에 도전</div>
+                  <div className="mt-0.5 text-[13px] leading-snug text-white/60">같은 선수·같은 출발선에서 시작합니다</div>
+                  <button className="px-btn gold mt-2 min-h-11 w-full text-[15px]" data-testid="challenge-start" onClick={() => begin(link)}>
+                    같은 리그로 시작
+                  </button>
+                </div>
+              )}
               <button className={`${big} primary flex flex-col items-center justify-center !py-2 leading-tight`} data-testid="continue" disabled={!hasSave} onClick={() => setScreen('game')}>
                 이어하기
                 <span className="mt-0.5 text-[13px] text-white/75">{hasSave ? line : '저장된 구단이 없습니다'}</span>
               </button>
-              <button className={big} data-testid="new-game" onClick={() => setView(hasSave ? 'confirm' : 'nick')}>
+              <button className={big} data-testid="new-game" onClick={() => begin()}>
                 새로하기
               </button>
               <button className={big} data-testid="open-hof" onClick={() => setView('hof')}>

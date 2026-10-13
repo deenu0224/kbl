@@ -5,6 +5,7 @@ import StadiumCanvas, { STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
 import { useCore, useStore, useUserTeam } from '../store';
 import { sceneExtras } from '../game/campaign';
 import { Chronicle, Retired, StageTrail } from './Campaign';
+import { ShareButton } from './ShareSheet';
 import { SectionTitle } from './ui';
 
 /** 도민 지지 0: 연고 이전. 구단사와 지나온 장을 보여주고 새 게임으로. */
@@ -70,7 +71,8 @@ export default function GameOver() {
           </>
         )}
 
-        <div className="mt-4 flex justify-end mob:sticky mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
+        <div className="mt-4 flex justify-end gap-3 mob:sticky mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
+          <ShareButton kind="relocated" />
           <button
             className="px-btn primary min-h-11 !px-6 text-[14px] mob:flex-1"
             onClick={() => {

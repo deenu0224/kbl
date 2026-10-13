@@ -82,7 +82,7 @@ export interface Store extends Core {
   draftSkip(): void;
   finishDraft(): void; // 드래프트가 끝났으면 다음 시즌 개막 (= startNextSeason)
   clearHint(tab: HintTab): void; // 탭을 열었을 때 배지를 지운다
-  newGame(nickname?: string): void;
+  newGame(nickname?: string, seed?: number): void;
   loadSave(core: Core, version: number): void; // 가져온 세이브로 덮어쓴다
   setPenStyle(style: PenStyle): void; // 불펜 운영 방침 (campaign.penStyle)
   setFarmAuto(v: boolean): void; // 2군 자동 운영 (campaign.farmAuto)
@@ -119,7 +119,7 @@ export function pickCore(s: Core): Core {
 }
 
 const rng = Math.random;
-const freshCore = (nickname?: string): Core => ensureObjectives(newCore(Date.now(), nickname), rng);
+const freshCore = (nickname?: string, seed?: number): Core => ensureObjectives(newCore(seed ?? Date.now(), nickname), rng);
 /** 경기 진행이 가능한 상태인지 (불가하면 사유) */
 function playBlock(s: Core): string | null {
   if (s.campaign?.event) return '이벤트 카드를 먼저 처리하세요';
@@ -527,9 +527,9 @@ export const useStore = create<Store>()(
           set({ ...pickCore(refreshBriefing(res.core)), ...(r.run.t === 'seats' ? { fx: { kind: 'seats' as const, key: ++seq } } : {}) });
           return null;
         },
-        newGame(nickname) {
+        newGame(nickname, seed) {
           set({
-            ...freshCore(nickname),
+            ...freshCore(nickname, seed),
             playback: null,
             summary: null,
             fx: null,
