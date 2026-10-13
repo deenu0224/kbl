@@ -385,6 +385,7 @@ export interface Campaign {
   briefMemo?: BriefMemo; // 주간 브리핑의 기억: 지난주 수치 · 실행한 제안 · 넘긴 제안
   resignQueue?: string[]; // 스토브리그 재계약 대기열: FA 자격을 얻은 선수 id (contract.ts drawResign 이 채우고 카드로 하나씩 처리)
   farmAuto?: boolean; // 2군 자동 운영 (undefined = 켜짐). farm.ts
+  penStyle?: 'trust' | 'balance' | 'swarm'; // 불펜 운영 방침 (undefined = 균형). sim.ts
   away?: Player[]; // 팀을 떠나 있는 선수 (입대). 각 선수의 away.until 시즌 개막에 돌아온다
   posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)
 }
@@ -429,6 +430,7 @@ export interface BriefOffer {
   state?: 'done' | 'skipped';
   rescue?: { t: 'release'; pid: string } | { t: 'borrow' }; // 자금 대응 제안: 있으면 action 대신 이것을 실행한다 (runway.ts)
   farm?: { up?: string; down?: string }; // 2군 이동 제안: 있으면 action 대신 내려보내기 → 콜업 순으로 실행한다
+  penStyle?: 'trust' | 'balance' | 'swarm'; // 불펜 운영 방침 변경 제안: 있으면 action 대신 방침을 바꾼다
 }
 export interface Briefing {
   day: number; // 이 경기일 직전에 열렸다

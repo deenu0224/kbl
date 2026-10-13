@@ -1,6 +1,7 @@
 // 주간 브리핑: 6경기마다 스태프가 "실행 가능한 제안"을 예상 숫자와 함께 들고 온다.
 // 순수 함수만 — 난수를 쓰지 않는다(브리핑은 경기 로직의 수치를 바꾸지 않는다). 실행은 season.ts 의 기존 액션을 재사용한다.
 import type { BatPos, BriefDetail, BriefDone, BriefMemo, BriefMove, BriefOffer, BriefResult, Briefing, CharId, Core, Player, Team } from './types';
+import { SIM, rotPenGap, type PenStyle } from './sim';
 import { teamParts, type TeamParts } from './ratings';
 import { BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, FOOD_LV, LOAN_RATE, LOAN_STEP, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SEAT_LV, TRAIN_LV, activeRoster, farmRoster, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
@@ -293,6 +294,31 @@ function penOffer(core: Core): Cand | null {
   const out = runway(r.core).cashOut;
   if (out !== null && out <= SIGN_RUNWAY_MIN) return null;
   return offer(40, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: FA ${fa.name}(OVR ${fa.ovr}) 영입 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명 · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))}${cashTail(core, r.core)}`, { t: 'sign', pid: fa.id }, undefined, [{ t: fa.id, d: 1 }]);
+}
+
+const STYLE_KO: Record<PenStyle, string> = { trust: '믿음', balance: '균형', swarm: '벌떼' };
+const styleMove = (style: PenStyle, d: 1 | -1): BriefMove => ({ t: `penStyle:${style}`, d });
+
+/** 불펜 운영 방침을 바꾼다. 유저가 고른 방침은 6주 동안 되돌리자고 하지 않는다 (번복 금지 기록) */
+export function changePenStyle(core0: Core, style: PenStyle): Core {
+  const m = memoOf(core0);
+  return { ...core0, campaign: { ...core0.campaign, penStyle: style, briefMemo: { ...m, log: withLog(m, core0.day, [styleMove(style, 1)]) } } };
+}
+
+/** 투수 코치: 방침과 로스터가 어긋나면 한 장 — 벌떼인데 불펜이 얇으면 구원 콜업(없으면 균형으로), 믿음인데 선발이 불펜보다 약하면 균형으로 */
+function penStyleOffer(core: Core): Cand | null {
+  const t = userTeam(core);
+  const style = core.campaign.penStyle ?? 'balance';
+  const arms = bullpenLoad(t).arms;
+  if (style === 'swarm' && arms < SIM.AI_SWARM_ARMS) {
+    const line = `벌떼인데 불펜 ${arms}명입니다. 이 인원으로는 팔이 남아나지 않습니다.`;
+    const up = arms === SIM.AI_SWARM_ARMS - 1 && activeRoster(t).length < ROSTER_MAX ? shuttleArms(core)[0] : undefined;
+    if (up && !callUp(core, up.id).error) return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, `벌떼인데 불펜 ${arms}명: 과부하 위험 — 구원 1명 콜업: 2군 ${up.name}(OVR ${up.ovr}) · 불펜 ${arms} → ${arms + 1}명`, { t: 'fix' }, undefined, [{ t: up.id, d: 1 }]), farm: { up: up.id } };
+    return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, `벌떼인데 불펜 ${arms}명: 과부하 위험 — 균형으로`, { t: 'fix' }, undefined, [styleMove('swarm', -1)]), penStyle: 'balance' };
+  }
+  if (style === 'trust' && (rotPenGap(t)?.gap ?? 0) <= -SIM.AI_STYLE_GAP)
+    return { ...offer(42, 'penStyle', 'penStyle', 'pitching', '믿음인데 선발이 불펜보다 약합니다. 오래 끌수록 점수를 줍니다.', `믿음인데 선발 평균 OVR 이 불펜보다 ${SIM.AI_STYLE_GAP} 이상 낮음 — 균형으로`, { t: 'fix' }, undefined, [styleMove('trust', -1)]), penStyle: 'balance' };
+  return null;
 }
 
 /** 감독: 고칠 곳(칩)을 한 번에. 투수 코치: 연투한 팔을 뒤로 */
@@ -610,6 +636,8 @@ function resultLine(core: Core, d: BriefDone): string | null {
       const inc = Math.round(att * (n[3] / 10) - n[1] * (n[2] / 10));
       return `지난주 ${d.label}: 홈 ${home.length}경기 경기당 입장 수입 ${signMoney(inc)} · 관중 ${sign(att - n[1], '명')}`;
     }
+    case 'penStyle':
+      return `지난주 ${d.label}: 이후 ${rec} · 불펜 ${bullpenLoad(userTeam(core)).label}`;
     case 'fix':
       return `지난주 ${d.label}: 이후 ${rec} · ${PART_NAME.map(([k, l], i) => ({ l, a: n[i], b: parts[k] })).filter((x) => x.a !== x.b).slice(0, 2).map((x) => `${x.l} ${x.a} → ${x.b}`).join(' · ') || `타선 ${parts.bat} 그대로`}`;
     case 'rest':
@@ -752,7 +780,7 @@ export function weeklyBriefing(core: Core): Briefing {
     home.length ? `평균 관중 ${fmtInt(avg(home))}` : '홈경기 없음',
   ].join(' · ');
 
-  const cands = [scoutOffer(core, m), marketingOffer(core), ...fieldOffers(core), penOffer(core), farmOffer(core), chairOffer(core)].filter((c): c is Cand => !!c);
+  const cands = [scoutOffer(core, m), marketingOffer(core), ...fieldOffers(core), penOffer(core), penStyleOffer(core), farmOffer(core), chairOffer(core)].filter((c): c is Cand => !!c);
   const themed = STAGE_WHO[Math.min(core.campaign.stage, STAGE_WHO.length - 1)] ?? [];
   const kinds = new Set<string>();
   const picked: Cand[] = [];
@@ -840,6 +868,9 @@ function applyOffer(core0: Core, o: BriefOffer): { core: Core; error?: string; d
     if (r.error) return { core: core0, error: r.error };
     core = r.core;
     done = { ...mk(p ? `방출 ${p.name}` : '대출'), kind: 'rescue' };
+  } else if (o.penStyle && !o.farm) {
+    core = { ...structuredClone(core0), campaign: { ...structuredClone(core0.campaign), penStyle: o.penStyle } };
+    done = { ...mk(`불펜 방침 ${STYLE_KO[o.penStyle]}`), kind: 'penStyle' };
   } else if (o.farm) {
     const up = o.farm.up ? t0.roster.find((x) => x.id === o.farm!.up) : undefined;
     const down = o.farm.down ? t0.roster.find((x) => x.id === o.farm!.down) : undefined;

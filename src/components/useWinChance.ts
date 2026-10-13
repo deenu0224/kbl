@@ -36,6 +36,7 @@ export function useWinChance(on = true): number | null {
   const day = useStore((s) => s.day);
   const phase = useStore((s) => s.phase);
   const busy = useStore((s) => !!s.playback);
+  const penStyle = useStore((s) => s.campaign.penStyle);
   const [pct, setPct] = useState<number | null>(null);
   const live = on && !busy && (phase === 'season' || phase === 'post');
   useEffect(() => {
@@ -53,6 +54,6 @@ export function useWinChance(on = true): number | null {
     };
     cancel = idle(run);
     return () => cancel();
-  }, [team, day, phase, live]);
+  }, [team, day, phase, live, penStyle]);
   return pct;
 }

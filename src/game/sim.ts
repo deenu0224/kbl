@@ -1,4 +1,4 @@
-import type { BatPos, EvType, GameEvent, GameResult, Player, Team } from './types';
+import type { BatPos, Campaign, EvType, GameEvent, GameResult, Player, Team } from './types';
 import { clamp, randInt, type Rng } from './rng';
 import { effDef } from './ratings';
 import { slotValue } from './lineup';
@@ -74,8 +74,27 @@ export const SIM = {
   FAT_CTL: 2.0,
   SP_HOOK_RUNS: 6, // 선발 즉시 강판 실점
   RP_HOOK_RUNS: 3,
-  TIRED_1: 4, // 연투 피로: 전날 던진 불펜 구위 하락
-  TIRED_2: 9, // 2일 연속 던진 뒤 (3연투째)
+  TIRED_1: 13, // 연투 피로: 전날 던진 불펜 구위 하락
+  TIRED_2: 26, // 2일 연속 던진 뒤 (3연투째)
+  TIRED_CTL_1: 6, // 연투 피로의 제구 하락
+  TIRED_CTL_2: 12,
+  TIRED_INJ_1: 1.6, // 연투 상태로 등판한 경기의 부상 확률 배율
+  TIRED_INJ_2: 2.5,
+  SHORT_BF: 4, // 구원이 한 경기에서 상대한 타자가 이 수 이하인 동안은 전력 투구
+  SHORT_STF: 3, // 전력 투구의 구위 가산
+  // 불펜 운영 방침 (믿음 / 균형 / 벌떼)
+  TRUST_SP_LIMIT: 4, // 믿음: 선발 교체 시점을 한계 타자 수보다 이만큼 늦춘다 (지치는 시점은 그대로 — 넘겨 던지는 타석은 구위가 떨어진다)
+  TRUST_SP_HOOK: 1, // 믿음: 선발 강판 실점 가산
+  TRUST_CORE: 2, // 믿음: 필승조 인원 (불펜 앞에서부터). 나머지 구원은 TRUST_REST 점 차 이상 뒤지거나 크게 벌어진 경기에서만
+  TRUST_REST: 3,
+  TRUST_CLOSER_INN: 8, // 믿음: 마무리가 이 이닝 도중부터 나설 수 있다 (4~5아웃 세이브)
+  SWARM_SP_LIMIT: -4, // 벌떼: 선발 교체 시점을 이만큼 당긴다 (타순 두 바퀴 반에서 교체)
+  SWARM_BF: 6, // 벌떼: 구원 1인당 최대 타자 수
+  SWARM_BF_TIGHT: 5, // 벌떼: 7회 이후 접전(SWARM_TIGHT 점 차 이내)에서는 이 타자 수에서 이닝 중에도 바꾼다
+  SWARM_TIGHT: 2,
+  SWARM_STF: 6, // 벌떼: 타순에 맞춰 끊어 넣는 구원의 전력 투구 가산 (SHORT_STF 에 더한다)
+  AI_STYLE_GAP: 4, // AI 구단: 선발 평균 OVR − 불펜 평균 OVR 이 이만큼 높으면 믿음, 낮으면(구원 AI_SWARM_ARMS 명 이상) 벌떼
+  AI_SWARM_ARMS: 7,
   CLOSER_MAX_TIRED: 1, // 마무리도 3연투는 하지 않는다: 이틀 연속 던졌으면 쉰 불펜이 9회를 맡는다 (쉰 팔이 없을 때만 나선다)
   BLOWOUT: 5, // 이 점수 차 이상이면 추격조 1명이 길게 던진다 (필승조를 아낀다)
   LONG_MULT: 2.2, // 그때의 한계 타자 수 배율
@@ -98,6 +117,8 @@ interface PState {
   starter: boolean;
   entryLead: number;
   tiredPen: number; // 연투 피로로 깎이는 구위
+  tiredCtl: number; // 연투 피로로 깎이는 제구
+  tired: number; // 등판 시점의 연투 일수 (구원)
 }
 interface Runner {
   b: Player;
@@ -121,6 +142,8 @@ interface Side {
   used: PState[];
   pen: Player[]; // 아직 안 쓴 불펜 (앞이 필승조)
   closer: Player | null;
+  style: PenStyle;
+  core: Set<string>; // 믿음 방침의 필승조
   def: number;
   misfit: number; // 낯선 자리에 선 야수들의 수비 페널티 합 중 MISFIT_FREE 초과분
   cDef: number; // 포수 수비 (도루 저지)
@@ -171,8 +194,35 @@ export function tiredPenalty(tired: number | undefined): number {
   const n = tired ?? 0;
   return n >= 2 ? SIM.TIRED_2 : n === 1 ? SIM.TIRED_1 : 0;
 }
+function tiredCtlPenalty(tired: number | undefined): number {
+  const n = tired ?? 0;
+  return n >= 2 ? SIM.TIRED_CTL_2 : n === 1 ? SIM.TIRED_CTL_1 : 0;
+}
 
-function makeSide(t: Team, isHome: boolean, rest?: Set<string>): Side {
+/** 불펜 운영 방침: 믿음(선발을 길게, 뒤는 필승조와 마무리) / 균형 / 벌떼(선발을 일찍 내리고 여럿이 짧게) */
+export type PenStyle = NonNullable<Campaign['penStyle']>;
+export const PEN_STYLES: PenStyle[] = ['trust', 'balance', 'swarm'];
+
+/** 선발 평균 OVR − 불펜(마무리 포함) 평균 OVR 과 불펜 인원. 어느 한쪽이 비면 null */
+export function rotPenGap(t: Team): { gap: number; arms: number } | null {
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const pick = (ids: (string | null)[]) => ids.map((id) => (id ? byId.get(id) : undefined)).filter((p): p is Player => !!p && p.kind === 'P' && !p.farm);
+  const avg = (ps: Player[]) => ps.reduce((s, p) => s + p.ovr, 0) / ps.length;
+  const sp = pick(t.rotation);
+  const pen = pick([...t.bullpen, t.closer]);
+  return sp.length && pen.length ? { gap: avg(sp) - avg(pen), arms: pen.length } : null;
+}
+
+/** 팀 구성에 맞는 방침 (AI 구단이 쓴다): 선발이 불펜보다 확실히 강하면 믿음, 불펜이 강하고 두터우면 벌떼 */
+export function autoPenStyle(t: Team): PenStyle {
+  const g = rotPenGap(t);
+  if (!g) return 'balance';
+  if (g.gap >= SIM.AI_STYLE_GAP) return 'trust';
+  if (g.gap <= -SIM.AI_STYLE_GAP && g.arms >= SIM.AI_SWARM_ARMS) return 'swarm';
+  return 'balance';
+}
+
+function makeSide(t: Team, isHome: boolean, rest: Set<string> | undefined, style: PenStyle): Side {
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const order = gameOrder(t);
   const fielders = order.filter((s) => s.pos !== 'DH');
@@ -206,7 +256,7 @@ function makeSide(t: Team, isHome: boolean, rest?: Set<string>): Side {
   const side: Side = {
     team: t, isHome, order, idx: 0,
     cur: undefined as unknown as PState,
-    used: [], pen, closer, def, misfit, cDef, runs: 0, hits: 0, line: [], lines: new Map(),
+    used: [], pen, closer, style, core: new Set(pen.slice(0, SIM.TRUST_CORE).map((p) => p.id)), def, misfit, cDef, runs: 0, hits: 0, line: [], lines: new Map(),
   };
   for (const s of order) {
     s.p.bat.g++;
@@ -221,7 +271,13 @@ function enter(side: Side, p: Player, starter: boolean, lead: number): void {
   const limit = starter
     ? (SIM.SP_LIMIT_BASE + p.sta * SIM.SP_LIMIT_STA) * (p.pos === 'SP' ? 1 : SIM.RP_AS_SP)
     : (SIM.RP_LIMIT_BASE + p.sta * SIM.RP_LIMIT_STA) * (Math.abs(lead) >= SIM.BLOWOUT ? SIM.LONG_MULT : 1);
-  const ps: PState = { p, bf: 0, outs: 0, runs: 0, so: 0, limit, starter, entryLead: lead, tiredPen: starter ? (p.pos === 'SP' ? 0 : SIM.RP_AS_SP_PEN) : tiredPenalty(p.tired) };
+  const asSp = starter ? (p.pos === 'SP' ? 0 : SIM.RP_AS_SP_PEN) : 0;
+  const ps: PState = {
+    p, bf: 0, outs: 0, runs: 0, so: 0, limit, starter, entryLead: lead,
+    tiredPen: starter ? asSp : tiredPenalty(p.tired),
+    tiredCtl: starter ? asSp : tiredCtlPenalty(p.tired),
+    tired: starter ? 0 : (p.tired ?? 0),
+  };
   p.pit.g++;
   if (starter) p.pit.gs++;
   side.cur = ps;
@@ -232,7 +288,7 @@ function enter(side: Side, p: Player, starter: boolean, lead: number): void {
 function manage(fld: Side, bat: Side, inning: number, atStart: boolean): void {
   const lead = fld.runs - bat.runs;
   const cur = fld.cur;
-  const over = cur.bf - cur.limit;
+  const over = cur.bf - cur.limit - (cur.starter ? (fld.style === 'trust' ? SIM.TRUST_SP_LIMIT : fld.style === 'swarm' ? SIM.SWARM_SP_LIMIT : 0) : 0);
   const tired = (p: Player) => p.tired ?? 0;
   if (atStart && inning >= 9 && lead >= 0 && lead <= 3 && fld.closer && cur.p !== fld.closer) {
     // 3연투 금지: 이틀 연속 던진 마무리는 쉰 불펜이 남아 있으면 내지 않는다
@@ -243,21 +299,37 @@ function manage(fld: Side, bat: Side, inning: number, atStart: boolean): void {
       return;
     }
   }
+  const long = cur.limit > SIM.RP_LIMIT_BASE + cur.p.sta * SIM.RP_LIMIT_STA; // 크게 벌어진 경기에 길게 던지러 나온 구원
   let need: boolean;
-  if (atStart) {
+  if (fld.style === 'swarm' && !cur.starter && !long) {
+    // 벌떼: 구원은 짧게 끊어 던진다. 다음 이닝을 맡기지 않고, 접전에서는 이닝 중에도 바꾼다
+    const tight = inning >= 7 && Math.abs(lead) <= SIM.SWARM_TIGHT;
+    if (atStart) need = cur.bf >= 4;
+    else need = cur.runs >= SIM.RP_HOOK_RUNS || cur.bf >= (tight ? SIM.SWARM_BF_TIGHT : SIM.SWARM_BF);
+  } else if (atStart) {
     if (cur.starter) need = over >= -3;
     // 한 이닝을 막은 구원: 6회까지, 그리고 승부가 기운 경기(CALM 점 차 이상)에서는 한계 타자 수까지 이어 던진다
     else need = over >= 0 || (cur.outs >= 3 && !((inning <= 6 || Math.abs(lead) >= SIM.CALM) && cur.bf + 4 <= cur.limit));
   } else {
-    need = cur.starter ? cur.runs >= SIM.SP_HOOK_RUNS || over >= 5 : cur.runs >= SIM.RP_HOOK_RUNS + (cur.limit > SIM.RP_LIMIT_BASE + cur.p.sta * SIM.RP_LIMIT_STA ? 2 : 0) || over >= 3;
+    need = cur.starter ? cur.runs >= SIM.SP_HOOK_RUNS + (fld.style === 'trust' ? SIM.TRUST_SP_HOOK : 0) || over >= 5 : cur.runs >= SIM.RP_HOOK_RUNS + (long ? 2 : 0) || over >= 3;
   }
   if (!need) return;
   let next: Player | undefined;
-  if (fld.pen.length) {
+  const rest = fld.style === 'trust' && (lead <= -SIM.TRUST_REST || lead >= SIM.BLOWOUT); // 믿음: 필승조를 아끼는 점수 차
+  if (fld.style === 'trust' && fld.closer && tired(fld.closer) < 2 && inning >= SIM.TRUST_CLOSER_INN && lead >= 1 && lead <= 3 && (inning >= 9 || !atStart)) {
+    // 믿음: 8회 도중의 위기는 마무리가 끊는다 (4~5아웃 세이브)
+    next = fld.closer;
+    fld.closer = null;
+  } else if (fld.style === 'trust' && !rest && fld.pen.some((p) => fld.core.has(p.id) && tired(p) < 2)) {
+    // 믿음: 승부가 걸린 이닝은 필승조만 맡는다 (전날 던졌어도 나선다)
+    next = fld.pen.find((p) => fld.core.has(p.id) && tired(p) < 2)!;
+    fld.pen.splice(fld.pen.indexOf(next), 1);
+  } else if (fld.pen.length) {
     // 접전 후반은 필승조부터, 그 외에는 추격조부터. 이틀 연속 던진 팔(3연투째)은 쉰 팔이 하나도 없을 때만 낸다
-    const key = inning >= 7 && lead >= -2 && lead < SIM.BLOWOUT;
+    const key = inning >= 7 && lead >= -2 && lead < SIM.BLOWOUT && !rest;
     const order = key ? fld.pen : fld.pen.slice().reverse();
-    next = (key ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2);
+    // (벌떼는 접전에서도 쉰 팔부터 — 여럿이 돌아가며 던진다)
+    next = (key && fld.style !== 'swarm' ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2);
     // 불펜이 전부 이틀 연속 던졌으면: 덜 지친 마무리가 남아 있으면 그가, 아니면 가장 덜 지친 팔이 나선다
     if (!next && fld.closer && tired(fld.closer) < 2) {
       next = fld.closer;
@@ -279,10 +351,11 @@ export function simulateGame(
   home: Team,
   away: Team,
   rng: Rng,
-  opts: { track: boolean; injMult?: Record<string, number>; focusId?: string; rest?: Set<string>; awayEdge?: Record<string, number> },
+  opts: { track: boolean; injMult?: Record<string, number>; focusId?: string; rest?: Set<string>; awayEdge?: Record<string, number>; penStyle?: Record<string, PenStyle> },
 ): GameResult {
-  const H = makeSide(home, true, opts.rest);
-  const A = makeSide(away, false, opts.rest);
+  // 방침을 따로 주지 않은 팀(AI 구단)은 팀 구성으로 고른다
+  const H = makeSide(home, true, opts.rest, opts.penStyle?.[home.id] ?? autoPenStyle(home));
+  const A = makeSide(away, false, opts.rest, opts.penStyle?.[away.id] ?? autoPenStyle(away));
   const track = opts.track;
   const cands: Cand[] = [];
   let seq = 0;
@@ -365,9 +438,9 @@ export function simulateGame(
 
       // ── 타석 확률 ──
       const fat = Math.max(0, ps.bf - ps.limit);
-      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - ps.tiredPen);
+      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - ps.tiredPen + (!ps.starter && ps.bf <= SIM.SHORT_BF ? SIM.SHORT_STF + (fld.style === 'swarm' ? SIM.SWARM_STF : 0) : 0));
       const stf = norm(stfRaw);
-      const ctl = norm(Math.max(20, ps.p.ctl - fat * SIM.FAT_CTL - (ps.starter ? ps.tiredPen : 0)));
+      const ctl = norm(Math.max(20, ps.p.ctl - fat * SIM.FAT_CTL - ps.tiredCtl));
       const pBB = clamp((SIM.BB * Math.pow(norm(b.eye), SIM.BB_EYE)) / Math.pow(ctl, SIM.BB_CTL), 0.02, 0.28);
       const pK = clamp((SIM.K * Math.pow(stf, SIM.K_STF)) / Math.pow(norm(b.con), SIM.K_CON), 0.04, 0.45);
       const pHR = clamp((SIM.HR * Math.pow(norm(b.pow), SIM.HR_POW)) / Math.pow(stf, SIM.HR_STF), 0.001, 0.13);
@@ -661,9 +734,11 @@ export function simulateGame(
   for (const side of [A, H]) {
     const mult = opts.injMult?.[side.team.id] ?? 1;
     const played = [...side.order.map((s) => s.p), ...side.used.map((u) => u.p)];
+    // 연투 상태로 등판한 구원은 다치기 쉽다
+    const tiredInj = new Map(side.used.map((u) => [u.p.id, u.tired >= 2 ? SIM.TIRED_INJ_2 : u.tired === 1 ? SIM.TIRED_INJ_1 : 1]));
     for (const p of played) {
       if (p.injury > 0) continue;
-      if (rng() < SIM.INJ_RATE * mult) {
+      if (rng() < SIM.INJ_RATE * mult * (tiredInj.get(p.id) ?? 1)) {
         const games = randInt(rng, 3, 16);
         p.injury = games;
         result.injuries.push({ pid: p.id, name: p.name, teamId: side.team.id, games });

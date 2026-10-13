@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { changePenStyle } from './game/briefing';
+import type { PenStyle } from './game/sim';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { HintTab, Core, DayReport, FacilityKind, Player, PostRound, Team } from './game/types';
@@ -76,6 +78,7 @@ export interface Store extends Core {
   clearHint(tab: HintTab): void; // 탭을 열었을 때 배지를 지운다
   newGame(nickname?: string): void;
   loadSave(core: Core, version: number): void; // 가져온 세이브로 덮어쓴다
+  setPenStyle(style: PenStyle): void; // 불펜 운영 방침 (campaign.penStyle)
   setFarmAuto(v: boolean): void; // 2군 자동 운영 (campaign.farmAuto)
   setTab(side: 'left', tab: LeftTab): void;
   setTab(side: 'right', tab: RightTab): void;
@@ -480,6 +483,9 @@ export const useStore = create<Store>()(
         },
         loadSave(core, version) {
           set({ ...pickCore(migrateSave(structuredClone(core), version)), playback: null, summary: null, fx: null, lastReport: null, toast: mkToast('세이브를 불러왔습니다', 'good') });
+        },
+        setPenStyle(style) {
+          set({ campaign: changePenStyle(pickCore(get()), style).campaign });
         },
         setFarmAuto(v) {
           set({ campaign: { ...get().campaign, farmAuto: v } as Core['campaign'] });

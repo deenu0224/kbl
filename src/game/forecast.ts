@@ -2,6 +2,8 @@ import type { Core, Team } from './types';
 import { mulberry32 } from './rng';
 import { playGame } from './season';
 import { postMatch } from './postseason';
+import { bullpenLoad } from './fixes';
+import type { PenStyle } from './sim';
 
 /** 다음 유저 경기의 두 팀 (정규시즌은 오늘 대진, 포스트시즌은 다음 시리즈 경기) */
 function nextGame(core: Core): { home: Team; away: Team } | null {
@@ -37,7 +39,7 @@ function lineupKey(core: Core, home: Team, away: Team): string {
       t.nextStarter,
       t.roster.map((p) => `${p.id}${p.ovr}${p.injury ? `i${p.injury}` : ''}${p.tired ? `t${p.tired}` : ''}`).join(','),
     ].join('|');
-  return `${core.seed}/${core.season}/${core.phase}/${core.day}/${side(home)}/${side(away)}`;
+  return `${core.seed}/${core.season}/${core.phase}/${core.day}/${core.campaign?.penStyle ?? ''}/${side(home)}/${side(away)}`;
 }
 
 const cache = new Map<string, number>();
@@ -83,6 +85,80 @@ export function winChanceJob(core: Core, n = 120): (k: number) => number | null 
     const v = pts / n;
     if (!cache.has(key) && cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
     cache.set(key, v);
+    return v;
+  };
+}
+
+// ───────── 불펜 운영 방침 미리 보기 ─────────
+
+export interface PenForecast {
+  win: number; // 승률 0~1 (무승부 0.5)
+  ra: number; // 경기당 실점
+  spIp: number; // 선발 평균 이닝
+  relief: number; // 경기당 구원 등판 수
+  over: number; // 불펜 과부하로 맞은 경기의 비율 0~1
+}
+
+export const PEN_OVER_RISK = 0.25; // 과부하 비율이 이 이상이면 위험 표시
+
+const penCache = new Map<string, PenForecast>();
+
+/**
+ * 유저 팀이 지금 로스터·오더로 방침 style 을 쓸 때의 예상. 다음 12경기의 실제 상대를 돌아가며 n 경기를
+ * 이어서 치러 연투가 쌓이게 한다 (상대는 매 경기 쉰 상태, 유저 팀의 부상은 쌓지 않는다).
+ * 원본 core 는 건드리지 않고, 난수는 경기 번호별로 고정해 세 방침을 같은 운에서 비교한다.
+ * winChanceJob 처럼 나눠 돌린다: 부를 때마다 최대 k 경기, 다 채우기 전에는 null.
+ */
+export function penStyleJob(core: Core, style: PenStyle, n = 120): (k: number) => PenForecast | null {
+  const me0 = core.teams.find((t) => t.id === core.userId);
+  const none: PenForecast = { win: 0.5, ra: 0, spIp: 0, relief: 0, over: 0 };
+  if (!me0 || n <= 0) return () => none;
+  // 상대: 다음 12경기 일정 (없으면 나머지 구단 전부)
+  const opps: { id: string; home: boolean }[] = [];
+  if (core.phase === 'season') {
+    for (let d = core.day; d < core.schedule.length && opps.length < 12; d++) {
+      const m = core.schedule[d].find((g) => g.homeId === core.userId || g.awayId === core.userId);
+      if (m) opps.push({ id: m.homeId === core.userId ? m.awayId : m.homeId, home: m.homeId === core.userId });
+    }
+  }
+  if (!opps.length) core.teams.forEach((t, i) => t.id !== core.userId && opps.push({ id: t.id, home: i % 2 === 0 }));
+  if (!opps.length) return () => none;
+  const key = `${n}/${style}/${opps.map((o) => o.id).join(',')}/${lineupKey(core, me0, me0)}`;
+  const hit = penCache.get(key);
+  if (hit) return () => hit;
+  const shell: Core = { ...core, campaign: { ...structuredClone(core.campaign), penStyle: style } };
+  const base = `${core.seed}/${core.season}/${core.phase}/${core.day}/pen`;
+  const me = structuredClone(me0);
+  const inj0 = new Map(me.roster.map((p) => [p.id, p.injury]));
+  const oppById = new Map(core.teams.map((t) => [t.id, t]));
+  let pts = 0, ra = 0, spOuts = 0, relief = 0, over = 0;
+  let i = 0;
+  return (k) => {
+    for (const end = Math.min(n, i + k); i < end; i++) {
+      const o = opps[i % opps.length];
+      const opp = structuredClone(oppById.get(o.id)!);
+      for (const p of opp.roster) delete p.tired;
+      if (bullpenLoad(me).label === '과부하') over++;
+      const g0 = new Map(me.roster.filter((p) => p.kind === 'P').map((p) => [p.id, { g: p.pit.g, outs: p.pit.outs }]));
+      const res = o.home ? playGame(shell, me, opp, mulberry32(hash(`${base}/${i}`)), false) : playGame(shell, opp, me, mulberry32(hash(`${base}/${i}`)), false);
+      const mine = o.home ? res.home : res.away;
+      const theirs = o.home ? res.away : res.home;
+      pts += mine > theirs ? 1 : mine === theirs ? 0.5 : 0;
+      ra += theirs;
+      const sid = res.starters[o.home ? 1 : 0];
+      for (const p of me.roster) {
+        const b = g0.get(p.id);
+        if (b && p.pit.g > b.g) {
+          if (p.id === sid) spOuts += p.pit.outs - b.outs;
+          else relief++;
+        }
+        p.injury = inj0.get(p.id) ?? 0;
+      }
+    }
+    if (i < n) return null;
+    const v: PenForecast = { win: pts / n, ra: ra / n, spIp: spOuts / n / 3, relief: relief / n, over: over / n };
+    if (penCache.size >= CACHE_MAX) penCache.delete(penCache.keys().next().value!);
+    penCache.set(key, v);
     return v;
   };
 }
