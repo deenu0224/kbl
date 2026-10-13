@@ -182,23 +182,26 @@ export function drawSubCard(core0: Core): Core {
   const core = structuredClone(core0);
   const t = userTeam(core);
   const q = subQueue(core);
-  while (q.length) {
+  let dropped = false;
+  while (q.length && !core.campaign.event) {
     const inj = t.roster.find((p) => p.id === q[0]);
     const cd = inj ? makeSubCard(core, inj) : null;
     if (cd) {
       core.campaign.event = cd;
-      subQueueSet(core, q);
       memoAdd(core, 'subN');
       addNews(core, `${cd.icon} ${CHARACTERS[cd.who as 'manager'].name} ${CHARACTERS[cd.who as 'manager'].title} — ${cd.title}: ${inj!.name}`, 'info');
-      return core;
+    } else {
+      q.shift();
+      dropped = true;
     }
-    q.shift();
   }
-  // 카드로 만들 수 없는 부상만 남았다: 자동 처리로 넘긴다
-  subQueueSet(core, []);
-  const notes: string[] = [];
-  ilAutoMut(core, notes);
-  subGapMut(core, notes);
+  subQueueSet(core, q);
+  // 카드로 만들 수 없는 부상(이미 편성에서 빠졌다)은 자동 처리로 넘긴다
+  if (dropped) {
+    const notes: string[] = [];
+    ilAutoMut(core, notes);
+    subGapMut(core, notes);
+  }
   return core;
 }
 
