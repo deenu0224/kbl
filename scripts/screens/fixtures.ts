@@ -75,7 +75,7 @@ const WANT: Record<string, Pred> = {
   endedDebt: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.debtOver,
   // 10구단 5단계: 빚더미 구단(첫 해 경고 / 지지 감소) · 경쟁균형세를 낸 결산 · 조합장의 빚더미 브리핑
   endedMoodWarn: (c) => c.phase === 'ended' && !c.campaign.event && c.campaign.verdict?.debtMood?.trust === 0,
-  endedMood: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.verdict?.debtMood?.trust ?? 0) < 0,
+  endedMood: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.verdict?.debtMood?.trust ?? 0) < 0 && !endingNow(c),
   endedLux: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.luxTax,
   briefMood: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing?.alert?.includes('이대로 마치면'),
   luxOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && luxTax(c).tax > 0,

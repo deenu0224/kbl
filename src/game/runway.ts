@@ -139,10 +139,12 @@ export function luxLine(core: Pick<Core, 'teams' | 'userId'>): { text: string; o
   return { text: `연봉 총액 ${fmtMoney(l.payroll)} / 경쟁균형세 상한 ${fmtMoney(l.cap)}${l.tax > 0 ? ` — 이대로 시즌을 마치면 제재금 ${fmtMoney(l.tax)}` : ''}`, over: l.tax > 0 };
 }
 /** 영입·재계약 줄: "연봉 총액 92억 → 101억 · 경쟁균형세 상한 95억 초과 — 시즌 말 제재금 3억 예상". add = 연봉 증가분. 실행 뒤에도 상한 안이면 null */
-export function luxPiece(core: Pick<Core, 'teams' | 'userId'>, add: number): string | null {
+export function luxPiece(core: Pick<Core, 'teams' | 'userId'>, add: number, short = false): string | null {
   const a = luxTax(core);
   const b = luxTax(core, add);
   if (!b.on || b.tax <= 0 || add <= 0) return null;
+  // short: 연봉 총액 변화가 바로 윗줄에 있는 자리(이적 창구 요약) — 한 줄에 들어가게 줄인다
+  if (short) return `경쟁균형세 상한 ${fmtMoney(b.cap)} 초과 — 제재금 ${fmtMoney(b.tax)} 예상`;
   return `연봉 총액 ${fmtMoney(a.payroll)} → ${fmtMoney(b.payroll)} · 경쟁균형세 상한 ${fmtMoney(b.cap)} 초과 — 시즌 말 제재금 ${a.tax > 0 ? `${fmtMoney(a.tax)} → ` : ''}${fmtMoney(b.tax)} 예상`;
 }
 

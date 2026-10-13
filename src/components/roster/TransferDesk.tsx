@@ -317,7 +317,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
     </div>
   );
   // 결과를 미리 말한다: 담은 대로 실행하면 연봉 총액이 경쟁균형세 상한을 넘는가 (10구단 리그)
-  const lux = luxPiece(core, pv.payroll.b - pv.payroll.a);
+  const lux = luxPiece(core, pv.payroll.b - pv.payroll.a, true);
   const money = (
     <>
       <Line label="연봉 총액/시즌" testid="sum-payroll">

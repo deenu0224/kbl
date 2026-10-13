@@ -110,7 +110,7 @@ export function luxOn(core: Pick<Core, 'teams'>): boolean {
 export function luxRule(core: Pick<Core, 'teams'>): string {
   const big = leagueSize(core) > BASE_TEAMS;
   const k = big ? LUX_TAX_BIG : LUX_TAX;
-  return `${big ? '우리를 뺀 ' : ''}리그 연봉 상위 ${k.top}구단 평균의 ${Math.round(k.capRate * 100)}%`;
+  return `${big ? '우리를 뺀 ' : ''}리그 연봉 상위 ${k.top}구단 평균의 ${Math.round(k.capRate * 100)}%${big && LUX_TAX_BIG.keep ? ' · 내려가지 않는다' : ''}`;
 }
 /** 경쟁균형세: 상한 · 유저 연봉 총액 · 낼 제재금 (꺼져 있으면 tax 0). add = 가정한 연봉 증가분(영입·재계약 미리 보기) */
 export function luxTax(core: Pick<Core, 'teams' | 'userId'> & Partial<Pick<Core, 'campaign' | 'season'>>, add = 0): LuxTax {
