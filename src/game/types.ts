@@ -363,6 +363,7 @@ export interface Campaign {
   opening?: string; // 장 시작 때 인물의 한 줄 (TopBar/캠페인 시트 표시용)
   briefing?: Briefing | null; // 대기 중인 주간 브리핑 (닫아야 다음 경기 진행)
   briefMemo?: BriefMemo; // 주간 브리핑의 기억: 지난주 수치 · 실행한 제안 · 넘긴 제안
+  posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)
 }
 // ───────── 주간 브리핑 (briefing.ts 가 만들고 해석한다) ─────────
 export type BriefAction =

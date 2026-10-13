@@ -31,10 +31,10 @@ const STAR_SIGN_MIN = 50; // 이 이상이어야 "스타 영입" 효과
 const SAT_BASE = 45;
 const SAT_CONVERGE = 0.15;
 const NOISE_SD = 0.06;
-const WEEK = 6;
+export const WEEK = 6;
 export const TRAIN_MAX_AGE = 28;
-const DECLINE_AGE = 33;
-const DECLINE_RATE = 0.06;
+export const DECLINE_AGE = 33;
+export const DECLINE_RATE = 0.06;
 const NEWS_MAX = 80;
 const RETIRE_AGE = 40;
 const FRANCHISE_LEAVE_FANS = 8; // 프랜차이즈 스타 방출·트레이드 시 팬 감소 = star × 이 값

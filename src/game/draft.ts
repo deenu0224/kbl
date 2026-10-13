@@ -24,9 +24,9 @@ const ORIGINS: { w: number; age: [number, number]; ovr: [number, number]; pot: [
   { w: 0.25, age: [20, 21], ovr: [47, 56], pot: [64, 80], tag: '얼리 드래프트' },
   { w: 0.35, age: [22, 22], ovr: [53, 62], pot: [55, 72], tag: '대졸 즉전감' },
 ];
-const SCOUT_NOISE = 5; // 스카우트 등급 산정 시 잠재력 노이즈(표준편차) — 스카우트 팀장의 옛날 눈
-const ANALYST_NOISE = 1.5; // 데이터 분석원을 채용하면
-const SCOUT_CUT: [number, 'A' | 'B' | 'C' | 'D'][] = [
+export const SCOUT_NOISE = 5; // 스카우트 등급 산정 시 잠재력 노이즈(표준편차) — 스카우트 팀장의 옛날 눈
+export const ANALYST_NOISE = 1.5; // 데이터 분석원을 채용하면
+export const SCOUT_CUT: [number, 'A' | 'B' | 'C' | 'D'][] = [
   [80, 'A'],
   [70, 'B'],
   [60, 'C'],
