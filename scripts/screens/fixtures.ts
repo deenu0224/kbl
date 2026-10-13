@@ -8,13 +8,13 @@ import { fileURLToPath } from 'node:url';
 import type { Core } from '../../src/game/types';
 import { mulberry32, type Rng } from '../../src/game/rng';
 import { newCore } from '../../src/game/generate';
-import { advanceDay, nextSeason, rankOf, standings } from '../../src/game/season';
+import { advanceDay, nextSeason, rankOf, signPlayer, standings } from '../../src/game/season';
 import { farmRoster, loanLimit, rehabRoster, userTeam } from '../../src/game/economy';
 import { ensureObjectives, STAGES } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
 import { drawStoveTrade, tradeOpen } from '../../src/game/trade';
 import { closeBriefing, drawBriefing } from '../../src/game/briefing';
-import { luxTax } from '../../src/game/economy';
+import { faSigned, luxTax } from '../../src/game/economy';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../../src/game/draft';
 import { drawResign } from '../../src/game/contract';
 import { postMatch } from '../../src/game/postseason';
@@ -208,6 +208,16 @@ outer: for (let seed = 1; seed <= SEED_MAX; seed++) {
 
 // 2군 자동 운영을 끈 부상 세이브: 선수 카드의 [부상자 명단으로] · 조치 시트의 "부상자 명단으로"
 if (found.injury) found.injuryManual = { ...found.injury, core: { ...structuredClone(found.injury.core), campaign: { ...structuredClone(found.injury.core.campaign), farmAuto: false, eventsSeen: found.injury.core.campaign.eventsSeen.filter((x) => !x.startsWith('~subdone-')) } } }; // 카드에서 고르지 않은 부상 (할 일에 뜬다)
+// FA 계약금 누진: 이번 시즌에 FA 를 이미 2명 영입한 뒤 (영입 시장·선수 카드·요약의 계약금에 배율이 보인다)
+if (found.season3) {
+  let core = structuredClone(found.season3.core);
+  core.finance.cash = Math.max(core.finance.cash, 300000);
+  for (const p of core.freeAgents.filter((x) => !x.foreign).sort((a, b) => a.salary - b.salary).slice(0, 2)) {
+    const r = signPlayer(core, p.id);
+    if (!r.error) core = r.core;
+  }
+  if (faSigned(core) >= 2) found.faHeat = { ...found.season3, core };
+}
 // 왕조 프로젝트: 왕조 장 픽스처에서 돔 단계만 바꿔 만든다 (봇이 12시즌 안에 돔까지 가지 못한다)
 const hofOf: Record<string, string> = {};
 if (found.dynasty) {

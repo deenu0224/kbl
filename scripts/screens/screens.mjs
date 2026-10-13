@@ -174,6 +174,11 @@ export const SCREENS = [
   S('desk-added', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }))),
   S('desk-summary', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), m('sum-toggle'))),
   S('desk-squad', 'season3', game(...DESK, m('side-squad'))),
+  // FA 계약금 누진: 이번 시즌 FA 2명 영입 뒤
+  S('desk-heat', 'faHeat', game(...DESK)),
+  S('desk-heat-table', 'faHeat', game(...DESK, 'view-toggle')),
+  S('desk-heat-card', 'faHeat', game(...DESK, 'css:[data-testid="browser-market"] [data-testid="player-list"] > * button')),
+  S('desk-heat-summary', 'faHeat', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), m('sum-toggle'))),
 
   // ── 리그
   S('league-table', 'season3', game('리그')),
