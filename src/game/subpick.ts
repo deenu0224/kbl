@@ -125,9 +125,10 @@ function managerLook(core: Core, inj: Player, role: SubRole): { name: string; pa
   return { name, parts: teamParts(t), up: orig?.farm ? orig : undefined, pids: [inj.id, ...(who ? [who.id] : [])] };
 }
 
-function planLabel(role: SubRole, pl: SubPlan): string {
+function planLabel(role: SubRole, pl: SubPlan, moverPos?: string): string {
   if (pl.type === 'callup') return `2군 ${pl.x.name} 콜업 (${posKo(pl.x.pos)} ${pl.x.ovr})`;
-  if (pl.mover && role.k === 'L') return `${pl.mover.name} → ${posKo(role.pos)}, ${pl.x.name} 투입`;
+  // 주전 한 명이 다친 자리로 옮기고, 그가 비운 자리에 벤치 선수가 들어간다
+  if (pl.mover && role.k === 'L') return `${pl.mover.name} ${posKo(role.pos)}로 · ${posKo(moverPos ?? pl.mover.pos)}엔 ${pl.x.name}`;
   return `${pl.x.name} (${posKo(pl.x.pos)} ${pl.x.ovr})`;
 }
 
@@ -143,14 +144,21 @@ export function makeSubCard(core: Core, inj: Player): EventCard | null {
     const after = partsAfter(t, inj, role, pl);
     const tail = pl.type === 'callup' ? ` · ${pl.out ? `${pl.out.name} 2군행` : '빈자리 사용'}` : '';
     const d = diffTxt(before, after);
+    const moverPos = pl.mover ? (t.lineup.find((x) => x.pid === pl.mover!.id)?.pos ?? pl.mover.pos) : undefined;
+    const shift = !!pl.mover && role.k === 'L';
     return {
-      label: planLabel(role, pl),
+      label: planLabel(role, pl, moverPos),
       desc: pl.type === 'callup' ? `${d.split(' · ')[0]}${tail}` : d,
       detail: {
         rows: [
           ...partRows(before, after),
-          rowInfo(roleKo(role), `${pl.x.name} ${pl.x.ovr}`, `${inj.name} ${inj.ovr}`, pl.x.ovr >= inj.ovr ? 'good' : 'bad'),
-          ...(pl.mover && role.k === 'L' ? [rowInfo(pl.mover.name, posKo(role.pos), posKo(t.lineup.find((s) => s.pid === pl.mover!.id)?.pos ?? pl.mover.pos))] : []),
+          // 자리별로 누가 서는지: 옮기는 안은 두 자리가 바뀐다
+          ...(shift
+            ? [
+                rowInfo(roleKo(role), `${pl.mover!.name} ${pl.mover!.ovr}`, `${inj.name} ${inj.ovr}`, pl.mover!.ovr >= inj.ovr ? 'good' : 'bad'),
+                rowInfo(posKo(moverPos as never), `${pl.x.name} ${pl.x.ovr}`, `${pl.mover!.name} ${pl.mover!.ovr}`, pl.x.ovr >= pl.mover!.ovr ? 'good' : 'bad'),
+              ]
+            : [rowInfo(roleKo(role), `${pl.x.name} ${pl.x.ovr}`, `${inj.name} ${inj.ovr}`, pl.x.ovr >= inj.ovr ? 'good' : 'bad')]),
           ...(pl.type === 'callup' ? [rowInfo(pl.x.name, '1군', '2군', 'good'), rowInfo('1군 자리', pl.out ? `${pl.out.name} 2군행` : '빈자리 사용', undefined, pl.out ? 'bad' : 'info')] : []),
         ],
         pids: [inj.id, pl.x.id, ...(pl.mover ? [pl.mover.id] : []), ...(pl.out ? [pl.out.id] : [])],
