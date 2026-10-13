@@ -149,7 +149,7 @@ export const STAGES: StageDef[] = [
 // STAGES 는 원년 8구단 리그의 값이다. 구단이 더 많은 리그에서 뜻이 달라지는 목표만 여기서 덮어쓴다 (8구단 세이브는 STAGES 그대로).
 
 const FAIL_TRUST_0_BIG = 20; // 0장 깃발 실패 시 도민 지지 감소 (구단이 8개보다 많은 리그)
-const RAINY_ATT_BIG = 7000; // 1장 별 "장마 구간 홈 평균 관중" (구단이 8개보다 많은 리그)
+const RAINY_ATT_BIG = 6800; // 1장 별 "장마 구간 홈 평균 관중" (구단이 8개보다 많은 리그)
 const ERA_RANK_8 = 2; // 3장 별 "팀 평균자책점 리그 n위 이내"의 8구단 기준
 const stageCache = new Map<number, StageDef[]>();
 
