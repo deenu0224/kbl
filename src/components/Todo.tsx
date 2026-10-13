@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { HintTab } from '../game/types';
+import type { RemedyGo } from '../game/remedy';
 import { todoList, type Todo, type TodoTab } from '../game/todo';
+import RemedySheet from './Remedy';
 import { useCore, useStore } from '../store';
 import { useIsMobile } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
@@ -16,10 +18,10 @@ export function useTodos(): Todo[] {
   return useMemo(() => todoList(core).filter((t) => !dismissed.includes(t.id)), [core, dismissed]);
 }
 
-/** 할 일을 누르면: 그 대상이 열린 화면으로 */
-export function useGoTodo(): (t: Todo) => void {
+/** 조치 시트의 "화면 열기": 그 대상이 열린 화면으로 */
+export function useGoScreen(): (to: RemedyGo, sub?: 'lineup' | 'pitchers') => void {
   const mobile = useIsMobile();
-  return (t) => {
+  return (to, sub) => {
     const ui = useUi.getState();
     const st = useStore.getState();
     const left = (sub: 'lineup' | 'pitchers') => {
@@ -31,9 +33,9 @@ export function useGoTodo(): (t: Todo) => void {
       else if (sub === 'league') ui.setTab('league');
       else useUi.setState({ tab: 'club', clubSub: sub });
     };
-    switch (t.action) {
+    switch (to) {
       case 'order':
-        left(t.hint === 'pitchers' ? 'pitchers' : 'lineup');
+        left(sub ?? 'lineup');
         ui.setDailyOpen(true);
         break;
       case 'pitchers':
@@ -61,6 +63,7 @@ export function useGoTodo(): (t: Todo) => void {
   };
 }
 
+/** 할 일 한 줄. 탭하면 조치 시트가 열린다 */
 function Line({ t, onGo, here = false }: { t: Todo; onGo: (t: Todo) => void; here?: boolean }) {
   const dismiss = useUi((s) => s.dismissTodo);
   return (
@@ -82,32 +85,41 @@ function Line({ t, onGo, here = false }: { t: Todo; onGo: (t: Todo) => void; her
 /** 홈의 "할 일" 카드: 최대 3줄 (+n). 항목이 없으면 카드도 없다 */
 export function TodoCard({ max = 3, className = '' }: { max?: number; className?: string }) {
   const todos = useTodos();
-  const go = useGoTodo();
-  if (!todos.length) return null;
+  const [open, setOpen] = useState<Todo | null>(null);
+  const sheet = open && <RemedySheet todo={open} onClose={() => setOpen(null)} />;
+  // 조치로 항목이 사라져도 시트는 결과("✓")를 보여 주고 스스로 닫힌다
+  if (!todos.length) return sheet || null;
   const rest = todos.length - max;
   return (
+    <>
     <div className={`px-panel flex shrink-0 flex-col gap-[3px] p-1.5 ${className}`} data-testid="todo-card">
       <div className="flex items-center justify-between px-0.5 text-[11px] text-white/55 mob:text-[12px]">
         <span>할 일 {todos.length}</span>
         {rest > 0 && <span data-testid="todo-more">+{rest}</span>}
       </div>
       {todos.slice(0, max).map((t) => (
-        <Line key={t.id} t={t} onGo={go} />
+        <Line key={t.id} t={t} onGo={setOpen} />
       ))}
     </div>
+    {sheet}
+    </>
   );
 }
 
 /** 탭 화면 맨 위: 그 탭에 속한 할 일을 한 줄씩. 확인 항목은 [×]로 닫는다 */
 export function TodoLines({ tab, hint, className = '' }: { tab?: TodoTab; hint?: HintTab; className?: string }) {
   const todos = useTodos().filter((t) => (tab ? t.tab === tab : true) && (hint ? t.hint === hint : true));
-  const go = useGoTodo();
-  if (!todos.length) return null;
+  const [open, setOpen] = useState<Todo | null>(null);
+  const sheet = open && <RemedySheet todo={open} onClose={() => setOpen(null)} />;
+  if (!todos.length) return sheet || null;
   return (
-    <div className={`flex shrink-0 flex-col gap-[3px] ${className}`} data-testid="todo-lines">
-      {todos.map((t) => (
-        <Line key={t.id} t={t} onGo={go} here />
-      ))}
-    </div>
+    <>
+      <div className={`flex shrink-0 flex-col gap-[3px] ${className}`} data-testid="todo-lines">
+        {todos.map((t) => (
+          <Line key={t.id} t={t} onGo={setOpen} here />
+        ))}
+      </div>
+      {sheet}
+    </>
   );
 }
