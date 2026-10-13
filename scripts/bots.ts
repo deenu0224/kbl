@@ -6,6 +6,7 @@ import {
   FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_LIMIT, LOAN_STEP, MERCH_K, ROSTER_MAX, SEAT_LV, TRAIN_LV,
   capacityOf, opsCost, payroll, previewDemand, refPrice, signingBonus, starPower, upgradeCost, userTeam,
 } from '../src/game/economy';
+import { GIVE_COST, buyProject, projectPreview, projectsOpen, type ProjectId } from '../src/game/projects';
 import { FOREIGN_MAX } from '../src/game/events';
 import { autoBatting, autoPitching, slotValue } from '../src/game/lineup';
 import { bullpenLoad } from '../src/game/fixes';
@@ -23,6 +24,53 @@ const THEME: Verb[][] = [['lineup', 'sign'], ['gate'], ['youth'], ['pitch'], ALL
 const themeOf = (c: Core) => THEME[Math.min(c.campaign.stage, THEME.length - 1)];
 
 const ok = (r: { core: Core; error?: string }, c: Core) => (r.error ? c : r.core);
+
+// 왕조 프로젝트 (스토브리그): 현금이 (비용 + 여유) 이상이면 순서대로 산다. 큰 것(돔)이 남아 있으면 도민 환원은 미룬다
+export const PROJECT_RESERVE = 300000; // 30억
+function buyProjects(c0: Core, order: ProjectId[], give: boolean): Core {
+  if (!projectsOpen(c0) || c0.phase === 'over') return c0;
+  let c = c0;
+  if (give) {
+    // sensible: 빚부터 갚고, 관중석을 끝까지 올린 다음에 프로젝트 (돈을 버는 투자가 먼저 · 돔은 2층 스타디움 위에 짓는다)
+    while (c.finance.debt > 0 && c.finance.cash >= LOAN_STEP + PROJECT_RESERVE) {
+      const r = repay(c);
+      if (r.error) break;
+      c = r.core;
+    }
+    if (c.finance.debt > 0) return c;
+    for (let seat = upgradeCost('seats', c.facilities); seat !== null; seat = upgradeCost('seats', c.facilities)) {
+      if (c.finance.cash < seat + PROJECT_RESERVE) return c;
+      c = ok(upgradeFacility(c, 'seats'), c);
+      if (upgradeCost('seats', c.facilities) === seat) return c;
+    }
+  }
+  for (const id of order) {
+    const pv = projectPreview(c, id);
+    if (pv.done) continue;
+    // 순서대로: 앞의 것을 살 돈이 모자라면 뒤의 것을 사지 않고 모은다 (규칙으로 막힌 것 — 한 시즌 한 단계·영구결번 없음 — 은 건너뛴다)
+    if (c.finance.cash < pv.cost + PROJECT_RESERVE) break;
+    if (pv.error) continue;
+    c = ok(buyProject(c, id), c);
+  }
+  return give ? giveSpare(c, PROJECT_RESERVE) : c;
+}
+/** 남으면 도민 환원: 돔을 다 지었으면 여유만 남기고, 짓는 중이면 다음 단계 대금까지 남긴다. 관중석을 올리는 중이거나 빚이 있으면 하지 않는다 */
+function giveSpare(c0: Core, reserve: number): Core {
+  if (!projectsOpen(c0) || upgradeCost('seats', c0.facilities) !== null) return c0;
+  let c = c0;
+  while (c.finance.debt > 0 && c.finance.cash >= LOAN_STEP + reserve) {
+    const r = repay(c);
+    if (r.error) break;
+    c = r.core;
+  }
+  if (c.finance.debt > 0) return c;
+  const dome = projectPreview(c, 'dome');
+  const keep = reserve + (dome.done ? 0 : dome.cost);
+  for (let n = 0; n < 30 && c.finance.cash >= GIVE_COST + keep; n++) c = ok(buyProject(c, 'give'), c);
+  return c;
+}
+const GIVE_MIDSEASON = 500000; // 시즌 중의 환원은 50억을 남기고 (3주에 한 번)
+
 const enabled = (card: EventCard, i: number) => !!card.choices[i] && !card.choices[i].disabled;
 export const firstEnabled = (card: EventCard, pref: number[]) => pref.find((i) => enabled(card, i)) ?? card.choices.map((_, i) => i).reverse().find((i) => enabled(card, i)) ?? 0;
 const SCOUT_V: Record<string, number> = { A: 84, B: 74, C: 65, D: 57 };
@@ -202,7 +250,7 @@ function doGate(c0: Core): Core {
   for (let g = 0; g < 3; g++) {
     const cost = upgradeCost('seats', c.facilities);
     const cap = SEAT_LV[c.facilities.seats].cap;
-    const want = cap < needCap * 1.15 || recentFull(c) || previewDemand(setTicketPrice(c, refPrice(c.facilities))) > cap * 1.1;
+    const want = cap < needCap * 1.15 || recentFull(c) || previewDemand(setTicketPrice(c, refPrice(c.facilities, c))) > cap * 1.1;
     if (cost === null || !want || c.finance.cash - cost < RESERVE) break;
     c = ok(upgradeFacility(c, 'seats'), c);
   }
@@ -212,7 +260,7 @@ function doGate(c0: Core): Core {
   const scost = upgradeCost('seats', c.facilities);
   if (scost !== null && c.finance.cash - scost >= 500000) c = ok(upgradeFacility(c, 'seats'), c);
   // 표값: 적정가에서 시작해 수요가 좌석을 넘으면 올리고, 많이 비면 내린다
-  const ref = refPrice(c.facilities);
+  const ref = refPrice(c.facilities, c);
   let price = ref;
   const cap = capacityOf(c);
   while (price < ref * 1.4 && previewDemand(setTicketPrice(c, price + 0.1)) > cap * 1.05) price += 0.1;
@@ -383,6 +431,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
         coverRotation(t);
       });
     if (name === 'sensible') c = farmMoves(c);
+    if (name === 'sensible' && !pre && c.day > 0 && c.day % 18 === 0) c = giveSpare(c, GIVE_MIDSEASON); // 주간 점검일(6의 배수) 가운데 3주에 한 번
     if (v.has('youth') && v.has('lineup') && c.campaign.stage >= 2) c = playYoung(c);
     return c;
   };
@@ -413,7 +462,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
       return firstEnabled(card, USE[id] ?? [card.choices.length - 1]);
     },
     // 시즌이 끝난 직후(위약금 없음)에 내년 몸값을 내다보고 정리한다
-    beforeDraft: (c) => (name === 'sensible' ? trimFarm(trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 26), FARM_MAX - 3) : trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 25)),
+    beforeDraft: (c0) => ((c) => (name === 'sensible' ? trimFarm(trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 26), FARM_MAX - 3) : trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 25)))(name === 'sensible' ? buyProjects(c0, ['academy', 'dome', 'museum', 'youth', 'camp'], true) : c0),
     // 지명은 매년 돌아오는 일이라 주제와 무관하게 한다. youth 를 쓰는 봇은 잠재력을, 아니면 즉전감을 본다
     draft: (c) => (drafts(c) ? bestProspect(c, (p) => (verbs(c).has('youth') ? SCOUT_V[p.scout ?? 'C'] * 0.65 + p.ovr * 0.35 : SCOUT_V[p.scout ?? 'C'] * 0.4 + p.ovr * 0.6)) : null),
   };
@@ -441,7 +490,7 @@ function greedySign(c0: Core): Core {
 export const greedy: Bot = {
   name: 'greedy',
   preseason: (c0) => {
-    let c = setTicketPrice(c0, refPrice(c0.facilities) * 1.1);
+    let c = setTicketPrice(c0, refPrice(c0.facilities, c0) * 1.1);
     c = greedySign(c);
     const cost = upgradeCost('seats', c.facilities);
     if (cost !== null) {
@@ -453,7 +502,7 @@ export const greedy: Bot = {
   daily: (c) => (c.day === 42 ? doLineup(greedySign(c), true) : c.day % 12 === 0 ? doLineup(c, true) : c),
   // 스캔들은 덮는다 · 선수 말을 믿는다
   event: (c, card) => (isFarmCard(card) ? farmFirst(card, true) : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : baseId(card) === 'trade' ? ((tradeLook(c, card)?.wins ?? 0) > 0 ? [0, 1] : [1]) : [0])),
-  beforeDraft: (c) => trimRoster(c, 25),
+  beforeDraft: (c) => trimRoster(buyProjects(c, ['camp', 'dome'], false), 25),
   draft: (c) => bestProspect(c, (p) => p.ovr),
 };
 

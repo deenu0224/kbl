@@ -5,6 +5,7 @@ import { autoLineup, fixLineup, slotNewcomer } from './lineup';
 import { buildSchedule } from './schedule';
 import { simulateGame, type PenStyle } from './sim';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
+import { projectFx, projectSeasonOpenMut } from './projects';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, FORCED_SALE_RATE, RENEW_PREMIUM, RENEW_SEASONS,
@@ -154,8 +155,9 @@ export function growChance(core: Pick<Core, 'facilities'> & Partial<Pick<Core, '
   // 2군 사건의 보정: 인스트럭터(2군 +%p) · 믿고 쓰는 선수(×)
   if (p.farm && p.il) return 0; // 재활 중에는 자라지 않는다
   const fb = growBonus(core, p);
-  const grow = Math.min(1, TRAIN_LV[core.facilities.training].grow * fb.mult);
-  if (p.farm) return p.ovr >= FARM_CAP ? 0 : Math.min(1, farmGrow(core.facilities) + fb.add);
+  const pj = projectFx(core); // 왕조 프로젝트: 아카데미(2군 +%p) · 전지훈련(1군 +%p)
+  const grow = Math.min(1, TRAIN_LV[core.facilities.training].grow * fb.mult + pj.mainGrow);
+  if (p.farm) return p.ovr >= FARM_CAP ? 0 : Math.min(1, farmGrow(core.facilities) + fb.add + pj.farmGrow);
   if (p.age > PLAY_GROW_AGE) return grow;
   const playing = t.lineup.some((x) => x.pid === p.id) || t.rotation.includes(p.id) || t.closer === p.id;
   // 불펜 투수는 벤치가 아니다: 등판하는 투수이므로 훈련장 확률 그대로 자란다
@@ -285,7 +287,7 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
   if (core) {
     penStyle = { [core.userId]: core.campaign?.penStyle ?? 'balance' };
     if (away.id === core.userId) awayEdge[core.userId] = awaySupport(core); // 원정 응원단
-    injMult[core.userId] = TRAIN_LV[core.facilities.training].inj;
+    injMult[core.userId] = TRAIN_LV[core.facilities.training].inj * projectFx(core).inj;
     const ut = home.id === core.userId ? home : away.id === core.userId ? away : null;
     if (ut) {
       const fx = activeBuffs(core);
@@ -398,12 +400,12 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const price = f.ticketPrice;
   const att = crowd ? crowd.attendance : 0;
   const ticket = Math.round(att * price * fx.ticket);
-  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather)) : 0;
+  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather, core)) : 0;
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
   const league = Math.round((LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rankNow) * LEAGUE_PER_RANK) * leagueMult(core));
   const salary = Math.round(payroll(user) / core.schedule.length);
   const upkeep =
-    (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
+    (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep + projectFx(core).upkeep : 0) +
     TRAIN_LV[core.facilities.training].upkeep +
     farmUpkeep(user) +
     opsCost(core);
@@ -431,7 +433,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     const l10 = user.rec.last10;
     const form = l10.reduce((s, v) => s + v, 0) / Math.max(1, l10.length);
     const fill = crowd.attendance / crowd.capacity;
-    const priceFit = clamp((refPrice(core.facilities) / Math.max(0.1, price) - 1) * 40, -15, 10);
+    const priceFit = clamp((refPrice(core.facilities, core) / Math.max(0.1, price) - 1) * 40, -15, 10);
     const heat = fill >= 0.95 ? 6 : fill >= 0.8 ? 3 : fill < 0.5 ? -3 : 0;
     const target = clamp(SAT_BASE + FOOD_LV[core.facilities.food].sat + (form - 0.5) * 24 + priceFit + heat, 0, 100);
     core.fanSat = Math.round((core.fanSat + (target - core.fanSat) * SAT_CONVERGE) * 10) / 10;
@@ -857,6 +859,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   core.draft = null;
   for (const n of retired) addNews(core, `${n} 은퇴 — 신인 선수가 자리를 채웁니다`, 'info');
   addNews(core, NEWS.seasonOpen(core.season), 'info');
+  projectSeasonOpenMut(core);
   resetSeasonCampaignMut(core, rng);
   return core;
 }

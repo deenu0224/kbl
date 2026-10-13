@@ -78,6 +78,7 @@ function Preview() {
   const [gateQueue, setGateQueue] = useState<number | undefined>(qNum('queue'));
   const [cheerLv, setCheerLv] = useState<number | undefined>(qNum('cheer'));
   const [retiredNums, setRetiredNums] = useState<number | undefined>(qNum('retired'));
+  const [dome, setDome] = useState<0 | 1 | 2 | 3 | undefined>(qNum('dome') as 0 | 1 | 2 | 3 | undefined);
   const [phone, setPhone] = useState(Q.get('phone') === '1');
   const [home, setHome] = useState(0);
   const [away, setAway] = useState(1);
@@ -102,6 +103,7 @@ function Preview() {
     gateQueue,
     cheerLv,
     retiredNums,
+    dome,
   };
 
   const setLv = (k: FacilityKind, v: number, withFx: boolean) => {
@@ -248,6 +250,13 @@ function Preview() {
           {[0, 1, 2, 3].map((v) => (
             <Btn key={v} on={cheerLv === v} onClick={() => setCheerLv(v)}>
               {v}
+            </Btn>
+          ))}
+        </Row>
+        <Row label="돔구장">
+          {([undefined, 1, 2, 3] as const).map((v) => (
+            <Btn key={v ?? 'x'} on={dome === v} onClick={() => setDome(v)}>
+              {v === undefined ? '없음' : ['', '설계', '착공', '완공'][v]}
             </Btn>
           ))}
         </Row>

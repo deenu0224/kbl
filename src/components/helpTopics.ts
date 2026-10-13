@@ -6,6 +6,7 @@ import { VALUE_FAIR } from '../game/analysis';
 import { fmtMoney } from '../game/format';
 import { SIM } from '../game/sim';
 import { SC } from '../game/scandal';
+import { DOME_COST, GIVE_FX_MAX } from '../game/projects';
 
 export type HelpTopic =
   | 'ovr'
@@ -23,9 +24,20 @@ export type HelpTopic =
   | 'posRank'
   | 'demand'
   | 'ethics'
-  | 'secrets';
+  | 'secrets'
+  | 'projects';
 
 export const HELP: Record<HelpTopic, { title: string; lines: string[] }> = {
+  projects: {
+    title: '왕조 프로젝트',
+    lines: [
+      '첫 우승 뒤에 열리는, 구단이 섬에 남기는 것들입니다.',
+      `우리 돔구장은 설계 ${fmtMoney(DOME_COST[0])} → 착공 ${fmtMoney(DOME_COST[1])} → 완공 ${fmtMoney(DOME_COST[2])}, 한 시즌에 한 단계씩 짓고 다음 시즌 개막에 반영됩니다.`,
+      '완공하면 날씨가 관중과 매점에 영향을 주지 않고 30,000석이 됩니다.',
+      `해외 전지훈련은 스토브리그에만 잡을 수 있고 그 시즌에만 듭니다.`,
+      `도민 환원은 ${GIVE_FX_MAX}회까지만 지지·만족이 오르고, 누적액은 명예의 전당에 남습니다.`,
+    ],
+  },
   ethics: {
     title: '선수단 윤리 교육',
     lines: [

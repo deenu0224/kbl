@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import Sheet from './layout/Sheet';
+import { PROJECT_IDS, projectPreview, projectsOpen, type ProjectId } from '../game/projects';
 import { TodoLines, useTodos } from './Todo';
 import Fold from './Fold';
 import Help from './Help';
@@ -15,6 +17,7 @@ import {
   SEAT_LV,
   TRAIN_LV,
   payroll,
+  capacityOf,
   previewDemand,
   refPrice,
   upgradeCost,
@@ -279,14 +282,86 @@ function FacilityCard({ kind }: { kind: FacilityKind }) {
   );
 }
 
+/** 왕조 프로젝트 (첫 우승 뒤에만 보인다): 카드 = 이름·한 줄 효과·비용·[진행], 탭하면 상세 */
+export function ProjectsSection() {
+  const core = useCore();
+  const buy = useStore((s) => s.project);
+  const [open, setOpen] = useState<ProjectId | null>(null);
+  if (!projectsOpen(core)) return null;
+  const pvs = PROJECT_IDS.map((id) => projectPreview(core, id));
+  const sel = open ? pvs.find((p) => p.id === open) : null;
+  return (
+    <div data-testid="projects">
+      <SectionTitle right={<Help topic="projects" />}>왕조 프로젝트</SectionTitle>
+      {pvs.map((pv) => (
+        <div key={pv.id} className="mb-1.5 flex items-center gap-1.5 bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid={`project-${pv.id}`}>
+          <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setOpen(pv.id)} aria-label={`${pv.name} 상세`}>
+            <div className="flex items-baseline justify-between gap-2 text-[12px]">
+              <span className="truncate text-hi">
+                {pv.icon} {pv.name}
+              </span>
+              <span className="shrink-0 text-[10px] text-white/60">{pv.status}</span>
+            </div>
+            <div className="mt-0.5 text-[10px] leading-snug text-white/65 mob:text-[12px]">{pv.line}</div>
+          </button>
+          {pv.done ? (
+            <span className="shrink-0 text-[11px] text-good">✓ 완료</span>
+          ) : (
+            <button className="px-btn gold shrink-0" data-sfx="none" disabled={!!pv.error} onClick={() => setOpen(pv.id)}>
+              {pv.id === 'dome' && pv.step ? `${pv.step} ` : ''}
+              {fmtMoney(pv.cost)}
+            </button>
+          )}
+        </div>
+      ))}
+      {sel && (
+        <Sheet onClose={() => setOpen(null)} label={sel.name}>
+          <div className="px-4 pb-5 pt-1" data-testid="project-detail">
+            <div className="font-pixel-lg mb-1 text-[16px] text-hi">
+              {sel.icon} {sel.name}
+              {sel.id === 'dome' && sel.step ? ` — ${sel.step}` : ''}
+            </div>
+            <div className="mb-2 text-[12px] text-white/60">{sel.status}</div>
+            {sel.rows.map((r, i) => (
+              <p key={i} className="mb-1 text-[13px] leading-relaxed text-white/90">
+                · {r}
+              </p>
+            ))}
+            {!sel.done && (
+              <>
+                <p className="mt-2 text-[13px] text-sky" data-testid="project-cash">
+                  {sel.cash}
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    className="px-btn gold"
+                    data-sfx="none"
+                    disabled={!!sel.error}
+                    onClick={() => {
+                      if (buy(sel.id)) setOpen(null);
+                    }}
+                  >
+                    진행 {fmtMoney(sel.cost)}
+                  </button>
+                  {sel.error && <span className="text-[12px] text-bad">{sel.error}</span>}
+                </div>
+              </>
+            )}
+          </div>
+        </Sheet>
+      )}
+    </div>
+  );
+}
+
 /** part 를 주면 그 조각만 (구장에서 연 바텀 시트용): 'ticket' = 티켓 가격 + 관중 추이, 시설 이름 = 그 시설 카드 */
 export function StadiumTab({ part }: { part?: 'ticket' | FacilityKind } = {}) {
   const core = useCore();
   const setPrice = useStore((s) => s.setPrice);
   const price = core.finance.ticketPrice;
-  const ref = refPrice(core.facilities);
+  const ref = refPrice(core.facilities, core);
   const demand = useMemo(() => previewDemand(core), [core]);
-  const cap = SEAT_LV[core.facilities.seats]?.cap ?? 0;
+  const cap = capacityOf(core);
   const over = demand > cap;
   const att = core.attHistory;
   const recent = att.slice(-42);
@@ -345,6 +420,7 @@ export function StadiumTab({ part }: { part?: 'ticket' | FacilityKind } = {}) {
       {KINDS.filter((k) => !part || part === k).map((k) => (
         <FacilityCard key={k} kind={k} />
       ))}
+      {!part && <ProjectsSection />}
       {part && part !== 'ticket' ? null : (
         <>
       <SectionTitle right={<span className="text-white/50">평균 {fmtInt(Math.round(avg))}명</span>}>홈 관중 추이</SectionTitle>

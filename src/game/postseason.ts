@@ -302,7 +302,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
   // ── 재정 (연봉·분배금 없음, 유지비·이자는 정산) ──
   const att = crowd ? crowd.attendance : 0;
   const ticket = Math.round(att * f.ticketPrice * TICKET_MULT * fx.ticket);
-  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather)) : 0;
+  const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather, core)) : 0;
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (m.isHome ? 1.4 : 0.6) * fx.merch);
   const upkeep =
     (m.isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +

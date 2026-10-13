@@ -1,3 +1,4 @@
+import { projectsOpen } from '../game/projects';
 import { useMemo, useState } from "react";
 import type { HintTab } from "../game/types";
 import type { RemedyGo } from "../game/remedy";
@@ -15,12 +16,18 @@ const TONE = {
 } as const;
 const EDGE = { bad: "#ff6b6b", warn: "#ffd84a", info: "#7fd3ff" } as const;
 
+/** 왕조 프로젝트가 열렸음을 알리는 확인 항목 (아직 아무것도 시작하지 않았을 때만) */
+const projectTodo = (core: Parameters<typeof todoList>[0]): Todo[] =>
+  projectsOpen(core) && core.phase !== 'over' && Object.keys(core.campaign.projects ?? {}).every((k) => k === 'open')
+    ? [{ id: 'proj-open', tab: 'club', hint: 'stadium', icon: '🏟', tone: 'info', action: 'seats', dismissible: true, text: '왕조 프로젝트가 열렸습니다' }]
+    : [];
+
 /** 지금 해당하는 "할 일" (닫은 확인 항목은 뺀다). 탭 배지·홈 카드·탭 맨 위 줄이 같은 목록을 본다 */
 export function useTodos(): Todo[] {
   const core = useCore();
   const dismissed = useUi((s) => s.dismissed);
   return useMemo(
-    () => todoList(core).filter((t) => !dismissed.includes(t.id)),
+    () => [...todoList(core), ...projectTodo(core)].filter((t) => !dismissed.includes(t.id)),
     [core, dismissed],
   );
 }

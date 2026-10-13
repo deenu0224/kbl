@@ -9,6 +9,7 @@ import { memoGet, memoNum, memoSet } from './memo';
 import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine, withTeam } from './story';
 import { beatById, startSeasonScriptMut, userHomeDays } from './script';
 import { exposeMut } from './scandal';
+import { GIVE_STAR, domeStage, giveTotal, openProjectsMut } from './projects';
 
 // ───────── 튜닝 테이블 ─────────
 
@@ -131,7 +132,7 @@ export const STAGES: StageDef[] = [
     main: { kind: 'post', target: 1 },
     stars: [
       { kind: 'post', target: 4, text: '한국시리즈 우승' },
-      { kind: 'profit', target: 300000, text: '영업 흑자 30억' },
+      { kind: 'profit', target: GIVE_STAR, text: '도민 환원 누적 50억' }, // 왕조 프로젝트 (projects.ts)
       { kind: 'avgAtt', target: 20000, text: '홈 평균 관중 20,000명' },
     ],
     reward: { cash: 60000, trust: 10 }, // 15억 → 6억: 시설을 다 올린 뒤의 지원금은 쓸 곳이 없어 현금만 쌓였다 (감사: 시즌 12 평균 164억)
@@ -383,7 +384,7 @@ export const STAR_EVAL: Record<string, StarEval> = {
   's4-3': { value: (c) => c.finance.debt },
   // 5장
   's5-1': { value: (c) => postLevel(c) },
-  's5-2': { value: (c) => opProfit(c.finance.ledger) },
+  's5-2': { value: (c) => giveTotal(c) },
   's5-3': { value: (c) => avgAtt(c) },
 };
 
@@ -676,7 +677,7 @@ export function cheerLv(core: Pick<Core, 'fans' | 'fanSat' | 'season'>): number 
 }
 
 /** StadiumScene 의 v3 필드 (구장 렌더러 입력) */
-export function sceneExtras(core: Core): Pick<StadiumScene, 'oldBanner' | 'gateQueue' | 'cheerLv' | 'retiredNums' | 'banners'> {
+export function sceneExtras(core: Core): Pick<StadiumScene, 'oldBanner' | 'gateQueue' | 'cheerLv' | 'retiredNums' | 'banners' | 'dome'> {
   const cr = core.crowd;
   return {
     oldBanner: true,
@@ -684,6 +685,7 @@ export function sceneExtras(core: Core): Pick<StadiumScene, 'oldBanner' | 'gateQ
     cheerLv: cheerLv(core),
     retiredNums: Math.min(4, core.campaign.retired?.length ?? 0),
     banners: Math.min(3, core.campaign.titles),
+    dome: domeStage(core) as 0 | 1 | 2 | 3,
   };
 }
 
@@ -798,6 +800,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
       }
       if (st.ending && !c.ending) {
         c.ending = true;
+        openProjectsMut(core);
         addNews(core, endingText(c).news, 'good');
       }
       if (stage < STAGES.length - 1) stage++;
