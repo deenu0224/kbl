@@ -10,6 +10,7 @@ import { FOREIGN_MAX } from '../src/game/events';
 import { autoBatting, autoPitching, slotValue } from '../src/game/lineup';
 import { bullpenLoad } from '../src/game/fixes';
 import { shuttleArms } from '../src/game/farm';
+import { autoPenStyle } from '../src/game/sim';
 
 // ───────── 동사 ─────────
 
@@ -343,6 +344,8 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
     let c = c0;
     const day = c.day;
     const weekly = pre || day % 6 === 0;
+    // sensible: 시즌 개막에 한 번, AI 구단과 같은 규칙으로 불펜 운영 방침을 고른다 (나머지 봇은 균형)
+    if (name === 'sensible' && pre) c = { ...c, campaign: { ...c.campaign, penStyle: autoPenStyle(userTeam(c)) } };
     if (name === 'sensible' && !pre) c = relievePen(c);
     if (!weekly && day !== 13) return c;
     if (pre) while (c.finance.debt > 0 && c.finance.cash > RESERVE * 3) c = ok(repay(c), c);

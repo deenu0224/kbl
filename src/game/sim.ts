@@ -203,17 +203,22 @@ function tiredCtlPenalty(tired: number | undefined): number {
 export type PenStyle = NonNullable<Campaign['penStyle']>;
 export const PEN_STYLES: PenStyle[] = ['trust', 'balance', 'swarm'];
 
-/** 팀 구성에 맞는 방침 (AI 구단이 쓴다): 선발이 불펜보다 확실히 강하면 믿음, 불펜이 강하고 두터우면 벌떼 */
-export function autoPenStyle(t: Team): PenStyle {
+/** 선발 평균 OVR − 불펜(마무리 포함) 평균 OVR 과 불펜 인원. 어느 한쪽이 비면 null */
+export function rotPenGap(t: Team): { gap: number; arms: number } | null {
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const pick = (ids: (string | null)[]) => ids.map((id) => (id ? byId.get(id) : undefined)).filter((p): p is Player => !!p && p.kind === 'P' && !p.farm);
   const avg = (ps: Player[]) => ps.reduce((s, p) => s + p.ovr, 0) / ps.length;
   const sp = pick(t.rotation);
   const pen = pick([...t.bullpen, t.closer]);
-  if (!sp.length || !pen.length) return 'balance';
-  const gap = avg(sp) - avg(pen);
-  if (gap >= SIM.AI_STYLE_GAP) return 'trust';
-  if (gap <= -SIM.AI_STYLE_GAP && pen.length >= SIM.AI_SWARM_ARMS) return 'swarm';
+  return sp.length && pen.length ? { gap: avg(sp) - avg(pen), arms: pen.length } : null;
+}
+
+/** 팀 구성에 맞는 방침 (AI 구단이 쓴다): 선발이 불펜보다 확실히 강하면 믿음, 불펜이 강하고 두터우면 벌떼 */
+export function autoPenStyle(t: Team): PenStyle {
+  const g = rotPenGap(t);
+  if (!g) return 'balance';
+  if (g.gap >= SIM.AI_STYLE_GAP) return 'trust';
+  if (g.gap <= -SIM.AI_STYLE_GAP && g.arms >= SIM.AI_SWARM_ARMS) return 'swarm';
   return 'balance';
 }
 

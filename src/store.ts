@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { changePenStyle } from './game/briefing';
 import type { PenStyle } from './game/sim';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
@@ -484,7 +485,7 @@ export const useStore = create<Store>()(
           set({ ...pickCore(migrateSave(structuredClone(core), version)), playback: null, summary: null, fx: null, lastReport: null, toast: mkToast('세이브를 불러왔습니다', 'good') });
         },
         setPenStyle(style) {
-          set({ campaign: { ...get().campaign, penStyle: style } as Core['campaign'] });
+          set({ campaign: changePenStyle(pickCore(get()), style).campaign });
         },
         setFarmAuto(v) {
           set({ campaign: { ...get().campaign, farmAuto: v } as Core['campaign'] });

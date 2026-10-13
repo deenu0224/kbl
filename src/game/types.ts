@@ -430,6 +430,7 @@ export interface BriefOffer {
   state?: 'done' | 'skipped';
   rescue?: { t: 'release'; pid: string } | { t: 'borrow' }; // 자금 대응 제안: 있으면 action 대신 이것을 실행한다 (runway.ts)
   farm?: { up?: string; down?: string }; // 2군 이동 제안: 있으면 action 대신 내려보내기 → 콜업 순으로 실행한다
+  penStyle?: 'trust' | 'balance' | 'swarm'; // 불펜 운영 방침 변경 제안: 있으면 action 대신 방침을 바꾼다
 }
 export interface Briefing {
   day: number; // 이 경기일 직전에 열렸다
