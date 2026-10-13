@@ -32,7 +32,7 @@ export function PixelIcon({ name, size = 16, color = 'currentColor' }: { name: M
 
 export const MOBILE_TABS: { id: MobileTab; label: string }[] = [
   { id: 'roster', label: '선수단' },
-  { id: 'market', label: '영입' },
+  { id: 'market', label: '이적' },
   { id: 'stadium', label: '구장' },
   { id: 'league', label: '리그' },
   { id: 'club', label: '구단' },
