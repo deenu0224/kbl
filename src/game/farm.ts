@@ -77,6 +77,12 @@ export function subEnqueueMut(core: Core, pids: string[]): void {
 
 /** 부상자가 돌아왔다: 대체 선수가 맡던 칸을 원래 주인에게 돌려준다 (mutate). 유저가 그 사이 편성을 바꿨으면 건드리지 않는다 */
 function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player, force = false): void {
+  restoreSlotStep(core, t, orig, sub, force);
+  // 넘겨받은 단계(via)를 되돌린 뒤 바깥 단계가 조건에 걸려 멈추면, 그사이 명단에 오른(2군·재활) 선수가 편성에 남는다 — 그 칸은 정리한다
+  const placed = [...t.lineup.map((x) => x.pid), ...t.rotation, ...t.bullpen, ...(t.closer ? [t.closer] : [])];
+  if (placed.some((id) => t.roster.find((x) => x.id === id)?.farm)) fixLineup(t);
+}
+function restoreSlotStep(core: Core, t: Team, orig: Player, sub: Player, force: boolean): void {
   const v = memoGet(core, subSlotKey(orig.id));
   if (!v) return;
   memoSet(core, subSlotKey(orig.id), '');
@@ -85,7 +91,7 @@ function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player, force = 
   // 대체 선수도 다쳐 그 칸을 다른 선수가 넘겨받았으면(subHandoverMut), 그 단계부터 되돌린 뒤 원래 주인을 세운다
   const mid = via ? t.roster.find((x) => x.id === via) : undefined;
   if (mid) {
-    restoreSlotMut(core, t, mid, sub, true);
+    restoreSlotStep(core, t, mid, sub, true);
     if (k === 'L' ? t.lineup.some((x) => x.pid === mid.id) : k === 'R' ? t.rotation.includes(mid.id) : k === 'C' ? t.closer === mid.id : t.bullpen.slice(0, 2).includes(mid.id)) sub = mid;
   }
   if (k === 'L') {
