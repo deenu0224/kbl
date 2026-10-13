@@ -22,12 +22,13 @@ const safe = {
 };
 
 /** 전체 화면 틀: 모바일은 100dvh, 데스크톱은 화면 대부분을 덮는 모달 */
-export function FullScreen({ title, sub, onClose, children, testid }: { title: string; sub?: ReactNode; onClose: () => void; children: ReactNode; testid?: string }) {
+export function FullScreen({ title, sub, onClose, children, testid, hold = false }: { title: string; sub?: ReactNode; onClose: () => void; children: ReactNode; testid?: string; hold?: boolean }) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    // 선수 카드가 떠 있으면(hold) Esc 는 카드만 닫는다
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !hold && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, hold]);
   return createPortal(
     <div className="fixed inset-0 z-40 flex h-[100dvh] items-stretch justify-center bg-ink/90 p-5 font-pixel text-[12px] select-none mob:p-0" style={safe} data-testid={testid}>
       <div className="absolute inset-0" onClick={onClose} />
@@ -282,7 +283,7 @@ function Office({ view, onClose }: { view: OfficeView; onClose: () => void }) {
   const cardP = card ? team.roster.find((p) => p.id === card) : undefined;
   const pick = (p: Player) => setCard(p.id);
   return (
-    <FullScreen title="프런트 오피스" sub={`${team.name} · 선수단 ${team.roster.length}/${ROSTER_MAX}명`} onClose={onClose} testid="front-office">
+    <FullScreen title="프런트 오피스" sub={`${team.name} · 선수단 ${team.roster.length}/${ROSTER_MAX}명`} onClose={onClose} testid="front-office" hold={!!cardP}>
       <div className="mt-1 shrink-0">
         <TabBar tabs={VIEWS} value={view} onChange={(v) => useRosterUi.setState({ office: v })} />
       </div>
@@ -319,7 +320,7 @@ function Board() {
   const reason = !p ? null : team.roster.length >= ROSTER_MAX ? `로스터 정원 초과 (${ROSTER_MAX}명)` : cash < bonus ? `현금 부족 (계약금 ${fmtMoney(bonus)})` : null;
   const deltas = Object.entries(im?.delta ?? {}) as [keyof typeof PART_KO, number][];
   return (
-    <FullScreen title="영입 시장" sub={`FA ${freeAgents.length}명 · 현금 ${fmtMoney(cash)} · 로스터 ${team.roster.length}/${ROSTER_MAX}`} onClose={close} testid="market-board">
+    <FullScreen title="영입 시장" sub={`FA ${freeAgents.length}명 · 현금 ${fmtMoney(cash)} · 로스터 ${team.roster.length}/${ROSTER_MAX}`} onClose={close} testid="market-board" hold={!!p}>
       <PlayerTable mode="market" players={freeAgents} rows={rows} sel={card} onPick={(x) => setCard(x.id)} initPos={initPos} />
       {p && (
         <CardPop

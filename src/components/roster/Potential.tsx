@@ -86,7 +86,8 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
         <button className="flex cursor-pointer gap-1 text-left leading-snug" onClick={() => setOpen((v) => !v)} data-testid="pot-toggle">
           <span className={key}>시즌 교체</span>
           <span>
-            내년 {p.age + 1}세 → 능력치마다 <span className={g.nextBand.hi > 0 && g.nextBand.lo >= 0 ? 'text-good' : g.nextBand.hi <= 0 ? 'text-bad' : 'text-white'}>{fmtDelta(g.nextBand.lo)}~{fmtDelta(g.nextBand.hi)}</span>
+            {prospect && <span className="text-white/70">지명한 해는 변화 없이 데뷔 · 그다음 </span>}
+            {prospect ? `${p.age + 1}세` : `내년 ${p.age + 1}세`} → 능력치마다 <span className={g.nextBand.hi > 0 && g.nextBand.lo >= 0 ? 'text-good' : g.nextBand.hi <= 0 ? 'text-bad' : 'text-white'}>{fmtDelta(g.nextBand.lo)}~{fmtDelta(g.nextBand.hi)}</span>
             <span className="text-sky"> {open ? '▴' : '나이대별 ▾'}</span>
           </span>
         </button>

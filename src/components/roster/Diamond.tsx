@@ -17,11 +17,11 @@ const TONE_TEXT = { good: 'text-good', mid: 'text-white/80', bad: 'text-bad' } a
 const TONE_BG = { good: '#6ee07a', mid: '#8a95b5', bad: '#ff6b6b' } as const;
 
 /** "8위 → 4위 ▲" (개막 순위와 같으면 "4위") */
-export function RankText({ row, className = '' }: { row: PosRow; className?: string }) {
+export function RankText({ row, className = '', compact = false }: { row: PosRow; className?: string; compact?: boolean }) {
   const moved = row.rank0 !== undefined && row.rank0 !== row.rank;
   return (
     <span className={`whitespace-nowrap ${TONE_TEXT[rankTone(row)]} ${className}`}>
-      {moved && <span className="text-white/45">{row.rank0}위 → </span>}
+      {moved && <span className="text-white/45">{compact ? `${row.rank0}→` : `${row.rank0}위 → `}</span>}
       {row.rank}위
       {moved && <span className={row.rank < row.rank0! ? 'text-good' : 'text-bad'}> {row.rank < row.rank0! ? '▲' : '▼'}</span>}
     </span>
@@ -43,7 +43,7 @@ function Cell({ row, sel, flash, onPick, style, className = '' }: { row: PosRow;
     >
       <span className="flex items-baseline justify-between gap-1 text-[10px] mob:text-[11px]">
         <span className="text-sky">{row.label}</span>
-        <RankText row={row} />
+        <RankText row={row} compact />
       </span>
       <span className="truncate text-[12px] text-white mob:text-[13px]">{name}</span>
       <span className="flex items-baseline justify-between gap-1 text-[10px] mob:text-[11px]">
@@ -154,7 +154,10 @@ export function MiniDiamond({ rows, onOpen }: { rows: PosRow[]; onOpen: () => vo
           </span>
         )}
       </span>
-      <span className="shrink-0 self-center bg-panel-2 px-1.5 py-1 text-[10px] text-hi mob:text-[11px]">크게 보기 ⤢</span>
+      <span className="shrink-0 self-center bg-panel-2 px-1 py-1 text-center text-[10px] leading-tight text-hi mob:px-1.5 mob:text-[11px]">
+        크게
+        <br className="mob:hidden" /> 보기 ⤢
+      </span>
     </button>
   );
 }
