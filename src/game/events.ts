@@ -21,6 +21,7 @@ import { isFranchise } from './franchise';
 import { drawFarmEvent, farmCardDef } from './farm';
 import { positionReport } from './analysis';
 import { SCANDAL_CARDS } from './scandal';
+import { TRADE_ID, drawTrade, resolveTradeMut } from './trade';
 
 const posKo = (pos: string): string => POS_NAME[pos] ?? pos;
 
@@ -67,7 +68,6 @@ const N = {
   refuseStar: -10,
   refuseAbil: -2,
   refuseFans: -200,
-  tradeRank: 6, // 트레이드 제안: 이 순위 이하인 포지션이 있어야 한다
   earlyGames: 8, // 조기 복귀: 이만큼 이상 결장하는 핵심 선수만
   earlyTop: 3, // 타자는 팀 내 오버롤 상위 이 인원, 투수는 1~2선발
   armDays: 6, // 벌떼 방침에서 불펜 과부하가 누적 이 일수면 '팔은 소모품이 아니다'
@@ -162,8 +162,6 @@ const NONE = { rows: [rowNone()] };
 /** 간판의 인상 뒤 연봉 */
 const raised = (p: Player) => Math.round(p.salary * (1 + N.raiseRate));
 const stayCost = (p: Player) => Math.round(p.salary * N.stayBonus);
-/** 프랜차이즈 스타를 트레이드로 보낼 때의 팬 반발 */
-const TRADE_FR = { fansPerStar: 8, sat: -8 };
 
 // ── 카드별 보조 ──
 
@@ -212,23 +210,6 @@ function titleRace(core: Core): Player | null {
       ? (['avg', 'hr', 'rbi', 'sb'] as const).some((c) => top3(batLeaders(core, c, 3)))
       : (['era', 'w', 'sv', 'so'] as const).some((c) => top3(pitLeaders(core, c, 3)));
   return hit ? p : null;
-}
-
-/** 트레이드 제안: 한 포지션에 1군급이 남고(2순위가 리그 평균 주전 이상) 다른 포지션이 리그 6위 이하일 때, 남는 선수와 약한 자리 */
-function tradeCase(core: Core): { me: Player; slot: number; weak: Player } | null {
-  const t = userTeam(core);
-  if (!benchBatters(core).length) return null;
-  const rows = positionReport(core).filter((r) => r.kind === 'B' && r.key !== 'DH');
-  const ids = lineupIds(core);
-  const spare = rows
-    .filter((r) => r.backup && !ids.has(r.backup.id) && r.backup.injury === 0 && r.backupScore >= r.avg)
-    .sort((a, b) => b.backupScore - b.avg - (a.backupScore - a.avg))[0];
-  if (!spare?.backup) return null;
-  const me = spare.backup;
-  const weakRow = rows.filter((r) => r.key !== spare.key && r.rank >= N.tradeRank && r.players[0] && r.players[0].id !== me.id).sort((a, b) => b.rank - a.rank || a.diff - b.diff)[0];
-  if (!weakRow) return null;
-  const slot = t.lineup.findIndex((s) => s.pos === weakRow.key);
-  return slot < 0 ? null : { me, slot, weak: weakRow.players[0] };
 }
 
 /** 조기 복귀를 꺼낼 만한 부상자: 팀 내 오버롤 상위 3명(타자) 또는 1~2선발 (징계 중인 선수는 아니다) */
@@ -816,78 +797,8 @@ export const CARDS: CardDef[] = [
       return '한정판 굿즈 출시!';
     },
   },
-  {
-    id: 'trade',
-    prio: 40,
-    when: (c) => !!tradeCase(c),
-    make: (c, rng) => {
-      const tc = tradeCase(c);
-      if (!tc) return null;
-      const { me, slot, weak } = tc;
-      const pos = userTeam(c).lineup[slot].pos;
-      const cands = c.teams
-        .filter((t) => t.id !== c.userId)
-        .flatMap((t) => t.roster.filter((p) => p.kind === 'B' && p.pos === pos && !p.foreign && p.ovr >= weak.ovr + 6 && p.ovr <= me.ovr + 2).map((p) => ({ t, p })));
-      if (!cands.length) return null;
-      const { t, p } = pick(rng, cands);
-      const cash = Math.max(0, Math.round((((me.ovr - p.ovr) * 2500 + 3000) * scale(c)) / 1000) * 1000);
-      return card(`trade|${t.id}|${p.id}|${cash}`, 'trade', {
-        title: '트레이드 제안',
-        icon: '🔄',
-        pid: me.id,
-        body: `${t.city} ${t.name}이(가) 벤치의 ${me.name}(${posKo(me.pos)}, 오버롤 ${me.ovr})을 원합니다. 대가는 ${p.name}(${posKo(p.pos)}, 오버롤 ${p.ovr})${cash ? ` + 현금 ${fmtMoney(cash)}` : ''}.`,
-        choices: [
-          {
-            label: '수락',
-            desc: `${posKo(pos)} 주전 ${weak.ovr} → ${p.ovr}${cash ? ` · 현금 +${fmtMoney(cash)}` : ` · 연봉 총액 ${p.salary >= me.salary ? '+' : '−'}${fmtMoney(Math.abs(p.salary - me.salary))}`}`,
-            detail: {
-              rows: [
-                rowOvr(`${posKo(pos)} 주전`, weak.ovr, p.ovr),
-                rowInfo('나가는 선수', `${me.name} ${me.ovr} (${me.age}세)`, '벤치', 'bad'),
-                rowInfo('들어오는 선수', `${p.name} ${p.ovr} (${p.age}세)`, weak.name, 'good'),
-                rowCash(c, cash),
-                rowPayroll(c, p.salary - me.salary),
-                ...(isFranchise(me, c.season) ? [rowFans(c, -me.star * TRADE_FR.fansPerStar), rowSat(c, TRADE_FR.sat)] : []),
-              ],
-              pids: [p.id, me.id, weak.id],
-              compare: [p.id, weak.id],
-            },
-          },
-          { label: '거절', desc: '현 전력 유지', detail: { rows: [rowOvr(`${posKo(pos)} 주전`, weak.ovr, weak.ovr), rowCash(c, 0), rowPayroll(c, 0)], pids: [me.id, weak.id, p.id], compare: [p.id, weak.id] } },
-        ],
-      });
-    },
-    resolve: (c, i, cd) => {
-      if (i !== 0) return '트레이드 제안을 거절했습니다';
-      const [, tid, aid, cashS] = parts(cd);
-      const u = userTeam(c);
-      const t = c.teams.find((x) => x.id === tid);
-      const me = findUser(c, cd.pid);
-      const ap = t?.roster.find((x) => x.id === aid);
-      if (!t || !me || !ap) return '상대 구단 사정으로 트레이드가 무산되었습니다';
-      if (isFranchise(me, c.season)) {
-        c.fans = Math.max(1000, c.fans - me.star * TRADE_FR.fansPerStar);
-        sat(c, TRADE_FR.sat);
-        addNews(c, NEWS.franchiseGone(me.name), 'bad');
-      }
-      u.roster = u.roster.filter((x) => x.id !== me.id);
-      t.roster = t.roster.filter((x) => x.id !== ap.id);
-      delete me.since;
-      ap.since = c.season;
-      u.roster.push(ap);
-      t.roster.push(me);
-      fixLineup(u);
-      slotNewcomer(u, ap);
-      fixLineup(t);
-      slotNewcomer(t, me);
-      const cash = Number(cashS) || 0;
-      c.finance.cash += cash;
-      c.finance.ledger.sales += cash;
-      addNews(c, `트레이드: ${me.name} ↔ ${ap.name}(${t.name})${cash ? ` + ${fmtMoney(cash)}` : ''}`, 'info');
-      hintMut(c, 'lineup');
-      return `트레이드 성사 — ${ap.name} 합류`;
-    },
-  },
+  // ───────── 트레이드 제안 (trade.ts drawTrade 가 올린다. 일반 카드와 별도 예산) ─────────
+  { id: TRADE_ID, prio: 0, forced: true, when: () => false, make: () => null, resolve: (c, i, cd, rng) => resolveTradeMut(c, i, cd, rng) },
   {
     id: 'tourist',
     prio: 35,
@@ -1048,8 +959,9 @@ export function maybeDrawEvent(core0: Core, rng: Rng): Core {
     addNews(core, `${cd.icon} ${who}${cd.title}`, 'info');
     return core;
   }
-  // 일반 카드가 없는 날에만 2군 사건 (별도 예산: farm.ts)
-  return drawFarmEvent(core0, rng);
+  // 일반 카드가 없는 날: 트레이드 제안(별도 예산: trade.ts) → 2군 사건(별도 예산: farm.ts)
+  const traded = drawTrade(core0, rng);
+  return traded.campaign.event ? traded : drawFarmEvent(traded, rng);
 }
 
 export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: Core; error?: string; result: string } {

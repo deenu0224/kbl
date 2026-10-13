@@ -21,6 +21,7 @@ import { afterRegularSeasonMut, playPostDayMut } from './postseason';
 import { isDraftDone } from './draft';
 import { cutGoodsMut, FOREIGN_MAX } from './events';
 import { scandalTickMut } from './scandal';
+import { tradeTickMut } from './trade';
 import { svcSalary, svcYearAt } from './contract';
 import { farmDailyMut, growBonus, markUpMut, seasonTurnFarmMut } from './farm';
 
@@ -483,6 +484,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   if (core.phase === 'season') farmDailyMut(core, notes); // 2군 코치의 하루
   if (core.phase === 'season') scriptTickMut(core, rng);
   if (core.phase === 'season') scandalTickMut(core, rng);
+  tradeTickMut(core);
   if (core.phase === 'season' || core.phase === 'post') refreshProgressMut(core);
   core.cashHistory.push(f.cash);
 

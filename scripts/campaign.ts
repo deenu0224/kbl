@@ -17,6 +17,7 @@ import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { closeBriefing, drawBriefing, runOffer } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
+import { drawStoveTrade, parseOffer, tradePreview } from '../src/game/trade';
 import { BOTS, baseId, firstEnabled, offVerb, passive, sensible, type Bot } from './bots';
 import { FARM_CARDS, FARM_COACH } from '../src/game/farm';
 import { fmtMoney } from '../src/game/format';
@@ -56,7 +57,8 @@ interface Run {
   drafted: number;
   retired: number;
   crash: string | null;
-  scandal: { dope: number; fix: number; covered: number; exposed: number; ethics: number };
+  scandal: { dope: number; fix: number; covered: number; exposed: number; ethics: number; fine: number };
+  trade: { offers: number; accepts: number; net: number; wins: number; kinds: Record<string, number>; block: number };
   // 2군 자동 운영이 한 일 · 입대/전역
   farm: { up: number; back: number; down: number; cut: number; army: number; armyBack: number };
 }
@@ -92,6 +94,38 @@ process.on('exit', () => {
   for (const [k, v] of Object.entries(BRIEF.byWho)) console.log(`  ${k}: 시즌당 제안 ${(v.offers / v.seasons).toFixed(1)}장 + 카드 ${(v.cards / v.seasons).toFixed(1)}장 = 결정 ${((v.offers + v.cards) / v.seasons).toFixed(1)}회 (${v.seasons}시즌)`);
 });
 
+/** 트레이드 카드 집계: 제안 수 · 수락 수 · 수락한 트레이드의 가치 손익 */
+function tallyTrade(run: Run, c: Core, card: { id: string }, pick: number): void {
+  const of = parseOffer(card.id);
+  if (!of) return;
+  run.trade.offers++;
+  run.trade.kinds[of.kind] = (run.trade.kinds[of.kind] ?? 0) + 1;
+  if (of.src === 'block') run.trade.block++;
+  if (pick !== 0) return;
+  const pv = tradePreview(c, of, of.cash);
+  run.trade.accepts++;
+  run.trade.net += pv.net;
+  run.trade.wins += pv.wins;
+}
+/** 스토브리그의 카드(재계약 → 트레이드 제안 1건)를 봇이 처리한다 */
+function stove(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
+  let c = drawResign(c0);
+  for (let g = 0; g < 40; g++) {
+    if (!c.campaign.event) {
+      c = drawStoveTrade(c, rng);
+      if (!c.campaign.event) break;
+    }
+    const card = c.campaign.event!;
+    const pick = bot.event(c, card);
+    if (run) {
+      tallyTrade(run, c, card, pick);
+      run.cards[baseId(card)] = (run.cards[baseId(card)] ?? 0) + (baseId(card) === 'trade' ? 1 : 0);
+    }
+    c = resolveEvent(c, pick, rng).core;
+  }
+  return c;
+}
+
 /** 한 시즌(정규 + 포스트시즌)을 끝까지. 결산이 끝난 Core 를 돌려준다 */
 function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run, mid = false): Core {
   let c = mid ? c0 : bot.preseason(c0);
@@ -108,7 +142,11 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run, mid = false): Core 
       const scn = baseId(card) === 'dope' || baseId(card) === 'fix';
       if (run && scn && bot === sensible && FORK_REPS > 0) forkScandal(c, baseId(card));
       const s0 = c.campaign.secrets?.length ?? 0;
-      const r = resolveEvent(c, bot.event(c, card), rng);
+      const pick = bot.event(c, card);
+      if (run) tallyTrade(run, c, card, pick);
+      const cash0 = c.finance.cash;
+      const r = resolveEvent(c, pick, rng);
+      if (run && scn && pick === 0) run.scandal.fine += Math.max(0, cash0 - r.core.finance.cash);
       if (run && scn) {
         run.scandal[baseId(card) as 'dope' | 'fix']++;
         run.scandal.covered += Math.max(0, (r.core.campaign.secrets?.length ?? 0) - s0);
@@ -175,8 +213,7 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run, mid = false): Core 
 
 /** 시즌 사이: 재계약 → 정리 → 드래프트 → 새 시즌 */
 function offseason(bot: Bot, c0: Core, rng: Rng): Core {
-  let c = drawResign(c0);
-  while (c.campaign.event) c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
+  let c = stove(bot, c0, rng);
   c = bot.beforeDraft(c);
   const d = beginDraft(c, rng);
   if (d.error) throw new Error(`드래프트 시작 실패: ${d.error}`);
@@ -227,7 +264,7 @@ const AB: { stage: number; a: boolean; b: boolean }[] = [];
 
 function runOne(bot: Bot, seed: number): Run {
   const rng: Rng = mulberry32(seed * 7919 + 101);
-  const run: Run = { reach: [null, null, null, null, null, null], champ: null, over: null, forcedSale: false, snaps: [], stars: [], events: 0, cards: {}, postGames: 0, drafted: 0, retired: 0, crash: null, scandal: { dope: 0, fix: 0, covered: 0, exposed: 0, ethics: 0 }, farm: { up: 0, back: 0, down: 0, cut: 0, army: 0, armyBack: 0 } };
+  const run: Run = { reach: [null, null, null, null, null, null], champ: null, over: null, forcedSale: false, snaps: [], stars: [], events: 0, cards: {}, postGames: 0, drafted: 0, retired: 0, crash: null, scandal: { dope: 0, fix: 0, covered: 0, exposed: 0, ethics: 0, fine: 0 }, trade: { offers: 0, accepts: 0, net: 0, wins: 0, kinds: {}, block: 0 }, farm: { up: 0, back: 0, down: 0, cut: 0, army: 0, armyBack: 0 } };
   let c = ensureObjectives(newCore(seed), rng);
   try {
     for (let s = 1; s <= N_SEASONS; s++) {
@@ -266,8 +303,7 @@ function runOne(bot: Bot, seed: number): Run {
         break;
       }
       if (s === N_SEASONS) break;
-      c = drawResign(c);
-      while (c.campaign.event) c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
+      c = stove(bot, c, rng, run);
       c = bot.beforeDraft(c);
       const d = beginDraft(c, rng);
       if (d.error) throw new Error(`드래프트 시작 실패: ${d.error}`);
@@ -436,13 +472,26 @@ console.log('\n── 카드별 시즌당 횟수 ──');
   }
 }
 
+console.log('\n── 트레이드 (시즌당 · 목표: 제안 1.0~2.0) ──');
+for (const bot of BOTS) {
+  const runs = all[bot.name];
+  const seasons = Math.max(1, runs.reduce((a, r) => a + r.snaps.length, 0));
+  const sum = (f: (r: Run) => number) => runs.reduce((a, r) => a + f(r), 0);
+  const acc = sum((r) => r.trade.accepts);
+  const kinds: Record<string, number> = {};
+  for (const r of runs) for (const [k, v] of Object.entries(r.trade.kinds)) kinds[k] = (kinds[k] ?? 0) + v;
+  console.log(
+    `${bot.name.padEnd(9)} 제안 ${(sum((r) => r.trade.offers) / seasons).toFixed(2)} (내놓은 선수 문의 ${(sum((r) => r.trade.block) / seasons).toFixed(2)}) · 수락 ${(acc / seasons).toFixed(2)} · 수락한 트레이드 평균: 가치 손익 ${acc ? fmtMoney(Math.round(sum((r) => r.trade.net) / acc)) : '—'} · 예상 승수 ${acc ? (sum((r) => r.trade.wins) / acc).toFixed(2) : '—'} [${Object.entries(kinds).map(([k, v]) => `${k} ${(v / seasons).toFixed(2)}`).join(' · ')}]`,
+  );
+}
+
 console.log('\n── 후반 스캔들 (플레이당 평균 · 목표: 끝까지 간 플레이에서 2~3회) ──');
 for (const bot of BOTS) {
   const runs = all[bot.name];
   const m = (f: (r: Run) => number, rs = runs) => (rs.length ? (rs.reduce((a, r) => a + f(r), 0) / rs.length).toFixed(2) : '—');
   const full = runs.filter((r) => r.over === null);
   console.log(
-    `${bot.name.padEnd(9)} 발생 ${m((r) => r.scandal.dope + r.scandal.fix)}회 (약물 ${m((r) => r.scandal.dope)} · 승부조작 ${m((r) => r.scandal.fix)}) · 덮은 일 ${m((r) => r.scandal.covered)}건 · 적발 ${m((r) => r.scandal.exposed)}건 · 윤리 교육 ${m((r) => r.scandal.ethics)}단계 | 끝까지 간 ${full.length}런: 발생 ${m((r) => r.scandal.dope + r.scandal.fix, full)}회`,
+    `${bot.name.padEnd(9)} 발생 ${m((r) => r.scandal.dope + r.scandal.fix)}회 (약물 ${m((r) => r.scandal.dope)} · 승부조작 ${m((r) => r.scandal.fix)}) · 덮은 일 ${m((r) => r.scandal.covered)}건 · 적발 ${m((r) => r.scandal.exposed)}건 · 윤리 교육 ${m((r) => r.scandal.ethics)}단계 · 신고 제재금 ${fmtMoney(Math.round(Number(m((r) => r.scandal.fine))))} | 끝까지 간 ${full.length}런: 발생 ${m((r) => r.scandal.dope + r.scandal.fix, full)}회`,
   );
 }
 if (FORK.report.length) {

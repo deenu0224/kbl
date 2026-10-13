@@ -12,6 +12,7 @@ import { bullpenLoad } from '../src/game/fixes';
 import { shuttleArms } from '../src/game/farm';
 import { autoPenStyle } from '../src/game/sim';
 import { buyEthics, ethicsCost, scandalOpen } from '../src/game/scandal';
+import { parseOffer, toggleBlock, tradeOpen, tradePreview, tradeValue } from '../src/game/trade';
 
 // ───────── 동사 ─────────
 
@@ -302,6 +303,22 @@ const farmFirst = (card: EventCard, greedyBot = false) => firstEnabled(card, gre
 
 // ───────── 봇 정의 ─────────
 
+/** 트레이드 제안: 예상 승수가 + 인가, 연봉 증가가 감당되는가 */
+function tradeLook(c: Core, card: EventCard): { wins: number; afford: boolean; kind: string } | null {
+  const of = parseOffer(card.id);
+  if (!of) return null;
+  const pv = tradePreview(c, of, of.cash);
+  return { wins: pv.wins, afford: pv.payroll.b <= Math.max(pv.payroll.a, PAYROLL_CAP(c) * 1.03) && c.finance.cash + of.cash >= RESERVE, kind: of.kind };
+}
+/** sensible: 가성비 나쁜 고연봉 벤치를 가끔 트레이드 시장에 내놓는다 */
+function blockIdle(c: Core): Core {
+  if (!tradeOpen(c) || c.day !== 30 || (c.campaign.block ?? []).length) return c;
+  const t = userTeam(c);
+  const key = new Set([...t.lineup.map((s) => s.pid), ...t.rotation, ...t.bullpen.slice(0, 4), ...(t.closer ? [t.closer] : [])]);
+  const out = activeRoster(t).filter((p) => !key.has(p.id) && p.salary >= 20000 && tradeValue(p, c.season) < 0).sort((a, b) => b.salary - a.salary)[0];
+  return out ? ok(toggleBlock(c, out.id), c) : c;
+}
+
 export interface Bot {
   name: string;
   preseason(c: Core): Core;
@@ -316,7 +333,7 @@ export const passive: Bot = {
   preseason: (c) => c,
   daily: (c) => c,
   // 감독·팀장이 하자는 대로(첫 선택지), 그 외에는 아무것도 하지 않는 쪽(마지막)
-  event: (_c, card) => (isFarmCard(card) ? farmFirst(card) : firstEnabled(card, ['veteran', 'dope', 'fix'].includes(baseId(card)) ? [0] : [card.choices.length - 1])),
+  event: (_c, card) => (isFarmCard(card) ? farmFirst(card) : firstEnabled(card, ['veteran', 'dope', 'fix'].includes(baseId(card)) ? [0] : baseId(card) === 'trade' ? [1] : [card.choices.length - 1])),
   beforeDraft: (c) => c,
   draft: () => null,
 };
@@ -327,13 +344,12 @@ const USE: Record<string, number[]> = {
   midcheck: [0],
   dome: [0], veteran: [1], oldeye: [1], notyet: [0], arm: [0], typhoon: [1],
   dope: [0, 2, 1], fix: [0, 2, 1], // 스캔들: 자진 신고 · 전면 협조
-  meeting: [0], scalper: [0, 2], early: [1], goods: [0, 1], trade: [0], tourist: [0], tour: [0, 1], raise: [0],
+  meeting: [0], scalper: [0, 2], early: [1], goods: [0, 1], tourist: [0], tour: [0, 1], raise: [0],
 };
 // 그 동사를 쓰지 않을 때의 선택
 const SKIP: Record<string, { verb: Verb; pick: number[] }> = {
   veteran: { verb: 'lineup', pick: [0] },
   oldeye: { verb: 'sign', pick: [1] },
-  trade: { verb: 'sign', pick: [1] },
   scalper: { verb: 'gate', pick: [1] },
   tourist: { verb: 'gate', pick: [1] },
   notyet: { verb: 'youth', pick: [1] },
@@ -348,7 +364,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
     const weekly = pre || day % 6 === 0;
     // sensible: 시즌 개막에 한 번, AI 구단과 같은 규칙으로 불펜 운영 방침을 고른다 (나머지 봇은 균형)
     if (name === 'sensible' && pre) c = { ...c, campaign: { ...c.campaign, penStyle: autoPenStyle(userTeam(c)) } };
-    if (name === 'sensible' && !pre) c = relievePen(c);
+    if (name === 'sensible' && !pre) c = blockIdle(relievePen(c));
     if (!weekly && day !== 13) return c;
     if (pre) while (c.finance.debt > 0 && c.finance.cash > RESERVE * 3) c = ok(repay(c), c);
     // sensible: 스캔들이 생길 수 있는 구단이 되면, 현금 여유가 있을 때 선수단 윤리 교육을 산다
@@ -386,6 +402,11 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
         const p = t.roster.find((x) => x.id === card.pid);
         const key = new Set([...t.lineup.map((s) => s.pid), ...t.rotation, ...t.bullpen.slice(0, 4), ...(t.closer ? [t.closer] : [])]);
         return firstEnabled(card, p && (key.has(p.id) || p.ovr >= weakest(c, p)) ? [0] : [1, 0]);
+      }
+      // 트레이드 제안: sensible 은 예상 승수가 + 이고 연봉이 감당될 때 (유망주를 내주는 유형은 2장 이후에만), off-verb 는 거절
+      if (id === 'trade') {
+        const look = name === 'sensible' ? tradeLook(c, card) : null;
+        return firstEnabled(card, look && look.wins > 0 && look.afford && (look.kind !== 'future' || c.campaign.stage >= 2) ? [0, 1] : [1]);
       }
       const skip = SKIP[id];
       if (skip && !v.has(skip.verb)) return firstEnabled(card, skip.pick);
@@ -431,7 +452,7 @@ export const greedy: Bot = {
   },
   daily: (c) => (c.day === 42 ? doLineup(greedySign(c), true) : c.day % 12 === 0 ? doLineup(c, true) : c),
   // 스캔들은 덮는다 · 선수 말을 믿는다
-  event: (_c, card) => (isFarmCard(card) ? farmFirst(card, true) : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : [0])),
+  event: (c, card) => (isFarmCard(card) ? farmFirst(card, true) : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : baseId(card) === 'trade' ? ((tradeLook(c, card)?.wins ?? 0) > 0 ? [0, 1] : [1]) : [0])),
   beforeDraft: (c) => trimRoster(c, 25),
   draft: (c) => bestProspect(c, (p) => p.ovr),
 };
