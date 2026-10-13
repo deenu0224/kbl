@@ -73,11 +73,12 @@ export const STAR_DIV = 420;
 export const OPS_COST = 1050; // 구단 운영비 기본 (만원/경기)
 export const OPS_FAN2 = 1.8e-5; // 팬 규모에 따라 커지는 운영비: (팬 − OPS_FAN_FREE)² × 이 값 (만원/경기) — 프런트·안전·홍보 인력. 큰 구단일수록 가파르다
 export const OPS_FAN_FREE = 5200;
+export const OPS_FAN_CAP = 24000; // 운영비가 따라 커지는 팬 규모의 상한 (최대 구장 24,000석 — 자리가 없는 팬까지 프런트가 커지지는 않는다). 없으면 팬 3만에서 운영비만 시즌 100억
 export const SALARY_INFLATION = 0.07; // 리그 연봉 인플레 (시즌당, 스타급일수록 크게 — season.ts develop)
 export const SALARY_INFLATION_MAX = 0.8;
-// 재계약 프리미엄: 가을야구를 한 팀의 선수는 비싸진다. 최근 3시즌의 성적별 가산을 더한다 (유저 구단 연봉에만)
-export const RENEW_PREMIUM: Record<string, number> = { none: 0, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.12 };
-export const RENEW_SEASONS = 3;
+// 재계약 프리미엄: 가을야구를 한 팀의 선수는 비싸진다. 최근 RENEW_SEASONS 시즌의 성적별 가산을 더한다 (유저 구단 연봉에만)
+export const RENEW_PREMIUM: Record<string, number> = { none: 0, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.1 };
+export const RENEW_SEASONS = 2; // 3시즌 합산(최대 +36%)은 왕조 팀의 연봉을 시즌마다 40억씩 올렸다 — 2시즌(최대 +20%)
 export const LEAGUE_BASE = 2100; // 리그 분배금·스폰서 기본 (만원/경기)
 export const LEAGUE_PER_FAN = 0.04;
 export const LEAGUE_PER_RANK = 45; // 순위 한 계단당
@@ -140,7 +141,7 @@ export function upgradeCost(kind: FacilityKind, f: Facilities): number | null {
 
 /** 구단 운영비 (만원/경기). 팬 규모가 커질수록 프런트가 커진다 */
 export function opsCost(core: Pick<Core, 'fans'>): number {
-  const over = Math.max(0, core.fans - OPS_FAN_FREE);
+  const over = Math.max(0, Math.min(core.fans, OPS_FAN_CAP) - OPS_FAN_FREE);
   return Math.round(OPS_COST + over * over * OPS_FAN2);
 }
 

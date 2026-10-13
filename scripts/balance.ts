@@ -190,12 +190,16 @@ for (let seed = 1; seed <= N_SEEDS; seed++) {
     `${pad(seed, 4)} | ${f3(s.avg)} ${s.era.toFixed(2)} ${s.rpg.toFixed(2)} | ${pad(s.hrTop, 3)} ${pad(s.n300, 5)} ${pad(s.n340, 5)} ${pad(f3(s.avgTop), 8)} ${pad(s.winsTop, 4)} ${pad(s.svTop, 6)} ${pad(s.ties, 2)} | ${pad(s.rank, 3)}위 ${pad(s.rec, 9)} | ${pad(fmtMoney(s.profit), 7)} ${pad(fmtMoney(s.payroll), 8)} | ${pad(Math.round(s.avgAtt), 8)} ${pad(s.sellouts, 4)} ${pad(s.turnedAway, 8)} | ${pad(s.fans, 5)} ${s.fanSat.toFixed(0)}`,
   );
 }
-console.log('---- 평균 (목표: AVG .265~.275 / ERA 4.2~4.8 / R/G 4.6~5.2 / HR1 20~27 / 순위 7~8 / 손익 +8억~+18억)');
+console.log('---- 평균 (목표: AVG .265~.275 / ERA 4.2~4.8 / R/G 4.6~5.2 / HR1 20~27 / 순위 7~8 / 손익 +8억~+18억 — 손익은 아래 [개막 오더만 고친 무개입] 기준, 이 줄은 완전 방치)');
 console.log(
   `AVG ${f3(mean(base.map((s) => s.avg)))} · ERA ${mean(base.map((s) => s.era)).toFixed(2)} · R/G ${mean(base.map((s) => s.rpg)).toFixed(2)} · HR1 ${mean(base.map((s) => s.hrTop)).toFixed(1)} · .300+ ${mean(base.map((s) => s.n300)).toFixed(1)}명 · .340+ ${mean(base.map((s) => s.n340)).toFixed(1)}명`,
 );
 console.log(
   `유저 순위 ${mean(base.map((s) => s.rank)).toFixed(2)} [${base.map((s) => s.rank).join(',')}] · 손익 ${fmtMoney(mean(base.map((s) => s.profit)))} (min ${fmtMoney(Math.min(...base.map((s) => s.profit)))} / max ${fmtMoney(Math.max(...base.map((s) => s.profit)))}) · 평균 관중 ${Math.round(mean(base.map((s) => s.avgAtt)))} · 매진 ${mean(base.map((s) => s.sellouts)).toFixed(1)}회 · 입장 못한 팬 ${Math.round(mean(base.map((s) => s.turnedAway)))}명`,
+);
+// 무개입의 두 번째 정의: 개막 오더만 자동 최적 편성으로 고치고 나머지는 아무것도 하지 않는다 — 손익 목표(+8억~+18억)는 이 기준으로 본다
+console.log(
+  `[개막 오더만 고친 무개입] 유저 순위 ${mean(kboBase.map((s) => s.rank)).toFixed(2)} · 손익 ${fmtMoney(mean(kboBase.map((s) => s.profit)))} (min ${fmtMoney(Math.min(...kboBase.map((s) => s.profit)))} / max ${fmtMoney(Math.max(...kboBase.map((s) => s.profit)))}) (목표 +8억~+18억) · 평균 관중 ${Math.round(mean(kboBase.map((s) => s.avgAtt)))} · 완전 방치 대비 손익 ${fmtMoney(mean(kboBase.map((s) => s.profit)) - mean(base.map((s) => s.profit)))}`,
 );
 console.log('홈런왕:', base.map((s) => `${s.hrTopName} ${s.hrTop}`).join(' / '));
 console.log('최종 순위 예시(seed 1):', base[0].rankOrder);
