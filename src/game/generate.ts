@@ -57,7 +57,7 @@ export const TEAM_DEFS: TeamDef[] = [
   { id: USER_ID, city: '제주', name: '탠저린즈', color: '#f08a1c', color2: '#1f6b3a', tier: 55, pop: 0.25, stars: 1 },
   // 10구단 체제의 두 구단 (가상). 전력은 리그의 가운데~아래 — 유저 구단의 출발선(최하위 전력)을 지킨다. 반드시 맨 뒤에 둔다 (8구단 리그의 생성 순서 유지)
   { id: 'SUW', city: '수원', name: '스톤월즈', color: '#6d3fb8', color2: '#e9dcb0', tier: 58, pop: 0.6, stars: 3, exp: true },
-  { id: 'CHW', city: '창원', name: '하버라이츠', color: '#00897b', color2: '#ffe082', tier: 57, pop: 0.5, stars: 2, exp: true },
+  { id: 'CHW', city: '창원', name: '하버라이츠', color: '#00897b', color2: '#ffe082', tier: 58, pop: 0.5, stars: 2, exp: true },
 ];
 export const LEAGUE_TEAMS = TEAM_DEFS.length; // 새 게임의 구단 수 (10)
 // 점검용 스위치 (scripts 가 TEAMS=8 로 원년 8구단 리그를 만들어 돌린다. 게임에서는 건드리지 않는다)
