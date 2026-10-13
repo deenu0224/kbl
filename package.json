@@ -15,6 +15,7 @@
     "bullpen": "tsx scripts/bullpen.ts",
     "verify": "tsx scripts/verify.ts",
     "achv": "tsx scripts/achv.ts",
+    "oldsave": "tsx scripts/oldsave.ts",
     "deploy": "sh scripts/deploy.sh",
     "screens": "node scripts/screens/run.mjs",
     "bench": "tsx scripts/share/bench.ts",
