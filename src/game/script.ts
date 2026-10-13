@@ -10,7 +10,7 @@ import { addNews, standings } from './season';
 import { shiftOvr } from './draft';
 import { hintMut } from './campaign';
 import { memoSet } from './memo';
-import { blockDayAt, dayAt, SERIES_LEN } from './league';
+import { blockDayAt, dayAt, postTeams, SERIES_LEN } from './league';
 import { NEWS, openingLine } from './story';
 
 // ───────── 튜닝 상수 ─────────
@@ -190,7 +190,9 @@ function opponentOrder(core: Core, rank: Rank, projected: boolean): string[] {
   const others = all.map((t, i) => ({ id: t.id, pos: i + 1 })).filter((x) => x.id !== core.userId);
   if (rank === 'top') return others.map((x) => x.id);
   if (rank === 'bottom') return others.reverse().map((x) => x.id);
-  return others.sort((a, b) => Math.abs(a.pos - 4.5) - Math.abs(b.pos - 4.5)).map((x) => x.id);
+  // 가을야구 막차 선(8구단 4·5위 사이, 10구단 5·6위 사이)에 가까운 순
+  const cut = postTeams(core) + 0.5;
+  return others.sort((a, b) => Math.abs(a.pos - cut) - Math.abs(b.pos - cut)).map((x) => x.id);
 }
 
 /**

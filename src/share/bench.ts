@@ -1,4 +1,5 @@
 import table from './bench.json';
+import table8 from './bench8.json';
 
 /** 가상 단장 분포표 (scripts/share/bench.ts 가 만든다: 봇 4종 × 시드 × 15시즌) */
 interface BenchTable {
@@ -9,7 +10,12 @@ interface BenchTable {
   progress: number[][][]; // progress[s-1] = [도달한 장(연고 이전 = -1), 최고 순위, 단장 수][]
   teams?: number; // 표를 만든 리그의 구단 수 (없으면 8 — 10구단 체제 전에 만든 표)
 }
+/** 새 게임(10구단) 난이도의 표 */
 export const BENCH = table as BenchTable;
+/** 원년 8구단 리그의 표 (10구단 체제 전에 만든 것 — 8구단 세이브와 옛 명예의 전당 기록은 이 표에 견준다) */
+export const BENCH8 = table8 as BenchTable;
+/** 기록의 구단 수에 맞는 표 (ShareRecord.teams · HofClub.teams — 없으면 8) */
+export const benchFor = (teams = 8): BenchTable => (teams <= (BENCH8.teams ?? 8) ? BENCH8 : BENCH);
 
 export interface Percentile {
   pct: number; // 상위 n% (작을수록 좋다. 1~99)
@@ -37,7 +43,7 @@ const rankPct = (better: number, equal: number, n: number) => Math.max(1, Math.m
 const score = (stage: number, best: number, teams = 8) => stage * 10 + Math.round((((teams - best) * 7) / Math.max(1, teams - 1)) * 100) / 100;
 
 /** 가상 단장들 사이의 자리. 우승했으면 우승까지 걸린 시즌 수, 연고 이전이면 버틴 시즌 수, 아니면 같은 시즌 시점의 진행도(장 → 최고 순위) */
-export function percentile(r: BenchInput, t: BenchTable = BENCH): Percentile {
+export function percentile(r: BenchInput, t: BenchTable = benchFor(r.teams)): Percentile {
   const n = t.n;
   if (r.champAt) {
     const s = Math.min(r.champAt, t.seasons + 1);

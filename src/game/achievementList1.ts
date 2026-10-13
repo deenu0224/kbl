@@ -52,6 +52,8 @@ const myGloves = (x: AchvCtx): number => (Object.keys(awardsOf(x.core).goldenGlo
 const pct = (r: { w: number; l: number }): number => (r.w + r.l ? r.w / (r.w + r.l) : 0);
 const g = (x: AchvCtx) => gameView(x.r!);
 const won = (x: AchvCtx): boolean => !!x.r && x.r.won === true;
+// 와일드카드 결정전은 4위가 1승을 안고 시작한다: 5위(전 경기 원정)의 2연승만 무패 통과로 친다. 4위의 1승 통과는 한 경기라 치지 않는다
+const wcSweep = (x: AchvCtx): boolean => !x.r!.isHome && x.r!.post!.gameNo === 2;
 const some = (x: AchvCtx, f: (p: Player) => boolean): boolean => x.t.roster.some(f);
 const postRank: Record<string, number> = { none: 0, WC: 1, SPO: 1, PO: 2, KS: 3, champion: 4 };
 
@@ -122,7 +124,7 @@ const SEASON: AchvDef[] = [
   E('se-w12', '지는 법을 잊었다', '정규시즌 12연승', '🛸', 4, 'game', (x) => streaks(x.core).w >= 12, { progress: (x) => [streaks(x.core).w, 12] }),
   E('se-nol3', '연패는 남의 일', '한 시즌 내내 3연패 없이 정규시즌을 마친다', '🧘', 4, 'season', (x) => streaks(x.core).n >= seasonGames(x.core) && streaks(x.core).l <= 2),
   E('se-post-win', '가을에 이겼다', '포스트시즌 경기에서 1승', '🍁', 2, 'game', (x) => won(x) && !!x.r!.post),
-  E('se-sweep', '빗자루 들고 왔다', '포스트시즌 시리즈를 무패로 통과', '🧹', 3, 'game', (x) => won(x) && !!x.r!.post && x.r!.post.oppW === 0 && x.r!.post.myW * 2 > x.r!.post.bestOf),
+  E('se-sweep', '빗자루 들고 왔다', '포스트시즌 시리즈를 무패로 통과', '🧹', 3, 'game', (x) => won(x) && !!x.r!.post && (x.r!.post.round === 'WC' ? wcSweep(x) : x.r!.post.oppW === 0 && x.r!.post.myW * 2 > x.r!.post.bestOf)),
   E('se-ks-win', '한국시리즈 1승', '한국시리즈 경기에서 1승', '🏟️', 3, 'game', (x) => won(x) && x.r!.post?.round === 'KS'),
   E('se-game7', '끝장 승부', '한국시리즈 7차전에서 승리', '7️⃣', 4, 'game', (x) => won(x) && x.r!.post?.round === 'KS' && x.r!.post.gameNo === 7),
   E('se-upset', '도장 깨기', '정규시즌 5위로 와일드카드 결정전부터 한국시리즈까지 진출', '🥋', 4, 'season', (x) => x.rec!.rank === postTeams(x.core) && postRank[x.rec!.post] >= 3),

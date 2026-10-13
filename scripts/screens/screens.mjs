@@ -306,6 +306,13 @@ export const SCREENS = [
   S('eight-club', 'eight', game(...CLUB)),
   S('eight-summary', 'eight', game(...SUMMARY)),
   S('eight-post-bracket', 'eightPost', game('리그', '대진표')),
+  // 진짜 옛 세이브 (옛 코드로 저장한 파일 그대로)
+  S('old-home', 'oldReal', game()),
+  S('old-table', 'oldReal', game('리그')),
+  S('old-bracket', 'oldReal', game('리그', '대진표')),
+  S('old-club', 'oldReal', game(...CLUB)),
+  S('old-post-home', 'oldRealPost', game()),
+  S('old-post-bracket', 'oldRealPost', game('리그', '대진표')),
 
   // ── 도전과제: 초기 화면에서 연 목록(달성 일부 · 빈 저장) · 게임 안에서 연 목록 · 범주 탭 · 필터 · 달성 알림
   S('achv-title', 'opened', st(['open-achv']), { ui: ACHV_UI }),

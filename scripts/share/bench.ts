@@ -1,5 +1,5 @@
 // 가상 단장 분포: 봇 4종(passive·sensible·greedy·off-verb)으로 시드 N개 × 15시즌을 돌려 src/share/bench.json 을 만든다.
-// 실행: npm run bench  (인자: 시드 수, 시즌 수 → npx tsx scripts/share/bench.ts 60 15). 새 게임과 같은 10구단 리그로 돌고, 표에 구단 수(teams)를 적는다
+// 실행: npm run bench  (인자: 시드 수, 시즌 수 → npx tsx scripts/share/bench.ts 60 15). 새 게임과 같은 10구단 리그로 돌고, 표에 구단 수(teams)를 적는다. 원년 8구단 표(src/share/bench8.json)는 TEAMS=8 npm run bench
 // 공유 카드의 "상위 n%"(src/share/bench.ts percentile)가 이 표를 읽는다. 순수 함수만 사용 — 스토어 미사용.
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
@@ -156,7 +156,8 @@ async function main() {
     }
   }
   t.progress = prog.map((m) => [...m.entries()].map(([k, n]) => [...k.split(',').map(Number), n] as [number, number, number]).sort((a, b) => b[0] - a[0] || a[1] - b[1]));
-  const out = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/share/bench.json');
+  // 10구단(새 게임) 표는 bench.json, 원년 8구단 표(TEAMS=8 npm run bench)는 bench8.json — src/share/bench.ts benchFor 가 기록의 구단 수로 고른다
+  const out = resolve(dirname(fileURLToPath(import.meta.url)), `../../src/share/${NEW_GAME.teams <= 8 ? 'bench8' : 'bench'}.json`);
   writeFileSync(out, JSON.stringify(t) + '\n');
   const cum = (xs: number[]) => xs.map(((a) => (x: number) => (a += x))(0));
   console.log(`\n가상 단장 ${t.n}명 × ${N_SEASONS}시즌 (실패 ${crash}) → ${out}`);

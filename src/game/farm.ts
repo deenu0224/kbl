@@ -77,6 +77,12 @@ export function subEnqueueMut(core: Core, pids: string[]): void {
 
 /** 부상자가 돌아왔다: 대체 선수가 맡던 칸을 원래 주인에게 돌려준다 (mutate). 유저가 그 사이 편성을 바꿨으면 건드리지 않는다 */
 function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player, force = false): void {
+  restoreSlotStep(core, t, orig, sub, force);
+  // 넘겨받은 단계(via)를 되돌린 뒤 바깥 단계가 조건에 걸려 멈추면, 그사이 명단에 오른(2군·재활) 선수가 편성에 남는다 — 그 칸은 정리한다
+  const placed = [...t.lineup.map((x) => x.pid), ...t.rotation, ...t.bullpen, ...(t.closer ? [t.closer] : [])];
+  if (placed.some((id) => t.roster.find((x) => x.id === id)?.farm)) fixLineup(t);
+}
+function restoreSlotStep(core: Core, t: Team, orig: Player, sub: Player, force: boolean): void {
   const v = memoGet(core, subSlotKey(orig.id));
   if (!v) return;
   memoSet(core, subSlotKey(orig.id), '');
@@ -85,7 +91,7 @@ function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player, force = 
   // 대체 선수도 다쳐 그 칸을 다른 선수가 넘겨받았으면(subHandoverMut), 그 단계부터 되돌린 뒤 원래 주인을 세운다
   const mid = via ? t.roster.find((x) => x.id === via) : undefined;
   if (mid) {
-    restoreSlotMut(core, t, mid, sub, true);
+    restoreSlotStep(core, t, mid, sub, true);
     if (k === 'L' ? t.lineup.some((x) => x.pid === mid.id) : k === 'R' ? t.rotation.includes(mid.id) : k === 'C' ? t.closer === mid.id : t.bullpen.slice(0, 2).includes(mid.id)) sub = mid;
   }
   if (k === 'L') {
@@ -256,6 +262,9 @@ const say = (core: Core, notes: string[], text: string, tone: 'good' | 'bad' | '
   notes.push(text);
   addNews(core, text, tone);
 };
+
+/** p 를 2군으로 내려도 1군 최소 인원(타자·투수)이 지켜지는가 — 대체 선수를 돌려보내는 사이에 다른 선수가 빠졌으면(입대·방출·트레이드) 벤치에 남긴다 */
+const spareOnActive = (t: Team, p: Player): boolean => activeRoster(t).filter((x) => x.kind === p.kind).length > (p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS);
 
 /** 최소 인원이 깨지면 2군에서 채운다 */
 function refillMinMut(core: Core, notes: string[]): void {
@@ -542,7 +551,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     }
     if (asked && pend!.day === core.day) continue;
     if (orig) restoreSlotMut(core, t, orig, p);
-    if (farmRoster(t).length >= farmMax(core)) {
+    if (farmRoster(t).length >= farmMax(core) || !spareOnActive(t, p)) {
       delete p.subFor;
       continue;
     }
@@ -844,6 +853,10 @@ export const FARM_CARDS: FarmCardDef[] = [
       if (farmRoster(t).length >= farmMax(c)) {
         delete sub.subFor;
         return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로 — 2군이 가득해 ${josa(sub.name, '은', '는')} 벤치에 남습니다`;
+      }
+      if (!spareOnActive(t, sub)) {
+        delete sub.subFor;
+        return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로 — 1군 인원이 모자라 ${josa(sub.name, '은', '는')} 벤치에 남습니다`;
       }
       demoteMut(c, t, sub, false);
       return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로, ${josa(sub.name, '은', '는')} 2군으로 돌아갔습니다`;
