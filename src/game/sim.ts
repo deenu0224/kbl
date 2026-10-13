@@ -693,6 +693,7 @@ export function simulateGame(
     starters: [A.used[0].p.id, H.used[0].p.id],
     injuries: [],
   };
+  if (track) result.pitOrder = [A.used.map((u) => u.p.id), H.used.map((u) => u.p.id)];
 
   // ── 승/패/세이브 ──
   const W = H.runs > A.runs ? H : A.runs > H.runs ? A : null;

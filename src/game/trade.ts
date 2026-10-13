@@ -10,7 +10,7 @@ import { farmMax, loanLimit, blockClosedWhy, MIN_BATTERS, MIN_PITCHERS, ROSTER_M
 import { fmtMoney } from './format';
 import { isFranchise } from './franchise';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
-import { teamParts, type TeamParts } from './ratings';
+import { calcOvr, teamParts, type TeamParts } from './ratings';
 import { POS_LABEL, positionReport, type PosKey } from './analysis';
 import { winDelta } from './briefing';
 import { GAMES } from './schedule';
@@ -281,6 +281,11 @@ export function applyTradeMut(core: Core, of: TradeOffer, cash: number, quiet = 
       core.fans = Math.max(1000, core.fans - p.star * TR.frFans);
       core.fanSat = satAfter(core, TR.frSat);
       if (!quiet) addNews(core, NEWS.franchiseGone(p.name), 'bad');
+    }
+    // 포지션 전향 중이면 수비 페널티를 풀어 보낸다 (방출과 같다. 표시만 지우면 깎인 수비가 영영 남는다)
+    if (p.posShift) {
+      p.def = clamp(p.def + p.posShift.pen, 20, 99);
+      p.ovr = calcOvr(p);
     }
     // 이적하면 보유 기간의 할인은 사라진다 — 새 팀에서는 시장가
     for (const k of ['since', 'svc', 'ask', 'lever', 'tired', 'farm', 'il', 'farmUntil', 'farmStat', 'posShift', 'apps'] as const) delete p[k];

@@ -277,7 +277,9 @@ function boxOf(team: Team, lineup: Team['lineup'], before: Map<string, { bat: Ba
   }
   bat.sort((a, b) => (rank.get(a.pid) ?? 99) - (rank.get(b.pid) ?? 99));
   const starter = res.starters[side];
-  pit.sort((a, b) => Number(b.pid === starter) - Number(a.pid === starter));
+  // 등판 순서대로 (sim 이 실어 준다. 없으면 선발만 앞으로)
+  const turn = new Map((res.pitOrder?.[side] ?? [starter]).map((id, i) => [id, i]));
+  pit.sort((a, b) => (turn.get(a.pid) ?? 99) - (turn.get(b.pid) ?? 99));
   return { bat, pit };
 }
 

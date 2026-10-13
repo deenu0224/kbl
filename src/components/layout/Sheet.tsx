@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { uiZoom } from './uiScale';
 
 /**
  * 모바일 바텀 시트. 바깥(어두운 배경)을 탭하거나 손잡이를 아래로 끌면 닫힌다.
@@ -23,7 +24,7 @@ export default function Sheet({ onClose, children, label }: { onClose: () => voi
   };
   const onMove = (y: number) => {
     if (start.current == null) return;
-    setDy(Math.max(0, y - start.current));
+    setDy(Math.max(0, (y - start.current) / uiZoom())); // 터치 좌표는 화면 px, translateY 는 zoom 전 CSS px
   };
   const onEnd = () => {
     if (start.current == null) return;

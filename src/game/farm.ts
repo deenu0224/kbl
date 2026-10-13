@@ -75,12 +75,18 @@ export function subEnqueueMut(core: Core, pids: string[]): void {
 }
 
 /** 부상자가 돌아왔다: 대체 선수가 맡던 칸을 원래 주인에게 돌려준다 (mutate). 유저가 그 사이 편성을 바꿨으면 건드리지 않는다 */
-function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player): void {
+function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player, force = false): void {
   const v = memoGet(core, subSlotKey(orig.id));
   if (!v) return;
   memoSet(core, subSlotKey(orig.id), '');
-  const [k, , pos, mover, mpos] = v.split('~');
-  if (orig.farm || orig.injury > 0) return;
+  const [k, , pos, mover, mpos, via] = v.split('~');
+  if (!force && (orig.farm || orig.injury > 0)) return;
+  // 대체 선수도 다쳐 그 칸을 다른 선수가 넘겨받았으면(subHandoverMut), 그 단계부터 되돌린 뒤 원래 주인을 세운다
+  const mid = via ? t.roster.find((x) => x.id === via) : undefined;
+  if (mid) {
+    restoreSlotMut(core, t, mid, sub, true);
+    if (k === 'L' ? t.lineup.some((x) => x.pid === mid.id) : k === 'R' ? t.rotation.includes(mid.id) : k === 'C' ? t.closer === mid.id : t.bullpen.slice(0, 2).includes(mid.id)) sub = mid;
+  }
   if (k === 'L') {
     const s = t.lineup.find((x) => x.pid === sub.id);
     if (!s || t.lineup.some((x) => x.pid === orig.id)) return;
@@ -106,7 +112,30 @@ function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player): void {
     t.bullpen.splice(i, 0, orig.id);
     t.bullpen.splice(Math.min(2, t.bullpen.length), 0, sub.id);
   }
-  fixLineup(t);
+  if (!force) fixLineup(t);
+}
+
+/**
+ * 대체 선수 mid 가 또 다쳐 다른 선수가 그 칸을 넘겨받는다 (mutate): 원래 주인 root 의 칸 메모 끝에 mid 를 이어 둔다.
+ * root 가 돌아오면 restoreSlotMut 이 mid 의 단계부터 차례로 되돌린다. 칸 메모가 없으면(자동 콜업) false
+ */
+export function subHandoverMut(core: Core, root: Player, mid: Player): boolean {
+  let key = subSlotKey(root.id);
+  const v0 = memoGet(core, key);
+  if (!v0) return false;
+  let v: string = v0;
+  for (let g = 0; g < 8; g++) {
+    const via: string | undefined = v.split('~')[5];
+    const next: string | undefined = via ? memoGet(core, subSlotKey(via)) : undefined;
+    if (!via || !next) break;
+    key = subSlotKey(via);
+    v = next;
+  }
+  const f = v.split('~');
+  while (f.length < 5) f.push('');
+  f[5] = mid.id;
+  memoSet(core, key, f.join('~'));
+  return true;
 }
 
 /** 카드에서 고른 1군 벤치·불펜 대체 선수: 부상자가 돌아오면 원래 자리(벤치·불펜)로 (mutate. 자동 운영과 무관) */
@@ -500,7 +529,10 @@ export function farmDailyMut(core: Core, notes: string[]): void {
   for (const p of t.roster.filter((x) => x.subFor && !x.farm && x.subFrom !== 'bench')) {
     const orig = t.roster.find((x) => x.id === p.subFor);
     if (orig && (orig.injury > 0 || (orig.farm && orig.il))) continue; // 아직 결장 중이거나 재활 명단에서 복귀를 기다린다
-    if (p.injury > 0) continue; // 다친 대체 선수는 나은 뒤에 내린다
+    if (p.injury > 0) {
+      if (orig && !orig.farm && orig.injury === 0) restoreSlotMut(core, t, orig, p); // 칸은 바로 돌려준다
+      continue; // 다친 대체 선수는 나은 뒤에 내린다
+    }
     const asked = pend?.sub === p.id;
     if (!asked && !askedNow && orig && !orig.farm && isHot(core, p) && farmBudgetOk(core)) {
       memoSet(core, 'b3', `${p.id}|${orig.id}|${core.day}`);
