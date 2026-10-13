@@ -57,7 +57,7 @@ export function FarmMoveButton({ player, onDone }: { player: Player; onDone?: ()
           onDone?.();
         }}
       >
-        {player.farm ? '▲ 콜업' : '▼ 2군으로'}
+        {player.farm ? (player.il ? '▲ 복귀' : '▲ 콜업') : player.injury > 0 ? '▼ 부상자 명단으로' : '▼ 2군으로'}
       </button>
       <span className={`basis-full truncate text-[10px] leading-snug mob:text-[13px] ${pv.ok ? 'text-white/65' : 'text-bad'}`} data-testid="farm-preview">
         {shortPv(pv.text)}

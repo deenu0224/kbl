@@ -282,7 +282,7 @@ export function applyTradeMut(core: Core, of: TradeOffer, cash: number, quiet = 
       if (!quiet) addNews(core, NEWS.franchiseGone(p.name), 'bad');
     }
     // 이적하면 보유 기간의 할인은 사라진다 — 새 팀에서는 시장가
-    for (const k of ['since', 'svc', 'ask', 'lever', 'tired', 'farm', 'farmUntil', 'farmStat', 'posShift', 'apps'] as const) delete p[k];
+    for (const k of ['since', 'svc', 'ask', 'lever', 'tired', 'farm', 'il', 'farmUntil', 'farmStat', 'posShift', 'apps'] as const) delete p[k];
     p.salary = Math.max(p.salary, marketSalary(p, core.season));
   }
   u.roster = u.roster.filter((p) => !of.give.includes(p.id));

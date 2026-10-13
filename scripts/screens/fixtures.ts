@@ -8,7 +8,7 @@ import type { Core } from '../../src/game/types';
 import { mulberry32, type Rng } from '../../src/game/rng';
 import { newCore } from '../../src/game/generate';
 import { advanceDay, nextSeason } from '../../src/game/season';
-import { farmRoster, userTeam } from '../../src/game/economy';
+import { farmRoster, rehabRoster, userTeam } from '../../src/game/economy';
 import { ensureObjectives, STAGES } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
 import { drawStoveTrade, tradeOpen } from '../../src/game/trade';
@@ -69,6 +69,8 @@ const WANT: Record<string, Pred> = {
   },
   soldout: (c) => inSeason(c) && quiet(c) && lastWasHome(c) && nextIsHome(c) && (c.crowd?.turnedAway ?? 0) > 0,
   farm: (c) => inSeason(c) && quiet(c) && c.day >= 10 && nextIsHome(c) && farmRoster(userTeam(c)).length >= 5,
+  // 부상자 명단: 복귀까지 며칠 남은 재활 타자가 있는 날 (2군 트레이의 재활 칩 · 자리 시트의 재활 줄)
+  rehab: (c) => inSeason(c) && quiet(c) && c.day >= 10 && nextIsHome(c) && farmRoster(userTeam(c)).length >= 3 && rehabRoster(userTeam(c)).some((p) => p.kind === 'B' && (p.farmUntil ?? 0) - c.day >= 3),
   // 할 일에 "매진 —" 줄이 있는 포스트시즌 (todo-action 화면이 그 줄을 누른다)
   post: (c) => c.phase === 'post' && quiet(c) && !!c.post && !!postMatch(c) && todoList(c).some((t) => t.text.startsWith('매진 —')),
   ended: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.cleared && !endingNow(c),
@@ -181,6 +183,9 @@ outer: for (let seed = 1; seed <= SEED_MAX; seed++) {
     }
   }
 }
+
+// 2군 자동 운영을 끈 부상 세이브: 선수 카드의 [부상자 명단으로] · 조치 시트의 "부상자 명단으로"
+if (found.injury) found.injuryManual = { ...found.injury, core: { ...structuredClone(found.injury.core), campaign: { ...structuredClone(found.injury.core.campaign), farmAuto: false } } };
 
 mkdirSync(OUT, { recursive: true });
 // 명예의 전당: 연고 이전(없으면 결산) 세이브를 한 줄 올려 둔다

@@ -6,9 +6,9 @@
 import type { BatPos, Buff, CharId, Core, EventCard, Player, Team } from './types';
 import { clamp, pick, type Rng } from './rng';
 import { calcOvr } from './ratings';
-import { fixLineup, slotValue } from './lineup';
+import { fixLineup, slotNewcomer, slotValue } from './lineup';
 import { PEN_OVER_KEY, PEN_OVER_SUM, bullpenLoad } from './fixes';
-import { FARM_CAP, FARM_LOCK, FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmGrow, farmRoster, userTeam } from './economy';
+import { FARM_CAP, FARM_LOCK, FARM_MAX, IL_AUTO, IL_AUTO_BAN, IL_MIN, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmGrow, farmRoster, rehabRoster, userTeam } from './economy';
 import { fmtAvg, fmtEra, fmtMoney } from './format';
 import { cardRested, markCardMut, memoAdd, memoGet, memoNum, memoSet } from './memo';
 import { CARD_LINES, CHARACTERS, FARM_COACH_LINE } from './story';
@@ -110,6 +110,7 @@ export function sinceUp(core: Core, p: Player): { days: number; h: number; ab: n
 function promoteMut(core: Core, t: Team, k: Player, cur: Player | undefined): void {
   if (k.farm) markUpMut(core, k);
   delete k.farm;
+  delete k.il;
   delete k.farmUntil;
   if (k.kind === 'B') {
     const slot = cur ? t.lineup.find((s) => s.pid === cur.id) : undefined;
@@ -131,6 +132,7 @@ function promoteMut(core: Core, t: Team, k: Player, cur: Player | undefined): vo
 
 function demoteMut(core: Core, t: Team, p: Player, lock: boolean): void {
   p.farm = true;
+  delete p.il;
   delete p.tired;
   delete p.subFor;
   if (lock) p.farmUntil = core.day + FARM_LOCK;
@@ -161,6 +163,7 @@ function enlistMut(core: Core, p: Player, notes: string[]): void {
   const t = userTeam(core);
   t.roster = t.roster.filter((x) => x.id !== p.id);
   delete p.farm;
+  delete p.il;
   delete p.farmUntil;
   delete p.farmStat;
   delete p.tired;
@@ -199,6 +202,13 @@ function grow(p: Player, rng: Rng, n: number): void {
 export function seasonTurnFarmMut(core: Core, rng: Rng): number {
   const t = userTeam(core);
   for (const p of t.roster) unshiftPosMut(p);
+  // 겨울을 난 재활 선수는 개막에 맞춰 돌아온다 (징계가 남았으면 그대로 명단에. 1군이 가득이면 개막 뒤 2군 코치가 자리를 낸다)
+  for (const p of rehabRoster(t)) {
+    if (p.injury > 0 || activeRoster(t).length >= ROSTER_MAX) continue;
+    delete p.farm;
+    delete p.il;
+    slotNewcomer(t, p);
+  }
   const away = core.campaign.away ?? [];
   const back = away.filter((p) => (p.away?.until ?? 0) <= core.season);
   if (!back.length) return 0;
@@ -285,6 +295,35 @@ function depthEmpty(t: Team, inj: Player): boolean {
   return act.filter((p) => p.kind === 'P' && !t.rotation.includes(p.id)).length < 5;
 }
 
+/** 부상자 자리에 올릴 2군 선수: 같은 포지션의 최고, 없으면 그 자리에 가장 맞는 선수 */
+function subPick(core: Core, t: Team, inj: Player): Player | undefined {
+  const pool = farmRoster(t).filter((p) => p.kind === inj.kind && p.injury === 0 && lockLeft(core, p) === 0);
+  const same = pool.filter((p) => p.pos === inj.pos).sort((a, b) => b.ovr - a.ovr);
+  const pos = (t.lineup.find((s) => s.pid === inj.id)?.pos ?? 'DH') as BatPos;
+  const any = pool.slice().sort((a, b) => (inj.kind === 'B' ? slotValue(b, pos) - slotValue(a, pos) : b.ovr - a.ovr));
+  return same[0] ?? any[0];
+}
+
+/** 재활을 마쳐 복귀할 수 있는 선수 (다 나았고 명단 잠금이 풀렸다) */
+export function rehabReady(core: Core): Player[] {
+  return rehabRoster(userTeam(core)).filter((p) => p.injury === 0 && lockLeft(core, p) === 0);
+}
+
+/** 복귀 선수에게 자리를 내줄 1군 선수: 같은 종류의 가장 약한 벤치, 없으면 최소 인원이 남는 쪽의 벤치 */
+function returnOut(t: Team, back: Player): Player | null {
+  const same = benchOut(t, back.kind);
+  if (same) return same;
+  const other = back.kind === 'B' ? 'P' : 'B';
+  const out = benchOut(t, other);
+  return out && activeRoster(t).filter((p) => p.kind === other).length > (other === 'B' ? MIN_BATTERS : MIN_PITCHERS) ? out : null;
+}
+
+/** 복귀 대기: 재활은 끝났는데 1군이 가득하고 내릴 선수도 없다 (할 일에 올린다) */
+export function rehabWaiting(core: Core): Player[] {
+  const t = userTeam(core);
+  return activeRoster(t).length >= ROSTER_MAX ? rehabReady(core) : [];
+}
+
 export const SHUTTLE_OVR_GAP = 6; // 셔틀: 올라올 팔이 내려갈 팔보다 이만큼 넘게 처지면 하지 않는다 (10경기를 그 팔로 버텨야 한다)
 const SHUTTLE_WEEK = 6; // 주당 1회
 
@@ -346,15 +385,37 @@ export function farmDailyMut(core: Core, notes: string[]): void {
   if (!farmAutoOn(core)) return;
   shuttleMut(core, notes);
 
-  // ── 부상자가 돌아오면 대체 선수는 2군으로 (맹활약 중이면 사건 B3 로 넘긴다) ──
+  // ── 재활을 마친 선수는 1군으로 (대체 선수가 맹활약 중이면 둘 다 1군에 두고 사건 B3 로 넘긴다) ──
   const pend = pending(core);
+  for (const p of rehabReady(core)) {
+    const sub = t.roster.find((x) => x.subFor === p.id && !x.farm);
+    let tail = '';
+    if (activeRoster(t).length >= ROSTER_MAX) {
+      const room = farmRoster(t).length < FARM_MAX;
+      const ask = !!sub && sub.injury === 0 && pend?.sub !== sub.id && isHot(core, sub) && farmBudgetOk(core);
+      const out = !room ? null : ((ask ? null : sub && sub.injury === 0 ? sub : null) ?? returnOut(t, p) ?? (sub && sub.injury === 0 ? sub : null));
+      if (!out) continue; // 자리가 없다 — 복귀 대기 (할 일에 뜬다)
+      demoteMut(core, t, out, false);
+      tail = ` — ${out.name} 2군행`;
+    }
+    delete p.farm;
+    delete p.il;
+    delete p.farmUntil;
+    slotNewcomer(t, p);
+    memoAdd(core, 'ilBack');
+    say(core, notes, `${FARM_COACH}${p.name} 복귀${tail}`, 'good');
+  }
+
+  // ── 부상자가 돌아오면 대체 선수는 2군으로 (맹활약 중이면 사건 B3 로 넘긴다) ──
+  let askedNow = false;
   for (const p of t.roster.filter((x) => x.subFor && !x.farm)) {
     const orig = t.roster.find((x) => x.id === p.subFor);
-    if (orig && !orig.farm && orig.injury > 0) continue;
-    if (p.injury > 0) continue; // 부상자는 내릴 수 없다
+    if (orig && (orig.injury > 0 || (orig.farm && orig.il))) continue; // 아직 결장 중이거나 재활 명단에서 복귀를 기다린다
+    if (p.injury > 0) continue; // 다친 대체 선수는 나은 뒤에 내린다
     const asked = pend?.sub === p.id;
-    if (!asked && orig && !orig.farm && isHot(core, p) && farmBudgetOk(core)) {
+    if (!asked && !askedNow && orig && !orig.farm && isHot(core, p) && farmBudgetOk(core)) {
       memoSet(core, 'b3', `${p.id}|${orig.id}|${core.day}`);
+      askedNow = true; // 하루에 한 명만 묻는다
       continue;
     }
     if (asked && pend!.day === core.day) continue;
@@ -366,14 +427,12 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     say(core, notes, `${FARM_COACH}${orig ? `${orig.name} 복귀 — ` : ''}대체 선수 ${p.name} 2군 복귀`);
   }
 
-  // ── 부상 공백에 콜업 ──
+  ilAutoMut(core, notes);
+
+  // ── 부상 공백에 콜업 (명단에 올리지 않는 짧은 부상: 뎁스가 빌 때만) ──
   for (const inj of activeRoster(t).filter((p) => p.injury >= F.subInjury)) {
     if (t.roster.some((p) => p.subFor === inj.id) || !depthEmpty(t, inj)) continue;
-    const pool = farmRoster(t).filter((p) => p.kind === inj.kind && p.injury === 0 && lockLeft(core, p) === 0);
-    const same = pool.filter((p) => p.pos === inj.pos).sort((a, b) => b.ovr - a.ovr);
-    const pos = (t.lineup.find((s) => s.pid === inj.id)?.pos ?? 'DH') as BatPos;
-    const any = pool.slice().sort((a, b) => (inj.kind === 'B' ? slotValue(b, pos) - slotValue(a, pos) : b.ovr - a.ovr));
-    const k = same[0] ?? any[0];
+    const k = subPick(core, t, inj);
     if (!k) continue;
     let tail = '';
     if (activeRoster(t).length >= ROSTER_MAX) {
@@ -389,8 +448,48 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     fixLineup(t);
     say(core, notes, `${FARM_COACH}${inj.name} 부상(${inj.injury}경기) 공백에 ${k.name}(${posKo(k.pos)} 오버롤 ${k.ovr}) 콜업${tail}`);
   }
+  benchKidsMut(core, notes);
+}
 
-  // ── 벤치에서 썩는 유망주는 2군으로 (하루 한 명) ──
+/**
+ * 자동 운영: 장기 결장(부상 IL_AUTO · 징계 IL_AUTO_BAN 경기 이상)은 그날 부상자 명단으로, 빈 1군 자리에는 2군에서 한 명 (mutate).
+ * 경기 뒤의 사건(혹사·징계)으로 생긴 결장도 놓치지 않도록 advanceDay 끝에서 한 번 더 부른다.
+ */
+export function ilAutoMut(core: Core, notes: string[]): void {
+  if (!farmAutoOn(core)) return;
+  const t = userTeam(core);
+  for (const inj of activeRoster(t).filter((p) => p.injury >= (p.ban ? IL_AUTO_BAN : IL_AUTO))) {
+    const has = t.roster.find((p) => p.subFor === inj.id && !p.farm);
+    const k = has ? undefined : subPick(core, t, inj);
+    const min = inj.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS;
+    // 최소 인원 규칙: 올릴 선수가 없어 1군이 모자라게 되면 말소하지 않는다
+    if (!k && activeRoster(t).filter((p) => p.kind === inj.kind).length - 1 < min) continue;
+    const slotPos = t.lineup.find((s) => s.pid === inj.id)?.pos;
+    const games = inj.injury;
+    inj.farm = true;
+    inj.il = true;
+    inj.farmUntil = core.day + Math.max(IL_MIN, games);
+    delete inj.tired;
+    delete inj.subFor;
+    if (k) {
+      markUpMut(core, k);
+      delete k.farm;
+      delete k.farmUntil;
+      k.subFor = inj.id;
+      // 같은 자리의 주전이었으면 대체 선수가 그 칸을 받는다 (더 나은 벤치가 있으면 감독이 다시 짠다)
+      const slot = slotPos && k.kind === 'B' ? t.lineup.find((s) => s.pid === inj.id) : undefined;
+      if (slot && !activeRoster(t).some((x) => x.kind === 'B' && x.injury === 0 && !t.lineup.some((s) => s.pid === x.id) && slotValue(x, slot.pos) > slotValue(k, slot.pos))) slot.pid = k.id;
+    }
+    fixLineup(t);
+    memoAdd(core, 'ilOut');
+    say(core, notes, `${FARM_COACH}${inj.name} ${inj.ban ? '징계 말소' : '부상자 명단'}(${games}경기)${k ? ` — ${k.name} 콜업` : has ? '' : ' — 올릴 2군 선수 없음'}`);
+  }
+
+}
+
+/** 벤치에서 썩는 유망주는 2군으로 (하루 한 명) */
+function benchKidsMut(core: Core, notes: string[]): void {
+  const t = userTeam(core);
   const inLu = new Set(t.lineup.map((s) => s.pid));
   let nb = activeRoster(t).filter((p) => p.kind === 'B').length;
   let sent = false;

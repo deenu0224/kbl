@@ -91,6 +91,7 @@ function resignMut(core: Core, pid: string, accept: boolean): string {
   delete p.lever;
   delete p.tired;
   delete p.farm;
+  delete p.il;
   delete p.farmUntil;
   delete p.farmStat;
   core.freeAgents.push(p);

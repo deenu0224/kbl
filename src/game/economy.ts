@@ -148,9 +148,18 @@ export function activeRoster(t: Team): Player[] {
   return t.roster.some((p) => p.farm) ? t.roster.filter((p) => !p.farm) : t.roster;
 }
 
-/** 2군(퓨처스) 선수 */
+/** 2군(퓨처스) 선수. 부상자 명단(재활)은 세지 않는다 — rehabRoster */
 export function farmRoster(t: Team): Player[] {
-  return t.roster.filter((p) => p.farm);
+  return t.roster.filter((p) => p.farm && !p.il);
+}
+
+export const IL_MIN = 10; // 부상자 명단: 말소 뒤 최소 이 경기 수는 복귀할 수 없다 (KBO 부상자 명단 10일)
+export const IL_AUTO = 10; // 자동 운영: 이 경기 수 이상 결장하는 부상이면 그날 말소한다
+export const IL_AUTO_BAN = 20; // 자동 운영: 징계는 이 경기 수 이상일 때
+
+/** 부상자 명단(재활 중): 부상·징계로 말소된 선수. 1군 정원에도 2군 정원에도 들지 않는다 */
+export function rehabRoster(t: Team): Player[] {
+  return t.roster.filter((p) => p.farm && p.il);
 }
 
 /** 2군 운영비 (만원/경기) */

@@ -6,7 +6,7 @@ import { FIX_GAIN_MIN, bullpenLoad, fixGain, orderIssues, recPairs } from './fix
 import { fmtInt } from './format';
 import { memoGet } from './memo';
 import { coachShuttles, injuryNotice, remedies } from './remedy';
-import { farmAutoOn, shuttleArms } from './farm';
+import { farmAutoOn, rehabReady, shuttleArms } from './farm';
 import { runway, runwayAlert } from './runway';
 
 export type TodoTab = 'home' | 'roster' | 'transfer' | 'league' | 'club';
@@ -72,6 +72,12 @@ export function todoList(core: Core): Todo[] {
   if (act.length > ROSTER_MAX) out.push({ id: 'over', tab: 'roster', hint: 'lineup', icon: '!', tone: 'bad', action: 'squad', text: `1군 정원 초과 — ${act.length}/${ROSTER_MAX}` });
   if (nb < MIN_BATTERS) out.push({ id: 'fewB', tab: 'roster', hint: 'lineup', icon: '!', tone: 'bad', action: 'squad', text: `1군 타자 부족 — ${nb}/${MIN_BATTERS}` });
   if (np < MIN_PITCHERS) out.push({ id: 'fewP', tab: 'roster', hint: 'pitchers', icon: '!', tone: 'bad', action: 'squad', text: `1군 투수 부족 — ${np}/${MIN_PITCHERS}` });
+  // 복귀 대기: 재활을 마쳤는데 1군에 자리가 없다 (자동 운영이 꺼져 있으면 자리가 있어도 직접 올려야 한다)
+  const back = core.phase === 'season' ? rehabReady(core) : [];
+  if (back.length && (act.length >= ROSTER_MAX || !farmAutoOn(core))) {
+    const full = act.length >= ROSTER_MAX;
+    out.push({ id: 'wait', tab: 'roster', hint: back[0].kind === 'B' ? 'lineup' : 'pitchers', icon: '✚', tone: 'warn', action: 'squad', text: full ? `복귀 대기: ${names(back)} — 1군 자리 없음` : `복귀 가능: ${names(back)}` });
+  }
   // 시즌 뒤 FA 자격 (재계약 대기)
   if (core.phase === 'season' && left <= FA_AHEAD) {
     const fa = t.roster.filter((p) => (svcYear(core, p) ?? 0) >= SVC_YEARS).sort((a, b) => b.ovr - a.ovr);

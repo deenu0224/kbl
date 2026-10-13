@@ -283,7 +283,7 @@ export const useStore = create<Store>()(
           if (locked()) return;
           const s = get();
           const p = findPlayer(s, pid);
-          applyResult(sendDown(pickCore(s), pid), p ? `${p.name} 2군으로` : '2군으로 내렸습니다');
+          applyResult(sendDown(pickCore(s), pid), p ? `${p.name} ${p.injury > 0 ? '부상자 명단으로 — 1군 자리 +1' : '2군으로'}` : '2군으로 내렸습니다');
         },
         callUp(pid) {
           if (locked()) return;

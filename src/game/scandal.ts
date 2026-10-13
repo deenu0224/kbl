@@ -253,7 +253,7 @@ function removeMut(core: Core, p: Player, toFa: boolean): void {
   t.roster = t.roster.filter((x) => x.id !== p.id);
   const min = p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS;
   if (!p.farm && activeRoster(t).filter((x) => x.kind === p.kind).length < min) {
-    const up = t.roster.filter((x) => x.farm && x.kind === p.kind).sort((a, b) => b.ovr - a.ovr)[0];
+    const up = t.roster.filter((x) => x.farm && !x.il && x.kind === p.kind).sort((a, b) => b.ovr - a.ovr)[0];
     if (up) {
       delete up.farm;
       delete up.farmUntil;
@@ -261,7 +261,7 @@ function removeMut(core: Core, p: Player, toFa: boolean): void {
     }
   }
   if (toFa) {
-    for (const k of ['since', 'svc', 'ask', 'lever', 'tired', 'farm', 'farmUntil', 'farmStat', 'subFor', 'armyDue', 'ban'] as const) delete p[k];
+    for (const k of ['since', 'svc', 'ask', 'lever', 'tired', 'farm', 'il', 'farmUntil', 'farmStat', 'subFor', 'armyDue', 'ban'] as const) delete p[k];
     p.injury = 0;
     core.freeAgents.push(p);
   }

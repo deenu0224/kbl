@@ -1,38 +1,66 @@
-// 2군 자동 운영·2군 사건 불변식 점검. 실행: npx tsx scripts/farmcheck.ts [시드 수] [시즌 수]
-// sensible 봇으로 돌리면서 매 경기 후 로스터 정합성(정원·중복·입대 선수 분리·전향 페널티 복구)을 확인하고, 사건 선택지를 번갈아 골라 본다.
+// 2군 자동 운영·부상자 명단·2군 사건 불변식 점검. 실행: npx tsx scripts/farmcheck.ts [시드 수] [시즌 수]
+// 봇 4종(+ 자동 운영을 끄고 손으로 말소·복귀시키는 sensible)으로 돌리면서 매 경기 후 로스터 정합성(정원·중복·입대 선수 분리·전향 페널티 복구)을 확인하고, 사건 선택지를 번갈아 골라 본다.
 import type { Core } from '../src/game/types';
 import { mulberry32 } from '../src/game/rng';
 import { newCore } from '../src/game/generate';
-import { advanceDay, nextSeason } from '../src/game/season';
-import { FARM_MAX, ROSTER_MAX, activeRoster, awaySupport, farmRoster, payroll, userTeam } from '../src/game/economy';
+import { advanceDay, callUp, farmLockLeft, nextSeason, sendDown } from '../src/game/season';
+import { FARM_MAX, IL_AUTO, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, activeRoster, awaySupport, farmRoster, payroll, rehabRoster, userTeam } from '../src/game/economy';
 import { ensureObjectives } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { closeBriefing, drawBriefing } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
-import { setFarmAuto } from '../src/game/farm';
-import { sensible } from './bots';
+import { farmAutoOn, setFarmAuto } from '../src/game/farm';
+import { memoGet } from '../src/game/memo';
+import { BOTS, type Bot } from './bots';
 
-const N_SEEDS = Number(process.argv[2]) || 6;
-const N_SEASONS = Number(process.argv[3]) || 8;
+const N_SEEDS = Number(process.argv[2]) || 12;
+const N_SEASONS = Number(process.argv[3]) || 6;
+const STALE = 20; // 다 나은 재활 선수가 이 경기 수 넘게 명단에 남으면 위반 (자동 운영)
 const bad: string[] = [];
 const seen: Record<string, number[]> = {};
 let maxAct = 0;
 let maxFarm = 0;
+let maxRehab = 0;
+let seasons = 0;
+let games = 0;
+let ilOut = 0;
+let ilBack = 0;
+let ilDays = 0; // 재활 명단 인원 × 경기 (1군 자리가 비워진 양)
+let banInOrder = 0; // 참고: 징계 중인 1군 선수가 편성에 남아 있던 경기 수 (경기마다 벤치가 대신 나선다)
+let waitDays = 0; // 복귀 대기(1군 자리 없음) 인원 × 경기
+let ready: Record<string, number> = {}; // 다 나은 재활 선수 id → 처음 본 day
+let wasIl = new Set<string>();
+let curSeed = 0;
 
-function check(c: Core, where: string): void {
+function check(c: Core, where: string, strict = true): void {
   const t = userTeam(c);
   const ids = t.roster.map((p) => p.id);
-  const fail = (m: string) => bad.push(`s${c.season} d${c.day} ${where}: ${m}`);
+  const fail = (m: string) => bad.push(`seed${curSeed} s${c.season} d${c.day} ${where}: ${m}`);
   if (new Set(ids).size !== ids.length) fail('로스터 중복');
-  maxAct = Math.max(maxAct, activeRoster(t).length);
+  const act = activeRoster(t);
+  maxAct = Math.max(maxAct, act.length);
   maxFarm = Math.max(maxFarm, farmRoster(t).length);
-  if (activeRoster(t).length > ROSTER_MAX) fail(`1군 ${activeRoster(t).length}명`);
-  if (farmRoster(t).length > FARM_MAX + 1) fail(`2군 ${farmRoster(t).length}명`);
+  maxRehab = Math.max(maxRehab, rehabRoster(t).length);
+  if (act.length > ROSTER_MAX) fail(`1군 ${act.length}명`);
+  if (farmRoster(t).length > FARM_MAX + (strict ? 0 : 1)) fail(`2군 ${farmRoster(t).length}명 (재활 제외)`);
+  if (strict) {
+    const nb = act.filter((p) => p.kind === 'B').length;
+    if (nb < MIN_BATTERS) fail(`1군 타자 ${nb}명`);
+    if (act.length - nb < MIN_PITCHERS) fail(`1군 투수 ${act.length - nb}명`);
+  }
+  const auto = farmAutoOn(c);
+  const b3 = (memoGet(c, 'b3') ?? '').split('|');
   for (const p of t.roster) {
     if (p.away) fail(`${p.name}: 입대 중인데 로스터에 있음`);
+    if (p.il && !p.farm) fail(`${p.name}: 1군인데 재활 표시`);
     if (p.farm && p.subFor) fail(`${p.name}: 2군인데 subFor`);
-    if (p.subFor && !t.roster.some((x) => x.id === p.subFor)) fail(`${p.name}: subFor 대상 없음`);
+    if (p.subFor) {
+      const o = t.roster.find((x) => x.id === p.subFor);
+      if (!o) fail(`${p.name}: subFor 대상 없음`);
+      // 대상이 다 나아 1군에 있으면 대체 선수는 그날 정리된다 (예외: 오늘 사건 B3 로 물었다 · 대체 선수 본인이 부상)
+      else if (auto && strict && o.injury === 0 && !o.il && p.injury === 0 && !(b3[0] === p.id && Number(b3[2]) === c.day)) fail(`${p.name}: subFor 대상(${o.name})이 건강한데 정리 안 됨`);
+    }
     if (!Number.isFinite(p.ovr) || p.def > 99 || (p.kind === 'B' && p.def < 20)) fail(`${p.name}: 능력치 이상`);
   }
   for (const p of c.campaign.away ?? []) {
@@ -43,24 +71,74 @@ function check(c: Core, where: string): void {
   for (const id of [...inLu, ...t.rotation, ...t.bullpen, ...(t.closer ? [t.closer] : [])]) {
     const p = t.roster.find((x) => x.id === id);
     if (!p) fail(`편성에 없는 선수 ${id}`);
+    else if (p.il) fail(`${p.name}: 재활 중인데 편성에 있음`);
     else if (p.farm) fail(`${p.name}: 2군인데 편성에 있음`);
+    else if (p.ban && strict) banInOrder++;
   }
   if (!Number.isFinite(payroll(t))) fail('연봉 총액 이상');
 }
 
-for (let seed = 1; seed <= N_SEEDS; seed++) {
+/** 경기 뒤: 재활 명단의 드나듦을 세고, 다 나은 선수가 명단에 묵는지 본다 */
+function track(c: Core): void {
+  const t = userTeam(c);
+  const now = new Set(rehabRoster(t).map((p) => p.id));
+  for (const id of now) if (!wasIl.has(id)) ilOut++;
+  for (const id of wasIl) if (!now.has(id) && t.roster.some((p) => p.id === id && !p.farm)) ilBack++;
+  wasIl = now;
+  ilDays += now.size;
+  games++;
+  const full = activeRoster(t).length >= ROSTER_MAX;
+  for (const p of rehabRoster(t)) {
+    if (p.injury > 0 || farmLockLeft(c, p) > 0) {
+      delete ready[p.id];
+      continue;
+    }
+    ready[p.id] ??= c.day;
+    if (full) waitDays++;
+    if (farmAutoOn(c) && c.day - ready[p.id] > STALE) bad.push(`s${c.season} d${c.day}: ${p.name} 다 나았는데 ${c.day - ready[p.id]}경기째 재활 명단`);
+  }
+  for (const id of Object.keys(ready)) if (!now.has(id)) delete ready[id];
+  // 자동 운영: 장기 부상자가 1군에 남아 있으면 이유가 있어야 한다 (올릴 선수가 없어 최소 인원이 깨지는 경우뿐)
+  if (farmAutoOn(c) && c.phase === 'season') {
+    for (const p of activeRoster(t)) {
+      if (p.ban || p.injury < IL_AUTO) continue;
+      const same = activeRoster(t).filter((x) => x.kind === p.kind).length;
+      if (same - 1 >= (p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS)) bad.push(`seed${curSeed} s${c.season} d${c.day}: ${p.name} 부상 ${p.injury}경기인데 1군에 남음`);
+    }
+  }
+}
+
+/** 자동 운영을 끈 유저: 장기 부상자를 직접 명단에 올리고, 나으면 직접 올린다 */
+function manual(c0: Core): Core {
+  let c = c0;
+  for (const p of activeRoster(userTeam(c)).filter((x) => x.injury >= IL_AUTO)) {
+    const r = sendDown(c, p.id);
+    if (!r.error) c = r.core;
+  }
+  for (const p of rehabRoster(userTeam(c)).filter((x) => x.injury === 0)) {
+    const r = callUp(c, p.id);
+    if (!r.error) c = r.core;
+  }
+  return c;
+}
+
+function run(bot: Bot, seed: number, auto: boolean): void {
   const rng = mulberry32(seed * 31 + 7);
   let c = ensureObjectives(newCore(seed), rng);
-  if (seed % 3 === 0) c = setFarmAuto(c, false); // 세 번에 한 번은 자동 운영을 끄고 돈다
+  if (!auto) c = setFarmAuto(c, false);
   let turn = seed;
+  curSeed = seed;
+  ready = {};
+  wasIl = new Set();
   for (let s = 1; s <= N_SEASONS && c.phase !== 'over'; s++) {
-    c = sensible.preseason(c);
+    seasons++;
+    c = bot.preseason(c);
     for (let g = 0; (c.phase === 'season' || c.phase === 'post') && g < 400; g++) {
       if (c.campaign.event) {
         const card = c.campaign.event;
         const id = card.id.split('|')[0];
-        let i = sensible.event(c, card);
-        if (id.startsWith('f-')) {
+        let i = bot.event(c, card);
+        if (id.startsWith('f-') && bot.name === 'sensible') {
           // 2군 사건은 두 선택지를 번갈아 고른다
           i = turn++ % 2;
           if (card.choices[i]?.disabled) i = 1 - i;
@@ -70,34 +148,49 @@ for (let seed = 1; seed <= N_SEEDS; seed++) {
         const r = resolveEvent(c, i, rng);
         if (r.error) bad.push(`${card.id}: ${r.error}`);
         c = r.core;
-        check(c, `사건 ${id}[${i}]`);
+        check(c, `${bot.name} 사건 ${id}[${i}]`, false);
         continue;
       }
       if (c.campaign.briefing) {
         c = closeBriefing(c);
         continue;
       }
-      if (c.phase === 'season') c = sensible.daily(c);
+      if (c.phase === 'season') c = bot.daily(c);
+      if (!auto && c.phase === 'season') c = manual(c);
+      const season = c.phase === 'season';
       c = drawBriefing(maybeDrawEvent(advanceDay(c, rng).core, rng));
-      check(c, '경기 후');
+      const nb0 = bad.length;
+      check(c, `${bot.name} 경기 후`, season && c.phase === 'season');
+      if (season) track(c);
+      if (process.env.DBG && bad.length > nb0) console.log(bad[bad.length - 1], JSON.stringify(c.news.slice(0, 10).map((n) => n.text), null, 1), memoGet(c, 'b3'));
     }
     if (c.phase === 'over' || s === N_SEASONS) break;
     c = drawResign(c);
-    while (c.campaign.event) c = resolveEvent(c, sensible.event(c, c.campaign.event), rng).core;
-    c = sensible.beforeDraft(c);
+    while (c.campaign.event) c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
+    c = bot.beforeDraft(c);
     c = beginDraft(c, rng).core;
     for (let g = 0; !isDraftDone(c) && g < 10; g++) {
-      const pid = sensible.draft(c);
+      const pid = bot.draft(c);
       const r = pid ? draftPick(c, pid, rng) : draftSkip(c, rng);
       c = r.error ? draftSkip(c, rng).core : r.core;
     }
-    const away0 = (c.campaign.away ?? []).map((p) => `${p.name}(${p.age}세 OVR ${p.ovr}→복귀 ${p.away?.until})`);
     c = nextSeason(c, rng);
-    check(c, '시즌 전환');
-    if (seed === 1 && away0.length) console.log(`  seed1 s${c.season} 개막 · 입대 중이던 선수: ${away0.join(', ')} → 남은 ${c.campaign.away?.length ?? 0}명`);
+    check(c, `${bot.name} 시즌 전환`, false);
+    ready = {};
+    wasIl = new Set(rehabRoster(userTeam(c)).map((p) => p.id));
   }
 }
-console.log(`\n2군 불변식 점검: ${N_SEEDS} 시드 × ${N_SEASONS} 시즌 · 1군 최대 ${maxAct}명 · 2군 최대 ${maxFarm}명`);
+
+const ONLY = process.argv[4];
+for (const bot of BOTS) if (!ONLY || bot.name === ONLY) for (let seed = 1; seed <= N_SEEDS; seed++) run(bot, seed, true);
+const autoStat = { seasons, games, ilOut, ilBack, ilDays, waitDays };
+const sens = BOTS.find((b) => b.name === 'sensible')!;
+for (let seed = 1; seed <= Math.min(4, N_SEEDS); seed++) run(sens, seed + 100, false);
+
+console.log(`\n2군 불변식 점검: 봇 ${BOTS.length}종 × ${N_SEEDS} 시드 × ${N_SEASONS} 시즌 (+ 자동 운영 끔 ${Math.min(4, N_SEEDS)} 시드) · 1군 최대 ${maxAct}명 · 2군 최대 ${maxFarm}명 · 재활 최대 ${maxRehab}명`);
+console.log(`자동 운영 ${autoStat.seasons}시즌: 시즌당 자동 말소 ${(autoStat.ilOut / autoStat.seasons).toFixed(2)}회 · 복귀 ${(autoStat.ilBack / autoStat.seasons).toFixed(2)}회 · 비워 준 1군 자리 ${(autoStat.ilDays / autoStat.seasons).toFixed(1)}명·경기/시즌 · 복귀 대기 ${autoStat.waitDays}명·경기`);
+console.log(`자동 운영 끔 ${seasons - autoStat.seasons}시즌: 직접 말소 ${ilOut - autoStat.ilOut}회 · 복귀 ${ilBack - autoStat.ilBack}회`);
+console.log(`참고: 징계 중인 1군 선수가 편성 칸에 남아 있던 경기 ${banInOrder} (20경기 미만 징계 — 경기마다 벤치가 대신 출전)`);
 console.log(`사건별 선택 [첫째, 둘째]: ${Object.entries(seen).map(([k, v]) => `${k} ${v.join('/')}`).join(' · ')}`);
 console.log(`원정 응원단 awaySupport: 팬 5천 ${awaySupport({ fans: 5000 })} · 1만 ${awaySupport({ fans: 10000 }).toFixed(3)} · 2만 ${awaySupport({ fans: 20000 }).toFixed(3)} · 3만 ${awaySupport({ fans: 30000 })} · 5만 ${awaySupport({ fans: 50000 })}`);
 if (bad.length) {
