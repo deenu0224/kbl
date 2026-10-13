@@ -1,3 +1,4 @@
+import { TITLE_YEARS_AGO } from '../game/story';
 import { NOTE_MAX, SHARE_TAG } from './config';
 import { ASK, ASK_KEEP, seasonAnswer, type Answer, type ShareData, type ShareRecord } from './shareData';
 
@@ -47,6 +48,8 @@ export function storySentences(d: ShareData): Sentence[] {
   const add = (at: number, keep: number, variants: string[]) => out.push({ at, keep, text: pick(variants, r.seed, out.length + at * 7) });
 
   add(0, 2, [`만년 꼴찌 제주 ${r.nick}의 단장이 됐다.`, `다섯 해를 바닥에서 보낸 제주 ${r.nick}의 단장을 맡았다.`, `답답해서 내가 맡았다. 만년 꼴찌 제주 ${r.nick}.`]);
+
+  add(0.5, 6, ['낡은 구장엔 바랜 우승 깃발 하나뿐이었다.', `구장은 낡았고, 우승 깃발은 ${TITLE_YEARS_AGO}년 전 것 하나였다.`]);
 
   const end = r.champAt ?? n;
   const r1 = r.ranks[0];
