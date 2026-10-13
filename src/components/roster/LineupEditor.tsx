@@ -344,7 +344,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
 
   const fieldView = (
     <>
-      <div className="relative mx-auto h-[330px] w-full max-w-[560px] shrink-0 overflow-hidden" style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="editor-field">
+      <div className="relative mx-auto h-[300px] w-full max-w-[560px] shrink-0 overflow-hidden" style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="editor-field">
         {/* 내야 흙과 잔디 */}
         <div className="absolute left-1/2 top-[62%] aspect-square w-[46%] -translate-x-1/2 -translate-y-1/2 rotate-45" style={{ background: '#a8794d' }}>
           <div className="absolute inset-[16%]" style={{ background: '#337a45' }} />
