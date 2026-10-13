@@ -3,6 +3,7 @@ import type { Player } from '../../game/types';
 import { play } from '../../audio/sfx';
 import { fmtInt, fmtMoney } from '../../game/format';
 import { FARM_MAX, FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTransfer, type BasketKind, type TransferPreview } from '../../game/transfer';
+import { TR, tradeLeft, tradeOpen } from '../../game/trade';
 import { useCore, useStore, useUserTeam } from '../../store';
 import { useIsMobile } from '../layout/useLayout';
 import { POS_FULL } from '../ui';
@@ -47,6 +48,43 @@ export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: str
       {on ? `✓ ${b.label}` : b.add}
     </button>
   );
+}
+
+/** [트레이드 시장에] 토글: 내놓으면 트레이드 기간 중 원하는 구단의 제안이 온다 (trade.ts) */
+function BlockChip({ pid }: { pid: string }) {
+  const on = useStore((s) => (s.campaign.block ?? []).includes(pid));
+  const toggle = useStore((s) => s.blockToggle);
+  const color = '#c9a0ff';
+  return (
+    <button
+      data-testid="add-block"
+      data-on={on || undefined}
+      data-sfx="tab"
+      title="트레이드 시장에 내놓기"
+      aria-label="트레이드 시장에 내놓기"
+      onClick={() => toggle(pid)}
+      className="shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]"
+      style={on ? { background: color, color: '#0f1420' } : { background: '#0f1420', color, boxShadow: `inset 0 0 0 1px ${color}88` }}
+    >
+      {on ? '✓' : '⇄'}
+      <span className="mob:hidden"> 시장</span>
+    </button>
+  );
+}
+
+/** 창구 상단 한 줄: 트레이드 기간과 내놓은 인원 */
+function tradeStatus(core: { phase: string; day: number }, n: number): string {
+  const when =
+    core.phase === 'season'
+      ? tradeOpen(core as never)
+        ? `트레이드 기간: ${tradeLeft(core)}경기 남음`
+        : core.day < TR.from
+          ? `트레이드 기간: ${TR.from - core.day}경기 뒤 열림`
+          : '트레이드 기간: 마감 (스토브리그에 다시 열림)'
+      : core.phase === 'ended'
+        ? '트레이드 기간: 스토브리그'
+        : '트레이드 기간: 마감';
+  return `${when} · 시장에 내놓음 ${n}/${TR.blockMax}`;
 }
 
 const squadKinds = (p: Player): BasketKind[] => ['release', p.farm ? 'up' : 'down'];
@@ -101,7 +139,7 @@ function Desk() {
       sel={card}
       onPick={(p) => setCard(p.id)}
       band={band}
-      rowAction={(p) => squadKinds(p).map((k) => <AddChip key={k} kind={k} pid={p.id} />)}
+      rowAction={(p) => [...squadKinds(p).map((k) => <AddChip key={k} kind={k} pid={p.id} />), <BlockChip key="block" pid={p.id} />]}
     />
   );
   const tabs: [typeof side, string, number][] = [
@@ -110,7 +148,7 @@ function Desk() {
   ];
 
   return (
-    <FullScreen title="이적 창구" sub="담는 동안 실제 선수단은 그대로" onClose={close} testid="transfer-desk" hold={!!cardP}>
+    <FullScreen title="이적 창구" sub={tradeStatus(core, core.campaign.block?.length ?? 0)} onClose={close} testid="transfer-desk" hold={!!cardP}>
       {mobile ? (
         <>
           <div className="mt-1 flex shrink-0 gap-1 px-1.5" data-testid="desk-sides">

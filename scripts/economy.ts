@@ -12,6 +12,7 @@ import { FARM_CARDS, FARM_COACH } from '../src/game/farm';
 import { closeBriefing, drawBriefing } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
+import { drawStoveTrade } from '../src/game/trade';
 import { BOTS, type Bot } from './bots';
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -193,6 +194,8 @@ function runOne(bot: Bot, seed: number): Run {
         snap.resign[i === 0 ? 0 : 1]++;
         c = resolveEvent(c, i, rng).core;
       }
+      c = drawStoveTrade(c, rng);
+      if (c.campaign.event) c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
       c = bot.beforeDraft(c);
       const d = beginDraft(c, rng);
       if (d.error) throw new Error(d.error);

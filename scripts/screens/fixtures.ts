@@ -11,6 +11,7 @@ import { advanceDay, nextSeason } from '../../src/game/season';
 import { farmRoster, userTeam } from '../../src/game/economy';
 import { ensureObjectives, STAGES } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
+import { drawStoveTrade, tradeOpen } from '../../src/game/trade';
 import { closeBriefing, drawBriefing } from '../../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../../src/game/draft';
 import { drawResign } from '../../src/game/contract';
@@ -56,7 +57,7 @@ const WANT: Record<string, Pred> = {
     const t = userTeam(c);
     return t.lineup.some((s) => (t.roster.find((p) => p.id === s.pid)?.injury ?? 0) > 0);
   },
-  event: (c) => inSeason(c) && !!c.campaign.event && !c.campaign.event.id.startsWith('midcheck') && !c.campaign.event.id.startsWith('resign') && !c.campaign.event.id.startsWith('f-'),
+  event: (c) => inSeason(c) && !!c.campaign.event && !c.campaign.event.id.startsWith('midcheck') && !c.campaign.event.id.startsWith('resign') && !c.campaign.event.id.startsWith('f-') && !c.campaign.event.id.startsWith('trade') && !c.campaign.event.id.startsWith('arm'),
   eventFarm: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('f-'),
   briefing: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing && c.campaign.briefing.offers.length >= 2,
   midcheck: (c) => !!c.campaign.event && c.campaign.event.id.startsWith('midcheck'),
@@ -81,6 +82,14 @@ const WANT: Record<string, Pred> = {
   // 후반 스캔들: 약물 카드 대기 · 덮은 일이 드러난 결산
   dope: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('dope'),
   exposed: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.exposures?.length && !endingNow(c),
+  // 트레이드 제안 3유형 · 혹사 카드
+  tradeNow: (c) => inSeason(c) && c.campaign.event?.id.split('|')[0] === 'trade' && c.campaign.event.id.split('|')[2] === 'now',
+  tradeFuture: (c) => inSeason(c) && c.campaign.event?.id.split('|')[0] === 'trade' && c.campaign.event.id.split('|')[2] === 'future',
+  tradeDump: (c) => inSeason(c) && c.campaign.event?.id.split('|')[0] === 'trade' && c.campaign.event.id.split('|')[2] === 'dump',
+  arm: (c) => inSeason(c) && c.campaign.event?.id.split('|')[0] === 'arm',
+  fixcard: (c) => inSeason(c) && c.campaign.event?.id.split('|')[0] === 'fix',
+  // 트레이드 기간 중의 조용한 날 (이적 창구의 [트레이드 시장에] 토글)
+  tradeWindow: (c) => inSeason(c) && quiet(c) && tradeOpen(c) && c.season >= 2 && nextIsHome(c),
   dynasty: (c) => inSeason(c) && stageName(c) === '왕조' && c.day >= 20 && quiet(c) && nextIsHome(c),
 };
 
@@ -133,6 +142,8 @@ function runOne(bot: Bot, seed: number): void {
       see(c);
       c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
     }
+    c = drawStoveTrade(c, rng);
+    if (c.campaign.event) c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
     c = bot.beforeDraft(c);
     const d = beginDraft(c, rng);
     if (d.error) throw new Error(d.error);

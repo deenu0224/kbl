@@ -14,6 +14,7 @@
 //  · 이벤트 버프(수입 배율·임시 유지비), 이벤트 카드의 일회성 현금, 시즌 결산 보상은 넣지 않는다.
 //  · 관중은 최근 평균이 이어진다고 본다 — 연승·연패, 팬 수 증감, 날씨·요일 편차, 가격 변경 직후의 수요 변화는 늦게 반영된다.
 //  · 정규시즌 남은 경기까지만 본다(포스트시즌·다음 시즌 연봉 재산정은 예측 밖).
+import { leagueMult } from './scandal';
 import type { Core, Player } from './types';
 import {
   DOW_MULT, FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_LIMIT, LOAN_RATE, MERCH_K, MIN_BATTERS, MIN_PITCHERS, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
@@ -50,7 +51,7 @@ function baseNet(core: Core): { home: number; away: number } {
   const food = FOOD_LV[core.facilities.food].spend * (core.facilities.food < FOOD_LV.length - 1 ? 1 - RAIN_P * (1 - RAIN_FOOD) : 1);
   const gate = Math.min(cap, att) * (core.finance.ticketPrice + food);
   const merch = core.fans * MERCH_K * (starPower(t, core.season) / 100);
-  const league = LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rank) * LEAGUE_PER_RANK;
+  const league = (LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rank) * LEAGUE_PER_RANK) * leagueMult(core);
   const fixed = payroll(t) / len + TRAIN_LV[core.facilities.training].upkeep + opsCost(core);
   return {
     home: gate + merch * 1.4 + league - fixed - SEAT_LV[core.facilities.seats].upkeep - FOOD_LV[core.facilities.food].upkeep,

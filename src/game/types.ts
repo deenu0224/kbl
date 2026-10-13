@@ -72,6 +72,7 @@ export interface Player {
   subFor?: string; // 부상 대체로 자동 콜업된 선수: 대신하는 부상자의 id (복귀하면 2군으로 돌아간다)
   posShift?: { from: string; pen: number; until: number }; // 포지션 전향 중: 원래 포지션 · 수비 감소분(이미 def 에 반영) · 해소되는 day
   ban?: number; // 징계로 남은 출장 정지 경기 수 (injury 와 같이 줄어든다. 시즌을 넘기면 이월. scandal.ts)
+  apps?: string; // 최근 15경기의 구원 등판 기록 ('1' = 등판, '0' = 쉼. 혹사 판정. sim.ts)
   lever?: number; // 다음 FA 재계약 요구 배율에 더해지는 값 (약점을 잡았으면 +, 믿어 준 선수면 −. scandal.ts)
   bat: BatStats;
   pit: PitStats;
@@ -408,6 +409,8 @@ export interface Campaign {
   ethicsSeason?: number; // 윤리 교육을 마지막으로 실시한 시즌 (시즌당 1회)
   fixCoop?: number; // 승부조작 조사에 전면 협조: 이 시즌까지 발생 확률이 준다
   fixClear?: string[]; // 승부조작 대상에서 빠진 선수 id (연봉을 올려 주었거나 무혐의)
+  block?: string[]; // 트레이드 시장에 내놓은 우리 선수 id (최대 2명. trade.ts)
+  leagueCut?: { season: number; mult: number }; // 승부조작 적발: 이 시즌의 리그 분배금 배율 (scandal.ts)
 }
 /** 덮은 일 한 건 */
 export interface Secret {

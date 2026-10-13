@@ -160,6 +160,24 @@ export const SCREENS = [
   // 후반 스캔들: 「트레이너의 보고」 카드 · 상세 시트
   S('scandal-card', 'dope', game()),
   S('scandal-detail', 'dope', game(c('ev-more', { optional: true }))),
+  // 제재금이 보이는 승부조작 카드 「사무국의 전화」
+  S('scandal-fix', 'fixcard', game()),
+  S('scandal-fix-detail', 'fixcard', game(c('ev-more', { optional: true }))),
+  // 트레이드 제안 3유형 · 상세(전→후 표 · 비교) · 역제안 상세 · 역제안 결과
+  S('trade-now', 'tradeNow', game()),
+  S('trade-now-detail', 'tradeNow', game('ev-more')),
+  S('trade-future', 'tradeFuture', game()),
+  S('trade-future-detail', 'tradeFuture', game('ev-more')),
+  S('trade-dump', 'tradeDump', game()),
+  S('trade-dump-detail', 'tradeDump', game('ev-more')),
+  S('trade-counter-detail', 'tradeNow', game(c('ev-more', { nth: 2 }))),
+  S('trade-counter-result', 'tradeNow', game(c('ev-select', { nth: 2 }), { wait: 400 })),
+  // 혹사 카드 「팔은 소모품이 아니다」
+  S('arm-card', 'arm', game()),
+  S('arm-detail', 'arm', game('ev-more')),
+  // 이적 창구의 [트레이드 시장에] 토글 (꺼짐 · 켜짐)
+  S('desk-block-off', 'tradeWindow', game(...DESK, m('side-squad'))),
+  S('desk-block-on', 'tradeWindow', game(...DESK, m('side-squad'), 'add-block', { wait: 300 })),
 
   // ── 경기 진행
   S('play-highlight', 'season3', game(...PLAY, { wait: 1000 })),

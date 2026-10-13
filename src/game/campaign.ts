@@ -86,7 +86,7 @@ export const STAGES: StageDef[] = [
     stars: [
       { kind: 'sellouts', target: 7, text: '25세 이하 주전 7명' },
       { kind: 'sellouts', target: 70, text: '시즌 훈련 성장 70회' },
-      { kind: 'sellouts', target: 3, text: '드래프트 출신 3명이 1군 주력 (260타석 또는 90이닝)' },
+      { kind: 'sellouts', target: 3, text: '드래프트 출신 주력 3명 (260타석·90이닝)' },
     ],
     reward: { cash: 200000, trust: 15 },
     failTrust: 20,
