@@ -233,7 +233,7 @@ export function resolveSubCard(core: Core, idx: number, card: EventCard): string
   }
   const role = subRole(t, inj);
   const pl = role ? subPlans(core, inj, role)[idx] : undefined;
-  memoSet(core, `subdone-${inj.id}`, 1);
+  memoSet(core, `subdone-${inj.id}`, core.day + inj.injury); // 이 부상은 할 일에 올리지 않는다 (todo.ts)
   hintMut(core, inj.kind === 'B' ? 'lineup' : 'pitchers');
   if (!role || !pl) {
     managerMut(core, inj, notes);

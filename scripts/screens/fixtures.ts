@@ -57,7 +57,11 @@ const WANT: Record<string, Pred> = {
     const t = userTeam(c);
     return t.lineup.some((s) => (t.roster.find((p) => p.id === s.pid)?.injury ?? 0) > 0);
   },
-  event: (c) => inSeason(c) && !!c.campaign.event && !c.campaign.event.id.startsWith('midcheck') && !c.campaign.event.id.startsWith('debtsale') && !c.campaign.event.id.startsWith('resign') && !c.campaign.event.id.startsWith('f-') && !c.campaign.event.id.startsWith('trade') && !c.campaign.event.id.startsWith('arm'),
+  event: (c) => inSeason(c) && !!c.campaign.event && !c.campaign.event.id.startsWith('midcheck') && !c.campaign.event.id.startsWith('debtsale') && !c.campaign.event.id.startsWith('resign') && !c.campaign.event.id.startsWith('f-') && !c.campaign.event.id.startsWith('sub|') && !c.campaign.event.id.startsWith('trade') && !c.campaign.event.id.startsWith('arm'),
+  // 부상 대체 선택 카드: 타자 · 투수 · 10경기 이상(부상자 명단 + 콜업 후보)
+  eventSubBat: (c) => inSeason(c) && !!c.campaign.event?.id.startsWith('sub|') && c.campaign.event.who === 'manager' && !c.campaign.event.body.includes('부상자 명단'),
+  eventSubPit: (c) => inSeason(c) && !!c.campaign.event?.id.startsWith('sub|') && c.campaign.event.who === 'pitching',
+  eventSubIl: (c) => inSeason(c) && !!c.campaign.event?.id.startsWith('sub|') && c.campaign.event.body.includes('부상자 명단') && c.campaign.event.choices.some((ch) => ch.label.startsWith('2군 ')),
   eventFarm: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('f-'),
   briefing: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing && c.campaign.briefing.offers.length >= 2,
   // 부채: 한도의 50%·80%·초과 재무 화면, 매각 카드, 한도 초과 결산, 아카데미 뒤 2군 정원, 돔 기록 카드

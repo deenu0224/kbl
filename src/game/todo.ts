@@ -4,7 +4,7 @@ import { LOAN_DANGER, LOAN_WARN, loanLimit, MIN_BATTERS, MIN_PITCHERS, ROSTER_MA
 import { svcYear } from './contract';
 import { FIX_GAIN_MIN, bullpenLoad, fixGain, orderIssues, recPairs } from './fixes';
 import { fmtInt, fmtMoney } from './format';
-import { memoGet } from './memo';
+import { memoGet, memoNum } from './memo';
 import { coachShuttles, injuryNotice, remedies } from './remedy';
 import { farmAutoOn, rehabReady, shuttleArms } from './farm';
 import { runway, runwayAlert } from './runway';
@@ -40,7 +40,8 @@ export function todoList(core: Core): Todo[] {
   // 주전·로테이션 부상
   const hurtB = t.lineup.map((l) => byId.get(l.pid)).filter((p) => !!p && p.injury > 0);
   const hurtP = t.rotation.map((id) => byId.get(id)).filter((p) => !!p && p.injury > 0);
-  const hurt = [...hurtB, ...hurtP].map((p) => p!);
+  // 대체 선수를 카드에서 이미 고른 부상은 올리지 않는다 (subpick.ts)
+  const hurt = [...hurtB, ...hurtP].map((p) => p!).filter((p) => memoNum(core, `subdone-${p.id}`, -1) < core.day);
   // 자동 운영이 켜져 있으면 벤치·2군 코치가 메우는 부상은 올리지 않는다 (메울 수 없을 때만, 이유와 함께)
   const inj = hurt.length ? injuryNotice(core) : { show: false, why: '' };
   if (inj.show) {

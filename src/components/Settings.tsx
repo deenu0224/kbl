@@ -4,6 +4,7 @@ import { getBgmVolume, isBgmMuted, setBgmMuted, setBgmVolume } from '../audio/bg
 import { exportSave, importSave } from '../game/hof';
 import { pickCore, useStore } from '../store';
 import Dialog from './layout/Dialog';
+import Help from './Help';
 import { SAVE_KEY, useUi } from './layout/uiStore';
 import { clearHof } from './hofStore';
 
@@ -60,6 +61,8 @@ export default function Settings() {
   const hasSave = useUi((s) => s.hasSave);
   const farmAuto = useStore((s) => s.campaign.farmAuto !== false);
   const setFarmAuto = useStore((s) => s.setFarmAuto);
+  const subAuto = useStore((s) => s.campaign.subAuto === true);
+  const setSubAuto = useStore((s) => s.setSubAuto);
   const playback = useStore((s) => !!s.playback);
   const [out, setOut] = useState('');
   const [inp, setInp] = useState('');
@@ -134,6 +137,17 @@ export default function Settings() {
             <button className={`px-btn min-h-10 shrink-0 text-[13px] ${farmAuto ? 'green' : ''}`} data-testid="farm-auto" disabled={playback} onClick={() => setFarmAuto(!farmAuto)}>
               {farmAuto ? '켜짐' : '꺼짐'}
             </button>
+          </Row>
+          <Row label="부상 대체">
+            <span className="flex min-w-0 flex-1 items-center gap-1 text-[13px] text-white/55">
+              주전이 다치면 누가 메울지
+              <Help topic="farm" />
+            </span>
+            {[false, true].map((v) => (
+              <button key={String(v)} className={`px-btn min-h-10 shrink-0 text-[13px] ${subAuto === v ? 'gold' : ''}`} data-testid={v ? 'sub-auto' : 'sub-manual'} disabled={playback} onClick={() => setSubAuto(v)}>
+                {v ? '감독에게' : '직접 고르기'}
+              </button>
+            ))}
           </Row>
         </div>
         <Title>세이브</Title>
