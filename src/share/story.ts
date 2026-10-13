@@ -1,4 +1,4 @@
-import { PAST_RANKS, TITLE_YEARS_AGO } from '../game/story';
+import { TITLE_YEARS_AGO } from '../game/story';
 import { NOTE_MAX, SHARE_TAG } from './config';
 import { ASK, ASK_KEEP, type Lesson, type ShareData, type ShareRecord } from './shareData';
 
@@ -19,7 +19,8 @@ export function xWeight(text: string): number {
 
 /** 시드와 자리로 문장을 고른다 */
 function pick<T>(xs: T[], seed: number, slot: number): T {
-  let h = (Math.floor(seed) ^ (slot * 0x9e3779b1)) >>> 0;
+  let h = (Math.floor(seed) ^ Math.imul(slot + 1, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d) >>> 0;
   h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) >>> 0;
   h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
   return xs[((h ^ (h >>> 16)) >>> 0) % xs.length];
@@ -46,10 +47,8 @@ const CLOSE = ['너라면 몇 시즌 만에?', '답답하면 네가 해 봐. 진
 /** 이번 시즌 한 줄: 가을야구를 못 간 시즌의 순위로 고른다 */
 function seasonLine(r: ShareRecord): string {
   const rank = r.last.rank;
-  const prev = r.ranks.length >= 2 ? r.ranks[r.ranks.length - 2] : PAST_RANKS[PAST_RANKS.length - 1];
   if (rank >= 8) return LAST;
   if (rank <= 5 && rank >= 4 && !r.firstPostAt) return RACE;
-  if (rank >= 6 && rank > prev) return LAST; // 꼴찌는 아니어도 작년보다 못했다
   return NEXT;
 }
 
@@ -94,13 +93,14 @@ export const askOf = (r: ShareRecord): string => (r.kind === 'relocated' ? ASK_K
 
 /**
  * 올라갈 글: [소감] → 첫 줄 → 결과 1~2줄 → 깨달은 것 0~1줄 → 비교 줄 → "마지막 줄 #답답해서내가 {주소}".
- * X 제한(280)을 넘으면 깨달은 것 → 비교 줄 → 결과 둘째 줄 순으로 뺀다
+ * X 제한(280)을 넘으면 깨달은 것 → 비교 줄 → 결과 둘째 줄 순으로 뺀다. 소감이 아주 길어 그래도 넘치면 첫 줄을 소감이 대신한다
  */
 export function shareText(d: ShareData, note = '', limit = X_LIMIT): string {
   const head = cleanNote(note);
   const s = storyOf(d);
-  const build = () => [...(head ? [head] : []), s.open, ...s.results, ...(s.lesson ? [s.lesson] : []), ...(s.versus ? [s.versus] : []), `${s.close} ${SHARE_TAG} ${d.url}`].join('\n');
-  const drops = [() => (s.lesson = null), () => (s.versus = null), () => (s.results = s.results.slice(0, 1))];
+  let open: string[] = [s.open];
+  const build = () => [...(head ? [head] : []), ...open, ...s.results, ...(s.lesson ? [s.lesson] : []), ...(s.versus ? [s.versus] : []), `${s.close} ${SHARE_TAG} ${d.url}`].join('\n');
+  const drops = [() => (s.lesson = null), () => (s.versus = null), () => (s.results = s.results.slice(0, 1)), () => head && (open = [])];
   for (const drop of drops) {
     if (xWeight(build()) <= limit) break;
     drop();
