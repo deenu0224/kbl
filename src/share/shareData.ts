@@ -232,7 +232,7 @@ export function recordFromClub(club: HofClub): ShareRecord {
 
 export function shareOf(rec: ShareRecord): ShareData {
   const code = resultCode(rec);
-  const pct = percentile({ seasons: rec.seasons, champAt: rec.champAt, relocated: rec.kind === 'relocated', stage: rec.stage, best: Math.min(teamsOf(rec), ...rec.ranks) });
+  const pct = percentile({ seasons: rec.seasons, champAt: rec.champAt, relocated: rec.kind === 'relocated', stage: rec.stage, best: Math.min(teamsOf(rec), ...rec.ranks), teams: teamsOf(rec) });
   return { rec, code, url: shareUrl(rec.seed, code), pct };
 }
 /**

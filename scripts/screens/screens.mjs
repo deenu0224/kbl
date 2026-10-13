@@ -112,9 +112,10 @@ export const SCREENS = [
   S('home-cashlow', 'cashlow', game()),
   S('home-season3', 'season3', game()),
   S('home-dynasty', 'dynasty', game()),
-  S('fac-seats', 'season3', game(m('fac-fixed-seats'), d('fac-seats'))),
-  S('fac-food', 'season3', game(m('fac-fixed-food'), d('fac-food'))),
-  S('fac-training', 'season3', game(m('fac-fixed-training'), d('fac-training'))),
+  // 세로 폰: 구장이 확대돼 시설 태그가 화면 밖이면 하단 고정 버튼, 아니면 태그 (할 일 줄 수에 따라 달라진다)
+  S('fac-seats', 'season3', game(m('fac-fixed-seats', { optional: true }), m('fac-seats', { optional: true }), d('fac-seats'))),
+  S('fac-food', 'season3', game(m('fac-fixed-food', { optional: true }), m('fac-food', { optional: true }), d('fac-food'))),
+  S('fac-training', 'season3', game(m('fac-fixed-training', { optional: true }), m('fac-training', { optional: true }), d('fac-training'))),
   S('ticket', 'season3', game(m('crowd-chip'), d('구장'))),
   S('menu', 'season3', game('m-top'), { only: 'mobile' }),
   S('campaign', 'season3', game('캠페인')),
@@ -302,6 +303,7 @@ export const SCREENS = [
   S('eight-more', 'eight', game('리그', '자세히: 승률')),
   S('eight-bracket', 'eight', game('리그', '대진표')),
   S('eight-club', 'eight', game(...CLUB)),
+  S('eight-summary', 'eight', game(...SUMMARY)),
   S('eight-post-bracket', 'eightPost', game('리그', '대진표')),
 
   // ── 도전과제: 초기 화면에서 연 목록(달성 일부 · 빈 저장) · 게임 안에서 연 목록 · 범주 탭 · 필터 · 달성 알림
