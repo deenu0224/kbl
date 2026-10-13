@@ -27,6 +27,8 @@ import { memoGet, memoSet } from './game/memo';
 import { RUNWAY_STOP, runway } from './game/runway';
 import { applyTransfer, basketCount, type Basket } from './game/transfer';
 import { useUi } from './components/layout/uiStore';
+import { applySnap, replaceIn, type LineupSnap } from './components/roster/editorOps';
+import { ROSTER_MAX, activeRoster } from './game/economy';
 
 export type LeftTab = 'lineup' | 'pitchers' | 'farm' | 'market';
 export type RightTab = 'league' | 'stadium' | 'finance' | 'news';
@@ -60,6 +62,8 @@ export interface Store extends Core {
   swapPos(i: number, j: number): void; // 주전 둘의 수비 위치만 맞바꾼다 (타순은 그대로)
   swapPitchers(pidA: string, pidB: string): void;
   auto(): void;
+  restoreLineup(snap: LineupSnap): void; // 오더 편집기: 편성(타순·수비·보직·1군/2군)을 통째로 놓는다 (편집 반영·되돌리기)
+  callUpInto(farmPid: string, targetPid: string): void; // 오더 편집기: 2군 선수를 올려 target 의 자리에 넣는다 (1군이 가득이면 target 이 2군으로)
   startNextSeason(): void; // 'ended' → 드래프트 시작, 드래프트 종료 후 → 다음 시즌
   resolveEvent(i: number): void; // 대기 중인 이벤트 카드 선택
   briefRun(id: string): void; // 주간 브리핑: 제안 실행
@@ -371,6 +375,36 @@ export const useStore = create<Store>()(
             teams: withUserTeam(get(), (t) => (yielded ? autoLineup(t) : managerLineup(t))),
             toast: mkToast(yielded ? '자동 편성 완료' : `${CHARACTERS.manager.name} 감독에게 편성을 맡겼습니다`, 'info'),
           });
+        },
+
+        restoreLineup(snap) {
+          if (locked()) return;
+          set({ teams: withUserTeam(get(), (t) => void applySnap(t, snap)) });
+        },
+        callUpInto(farmPid, targetPid) {
+          if (locked()) return;
+          const s = get();
+          const t0 = s.teams.find((t) => t.id === s.userId);
+          if (!t0) return;
+          const full = activeRoster(t0).length >= ROSTER_MAX;
+          const hadRole = !!pitcherLoc(t0, targetPid);
+          let core = pickCore(s);
+          if (full) {
+            const r = sendDown(core, targetPid);
+            if (r.error) return void set({ toast: mkToast(r.error, 'bad') });
+            core = r.core;
+          }
+          const r = callUp(core, farmPid);
+          if (r.error) return void set({ toast: mkToast(r.error, 'bad') });
+          // 자동 배치 대신, 놓은 자리를 그대로 물려받는다
+          const t = r.core.teams.find((x) => x.id === r.core.userId)!;
+          t.lineup = t0.lineup.map((l) => ({ ...l }));
+          t.rotation = [...t0.rotation];
+          t.bullpen = [...t0.bullpen];
+          t.closer = t0.closer;
+          replaceIn(t, targetPid, farmPid);
+          if (!full && hadRole) t.bullpen.push(targetPid);
+          set({ ...pickCore(r.core) });
         },
 
         startNextSeason() {
