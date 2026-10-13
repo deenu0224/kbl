@@ -13,7 +13,7 @@ import { PEN_STYLES, type PenStyle } from '../src/game/sim';
 
 const N_SEEDS = Number(process.argv[2]) || 16;
 const X_SEEDS = Number(process.argv[3]) || 48; // 방침 교차표의 시드 수 (차이가 보일 만큼)
-const SP_SHIFT = 6; // 교차표의 선발진 강함/약함: 로테이션 전원 OVR ±
+const SP_SHIFT = 8; // 교차표의 선발진 강함/약함: 로테이션 전원 OVR ±
 const STYLE_KO: Record<PenStyle, string> = { trust: '믿음', balance: '균형', swarm: '벌떼' };
 const ADD_OVR = 57; // 불펜 인원 실험에서 더하는 팔: 저가 FA 급 구원
 
@@ -144,10 +144,11 @@ function line(label: string, t: Tally): string {
 
 console.log(`=== 불펜 실측 × ${N_SEEDS} 시드 (84경기, 무개입 · 유저는 개막 오더만 고침) ===`);
 console.log('KBO 기준: kbo.ts 에 불펜 등판 수치 없음(미확인). 상식선 = 필승조 84경기 환산 35~41경기, 3연투는 드물게(전체 등판의 5% 미만)');
+const SKIP_BASE = !!process.env.BP_ROW;
 const L = zero();
 const U = zero();
 const penNs: number[] = [];
-for (let seed = 1; seed <= N_SEEDS; seed++) {
+for (let seed = 1; seed <= N_SEEDS && !SKIP_BASE; seed++) {
   const r = season(seed);
   add(L, r.league);
   add(U, r.user);
@@ -158,7 +159,7 @@ console.log(line('유저 팀', U));
 console.log(`유저 팀 불펜 인원(마무리 포함) 평균 ${mean(penNs).toFixed(1)}명`);
 
 console.log(`\n=== 불펜 인원별 유저 팀 (같은 시드, 불펜 인원만 변경 · 더하는 팔은 OVR ${ADD_OVR} 구원, 빼는 팔은 OVR 낮은 순) ===`);
-for (const n of [5, 6, 7, 8]) {
+for (const n of SKIP_BASE ? [] : [5, 6, 7, 8]) {
   const T = zero();
   let w = 0;
   let l = 0;
@@ -173,8 +174,10 @@ for (const n of [5, 6, 7, 8]) {
 
 console.log(`\n=== 방침 교차표 × ${X_SEEDS} 시드: 유저 팀 평균 승수 (84경기 · 같은 시드 · 선발진 = 로테이션 전원 OVR ±${SP_SHIFT}) · 괄호는 균형 대비 ===`);
 console.log(`${'선발진'.padEnd(6)}${'불펜'.padEnd(6)}${PEN_STYLES.map((st) => STYLE_KO[st].padEnd(16)).join('')}경기당 구원(믿/균/벌) · 선발 이닝 · 쉰 불펜 0명`);
+const ROW = process.env.BP_ROW; // 한 줄만 돌릴 때: '강함5' (병렬 실행용)
 for (const [label, shift] of [['강함', SP_SHIFT], ['약함', -SP_SHIFT]] as const) {
   for (const n of [5, 6, 7, 8]) {
+    if (ROW && ROW !== `${label}${n}`) continue;
     const rows = PEN_STYLES.map((st) => {
       const T = zero();
       let w = 0;

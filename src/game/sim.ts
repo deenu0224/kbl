@@ -81,16 +81,16 @@ export const SIM = {
   TIRED_INJ_1: 1.6, // 연투 상태로 등판한 경기의 부상 확률 배율
   TIRED_INJ_2: 2.5,
   SHORT_BF: 4, // 구원이 한 경기에서 상대한 타자가 이 수 이하인 동안은 전력 투구
-  SHORT_STF: 3, // 전력 투구의 구위 가산
+  SHORT_STF: 4, // 전력 투구의 구위 가산
   // 불펜 운영 방침 (믿음 / 균형 / 벌떼)
-  TRUST_SP_LIMIT: 4, // 믿음: 선발 한계 타자 수 가산
+  TRUST_SP_LIMIT: 5, // 믿음: 선발 교체 시점을 한계 타자 수보다 이만큼 늦춘다 (지치는 시점은 그대로 — 넘겨 던지는 타석은 구위가 떨어진다)
   TRUST_SP_HOOK: 1, // 믿음: 선발 강판 실점 가산
   TRUST_CORE: 2, // 믿음: 필승조 인원 (불펜 앞에서부터). 나머지 구원은 TRUST_REST 점 차 이상 뒤지거나 크게 벌어진 경기에서만
   TRUST_REST: 3,
   TRUST_CLOSER_INN: 8, // 믿음: 마무리가 이 이닝 도중부터 나설 수 있다 (4~5아웃 세이브)
-  SWARM_SP_LIMIT: -5, // 벌떼: 선발 한계 타자 수 가산 (타순 두 바퀴 반에서 교체)
-  SWARM_BF: 5, // 벌떼: 구원 1인당 최대 타자 수
-  SWARM_BF_TIGHT: 4, // 벌떼: 접전(SWARM_TIGHT 점 차 이내)에서는 이 타자 수에서 이닝 중에도 바꾼다
+  SWARM_SP_LIMIT: -4, // 벌떼: 선발 교체 시점을 이만큼 당긴다 (타순 두 바퀴 반에서 교체)
+  SWARM_BF: 6, // 벌떼: 구원 1인당 최대 타자 수
+  SWARM_BF_TIGHT: 5, // 벌떼: 7회 이후 접전(SWARM_TIGHT 점 차 이내)에서는 이 타자 수에서 이닝 중에도 바꾼다
   SWARM_TIGHT: 2,
   AI_STYLE_GAP: 4, // AI 구단: 선발 평균 OVR − 불펜 평균 OVR 이 이만큼 높으면 믿음, 낮으면(구원 AI_SWARM_ARMS 명 이상) 벌떼
   AI_SWARM_ARMS: 7,
@@ -262,9 +262,8 @@ function makeSide(t: Team, isHome: boolean, rest: Set<string> | undefined, style
 
 function enter(side: Side, p: Player, starter: boolean, lead: number): void {
   // 선발 수업을 받지 않은 구원 투수가 선발로 나서면 금방 지친다. 크게 벌어진 경기의 구원은 길게 던진다
-  const styleAdd = side.style === 'trust' ? SIM.TRUST_SP_LIMIT : side.style === 'swarm' ? SIM.SWARM_SP_LIMIT : 0;
   const limit = starter
-    ? (SIM.SP_LIMIT_BASE + p.sta * SIM.SP_LIMIT_STA + styleAdd) * (p.pos === 'SP' ? 1 : SIM.RP_AS_SP)
+    ? (SIM.SP_LIMIT_BASE + p.sta * SIM.SP_LIMIT_STA) * (p.pos === 'SP' ? 1 : SIM.RP_AS_SP)
     : (SIM.RP_LIMIT_BASE + p.sta * SIM.RP_LIMIT_STA) * (Math.abs(lead) >= SIM.BLOWOUT ? SIM.LONG_MULT : 1);
   const asSp = starter ? (p.pos === 'SP' ? 0 : SIM.RP_AS_SP_PEN) : 0;
   const ps: PState = {
@@ -283,7 +282,7 @@ function enter(side: Side, p: Player, starter: boolean, lead: number): void {
 function manage(fld: Side, bat: Side, inning: number, atStart: boolean): void {
   const lead = fld.runs - bat.runs;
   const cur = fld.cur;
-  const over = cur.bf - cur.limit;
+  const over = cur.bf - cur.limit - (cur.starter ? (fld.style === 'trust' ? SIM.TRUST_SP_LIMIT : fld.style === 'swarm' ? SIM.SWARM_SP_LIMIT : 0) : 0);
   const tired = (p: Player) => p.tired ?? 0;
   if (atStart && inning >= 9 && lead >= 0 && lead <= 3 && fld.closer && cur.p !== fld.closer) {
     // 3연투 금지: 이틀 연속 던진 마무리는 쉰 불펜이 남아 있으면 내지 않는다
@@ -298,8 +297,8 @@ function manage(fld: Side, bat: Side, inning: number, atStart: boolean): void {
   let need: boolean;
   if (fld.style === 'swarm' && !cur.starter && !long) {
     // 벌떼: 구원은 짧게 끊어 던진다. 다음 이닝을 맡기지 않고, 접전에서는 이닝 중에도 바꾼다
-    const tight = Math.abs(lead) <= SIM.SWARM_TIGHT;
-    if (atStart) need = cur.bf >= 3;
+    const tight = inning >= 7 && Math.abs(lead) <= SIM.SWARM_TIGHT;
+    if (atStart) need = cur.bf >= 4;
     else need = cur.runs >= SIM.RP_HOOK_RUNS || cur.bf >= (tight ? SIM.SWARM_BF_TIGHT : SIM.SWARM_BF);
   } else if (atStart) {
     if (cur.starter) need = over >= -3;
@@ -323,7 +322,8 @@ function manage(fld: Side, bat: Side, inning: number, atStart: boolean): void {
     // 접전 후반은 필승조부터, 그 외에는 추격조부터. 이틀 연속 던진 팔(3연투째)은 쉰 팔이 하나도 없을 때만 낸다
     const key = inning >= 7 && lead >= -2 && lead < SIM.BLOWOUT && !rest;
     const order = key ? fld.pen : fld.pen.slice().reverse();
-    next = (key ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2);
+    // (벌떼는 접전에서도 쉰 팔부터 — 여럿이 돌아가며 던진다)
+    next = (key && fld.style !== 'swarm' ? undefined : order.find((p) => tired(p) === 0)) ?? order.find((p) => tired(p) < 2);
     // 불펜이 전부 이틀 연속 던졌으면: 덜 지친 마무리가 남아 있으면 그가, 아니면 가장 덜 지친 팔이 나선다
     if (!next && fld.closer && tired(fld.closer) < 2) {
       next = fld.closer;
