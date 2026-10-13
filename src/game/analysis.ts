@@ -4,7 +4,7 @@ import type { BatPos, Core, Player, Team } from './types';
 import { batValue, effDef, teamParts, type TeamParts } from './ratings';
 import { slotNewcomer } from './lineup';
 import { BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, TRAIN_LV, activeRoster, farmGrow, farmRoster, payroll, userTeam } from './economy';
-import { DECLINE_AGE, DECLINE_RATE, PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, WEEK, farmLockLeft, growChance, marketSalary } from './season';
+import { DECLINE_AGE, DECLINE_RATE, PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, WEEK, farmLockLeft, growChance, ilLock, marketSalary } from './season';
 import { ANALYST_NOISE, SCOUT_CUT, SCOUT_NOISE } from './draft';
 import { isFranchise } from './franchise';
 
@@ -354,9 +354,11 @@ export function scoutRoom(analyst: boolean, p: Player): { lo: number; hi: number
 /** 표의 상태 칸 */
 export function statusTags(p: Player, season: number, mine: boolean): { text: string; tone: 'bad' | 'warn' | 'good' | 'hi' }[] {
   const out: { text: string; tone: 'bad' | 'warn' | 'good' | 'hi' }[] = [];
-  if (p.injury > 0) out.push({ text: p.ban ? `징계 ${p.ban}경기` : `부상 ${p.injury}`, tone: 'bad' });
+  const rehab = mine && !!p.farm && !!p.il;
+  if (rehab) out.push({ text: p.injury > 0 ? `재활 ${p.injury}경기` : '재활 끝', tone: p.injury > 0 ? 'bad' : 'good' });
+  else if (p.injury > 0) out.push({ text: p.ban ? `징계 ${p.ban}경기` : `부상 ${p.injury}`, tone: 'bad' });
   if ((p.tired ?? 0) > 0) out.push({ text: `연투 ${p.tired}`, tone: 'warn' });
-  if (mine && p.farm) out.push({ text: '2군', tone: 'warn' });
+  if (mine && p.farm && !rehab) out.push({ text: '2군', tone: 'warn' });
   if (p.rookie) out.push({ text: '신인', tone: 'good' });
   if (mine && isFranchise(p, season)) out.push({ text: '프랜차이즈', tone: 'hi' });
   if (p.foreign) out.push({ text: '외인', tone: 'warn' });
@@ -371,7 +373,7 @@ const POS_KO_SHORT: Record<string, string> = { C: '포수', '1B': '1루', '2B': 
 export function callUpPreview(core: Core, p: Player): { ok: boolean; text: string } {
   const t = userTeam(core);
   const left = farmLockLeft(core, p);
-  if (left > 0) return { ok: false, text: `재등록 ${left}경기 뒤` };
+  if (left > 0) return { ok: false, text: p.il ? `${p.ban ? '징계' : '재활'} 중 · ${left}경기 뒤 복귀 가능` : `재등록 ${left}경기 뒤` };
   const n = activeRoster(t).length;
   if (n >= ROSTER_MAX) return { ok: false, text: `1군 ${n}/${ROSTER_MAX} 가득` };
   if (p.injury > 0) return { ok: true, text: p.ban ? `징계 ${p.ban}경기 · 벤치로` : `부상 ${p.injury}경기 · 벤치로` };
@@ -392,11 +394,13 @@ export function callUpPreview(core: Core, p: Player): { ok: boolean; text: strin
 /** [2군으로] 를 누르기 전에 보이는 결과 한 줄 */
 export function sendDownPreview(core: Core, p: Player): { ok: boolean; text: string } {
   const t = userTeam(core);
-  if (p.injury > 0) return { ok: false, text: p.ban ? '징계 중인 선수는 못 내린다' : '부상자는 못 내린다' };
+  const same = activeRoster(t).filter((x) => x.kind === p.kind).length;
+  const few = same <= (p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS) ? `1군 ${p.kind === 'B' ? '타자' : '투수'} 최소 ${p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS}명` : '';
+  // 부상·징계 중이면 부상자 명단으로: 2군 정원과 상관없이 1군 자리가 하나 빈다
+  if (p.injury > 0) return few ? { ok: false, text: few } : { ok: true, text: `1군 자리 +1 · 복귀 가능: ${core.phase === 'season' ? `${ilLock(p)}경기 뒤` : '개막부터'}` };
   const nf = farmRoster(t).length;
   if (nf >= FARM_MAX) return { ok: false, text: `2군 ${nf}/${FARM_MAX} 가득` };
-  const same = activeRoster(t).filter((x) => x.kind === p.kind).length;
-  if (same <= (p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS)) return { ok: false, text: `1군 ${p.kind === 'B' ? '타자' : '투수'} 최소 ${p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS}명` };
+  if (few) return { ok: false, text: few };
   const pc = (v: number) => `${Math.round(v * 100)}%`;
   const lock = core.phase === 'season' ? `${FARM_LOCK}경기 동안 재등록 불가` : '시즌 전: 재등록 제한 없음';
   const now = growChance(core, t, p);

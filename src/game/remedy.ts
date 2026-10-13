@@ -8,7 +8,7 @@ import {
 import { svcYear } from './contract';
 import { FOREIGN_MAX } from './events';
 import { changePenStyle } from './briefing';
-import { farmAutoOn, shuttleArms } from './farm';
+import { farmAutoOn, rehabReady, shuttleArms } from './farm';
 import { applyFixes, bullpenLoad, orderIssues, ploc, pput } from './fixes';
 import { fmtInt, fmtMoney } from './format';
 import { isFranchise } from './franchise';
@@ -17,7 +17,7 @@ import { memoGet } from './memo';
 import { teamParts, type TeamParts } from './ratings';
 import { runway, runwayAfter, type Runway } from './runway';
 import { POS_NAME } from './script';
-import { borrow, callUp, farmLockLeft, releasePlayer, sendDown, setTicketPrice, signPlayer, upgradeFacility } from './season';
+import { borrow, callUp, farmLockLeft, ilLock, releasePlayer, sendDown, setTicketPrice, signPlayer, upgradeFacility } from './season';
 import { tiredPenalty } from './sim';
 
 export type RemedyGo = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad';
@@ -29,6 +29,7 @@ export type RemedyAction =
   | { t: 'callup'; pid: string; down?: string }
   | { t: 'sign'; pid: string }
   | { t: 'down'; pid: string }
+  | { t: 'il'; pid: string; up?: string } // 부상자 명단으로 내리고(1군 자리 +1) 2군에서 한 명 올린다
   | { t: 'release'; pid: string }
   | { t: 'price'; value: number }
   | { t: 'borrow' }
@@ -168,6 +169,34 @@ function applyCallupSub(core: Core, pid: string, down?: string): Res {
   return { core: mutTeam(r.core, (t) => void subHurtMut(t)) };
 }
 
+function applyIl(core: Core, pid: string, up?: string): Res {
+  return chain(core, [(c) => sendDown(c, pid), ...(up ? [(c: Core) => callUp(c, up)] : [])]);
+}
+
+/** 복귀 대기: 재활을 마친 선수를 올린다 (1군이 가득이면 가장 약한 벤치를 내리고) */
+function waitRemedies(core: Core): Remedy[] {
+  const t = userTeam(core);
+  const p = rehabReady(core).sort((a, b) => b.ovr - a.ovr)[0];
+  if (!p) return [];
+  const n = activeRoster(t).length;
+  const full = n >= ROSTER_MAX;
+  const out: Remedy[] = [];
+  const down = full ? [...spare(t, p.kind), ...spare(t)].find((d) => !chain(core, [(c) => sendDown(c, d.id), (c) => callUp(c, p.id)]).error) : undefined;
+  if (!full || down) {
+    const r = chain(core, [...(down ? [(c: Core) => sendDown(c, down.id)] : []), (c) => callUp(c, p.id)]);
+    if (!r.error) {
+      out.push({
+        id: `up-${p.id}`, run: { t: 'callup', pid: p.id, ...(down ? { down: down.id } : {}) }, tone: 'good',
+        label: `${p.name} 복귀${down ? ` — ${down.name} 2군행` : ''}`,
+        effect: `${partsDelta(teamParts(t), teamParts(userTeam(r.core)))} · ${posKo(p.pos)} 오버롤 ${p.ovr}${down ? ` · ${down.name} ${FARM_LOCK}경기 재등록 불가` : ` · 1군 ${n} → ${n + 1}명`}`,
+      });
+    }
+  }
+  out.push({ id: 'go', run: { t: 'go', to: 'squad' }, label: '선수단에서 직접 고르기', effect: `1군 ${n}/${ROSTER_MAX} — 내릴 선수를 직접 정한다` });
+  out.push({ id: 'none', run: { t: 'none' }, label: '그대로 둔다', effect: `${p.name}은(는) 재활 명단에서 기다린다` });
+  return out;
+}
+
 function injuryRemedies(core: Core): Remedy[] {
   const t = userTeam(core);
   const pl = injuryPlan(core);
@@ -192,6 +221,19 @@ function injuryRemedies(core: Core): Remedy[] {
         id: `up-${k.id}`, run: { t: 'callupSub', pid: k.id, ...(down ? { down: down.id } : {}) }, tone: 'good',
         label: `2군 ${k.name} 콜업 후 투입 — ${posKo(k.pos)} 오버롤 ${k.ovr}`,
         effect: `${partsDelta(before, teamParts(userTeam(r.core)))} · ${h.name} 자리${down ? ` · ${down.name} 2군행` : ''}`,
+      });
+    }
+  }
+  // 자동 운영이 꺼져 있으면 직접: 결장이 가장 긴 부상자를 부상자 명단으로 (1군 자리 +1) + 같은 자리의 2군 최고를 콜업
+  if (!farmAutoOn(core)) {
+    const h = pl.hurt.slice().sort((a, b) => b.injury - a.injury)[0];
+    const k = pl.farm?.h.id === h.id ? pl.farm.k : farmRoster(t).filter((p) => p.kind === h.kind && p.injury === 0 && farmLockLeft(core, p) === 0).sort((a, b) => Number(b.pos === h.pos) - Number(a.pos === h.pos) || b.ovr - a.ovr)[0];
+    const r = applyIl(core, h.id, k?.id);
+    if (!r.error) {
+      out.push({
+        id: `il-${h.id}`, run: { t: 'il', pid: h.id, ...(k ? { up: k.id } : {}) },
+        label: `부상자 명단으로 — 1군 자리 +1${k ? `, ${k.name} 콜업` : ''}`,
+        effect: `${h.name} ${ilLock(h)}경기 뒤 복귀 가능 · ${partsDelta(before, teamParts(userTeam(r.core)))}`,
       });
     }
   }
@@ -472,6 +514,7 @@ export function remedies(core: Core, todoId: string): Remedy[] {
     : id === 'fix' ? fixRemedies(core)
     : id === 'pen' ? penRemedies(core)
     : id === 'over' ? overRemedies(core)
+    : id === 'wait' ? waitRemedies(core)
     : id === 'fewB' ? fewRemedies(core, 'B')
     : id === 'fewP' ? fewRemedies(core, 'P')
     : id === 'cash' ? cashRemedies(core)
@@ -502,6 +545,7 @@ export function remedyNow(core: Core, todoId: string): string {
       const l = bullpenLoad(t);
       return `등판 가능 ${l.rested}/${l.arms}명 · 이틀 이상 연투 ${l.tired2}명 · 1군 ${act.length}/${ROSTER_MAX}`;
     }
+    case 'wait':
     case 'over':
     case 'fewB':
     case 'fewP': {
@@ -540,6 +584,8 @@ export function applyRemedy(core: Core, r: Remedy): Res {
       return signPlayer(core, a.pid);
     case 'down':
       return sendDown(core, a.pid);
+    case 'il':
+      return applyIl(core, a.pid, a.up);
     case 'release':
       return releasePlayer(core, a.pid);
     case 'price': {

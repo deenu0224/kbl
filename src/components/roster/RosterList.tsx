@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Player } from '../../game/types';
 import { salaryReport, type PosKey } from '../../game/analysis';
-import { FARM_MAX, ROSTER_MAX, farmRoster } from '../../game/economy';
+import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, rehabRoster } from '../../game/economy';
 import { FarmMoveButton, ReleaseButton } from '../LeftPanel';
 import { fmtMoney } from '../../game/format';
 import { useCore, useStore, useUserTeam } from '../../store';
@@ -169,7 +169,7 @@ function ListScreen({ view, onClose }: { view: ListView; onClose: () => void }) 
     </>
   );
   return (
-    <FullScreen title="명단" sub={`${team.name} · 1군 ${team.roster.length - nFarm}/${ROSTER_MAX} · 2군 ${nFarm}/${FARM_MAX}`} onClose={onClose} testid="roster-list" hold={!!cardP}>
+    <FullScreen title="명단" sub={`${team.name} · 1군 ${activeRoster(team).length}/${ROSTER_MAX} · 2군 ${nFarm}/${FARM_MAX}${rehabRoster(team).length ? ` · 재활 ${rehabRoster(team).length}` : ''}`} onClose={onClose} testid="roster-list" hold={!!cardP}>
       <div className="mt-1 shrink-0">
         <TabBar tabs={VIEWS} value={view} onChange={(v) => useRosterUi.setState({ list: v })} />
       </div>

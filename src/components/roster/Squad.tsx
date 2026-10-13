@@ -141,16 +141,16 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
   const row = rows.find((r) => r.key === key);
   const name = slot ? POS[slot.pos] : g === 'rot' ? `${team.rotation.indexOf(owner) + 1}선발` : g === 'cl' ? '마무리' : `불펜 ${team.bullpen.indexOf(owner) + 1}`;
   const nFa = useStore((s) => s.freeAgents.filter((p) => (key === 'DH' ? p.kind === 'B' : p.pos === key)).length);
-  const line = (p: Player, lead: string, right: ReactNode, lock = 0) => (
-    <div key={p.id} className="flex min-h-12 items-center gap-1.5 bg-ink/40 pl-1.5 pr-1" data-testid="slot-row">
+  const line = (p: Player, lead: string, right: ReactNode, lock = 0, rehab = 0) => (
+    <div key={p.id} className={`flex min-h-12 items-center gap-1.5 bg-ink/40 pl-1.5 pr-1 ${rehab > 0 ? 'opacity-55' : ''}`} data-testid={rehab > 0 ? 'slot-row-rehab' : 'slot-row'}>
       <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 self-stretch text-left" onClick={() => onCard(p.id)}>
         <span className={`w-9 shrink-0 text-[13px] ${lead === '주전' ? 'text-hi' : lead === '2군' ? 'text-sky' : 'text-white/55'}`}>{lead}</span>
         <OvrBadge ovr={p.ovr} size={22} />
         <span className="min-w-0 flex-1 leading-tight">
-          <span className={`block truncate text-[14px] ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
-          <span className={`block truncate text-[13px] ${lock > 0 ? 'text-bad' : 'text-white/55'}`}>
+          <span className={`block truncate text-[14px] ${rehab > 0 ? 'text-white/70' : p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
+          <span className={`block truncate text-[13px] ${rehab > 0 ? 'text-white/70' : lock > 0 ? 'text-bad' : 'text-white/55'}`}>
             {p.age}세 · {POS_FULL[p.pos]}
-            {lock > 0 && ` · 재등록 ${lock}경기 뒤`}
+            {rehab > 0 ? ` · ${rehab}경기 뒤 복귀` : lock > 0 && ` · 재등록 ${lock}경기 뒤`}
           </span>
         </span>
       </button>
@@ -158,9 +158,10 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
     </div>
   );
   // 이득이 큰 후보부터. 기본은 3명만 보이고 나머지는 접는다
-  const sorted = cands.slice().sort((x, y) => (isPlan(y.plan) ? y.plan.sum : -99) - (isPlan(x.plan) ? x.plan.sum : -99));
+  const sorted = cands.filter((c) => !c.rehab).sort((x, y) => (isPlan(y.plan) ? y.plan.sum : -99) - (isPlan(x.plan) ? x.plan.sum : -99));
   const shown = more ? sorted : sorted.slice(0, 3);
   const hidden = sorted.length - shown.length;
+  const rehab = cands.filter((c) => c.rehab); // 재활 중: 맨 아래 회색, 교체 불가
   return (
     <Dialog onClose={onClose} label="자리" width={460}>
       <div className="flex max-h-[calc(70dvh-34px)] flex-col gap-1" data-testid="slot-sheet">
@@ -195,6 +196,7 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
               후보 {hidden}명 더 보기 ▾
             </button>
           )}
+          {rehab.map((c) => line(c.p, '재활', <span className="shrink-0 whitespace-nowrap px-1 text-[13px] text-white/70">교체 불가</span>, 0, c.rehab))}
           {!cands.length && <div className="px-1 py-2 text-[13px] text-white/45">바꿀 수 있는 후보가 없습니다</div>}
         </div>
         {o && <div className="shrink-0 truncate text-[13px] text-white/55">교체하면 {o.name} → {slot ? '벤치' : '상대의 보직'}</div>}
@@ -257,7 +259,9 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
   const bench = useMemo(() => team.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => b.ovr - a.ovr), [team.roster, inLineup]);
   const assigned = useMemo(() => new Set([...team.rotation, ...team.bullpen, ...(team.closer ? [team.closer] : [])]), [team.rotation, team.bullpen, team.closer]);
   const spare = useMemo(() => team.roster.filter((p) => p.kind === 'P' && !p.farm && !assigned.has(p.id)), [team.roster, assigned]);
-  const farm = useMemo(() => team.roster.filter((p) => p.farm && p.kind === (view === 'arms' ? 'P' : 'B')).sort((a, b) => b.ovr - a.ovr), [team.roster, view]);
+  const farm = useMemo(() => team.roster.filter((p) => p.farm && p.kind === (view === 'arms' ? 'P' : 'B')).sort((a, b) => Number(!!a.il) - Number(!!b.il) || b.ovr - a.ovr), [team.roster, view]);
+  const nFarm = team.roster.filter((p) => p.farm && !p.il).length;
+  const nRehab = team.roster.filter((p) => p.farm && p.il).length;
   const recs = useMemo(() => recommend(team), [team]);
   const rowOf = useMemo(() => new Map(rows.map((r) => [r.key, r])), [rows]);
 
@@ -550,7 +554,9 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
   function farmToggle() {
     return (
       <button className="flex min-h-9 cursor-pointer items-center px-2 text-[13px] text-sky" data-testid="squad-farm-toggle" onClick={() => setFarmOpen((v) => !v)}>
-        2군 {farm.length} {farmOpen ? '▾' : '▸'}
+        2군 {nFarm}/{FARM_MAX}
+        {nRehab > 0 && <span className="text-bad" data-testid="squad-rehab-n">&nbsp;· 재활 {nRehab}</span>}
+        &nbsp;{farmOpen ? '▾' : '▸'}
       </button>
     );
   }
@@ -562,6 +568,8 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
           farm.length ? (
             farm.map((p) => {
               const left = farmLockLeft(core, p);
+              // 재활 선수: "재활 n경기" 태그로 구분한다 (2군 정원에 들지 않는다)
+              if (p.il) return <span key={p.id} className="contents" data-testid="squad-rehab">{tile(p, left > 0 ? `재활 ${left}경기` : '재활 끝', { pan, subBad: left > 0, className: 'w-[104px] shrink-0', style: { background: '#33202a' } })}</span>;
               return tile(p, left > 0 ? `${POS_KO[p.pos]} 잠금${left}` : POS_KO[p.pos], { pan, subBad: left > 0, className: 'w-[104px] shrink-0', style: { background: '#1c2740' } });
             })
           ) : (

@@ -16,12 +16,14 @@ export interface LineupSnap {
   bullpen: string[];
   closer: string | null;
   farm: Record<string, number | true>; // 2군 선수 id → 재등록 가능 day (없으면 true)
+  il?: string[]; // 그중 부상자 명단(재활)인 선수
 }
 
 export function snapOf(t: Team): LineupSnap {
   const farm: LineupSnap['farm'] = {};
   for (const p of t.roster) if (p.farm) farm[p.id] = p.farmUntil ?? true;
-  return { lineup: t.lineup.map((l) => ({ ...l })), rotation: [...t.rotation], bullpen: [...t.bullpen], closer: t.closer, farm };
+  const il = t.roster.filter((p) => p.farm && p.il).map((p) => p.id);
+  return { lineup: t.lineup.map((l) => ({ ...l })), rotation: [...t.rotation], bullpen: [...t.bullpen], closer: t.closer, farm, ...(il.length ? { il } : {}) };
 }
 
 /** 스냅샷을 팀에 덮어쓴다 (mutate). 그 사이 팀을 떠난 선수가 끼어 있으면 false */
@@ -37,9 +39,12 @@ export function applySnap(t: Team, s: LineupSnap): boolean {
     const f = s.farm[p.id];
     if (f === undefined) {
       delete p.farm;
+      delete p.il;
       delete p.farmUntil;
     } else {
       p.farm = true;
+      if (s.il?.includes(p.id)) p.il = true;
+      else delete p.il;
       if (f === true) delete p.farmUntil;
       else p.farmUntil = f;
     }
@@ -114,14 +119,14 @@ export function planEdit(core: Core, team: Team, view: EditorView, a: string, b:
     if (pa.farm && pb.farm) return null;
     const [f, o] = pa.farm ? [pa, pb] : [pb, pa];
     const left = farmLockLeft(core, f);
-    if (left > 0) return { error: `${f.name}: 재등록 ${left}경기 뒤` };
+    if (left > 0) return { error: f.il ? `${f.name}: 재활 중 — ${left}경기 뒤 복귀` : `${f.name}: 재등록 ${left}경기 뒤` };
     const full = activeRoster(team).length >= ROSTER_MAX;
     if (full) {
       const pv = sendDownPreview(core, o);
       if (!pv.ok) return { error: `${o.name}: ${pv.text}` };
     }
     const t = light(team);
-    t.roster = team.roster.map((p) => (p.id === f.id ? { ...p, farm: undefined } : full && p.id === o.id ? { ...p, farm: true } : p));
+    t.roster = team.roster.map((p) => (p.id === f.id ? { ...p, farm: undefined, il: undefined } : full && p.id === o.id ? { ...p, farm: true } : p));
     const loc = ploc(t, o.id);
     replaceIn(t, o.id, f.id);
     if (!full && loc) t.bullpen.push(o.id); // 밀려난 투수는 불펜 끝으로
@@ -207,6 +212,7 @@ export const EMPTY_CLOSER = '__closer'; // 비어 있는 마무리 자리
 export interface Candidate {
   p: Player;
   farm: boolean;
+  rehab?: number; // 재활 중: 복귀까지 남은 경기 수 (교체 불가 — 목록 맨 아래에 회색으로)
   plan: PlanResult;
 }
 
@@ -224,7 +230,10 @@ export function slotCandidates(core: Core, team: Team, owner: string): Candidate
       if (!o) return pg === 'pen' || pg === 'spare';
       return !(pg === 'rot' && (g === 'pen' || g === 'cl'));
     })
-    .map((p): Candidate => ({ p, farm: !!p.farm, plan: o ? planEdit(core, team, kind === 'B' ? 'field' : 'arms', p.id, owner) : planCloser(team, p.id) }))
+    .map((p): Candidate => {
+      const left = p.farm && p.il ? farmLockLeft(core, p) : 0;
+      return { p, farm: !!p.farm, ...(left > 0 ? { rehab: left } : {}), plan: o ? planEdit(core, team, kind === 'B' ? 'field' : 'arms', p.id, owner) : planCloser(team, p.id) };
+    })
     .sort((a, b) => sum(b) - sum(a) || b.p.ovr - a.p.ovr);
-  return [...all.filter((c) => !c.farm).slice(0, 6), ...all.filter((c) => c.farm).slice(0, 4)];
+  return [...all.filter((c) => !c.farm).slice(0, 6), ...all.filter((c) => c.farm && !c.rehab).slice(0, 4), ...all.filter((c) => c.rehab).slice(0, 3)];
 }
