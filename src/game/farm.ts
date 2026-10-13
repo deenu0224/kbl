@@ -806,6 +806,7 @@ export const FARM_CARDS: FarmCardDef[] = [
         return `${sub.name}이(가) 자리를 지켰습니다 — 오버롤 ${sub.ovr}`;
       }
       sat(c, F.hotBackSat);
+      if (orig) restoreSlotMut(c, t, orig, sub);
       if (farmRoster(t).length >= farmMax(c)) {
         delete sub.subFor;
         return `${orig?.name ?? '주전'}이(가) 원래 자리로 — 2군이 가득해 ${sub.name}은(는) 벤치에 남습니다`;
