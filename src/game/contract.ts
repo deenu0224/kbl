@@ -52,7 +52,7 @@ export function faEligible(core: Core): Player[] {
 
 /** 재계약 요구: 다음 시즌 시장가 × (1 ~ 1.15). 스타일수록 많이 부른다 */
 export function resignAsk(core: Pick<Core, 'season'>, p: Player): { mult: number; salary: number; market: number } {
-  const mult = Math.round((1 + RESIGN_ASK_MAX * clamp((p.star - 30) / 50, 0, 1)) * 100) / 100;
+  const mult = Math.round((1 + RESIGN_ASK_MAX * clamp((p.star - 30) / 50, 0, 1) + (p.lever ?? 0)) * 100) / 100; // lever: 약점을 잡았거나(+) 믿어 준(−) 선수
   const market = marketSalary(p, core.season + 1);
   return { mult, market, salary: Math.round((market * mult) / 100) * 100 };
 }
@@ -74,6 +74,7 @@ function resignMut(core: Core, pid: string, accept: boolean): string {
   if (accept) {
     const ask = resignAsk(core, p);
     delete p.svc;
+    delete p.lever;
     p.ask = ask.mult;
     p.salary = ask.salary;
     return `${p.name} 재계약 — 연봉 ${fmtMoney(ask.salary)}`;
@@ -87,6 +88,7 @@ function resignMut(core: Core, pid: string, accept: boolean): string {
   delete p.since;
   delete p.svc;
   delete p.ask;
+  delete p.lever;
   delete p.tired;
   delete p.farm;
   delete p.farmUntil;

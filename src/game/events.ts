@@ -20,6 +20,7 @@ import { batLeaders, era, ops, pitLeaders } from './leaders';
 import { isFranchise } from './franchise';
 import { drawFarmEvent, farmCardDef } from './farm';
 import { positionReport } from './analysis';
+import { SCANDAL_CARDS } from './scandal';
 
 const posKo = (pos: string): string => POS_NAME[pos] ?? pos;
 
@@ -1023,16 +1024,18 @@ export const CARDS: CardDef[] = [
 ];
 
 const baseId = (id: string) => id.split('|')[0];
-const DEF = new Map(CARDS.map((d) => [d.id, d]));
-const BY_PRIO = CARDS.slice().sort((a, b) => b.prio - a.prio);
+// 스캔들 카드(scandal.ts)까지 합친 목록. 모듈 순환을 피하려고 처음 쓸 때 만든다
+let ALL: { def: Map<string, CardDef>; prio: CardDef[] } | null = null;
+const all = () => (ALL ??= ((cs: CardDef[]) => ({ def: new Map(cs.map((d) => [d.id, d])), prio: cs.slice().sort((a, b) => b.prio - a.prio) }))([...CARDS, ...SCANDAL_CARDS]));
 
 /** 매 경기 후: 조건이 맞는 카드 중 우선순위가 가장 높은 1장을 campaign.event 에 둔다. 해당 없으면 원본 반환. */
 export function maybeDrawEvent(core0: Core, rng: Rng): Core {
   if (core0.phase !== 'season' || core0.campaign.event || core0.day >= core0.schedule.length) return core0;
   const seen = new Set(seenCards(core0));
+  const DEF = all().def;
   const normalSeen = [...seen].filter((id) => DEF.has(id) && !DEF.get(id)!.forced).length;
   const normalOk = core0.day - memoNum(core0, 'evDay', -99) >= EVENT_GAP && normalSeen < EVENT_MAX;
-  for (const d of BY_PRIO) {
+  for (const d of all().prio) {
     if (seen.has(d.id) || (!d.forced && (!normalOk || !cardRested(core0, d.id))) || !d.when(core0)) continue;
     const core = structuredClone(core0);
     const cd = d.make(core, rng);
@@ -1055,7 +1058,7 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   const ch = card0.choices[choiceIdx];
   if (!ch) return { core: core0, error: '잘못된 선택입니다', result: '' };
   if (ch.disabled) return { core: core0, error: ch.disabled, result: '' };
-  const def = DEF.get(baseId(card0.id)) ?? farmCardDef(baseId(card0.id));
+  const def = all().def.get(baseId(card0.id)) ?? farmCardDef(baseId(card0.id));
   const core = structuredClone(core0);
   const cd = core.campaign.event!;
   core.campaign.event = null;

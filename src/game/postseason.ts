@@ -148,7 +148,10 @@ function playSeriesGame(core: Core, idx: number, rng: Rng, track: boolean): { re
         p.bat = sn.bat;
         p.pit = sn.pit;
       }
-      if (injuredBefore.has(p.id)) p.injury = Math.max(0, p.injury - 1);
+      if (injuredBefore.has(p.id)) {
+        p.injury = Math.max(0, p.injury - 1);
+        if (p.ban && (p.ban = Math.min(p.ban - 1, p.injury)) <= 0) delete p.ban;
+      }
     }
   }
 
