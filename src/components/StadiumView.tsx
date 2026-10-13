@@ -294,7 +294,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             data-sfx="tab"
             onClick={() => setFacSheet(kd)}
           >
-            <span aria-hidden>{FAC_ICON[kd]}</span>
+            <span aria-hidden className="text-[16px] leading-none">{FAC_ICON[kd]}</span>
             <span className="text-hi">{facilities[kd] + 1}</span>
           </button>
         ))}

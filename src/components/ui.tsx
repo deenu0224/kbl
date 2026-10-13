@@ -156,9 +156,9 @@ export function Badge({ n }: { n: number | undefined }) {
 /** 작은 선택 칩 줄 (서브뷰·카테고리) */
 export function Chips<T extends string>({ items, value, onChange }: { items: readonly (readonly [T, string])[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="flex shrink-0 flex-wrap gap-1 text-[10px]">
+    <div className="no-scrollbar flex shrink-0 flex-wrap gap-1 text-[10px] mob:flex-nowrap mob:overflow-x-auto">
       {items.map(([k, label]) => (
-        <button key={k} data-sfx="tab" onClick={() => onChange(k)} className={`cursor-pointer px-1.5 py-0.5 mob:min-h-10 mob:px-3 mob:text-[12px] ${value === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
+        <button key={k} data-sfx="tab" onClick={() => onChange(k)} className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 mob:min-h-10 mob:px-3 mob:text-[12px] ${value === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
           {label}
         </button>
       ))}
@@ -191,7 +191,7 @@ export function MoneyBar({
     <div className="flex items-center gap-1.5 text-[11px] leading-tight">
       <span className="w-12 shrink-0 text-white/65">{label}</span>
       <Bar ratio={ratio} color={color} h={9} />
-      <span className="w-14 shrink-0 text-right">{text}</span>
+      <span className="w-14 shrink-0 whitespace-nowrap text-right mob:w-auto mob:min-w-[76px]">{text}</span>
     </div>
   );
 }

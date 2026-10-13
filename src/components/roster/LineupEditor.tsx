@@ -510,7 +510,8 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
         </button>
       </div>
 
-      <div ref={body} className="px-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-1.5 pt-1.5" data-testid="editor-body">
+      {/* 추천을 펼쳐도 수비 그림의 절반(150px)은 보이게 한다 */}
+      <div ref={body} className={`px-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-1.5 pt-1.5 ${recOpen ? 'mob:min-h-[158px]' : ''}`} data-testid="editor-body">
         {view === 'field' ? fieldView : view === 'order' ? orderView : armsView}
       </div>
 
@@ -519,7 +520,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
           {note}
         </div>
       )}
-      {hint && !note && (
+      {hint && !note && !recOpen && (
         <div className="flex shrink-0 items-center gap-2 bg-ink/70 px-2 text-[13px] text-white/80" data-testid="editor-hint">
           <span className="min-w-0 flex-1">끌어서 놓거나, 두 번 눌러 바꿉니다</span>
           <button className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center text-[16px] text-white/60" aria-label="닫기" onClick={closeHint}>
@@ -529,8 +530,8 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
       )}
 
       {recs.length > 0 && (
-        <div className="shrink-0 px-1.5 pt-1.5" data-testid="editor-recs">
-          <div className="flex items-stretch gap-1.5">
+        <div className="flex min-h-[52px] shrink flex-col px-1.5 pt-1.5 mob:max-h-[40dvh]" data-testid="editor-recs">
+          <div className="flex shrink-0 items-stretch gap-1.5">
             <button className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-1 bg-good/15 px-2 text-left text-[14px] text-good" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="editor-recs-toggle" onClick={() => setRecOpen((v) => !v)}>
               추천 {recs.length}건 <span className="text-white/60">{recOpen ? '▾' : '▸'}</span>
             </button>
@@ -539,7 +540,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
             </button>
           </div>
           {recOpen && (
-            <div className="px-scroll mt-1 flex max-h-[30dvh] flex-col gap-1 overflow-y-auto mob:max-h-[calc(40dvh-52px)]">
+            <div className="px-scroll mt-1 flex max-h-[30dvh] min-h-0 flex-col gap-1 overflow-y-auto mob:max-h-none [&>*]:shrink-0">
               {recs.map((r) => {
                 const plan = planEdit(core, team, r.view, r.a, r.b);
                 return (

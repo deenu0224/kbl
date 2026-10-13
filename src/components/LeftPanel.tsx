@@ -4,7 +4,7 @@ import { useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtMoney } from '../game/format';
 import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, releaseCost } from '../game/economy';
 import { basketCount } from '../game/transfer';
-import { betterArms, betterBats, homeSwap, offPos, orderIssues, todayIssues } from '../game/fixes';
+import { betterArms, betterBats, homeSwap, offPos, orderIssues } from '../game/fixes';
 import { teamParts, type TeamParts } from '../game/ratings';
 import PlayerCard from './PlayerCard';
 import Help from './Help';
@@ -219,7 +219,6 @@ function RosterTop({ team }: { team: Team }) {
   const rows = usePosReport();
   const openOffice = useRosterUi((s) => s.openOffice);
   const openEditor = useEditorUi((s) => s.openEditor);
-  const n = useMemo(() => todayIssues(team), [team]);
   return (
     <>
       <div className="flex shrink-0 items-end gap-1 pr-1.5">
@@ -230,7 +229,7 @@ function RosterTop({ team }: { team: Team }) {
       </div>
       <div className="shrink-0 px-1.5 pt-1.5">
         <button className="px-btn primary min-h-9 w-full text-[13px] mob:min-h-11 mob:text-[15px]" data-testid="open-editor" onClick={() => openEditor()}>
-          오더 편집{n > 0 && ` · 고칠 곳 ${n}`}
+          오더 편집
         </button>
       </div>
       <MiniDiamond rows={rows} onOpen={() => openOffice('diag')} />

@@ -87,7 +87,9 @@ export default function PlayerBrowser({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={`browser-${mode}`} data-view="list">
-      <div className="px-scroll flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 py-1.5" data-testid="list-filters">
+      <div className="flex shrink-0 items-center gap-1 px-1.5 py-1.5">
+        {/* 필터 칩은 한 줄 (가로 스크롤), [표로 보기]는 오른쪽에 고정 */}
+        <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" data-testid="list-filters">
         {([['all', '전체'], ['B', '타자'], ['P', '투수']] as const).map(([k, label]) => (
           <Chip key={k} on={kind === k} onClick={() => setKind(k)} testid={`lkind-${k}`}>
             {label}
@@ -100,9 +102,10 @@ export default function PlayerBrowser({
         )}
         <span className="mx-0.5 h-4 w-px shrink-0 bg-white/20" />
         <Chip on={false} onClick={() => setSort(sorts[(sorts.indexOf(sort) + 1) % sorts.length])} testid="list-sort">
-          정렬: {SORT_KO[sort]} ⇅
+          {SORT_KO[sort]}순 ⇅
         </Chip>
-        <span className="ml-auto shrink-0 pl-1">{toggle}</span>
+        </div>
+        {toggle}
       </div>
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5" data-testid="player-list">
         {list.map((p) => {
