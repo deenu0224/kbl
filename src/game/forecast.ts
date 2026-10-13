@@ -39,7 +39,7 @@ function lineupKey(core: Core, home: Team, away: Team): string {
       t.nextStarter,
       t.roster.map((p) => `${p.id}${p.ovr}${p.injury ? `i${p.injury}` : ''}${p.tired ? `t${p.tired}` : ''}`).join(','),
     ].join('|');
-  return `${core.seed}/${core.season}/${core.phase}/${core.day}/${side(home)}/${side(away)}`;
+  return `${core.seed}/${core.season}/${core.phase}/${core.day}/${core.campaign?.penStyle ?? ''}/${side(home)}/${side(away)}`;
 }
 
 const cache = new Map<string, number>();

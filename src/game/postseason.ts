@@ -26,6 +26,8 @@ const FAN_POST_LOSS = -10;
 const FAN_SERIES_WIN = 300;
 const FAN_CHAMPION = 1200;
 
+const TRAVEL_BEST_OF = 5; // 이 이상 길이의 시리즈에는 이동일이 있다
+const TRAVEL_AFTER = 2; // 이 경기 수를 치른 뒤 하루 쉰다 (연투 일수 −1)
 const need = (s: PostSeries) => Math.floor(s.bestOf / 2) + 1;
 const done = (s: PostSeries) => s.winnerId !== null;
 
@@ -156,7 +158,14 @@ function playSeriesGame(core: Core, idx: number, rng: Rng, track: boolean): { re
   else s.loW++;
   if (s.hiW >= need(s)) s.winnerId = s.hiId;
   else if (s.loW >= need(s)) s.winnerId = s.loId;
-  if (s.winnerId) finishSeries(core, idx);
+  if (s.winnerId) {
+    // 시리즈 사이의 휴식일: 연투 피로가 풀린다
+    for (const t of core.teams) for (const p of t.roster) delete p.tired;
+    finishSeries(core, idx);
+  } else if (s.bestOf >= TRAVEL_BEST_OF && s.games.length === TRAVEL_AFTER) {
+    // 5전제·7전제는 2경기 뒤 이동일: 두 팀 불펜이 하루 쉰다
+    for (const t of [home, away]) for (const p of t.roster) if (p.tired) p.tired > 1 ? (p.tired -= 1) : delete p.tired;
+  }
   return { res, homeId, awayId };
 }
 
