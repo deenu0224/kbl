@@ -135,7 +135,7 @@ interface Cand {
 /** 부상자를 벤치 최적 선수로 바꾼 오늘의 타순 (team.lineup 은 건드리지 않음) */
 function gameOrder(t: Team): { p: Player; pos: BatPos }[] {
   const byId = new Map(t.roster.map((p) => [p.id, p]));
-  const batters = t.roster.filter((p) => p.kind === 'B');
+  const batters = t.roster.filter((p) => p.kind === 'B' && !p.farm);
   const used = new Set<string>();
   const slots = t.lineup.map((s) => {
     const p = byId.get(s.pid);
@@ -156,7 +156,7 @@ function gameOrder(t: Team): { p: Player; pos: BatPos }[] {
     if (p) order.push({ p, pos: s.pos });
   }
   if (!order.length) {
-    const any = batters.length ? batters : t.roster;
+    const any = batters.length ? batters : t.roster.filter((p) => !p.farm);
     if (!any.length) throw new Error(`${t.id}: 출전 가능한 선수가 없습니다`);
     any.slice(0, 9).forEach((p) => order.push({ p, pos: 'DH' }));
   }
@@ -186,8 +186,8 @@ function makeSide(t: Team, isHome: boolean, rest?: Set<string>): Side {
     t.nextStarter = (i + 1) % rot.length;
     if (rot[i].injury === 0) starter = rot[i];
   }
-  const pitchers = t.roster.filter((p) => p.kind === 'P');
-  const canPitch = (p: Player | undefined): p is Player => !!p && p.kind === 'P' && p.injury === 0 && !rest?.has(p.id);
+  const pitchers = t.roster.filter((p) => p.kind === 'P' && !p.farm);
+  const canPitch = (p: Player | undefined): p is Player => !!p && p.kind === 'P' && !p.farm && p.injury === 0 && !rest?.has(p.id);
   let pen = t.bullpen.map((id) => byId.get(id)).filter(canPitch);
   if (!starter) {
     // 임시 선발: 추격조(불펜 뒤쪽) 중 체력이 좋은 팔. 불펜도 없으면 건강한 아무 투수

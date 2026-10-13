@@ -27,7 +27,7 @@ export function homeSwap(team: Team, byId: Map<string, Player>, i: number): numb
 export function betterBats(team: Team): Map<string, Player> {
   const byId = new Map(team.roster.map((p) => [p.id, p]));
   const inLineup = new Set(team.lineup.map((l) => l.pid));
-  const bench = team.roster.filter((p) => p.kind === 'B' && !inLineup.has(p.id)).sort((a, b) => b.ovr - a.ovr);
+  const bench = team.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => b.ovr - a.ovr);
   const out = new Map<string, Player>();
   const shown = new Set<string>();
   const mark = (dh: boolean) => {

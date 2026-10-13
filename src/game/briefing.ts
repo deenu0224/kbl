@@ -2,9 +2,9 @@
 // 순수 함수만 — 난수를 쓰지 않는다(브리핑은 경기 로직의 수치를 바꾸지 않는다). 실행은 season.ts 의 기존 액션을 재사용한다.
 import type { BatPos, BriefDetail, BriefDone, BriefMemo, BriefMove, BriefOffer, BriefResult, Briefing, CharId, Core, Player, Team } from './types';
 import { teamParts, type TeamParts } from './ratings';
-import { FOOD_LV, LOAN_RATE, LOAN_STEP, ROSTER_MAX, SEAT_LV, TRAIN_LV, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
+import { BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, FOOD_LV, LOAN_RATE, LOAN_STEP, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SEAT_LV, TRAIN_LV, activeRoster, farmRoster, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
-import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
+import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, callUp, farmLockLeft, farmStatText, growChance, sendDown, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
 import { RUNWAY_DANGER, runway, runwayAfter, runwayPieceOf, type Runway } from './runway';
 import { isFranchise } from './franchise';
 import { applyFixes, orderIssues, ploc, pput, tiredFront, todayIssues } from './fixes';
@@ -152,7 +152,7 @@ function hash(s: string): number {
 /** 스카우트 팀장: 최약 자리에 FA 1명. 절반은 옛 명성(나이·이름값)을 고른다 — 숫자는 현재 OVR 그대로 */
 function scoutOffer(core: Core, m: BriefMemo): Cand | null {
   const t = userTeam(core);
-  if (t.roster.length >= ROSTER_MAX) return null;
+  if (activeRoster(t).length >= ROSTER_MAX) return null;
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const foreignFull = t.roster.filter((p) => p.foreign).length >= FOREIGN_MAX;
   const can = (p: Player) => signingBonus(p) <= core.finance.cash && !(p.foreign && foreignFull) && p.injury === 0 && (core.day > EARLY_DAYS || p.salary <= EARLY_SALARY);
@@ -302,8 +302,116 @@ function fieldOffers(core: Core): Cand[] {
   return out;
 }
 
-/** 2군 코치: 훈련장 또는 유망주 기용 */
+export const CALLUP_MIN_OVR = 2; // 콜업 제안: 그 자리 1군 주전보다 OVR 이 이만큼 높을 때만
+export const SENDDOWN_MIN_ROOM = 6; // 내려보내기 제안: 잠재력까지 여지가 이만큼 남은 25세 이하 벤치만
+const pctText = (v: number) => `${Math.round(v * 100)}%`;
+
+/** 2군 이동을 복제본에 적용: 내려보내기 → 콜업 */
+function farmMove(core0: Core, up?: string, down?: string): { core: Core; error?: string } {
+  let core = core0;
+  if (down) {
+    const r = sendDown(core, down);
+    if (r.error) return { core: core0, error: r.error };
+    core = r.core;
+  }
+  if (up) {
+    const r = callUp(core, up);
+    if (r.error) return { core: core0, error: r.error };
+    core = r.core;
+  }
+  return { core };
+}
+
+/** 1군이 가득일 때 대신 내릴 선수: 같은 종류의 가장 약한 벤치(타자) · 추격조(투수). 부상자는 못 내린다 */
+function downFor(t: Team, up: Player): Player | null {
+  const used = new Set([...t.lineup.map((l) => l.pid), ...t.rotation, ...(t.closer ? [t.closer] : []), ...t.bullpen.slice(0, 3)]);
+  return activeRoster(t).filter((p) => p.kind === up.kind && !used.has(p.id) && p.injury === 0).sort((a, b) => a.ovr - b.ovr || b.age - a.age)[0] ?? null;
+}
+
+/** 2군 코치: 콜업 · 2군 졸업 · 벤치에서 썩는 유망주 내려보내기 */
+function farmMoveOffer(core: Core, phase: 'up' | 'down'): Cand | null {
+  const t = userTeam(core);
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const full = activeRoster(t).length >= ROSTER_MAX;
+  const a = teamParts(t);
+  if (phase === 'up') {
+    const ready = farmRoster(t).filter((p) => p.injury === 0 && farmLockLeft(core, p) === 0).sort((x, y) => y.ovr - x.ovr);
+    for (const k of ready) {
+      // 그 자리의 1군 주전: 타자는 제 포지션, 선발은 로테이션 최약, 불펜·마무리는 필승조 최약
+      const curId = k.kind === 'B' ? t.lineup.find((l) => l.pos === k.pos)?.pid : (k.pos === 'SP' ? t.rotation : [...t.bullpen.slice(0, 3), ...(t.closer ? [t.closer] : [])]).slice().sort((x, y) => (byId.get(x)?.ovr ?? 0) - (byId.get(y)?.ovr ?? 0))[0];
+      const cur = curId ? byId.get(curId) : undefined;
+      const better = !!cur && k.ovr >= cur.ovr + CALLUP_MIN_OVR;
+      const grad = k.ovr >= FARM_CAP && k.ovr < k.pot;
+      if (!better && !grad) continue;
+      const down = full ? downFor(t, k) : null;
+      if (full && !down) continue;
+      const r = farmMove(core, k.id, down?.id);
+      if (r.error) continue;
+      const b = teamParts(userTeam(r.core));
+      const dw = winDelta(a, b);
+      if (better && dw <= 0 && !grad) continue;
+      const stat = farmStatText(k);
+      const who = `${k.name}(${stat ? `퓨처스 ${stat}, ` : ''}OVR ${k.ovr})`;
+      const swap = down ? ` ↔ ${down.name} 내려보내기` : '';
+      const parts = partsText(a, b) || '전력 변화 없음';
+      const moves: BriefMove[] = [{ t: k.id, d: 1 }, ...(down ? [{ t: down.id, d: -1 as const }] : []), ...(better && cur && cur.id !== down?.id ? [{ t: cur.id, d: -1 as const }] : [])];
+      return {
+        ...offer(
+          better ? 30 : 27,
+          `callup:${k.id}`,
+          'farm',
+          'farm',
+          better ? `${k.name}, 2군에서 준비가 끝났습니다. 지금 1군 자리보다 낫습니다.` : `${k.name}은 2군에서 배울 건 다 배웠습니다. 이제 위에서 부딪혀야 큽니다.`,
+          better ? `콜업 ${who}${swap}: ${POS_NAME[k.pos] ?? k.pos} ${cur!.ovr} → ${k.ovr} · ${parts}` : `콜업 ${who}${swap}: 2군 상한 OVR ${FARM_CAP} 도달 · 1군에서만 더 자랍니다(잠재 ${k.pot}) · ${parts}`,
+          { t: 'fix' },
+          flagPiece(core, { win: dw }),
+          moves,
+        ),
+        farm: { up: k.id, ...(down ? { down: down.id } : {}) },
+      };
+    }
+    return null;
+  }
+  // 1군 벤치에서 썩는 25세 이하 → 2군에서 실전 경험
+  if (farmRoster(t).length >= FARM_MAX) return null;
+  const inPlay = new Set([...t.lineup.map((l) => l.pid), ...t.rotation, ...(t.closer ? [t.closer] : []), ...t.bullpen.slice(0, 3)]);
+  const nb = activeRoster(t).filter((p) => p.kind === 'B').length;
+  const np = activeRoster(t).length - nb;
+  const rot = activeRoster(t)
+    .filter((p) => !inPlay.has(p.id) && p.injury === 0 && p.age <= PLAY_GROW_AGE && p.pot - p.ovr >= SENDDOWN_MIN_ROOM && p.ovr < FARM_CAP - 1 && (p.kind === 'B' ? nb > MIN_BATTERS + 1 : np > MIN_PITCHERS + 1))
+    .sort((x, y) => y.pot - y.ovr - (x.pot - x.ovr));
+  for (const k of rot) {
+    const r = farmMove(core, undefined, k.id);
+    if (r.error) continue;
+    const b = teamParts(userTeam(r.core));
+    const dw = winDelta(a, b);
+    if (dw * gamesLeft(core) < -0.5) continue;
+    const now = growChance(core, t, k);
+    const then = growChance(r.core, userTeam(r.core), userTeam(r.core).roster.find((x) => x.id === k.id)!);
+    return {
+      ...offer(
+        22,
+        `senddown:${k.id}`,
+        'farm',
+        'farm',
+        `${k.name}, ${k.age}세입니다. 벤치에 앉혀 두면 썩습니다. 내려보내 실전을 뛰게 합시다.`,
+        `2군으로 ${k.name}(OVR ${k.ovr} · 잠재 ${k.pot}): 주당 성장 확률 ${pctText(now)} → ${pctText(then)} · ${partsText(a, b) || '전력 변화 없음'} · ${FARM_LOCK}경기 동안 재등록 불가`,
+        { t: 'fix' },
+        undefined,
+        [{ t: k.id, d: -1 }],
+      ),
+      farm: { down: k.id },
+    };
+  }
+  return null;
+}
+
+/** 2군 코치: 콜업 → 훈련장 → 유망주 기용 → 내려보내기 */
 function farmOffer(core: Core): Cand | null {
+  return farmMoveOffer(core, 'up') ?? coachOffer(core) ?? farmMoveOffer(core, 'down');
+}
+
+function coachOffer(core: Core): Cand | null {
   const t = userTeam(core);
   const lv = core.facilities.training;
   const cost = upgradeCost('training', core.facilities);
@@ -324,7 +432,7 @@ function farmOffer(core: Core): Cand | null {
   // 유망주: 25세 이하 · 잠재력이 지금 주전의 OVR 보다 높은 벤치 타자를 제 포지션(또는 지명타자) 주전으로
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const inLineup = new Set(t.lineup.map((l) => l.pid));
-  const kids = t.roster.filter((p) => p.kind === 'B' && !inLineup.has(p.id) && p.injury === 0 && p.age <= PLAY_GROW_AGE && p.pot - p.ovr >= 6).sort((a, b) => b.pot - a.pot);
+  const kids = t.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id) && p.injury === 0 && p.age <= PLAY_GROW_AGE && p.pot - p.ovr >= 6).sort((a, b) => b.pot - a.pot);
   for (const k of kids) {
     const slot = t.lineup.findIndex((l) => l.pos === (k.pos as BatPos));
     const cur = slot >= 0 ? byId.get(t.lineup[slot].pid) : undefined;
@@ -340,7 +448,7 @@ function farmOffer(core: Core): Cand | null {
       'farm',
       'farm',
       `${k.name}, ${k.age}세입니다. 지금 쓰면 흔들리겠지만 안 쓰면 썩습니다.`,
-      `유망주 기용: ${POS_NAME[k.pos] ?? k.pos} ${cur.ovr} → ${k.ovr}(잠재 ${k.pot}) · ${partsText(a, b) || '전력 변화 없음'} · 주간 성장 확률 ${Math.round(g * 100)}% → ${Math.round(g * PLAY_GROW * 100)}%`,
+      `유망주 기용: ${POS_NAME[k.pos] ?? k.pos} ${cur.ovr} → ${k.ovr}(잠재 ${k.pot}) · ${partsText(a, b) || '전력 변화 없음'} · 주간 성장 확률 ${Math.round(g * BENCH_GROW * 100)}% → ${Math.round(g * PLAY_GROW * 100)}%`,
       { t: 'promote', pid: k.id, slot },
       flagPiece(core, { win: winDelta(a, b) }),
       [{ t: k.id, d: 1 }, { t: cur.id, d: -1 }],
@@ -475,6 +583,11 @@ function resultLine(core: Core, d: BriefDone): string | null {
       return p ? `지난주 ${d.label}: ${p.name} ${(p.tired ?? 0) > 0 ? `연투 ${p.tired}일` : '피로 회복'} · 이후 ${rec}` : null;
     case 'training':
       return `지난주 ${d.label}: 이번 주 훈련 성과 ${Math.max(0, memoNum(core, 'grow') - n[0])}회`;
+    case 'callup':
+      if (!p) return null;
+      return `지난주 ${d.label}: ${p.farm ? '다시 2군' : p.kind === 'B' ? `1군 ${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])}` : `1군 ${p.pit.g - n[1]}경기 평균자책 ${fmtEra(p.pit.er - n[2], p.pit.outs - n[3])}`} · OVR ${n[0]} → ${p.ovr}`;
+    case 'senddown':
+      return p ? `지난주 ${d.label}: ${p.farm ? `퓨처스 ${farmStatText(p) || '기록 없음'}` : '1군 복귀'} · OVR ${n[0]} → ${p.ovr}` : null;
     case 'promote':
       return p ? `지난주 ${d.label}: ${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])} · OVR ${n[0]} → ${p.ovr}` : null;
     case 'rescue': {
@@ -500,6 +613,7 @@ function seats(t: Team): Map<string, string> {
   t.rotation.forEach((id, i) => m.set(id, `선발 ${i + 1}`));
   if (t.closer) m.set(t.closer, '마무리');
   t.lineup.forEach((l, i) => m.set(l.pid, `${i + 1}번 ${POS_NAME[l.pos] ?? l.pos}`));
+  for (const p of t.roster) if (p.farm) m.set(p.id, '2군');
   return m;
 }
 
@@ -693,6 +807,14 @@ function applyOffer(core0: Core, o: BriefOffer): { core: Core; error?: string; d
     if (r.error) return { core: core0, error: r.error };
     core = r.core;
     done = { ...mk(p ? `방출 ${p.name}` : '대출'), kind: 'rescue' };
+  } else if (o.farm) {
+    const up = o.farm.up ? t0.roster.find((x) => x.id === o.farm!.up) : undefined;
+    const down = o.farm.down ? t0.roster.find((x) => x.id === o.farm!.down) : undefined;
+    const r = farmMove(core0, o.farm.up, o.farm.down);
+    if (r.error) return { core: core0, error: r.error };
+    core = r.core;
+    const p = up ?? down!;
+    done = { ...mk(up ? `콜업 ${up.name}` : `2군행 ${down!.name}`, p.kind === 'B' ? [p.ovr, p.bat.g, p.bat.h, p.bat.ab] : [p.ovr, p.pit.g, p.pit.er, p.pit.outs], p.id), kind: up ? 'callup' : 'senddown' };
   } else
   switch (a.t) {
     case 'sign': {

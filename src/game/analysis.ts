@@ -56,7 +56,7 @@ function unitOf(t: Team, key: PosKey): Unit {
   const slot = t.lineup.find((l) => l.pos === key);
   const starter = slot ? byId.get(slot.pid) : undefined;
   const inLineup = new Set(t.lineup.map((l) => l.pid));
-  const bench = t.roster.filter((p) => p.kind === 'B' && !inLineup.has(p.id)).sort((a, b) => posScore(b, key) - posScore(a, key));
+  const bench = t.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => posScore(b, key) - posScore(a, key));
   const backup = bench[0] ?? null;
   return { players: starter ? [starter] : [], score: starter ? posScore(starter, key) : 0, backup, backupScore: backup ? posScore(backup, key) : 0 };
 }
@@ -138,7 +138,7 @@ export interface DepthLine {
   label: string;
   thin: boolean;
   backupAvg: number;
-  slots: { p: Player; score: number; starter: boolean }[]; // 1~3순위
+  slots: { p: Player; score: number; starter: boolean; farm?: boolean }[]; // 1~3순위 (+ 2군 후보)
 }
 
 /** 포지션별 1·2·3순위. 타자는 그 자리에 세웠을 때의 점수 순(주전이 맨 앞), 투수는 현재 보직 순 */
@@ -159,8 +159,15 @@ export function depthChart(core: Core, rows: PosRow[] = positionReport(core)): D
       const pos = r.key as BatPos;
       const starter = r.players[0];
       const inLineup = new Set(t.lineup.map((l) => l.pid));
-      const bench = t.roster.filter((p) => p.kind === 'B' && !inLineup.has(p.id)).sort((a, b) => posScore(b, pos) - posScore(a, pos));
+      const bench = t.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => posScore(b, pos) - posScore(a, pos));
       slots = [...(starter ? [starter] : []), ...bench.slice(0, 2)].map((p, i) => ({ p, score: r1(posScore(p, pos)), starter: i === 0 && !!starter }));
+      // 2군 후보: 그 자리가 본 포지션인 2군 최고 선수
+      const kid = t.roster.filter((p) => p.farm && p.pos === pos).sort((a, b) => b.ovr - a.ovr)[0];
+      if (kid) slots.push({ p: kid, score: r1(posScore(kid, pos)), starter: false, farm: true });
+    }
+    if (r.kind === 'P') {
+      const kid = t.roster.filter((p) => p.farm && p.pos === r.key).sort((a, b) => b.ovr - a.ovr)[0];
+      if (kid) slots.push({ p: kid, score: kid.ovr, starter: false, farm: true });
     }
     return { key: r.key, label: r.label, thin: r.thin, backupAvg: r.backupAvg, slots };
   });

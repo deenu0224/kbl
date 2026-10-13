@@ -32,7 +32,14 @@ export const TRAIN_LV: { grow: number; inj: number; cost: number; upkeep: number
 export const LOAN_LIMIT = 500000; // 50억
 export const LOAN_STEP = 50000; // 5억
 export const LOAN_RATE = 0.08; // 연이율
-export const ROSTER_MAX = 28;
+export const ROSTER_MAX = 28; // 1군 등록 정원
+export const FARM_MAX = 20; // 2군(퓨처스) 정원
+export const FARM_CAP = 64; // 2군에서는 이 OVR 까지만 자란다 (그 위는 1군에서만)
+export const FARM_GROW = 2.0; // 2군의 주간 성장 확률 = 훈련장 확률 × 이 값
+export const FARM_GROW_MIN = 0.18; // 훈련장이 없어도 2군은 실전으로 이만큼은 자란다
+export const BENCH_GROW = 0.5; // 1군 벤치의 25세 이하: 안 쓰면 썩는다
+export const FARM_LOCK = 10; // 2군으로 내린 뒤 재등록까지 걸리는 경기 수
+export const FARM_UPKEEP = 4; // 2군 운영비 (만원/경기 · 선수 1명당)
 export const MIN_BATTERS = 10;
 export const MIN_PITCHERS = 8;
 
@@ -77,6 +84,26 @@ const LEVELS: Record<FacilityKind, { cost: number }[]> = { seats: SEAT_LV, food:
 /** 적정 티켓가(만원). 구장이 좋아질수록 더 받을 수 있다. */
 export function refPrice(f: Facilities): number {
   return Math.round((1.1 + f.seats * 0.03 + f.food * 0.03) * 100) / 100;
+}
+
+/** 1군 등록 선수 (경기에 관한 모든 것은 이 명단만 본다) */
+export function activeRoster(t: Team): Player[] {
+  return t.roster.some((p) => p.farm) ? t.roster.filter((p) => !p.farm) : t.roster;
+}
+
+/** 2군(퓨처스) 선수 */
+export function farmRoster(t: Team): Player[] {
+  return t.roster.filter((p) => p.farm);
+}
+
+/** 2군 운영비 (만원/경기) */
+export function farmUpkeep(t: Team): number {
+  return farmRoster(t).length * FARM_UPKEEP;
+}
+
+/** 2군의 주간 성장 확률 */
+export function farmGrow(f: Facilities): number {
+  return Math.min(1, Math.max(FARM_GROW_MIN, TRAIN_LV[f.training].grow * FARM_GROW));
 }
 
 export function payroll(t: Team): number {
@@ -138,7 +165,7 @@ export function rainFood(f: Facilities, weather: Weather): number {
 
 /** 간판 선수 상위 3명의 스타성 합. season 을 주면 프랜차이즈 스타(5시즌+ · star 60+)는 ×1.3 */
 export function starPower(t: Team, season?: number): number {
-  return t.roster
+  return activeRoster(t)
     .map((p) => (season !== undefined && isFranchise(p, season) ? p.star * FRANCHISE_MULT : p.star))
     .sort((a, b) => b - a)
     .slice(0, 3)

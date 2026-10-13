@@ -1,13 +1,14 @@
-import type { Core, Crowd, DayReport, FacilityKind, GameResult, Player, Team, Weather } from './types';
+import type { Core, Crowd, DayReport, FacilityKind, FarmStat, GameResult, Player, Team, Weather } from './types';
 import { clamp, gauss, randInt, pick, type Rng } from './rng';
 import { calcOvr, calcSalary, teamStrength } from './ratings';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
 import { buildSchedule } from './schedule';
 import { simulateGame } from './sim';
-import { fmtInt, fmtMoney } from './format';
+import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, FORCED_SALE_RATE, RENEW_PREMIUM, RENEW_SEASONS,
+  BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, activeRoster, farmGrow, farmRoster, farmUpkeep,
   calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
@@ -119,10 +120,10 @@ export function settleCash(core: Core, notes: string[]): void {
   }
   const t = userTeam(core);
   for (let guard = 0; guard < 3 && f.debt > LOAN_LIMIT; guard++) {
-    const nb = t.roster.filter((p) => p.kind === 'B').length;
-    const np = t.roster.filter((p) => p.kind === 'P').length;
+    const nb = activeRoster(t).filter((p) => p.kind === 'B').length;
+    const np = activeRoster(t).filter((p) => p.kind === 'P').length;
     const sellable = t.roster
-      .filter((p) => (p.kind === 'B' ? nb > MIN_BATTERS : np > MIN_PITCHERS))
+      .filter((p) => p.farm || (p.kind === 'B' ? nb > MIN_BATTERS : np > MIN_PITCHERS))
       .sort((a, b) => b.salary - a.salary);
     const p = sellable[0];
     if (!p) break;
@@ -141,19 +142,69 @@ export function settleCash(core: Core, notes: string[]): void {
   }
 }
 
+/** 선수의 주간 성장 확률: 2군(실전) > 1군 주전 > 1군 벤치. 자랄 수 없으면 0 */
+export function growChance(core: Pick<Core, 'facilities'>, t: Team, p: Player): number {
+  if (p.age > TRAIN_MAX_AGE || p.ovr >= p.pot) return 0;
+  const grow = TRAIN_LV[core.facilities.training].grow;
+  if (p.farm) return p.ovr >= FARM_CAP ? 0 : farmGrow(core.facilities);
+  if (p.age > PLAY_GROW_AGE) return grow;
+  const playing = t.lineup.some((x) => x.pid === p.id) || t.rotation.includes(p.id) || t.closer === p.id;
+  return Math.min(1, grow * (playing ? PLAY_GROW : BENCH_GROW));
+}
+
+/** 퓨처스 성적 한 줄 (".338 5홈런" / "평균자책 3.21 · 24이닝"). 기록이 없으면 '' */
+export function farmStatText(p: Player): string {
+  const s = p.farmStat;
+  if (!s) return '';
+  if (p.kind === 'B') return s.ab > 0 ? `${fmtAvg(s.h, s.ab)} ${s.hr}홈런` : '';
+  return s.outs > 0 ? `평균자책 ${fmtEra(s.er, s.outs)} · ${Math.floor(s.outs / 3)}이닝` : '';
+}
+
+const farmStatZero = (): FarmStat => ({ g: 0, ab: 0, h: 0, hr: 0, outs: 0, er: 0 });
+
+/** 퓨처스 한 주 기록: 경기를 돌리지 않고 능력치에서 뽑는다 (2군 리그는 1군보다 수준이 낮다) */
+function farmWeekMut(p: Player, rng: Rng): void {
+  const s = (p.farmStat ??= farmStatZero());
+  if (p.injury > 0) return;
+  if (p.kind === 'B') {
+    const ab = randInt(rng, 16, 22);
+    const avg = clamp(0.265 + (p.con - 50) * 0.0034 + (p.eye - 50) * 0.0008, 0.15, 0.42);
+    const hrRate = clamp(0.022 + (p.pow - 50) * 0.0013, 0.002, 0.09);
+    let h = 0;
+    let hr = 0;
+    for (let i = 0; i < ab; i++) {
+      if (rng() < avg) {
+        h++;
+        if (rng() < hrRate / avg) hr++;
+      }
+    }
+    s.g += 5;
+    s.ab += ab;
+    s.h += h;
+    s.hr += hr;
+  } else {
+    const sp = p.pos === 'SP';
+    const outs = sp ? randInt(rng, 14, 20) : randInt(rng, 6, 12);
+    const era = clamp(4.4 - (p.stf - 50) * 0.075 - (p.ctl - 50) * 0.055, 1.2, 9.5);
+    const er = Math.max(0, Math.round((era * outs) / 27 + gauss(rng) * (sp ? 1.3 : 0.9)));
+    s.g += sp ? 1 : 3;
+    s.outs += outs;
+    s.er += er;
+  }
+}
+
 /** 주간 훈련: 젊은 선수 성장, 노장 소폭 노쇠 */
 function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
   const t = userTeam(core);
-  const grow = TRAIN_LV[core.facilities.training].grow;
   // 2장 기: 지난 드래프트 신인은 첫 2주 안에 훈련 성과가 한 번은 난다
   const camp = !!beatById(core, 'rookie-camp') && core.day < ROOKIE_CAMP_DAYS && memoGet(core, 'camp') === undefined;
   if (camp) memoSet(core, 'camp', 1);
-  const playing = new Set([...t.lineup.map((x) => x.pid), ...t.rotation, ...(t.closer ? [t.closer] : [])]);
   for (const p of t.roster) {
+    if (p.farm) farmWeekMut(p, rng);
     const keys = p.kind === 'B' ? BAT_KEYS : PIT_KEYS;
     const sure = camp && !!p.rookie && p.ovr < p.pot;
-    // 1군에서 뛰는 25세 이하는 더 빨리 자란다 (쓰면 지금 지고, 안 쓰면 내년에 진다)
-    const g = grow * (p.age <= PLAY_GROW_AGE && playing.has(p.id) ? PLAY_GROW : 1);
+    // 2군은 실전으로 가장 빨리 자라고(OVR 상한), 1군 주전인 25세 이하가 그다음, 1군 벤치의 25세 이하는 썩는다
+    const g = growChance(core, t, p);
     if (p.age <= TRAIN_MAX_AGE && p.ovr < p.pot && (rng() < g || sure)) {
       memoAdd(core, 'grow');
       const k = pick(rng, keys);
@@ -164,7 +215,8 @@ function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
       const k2 = pick(rng, keys.filter((x) => x !== k));
       p[k2] = clamp(p[k2] + 1, 20, 99);
       p.ovr = calcOvr(p);
-      const msg = `훈련 성과: ${p.name} ${ABIL_KO[k]}+${d} · ${ABIL_KO[k2]}+1`;
+      const msg = `${p.farm ? '퓨처스 성과' : '훈련 성과'}: ${p.name} ${ABIL_KO[k]}+${d} · ${ABIL_KO[k2]}+1`;
+      if (p.farm && p.ovr >= FARM_CAP && p.ovr < p.pot) addNews(core, `${p.name}: 2군에서 배울 건 다 배웠습니다 (OVR ${p.ovr})`, 'info');
       notes.push(msg);
       addNews(core, msg, 'good');
     } else if (p.age >= DECLINE_AGE && rng() < DECLINE_RATE) {
@@ -190,7 +242,7 @@ function applyFocus(t: Team, d: number, per: Record<string, number> = {}): () =>
 /** 고정 출전 선수를 선발 명단에 넣는다. 반환: 그에게 밀려난 선수 pid */
 function forceStarter(t: Team, pid: string): string | null {
   const p = t.roster.find((x) => x.id === pid);
-  if (!p || p.kind !== 'B' || p.injury > 0 || t.lineup.some((s) => s.pid === pid)) return null;
+  if (!p || p.farm || p.kind !== 'B' || p.injury > 0 || t.lineup.some((s) => s.pid === pid)) return null;
   const slot = t.lineup.find((s) => s.pos === p.pos) ?? t.lineup.find((s) => s.pos === 'DH');
   if (!slot) return null;
   const out = slot.pid;
@@ -330,6 +382,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const upkeep =
     (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
     TRAIN_LV[core.facilities.training].upkeep +
+    farmUpkeep(user) +
     opsCost(core);
   const interest = Math.round((f.debt * LOAN_RATE) / core.schedule.length);
   const net = ticket + food + merch + league - salary - upkeep - interest;
@@ -432,7 +485,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
 export function signPlayer(core0: Core, pid: string): { core: Core; error?: string } {
   const fa = core0.freeAgents.find((p) => p.id === pid);
   if (!fa) return { core: core0, error: '영입 가능한 선수가 아닙니다' };
-  if (userTeam(core0).roster.length >= ROSTER_MAX) return { core: core0, error: `로스터가 가득 찼습니다 (최대 ${ROSTER_MAX}명)` };
+  if (activeRoster(userTeam(core0)).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 먼저 한 명을 2군으로 내리거나 방출하세요` };
   if (fa.foreign && userTeam(core0).roster.filter((p) => p.foreign).length >= FOREIGN_MAX) {
     return { core: core0, error: `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다` };
   }
@@ -462,7 +515,7 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   const t0 = userTeam(core0);
   const p0 = t0.roster.find((p) => p.id === pid);
   if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
-  const same = t0.roster.filter((p) => p.kind === p0.kind).length;
+  const same = p0.farm ? 99 : activeRoster(t0).filter((p) => p.kind === p0.kind).length;
   if (p0.kind === 'B' && same <= MIN_BATTERS) return { core: core0, error: `타자는 최소 ${MIN_BATTERS}명이 필요합니다` };
   if (p0.kind === 'P' && same <= MIN_PITCHERS) return { core: core0, error: `투수는 최소 ${MIN_PITCHERS}명이 필요합니다` };
   const cost = releaseCost(p0, core0);
@@ -480,11 +533,60 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   }
   delete p.since;
   delete p.tired;
+  delete p.farm;
+  delete p.farmUntil;
+  delete p.farmStat;
   core.freeAgents.push(p);
   core.finance.cash -= cost;
   core.finance.ledger.signing += cost;
   fixLineup(t);
   addNews(core, `방출: ${p.name} (위약금 ${fmtMoney(cost)})`, 'info');
+  return { core };
+}
+
+/** 1군 → 2군. 내려간 선수는 FARM_LOCK 경기 동안 다시 등록할 수 없다 */
+export function sendDown(core0: Core, pid: string): { core: Core; error?: string } {
+  const t0 = userTeam(core0);
+  const p0 = t0.roster.find((p) => p.id === pid);
+  if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
+  if (p0.farm) return { core: core0, error: '이미 2군에 있습니다' };
+  if (p0.injury > 0) return { core: core0, error: '부상 중인 선수는 2군으로 내릴 수 없습니다' };
+  if (farmRoster(t0).length >= FARM_MAX) return { core: core0, error: `2군이 가득 찼습니다 (${FARM_MAX}명) — 2군에서 한 명을 올리거나 방출하세요` };
+  const same = activeRoster(t0).filter((p) => p.kind === p0.kind).length;
+  if (p0.kind === 'B' && same <= MIN_BATTERS) return { core: core0, error: `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다` };
+  if (p0.kind === 'P' && same <= MIN_PITCHERS) return { core: core0, error: `1군 투수는 최소 ${MIN_PITCHERS}명이 필요합니다` };
+  const core = structuredClone(core0);
+  const t = userTeam(core);
+  const p = t.roster.find((x) => x.id === pid)!;
+  p.farm = true;
+  delete p.tired;
+  if (core.phase === 'season') p.farmUntil = core.day + FARM_LOCK;
+  fixLineup(t);
+  addNews(core, `말소: ${p.name} 2군행${p.farmUntil ? ` (${FARM_LOCK}경기 뒤 재등록 가능)` : ''}`, 'info');
+  return { core };
+}
+
+/** 재등록까지 남은 경기 수 (0 = 지금 올릴 수 있다) */
+export function farmLockLeft(core: Pick<Core, 'day' | 'phase'>, p: Player): number {
+  return core.phase === 'season' && p.farmUntil ? Math.max(0, p.farmUntil - core.day) : 0;
+}
+
+/** 2군 → 1군. 1군이 가득이면 먼저 누군가를 내려야 한다 */
+export function callUp(core0: Core, pid: string): { core: Core; error?: string } {
+  const t0 = userTeam(core0);
+  const p0 = t0.roster.find((p) => p.id === pid);
+  if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
+  if (!p0.farm) return { core: core0, error: '이미 1군에 있습니다' };
+  const left = farmLockLeft(core0, p0);
+  if (left > 0) return { core: core0, error: `말소 후 ${FARM_LOCK}경기가 지나야 합니다 (${left}경기 남음)` };
+  if (activeRoster(t0).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 누구를 내릴지 먼저 고르세요` };
+  const core = structuredClone(core0);
+  const t = userTeam(core);
+  const p = t.roster.find((x) => x.id === pid)!;
+  delete p.farm;
+  delete p.farmUntil;
+  const role = slotNewcomer(t, p);
+  addNews(core, `콜업: ${p.name} 1군 등록 (${role})`, 'good');
   return { core };
 }
 
@@ -626,6 +728,8 @@ export function nextSeason(core0: Core, rng: Rng): Core {
         return p;
       }
       delete p.rookie;
+      delete p.farmUntil;
+      delete p.farmStat;
       delete p.scout;
       const franchise = t.id === core.userId && isFranchise(p, endedSeason);
       develop(p, rng, core.season);
@@ -641,6 +745,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       }
       const nw = genPlayer(ctx, p.pos, 50, { age: randInt(rng, 19, 22), tag: '신인' });
       if (t.id === core.userId) nw.since = core.season;
+      if (p.farm) nw.farm = true;
       return nw;
     });
     t.rec = recZero();

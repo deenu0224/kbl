@@ -1,6 +1,9 @@
 import type { BatPos, LineupSlot, Player, Team } from './types';
 import { batValue, effDef } from './ratings';
 
+// 1군 등록 선수만 (economy.activeRoster 와 같다 — 순환 import 를 피하려고 여기에 둔다)
+const active = (t: Team): Player[] => t.roster.filter((p) => !p.farm);
+
 // 수비 위치를 채우는 순서(희소한 포지션부터)와 수비 비중
 const FIELD_ORDER: BatPos[] = ['C', 'SS', 'CF', '2B', '3B', 'RF', 'LF', '1B'];
 const DEF_WEIGHT: Record<BatPos, number> = {
@@ -59,7 +62,7 @@ function tidyDefense(chosen: { p: Player; pos: BatPos }[]): void {
 }
 
 function buildBatting(t: Team, bias: Bias = noBias): void {
-  const pool = t.roster.filter((p) => p.kind === 'B');
+  const pool = active(t).filter((p) => p.kind === 'B');
   const chosen: { p: Player; pos: BatPos }[] = [];
   const take = (pos: BatPos) => {
     const p = best(pool, (x) => slotValue(x, pos) + bias(x));
@@ -90,7 +93,7 @@ function buildBatting(t: Team, bias: Bias = noBias): void {
 }
 
 function buildPitching(t: Team, bias: Bias = noBias): void {
-  const pool = t.roster.filter((p) => p.kind === 'P');
+  const pool = active(t).filter((p) => p.kind === 'P');
   const byOvr = (a: Player, b: Player) => b.ovr + bias(b) - (a.ovr + bias(a));
   const sp = pool.filter((p) => p.pos === 'SP').sort(byOvr);
   const others = pool.filter((p) => p.pos !== 'SP');
@@ -136,7 +139,7 @@ export function managerLineup(t: Team): void {
   for (const slot of t.lineup) {
     const cur = byId.get(slot.pid);
     if (!cur) continue;
-    const cands = t.roster.filter((p) => p.kind === 'B' && !used.has(p.id) && (p.pos === slot.pos || slot.pos === 'DH'));
+    const cands = active(t).filter((p) => p.kind === 'B' && !used.has(p.id) && (p.pos === slot.pos || slot.pos === 'DH'));
     const sub = best(cands, (p) => slotValue(p, slot.pos) + mgrBias(p));
     if (sub && slotValue(sub, slot.pos) + mgrBias(sub) > slotValue(cur, slot.pos) + mgrBias(cur)) {
       used.delete(cur.id);
@@ -171,7 +174,7 @@ export function breakLineup(t: Team, lv: typeof BROKEN = BROKEN): void {
   for (let n = 0; n < lv.benched; n++) {
     const top = best(inLineup().filter((p) => !out.has(p.id)), (p) => batValue(p));
     const used = new Set(t.lineup.map((s) => s.pid));
-    const bench = t.roster.filter((p) => p.kind === 'B' && !used.has(p.id) && !out.has(p.id));
+    const bench = active(t).filter((p) => p.kind === 'B' && !used.has(p.id) && !out.has(p.id));
     if (!top || !bench.length) break;
     const slot = t.lineup.find((s) => s.pid === top.id)!;
     const sub = best(bench, (p) => (p.pos !== slot.pos && slot.pos !== 'DH' ? 100 : 0) + p.age)!;
@@ -214,8 +217,8 @@ export function breakLineup(t: Team, lv: typeof BROKEN = BROKEN): void {
 
 /** 로스터 변동 후 무효 항목 정리 + 빈칸 채움. 유효한 기존 항목은 그대로 둔다. */
 export function fixLineup(t: Team): void {
-  const batters = new Map(t.roster.filter((p) => p.kind === 'B').map((p) => [p.id, p]));
-  const pitchers = new Map(t.roster.filter((p) => p.kind === 'P').map((p) => [p.id, p]));
+  const batters = new Map(active(t).filter((p) => p.kind === 'B').map((p) => [p.id, p]));
+  const pitchers = new Map(active(t).filter((p) => p.kind === 'P').map((p) => [p.id, p]));
 
   // ── 타선 ──
   const posOk =

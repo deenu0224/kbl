@@ -107,9 +107,9 @@ export function runwayPath(core: Core): number[] {
 /** 강제 매각 대상: settleCash 와 같은 기준(최소 인원을 지키는 선에서 최고 연봉) */
 export function forcedSaleTarget(core: Core): Player | null {
   const t = userTeam(core);
-  const nb = t.roster.filter((p) => p.kind === 'B').length;
-  const np = t.roster.length - nb;
-  return t.roster.filter((p) => (p.kind === 'B' ? nb > MIN_BATTERS : np > MIN_PITCHERS)).sort((a, b) => b.salary - a.salary)[0] ?? null;
+  const nb = t.roster.filter((p) => p.kind === 'B' && !p.farm).length;
+  const np = t.roster.filter((p) => p.kind === 'P' && !p.farm).length;
+  return t.roster.filter((p) => p.farm || (p.kind === 'B' ? nb > MIN_BATTERS : np > MIN_PITCHERS)).sort((a, b) => b.salary - a.salary)[0] ?? null;
 }
 
 /** 상단 경고: 30경기 이내에 금고가 비거나 강제 매각이 올 때만. danger = 12경기 이내 */
