@@ -8,7 +8,7 @@ import type { Core } from '../../src/game/types';
 import { mulberry32, type Rng } from '../../src/game/rng';
 import { newCore } from '../../src/game/generate';
 import { advanceDay, nextSeason } from '../../src/game/season';
-import { farmRoster, rehabRoster, userTeam } from '../../src/game/economy';
+import { farmRoster, loanLimit, rehabRoster, userTeam } from '../../src/game/economy';
 import { ensureObjectives, STAGES } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
 import { drawStoveTrade, tradeOpen } from '../../src/game/trade';
@@ -19,7 +19,7 @@ import { postMatch } from '../../src/game/postseason';
 import { runway, RUNWAY_DANGER } from '../../src/game/runway';
 import { bullpenLoad } from '../../src/game/fixes';
 import { todoList } from '../../src/game/todo';
-import { emptyHof, recordClub, HOF_KEY, SAVE_VERSION } from '../../src/game/hof';
+import { emptyHof, recordClub, seatsLabel, HOF_KEY, SAVE_VERSION } from '../../src/game/hof';
 import { greedy, passive, sensible, type Bot } from '../bots';
 
 const OUT = resolve(dirname(fileURLToPath(import.meta.url)), '../../screens-out/fixtures');
@@ -57,9 +57,17 @@ const WANT: Record<string, Pred> = {
     const t = userTeam(c);
     return t.lineup.some((s) => (t.roster.find((p) => p.id === s.pid)?.injury ?? 0) > 0);
   },
-  event: (c) => inSeason(c) && !!c.campaign.event && !c.campaign.event.id.startsWith('midcheck') && !c.campaign.event.id.startsWith('resign') && !c.campaign.event.id.startsWith('f-') && !c.campaign.event.id.startsWith('trade') && !c.campaign.event.id.startsWith('arm'),
+  event: (c) => inSeason(c) && !!c.campaign.event && !c.campaign.event.id.startsWith('midcheck') && !c.campaign.event.id.startsWith('debtsale') && !c.campaign.event.id.startsWith('resign') && !c.campaign.event.id.startsWith('f-') && !c.campaign.event.id.startsWith('trade') && !c.campaign.event.id.startsWith('arm'),
   eventFarm: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('f-'),
   briefing: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing && c.campaign.briefing.offers.length >= 2,
+  // 부채: 한도의 50%·80%·초과 재무 화면, 매각 카드, 한도 초과 결산, 아카데미 뒤 2군 정원, 돔 기록 카드
+  debt50: (c) => inSeason(c) && quiet(c) && c.finance.debt >= loanLimit(c) * 0.5 && c.finance.debt < loanLimit(c) * 0.8,
+  debt80: (c) => inSeason(c) && quiet(c) && c.finance.debt >= loanLimit(c) * 0.8 && c.finance.debt <= loanLimit(c),
+  debtOver: (c) => inSeason(c) && quiet(c) && c.finance.debt > loanLimit(c),
+  debtSale: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('debtsale'),
+  endedDebt: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.debtOver,
+  academy: (c) => inSeason(c) && quiet(c) && (c.campaign.projects?.academy ?? 0) > 0 && c.day >= 5,
+  domeDone: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.projects?.dome ?? 0) >= 3 && seatsLabel(c).startsWith('돔구장'),
   midcheck: (c) => !!c.campaign.event && c.campaign.event.id.startsWith('midcheck'),
   penover: (c) => inSeason(c) && quiet(c) && bullpenLoad(userTeam(c)).label === '과부하',
   cashlow: (c) => {
