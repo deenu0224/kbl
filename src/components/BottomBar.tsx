@@ -1,8 +1,7 @@
-import { useStore, userMatch, useUserTeam } from '../store';
+import { useStore, userMatch } from '../store';
 import { usePostLine } from './Bracket';
 import { EventReopen } from './EventCardModal';
 import { chanceKey, useUi } from './layout/uiStore';
-import { todayIssues } from '../game/fixes';
 import { useWinChance } from './useWinChance';
 import { TeamDot, dowOf, isNightDay } from './ui';
 
@@ -37,9 +36,8 @@ export function useMatchActions() {
   return { opener, playback, phase, inPost, next, opp, reason, idle, when, whenShort, off: !!reason, bulkOff: !!bulkReason, bulkReason };
 }
 
-/** 경기 전 점검 줄: "오늘 승리 확률 44%" + 고칠 곳이 있으면 칩 (탭하면 "오늘의 오더") */
+/** 경기 전 점검 줄: "오늘 승리 확률 44%". 숫자를 탭하면 오더 편집기("오늘의 오더") */
 export function PreGame({ short = false }: { short?: boolean }) {
-  const team = useUserTeam();
   const opener = useStore((s) => s.phase === 'season' && s.day === 0);
   // 오더지가 열려 있는 동안은 오더지가 같은 숫자를 계산한다 (같은 시뮬을 두 번 돌리지 않는다)
   const sheetOpen = useUi((s) => (opener ? s.orderOpen : s.dailyOpen));
@@ -52,23 +50,17 @@ export function PreGame({ short = false }: { short?: boolean }) {
   const pct = sheetOpen ? (shared ?? own) : own;
   const setDailyOpen = useUi((s) => s.setDailyOpen);
   const setOrderOpen = useUi((s) => s.setOrderOpen);
-  const n = todayIssues(team);
   return (
-    <>
-      <span className="shrink-0 whitespace-nowrap text-[11px] text-white/70" data-testid="pre-chance">
-        {short ? '승리 확률' : '오늘 승리 확률'} <span className="text-[13px] text-hi">{pct === null ? '—' : `${pct}%`}</span>
-      </span>
-      {n > 0 && (
-        <button
-          className="shrink-0 cursor-pointer whitespace-nowrap bg-bad/85 px-1.5 py-0.5 text-[11px] text-white mob:py-1 mob:text-[12px]"
-          style={{ boxShadow: '0 0 0 1px #0f1420' }}
-          data-testid="fix-chip"
-          onClick={() => (opener ? setOrderOpen(true) : setDailyOpen(true))}
-        >
-          고칠 곳 {n}
-        </button>
-      )}
-    </>
+    <button
+      type="button"
+      className="shrink-0 cursor-pointer whitespace-nowrap text-[11px] text-white/70 mob:text-[13px]"
+      data-testid="pre-chance"
+      data-sfx="tab"
+      aria-label="오더 편집기 열기"
+      onClick={() => (opener ? setOrderOpen(true) : setDailyOpen(true))}
+    >
+      {short ? '승리 확률' : '오늘 승리 확률'} <span className="text-[13px] text-hi underline decoration-dotted underline-offset-2 mob:text-[15px]">{pct === null ? '—' : `${pct}%`}</span>
+    </button>
   );
 }
 
@@ -96,8 +88,8 @@ function DraftReturn({ className = '' }: { className?: string }) {
   const setPeek = useUi((s) => s.setDraftPeek);
   if (phase !== 'draft') return null;
   return (
-    <button className={`px-btn primary ${className}`} onClick={() => setPeek(false)}>
-      드래프트로 돌아가기 ▶
+    <button className={`px-btn primary whitespace-nowrap ${className}`} onClick={() => setPeek(false)}>
+      드래프트로 ▶
     </button>
   );
 }

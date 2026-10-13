@@ -7,7 +7,7 @@ import { useCore, useStore, useUserTeam } from '../../store';
 import { useIsMobile } from '../layout/useLayout';
 import { POS_KO } from '../ui';
 import { CardPop, FullScreen } from './FrontOffice';
-import PlayerTable from './PlayerTable';
+import PlayerBrowser from './PlayerBrowser';
 import { PART_KO } from './labels';
 import { usePosReport } from './rosterUi';
 import { useTransferUi } from './transferUi';
@@ -31,7 +31,7 @@ export default function TransferDesk() {
 }
 
 /** 줄의 담기 버튼: 담으면 색이 차고, 다시 누르면 빠진다 */
-function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: string; big?: boolean }) {
+export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: string; big?: boolean }) {
   const on = useTransferUi((s) => s.basket[kind].includes(pid));
   const toggle = useTransferUi((s) => s.toggle);
   const b = BAND[kind];
@@ -41,7 +41,7 @@ function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: string; bi
       data-on={on || undefined}
       data-sfx="tab"
       onClick={() => toggle(kind, pid)}
-      className={`shrink-0 cursor-pointer whitespace-nowrap ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-8 mob:px-2 mob:text-[12px]'}`}
+      className={`shrink-0 cursor-pointer whitespace-nowrap ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
       style={on ? { background: b.color, color: '#0f1420' } : { background: '#0f1420', color: b.color, boxShadow: `inset 0 0 0 1px ${b.color}88` }}
     >
       {on ? `✓ ${b.label}` : b.add}
@@ -66,7 +66,7 @@ function Desk() {
 
   // 담은 채로 열렸으면 그 줄이 보이게
   useEffect(() => {
-    document.querySelector('[data-testid=transfer-desk] tr[data-band]')?.scrollIntoView({ block: 'center' });
+    document.querySelector('[data-testid=transfer-desk] [data-band]')?.scrollIntoView({ block: 'center' });
   }, [nonce, side]);
 
   const pv = useMemo(() => previewTransfer(core, basket), [core, basket]);
@@ -90,10 +90,10 @@ function Desk() {
   };
 
   const market = (
-    <PlayerTable key={`m${nonce}`} mode="market" players={freeAgents} rows={rows} sel={card} onPick={(p) => setCard(p.id)} initPos={pos} band={band} rowAction={(p) => <AddChip kind="sign" pid={p.id} />} />
+    <PlayerBrowser key={`m${nonce}`} mode="market" players={freeAgents} rows={rows} sel={card} onPick={(p) => setCard(p.id)} initPos={pos} band={band} rowAction={(p) => <AddChip kind="sign" pid={p.id} />} />
   );
   const squad = (
-    <PlayerTable
+    <PlayerBrowser
       key={`s${nonce}`}
       mode="roster"
       players={team.roster}

@@ -53,8 +53,8 @@ export default function MobileNav({ placement }: { placement: 'bottom' | 'top' }
             style={on ? { boxShadow: bottom ? 'inset 0 -3px 0 #ffd84a' : 'inset 0 2px 0 #ffd84a' } : undefined}
           >
             <PixelIcon name={t.id} size={bottom ? 18 : 14} />
-            <span>{t.label}</span>
-            <span className={bottom ? 'absolute top-1 left-[calc(50%+8px)] short:static' : ''}>
+            <span className="whitespace-nowrap">{t.label}</span>
+            <span className={bottom ? 'absolute top-1 left-[calc(50%+8px)] short:top-0.5 short:right-0.5 short:left-auto' : 'absolute top-0.5 right-0.5'}>
               <Badge n={todos.filter((x) => x.tab === TAB_TODO[t.id]).length} />
             </span>
           </button>

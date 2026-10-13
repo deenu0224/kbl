@@ -1,5 +1,5 @@
 import type { BatPos, Player, Team } from './types';
-import { effDef } from './ratings';
+import { effDef, teamParts } from './ratings';
 import { fixLineup } from './lineup';
 
 // ───────── 편성 문제 판정 (탭의 ▲·본 포지션 태그와 오더지 배지가 같이 쓴다) ─────────
@@ -176,4 +176,17 @@ export function applyFixes(t: Team): number {
     n++;
   }
   return n;
+}
+
+export const FIX_GAIN_MIN = 3; // 추천을 전부 적용했을 때 전력 4칸 합이 이만큼 올라야 "할 일"에 올린다
+
+/** 추천(칩)을 전부 적용했을 때의 건수와 전력 4칸 합의 변화 (원본은 건드리지 않는다) */
+export function fixGain(team: Team): { n: number; gain: number } {
+  const sum = (t: Team) => {
+    const p = teamParts(t);
+    return p.bat + p.def + p.rot + p.pen;
+  };
+  const copy: Team = { ...team, lineup: team.lineup.map((l) => ({ ...l })), rotation: [...team.rotation], bullpen: [...team.bullpen] };
+  const n = applyFixes(copy);
+  return { n, gain: sum(copy) - sum(team) };
 }

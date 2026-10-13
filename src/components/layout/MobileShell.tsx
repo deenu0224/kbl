@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStore, userMatch, useUserTeam } from '../../store';
 import { MobileActionBar, PreGame, useMatchActions } from '../BottomBar';
 import GameSummary from '../GameSummary';
@@ -89,15 +89,50 @@ function MobilePanel() {
   );
 }
 
-/** 홈이 아닌 탭의 얇은 한 줄: 구단 색 점 · "다음: 홈 vs 팰컨스 · 44%" · 현금 */
-function ThinBar() {
+/** 얇은 줄의 ≡ 메뉴 (가로 폰): 설정 · 초기 화면으로 */
+function ThinMenu() {
+  const [open, setOpen] = useState(false);
+  const playback = useStore((s) => !!s.playback);
+  const setScreen = useUi((s) => s.setScreen);
+  const setSettingsOpen = useUi((s) => s.setSettingsOpen);
+  return (
+    <span className="relative shrink-0">
+      <button className="flex h-9 w-10 cursor-pointer items-center justify-center text-[18px] text-white/80" aria-label="메뉴" aria-expanded={open} data-testid="thin-menu" onClick={() => setOpen((v) => !v)}>
+        {open ? '▲' : '≡'}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="px-panel anim-fade absolute top-full right-0 z-[31] mt-[4px] flex flex-col gap-1.5 p-2">
+            <button
+              className="px-btn min-h-10 whitespace-nowrap"
+              data-testid="menu-settings"
+              onClick={() => {
+                setOpen(false);
+                setSettingsOpen(true);
+              }}
+            >
+              설정
+            </button>
+            <button className="px-btn min-h-10 whitespace-nowrap" data-testid="menu-title" disabled={playback} onClick={() => setScreen('title')}>
+              초기 화면으로
+            </button>
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
+/** 홈이 아닌 탭의 얇은 한 줄: 구단 색 점 · "다음: 홈 vs 팰컨스 · 44%" · 현금 (가로 폰은 ≡ 메뉴까지) */
+function ThinBar({ menu = false }: { menu?: boolean }) {
   const team = useUserTeam();
   const cash = useStore((s) => s.finance.cash);
   const playback = useStore((s) => !!s.playback);
   const { next, opp, idle } = useMatchActions();
   const pct = useWinChance(!playback);
   return (
-    <div className="px-panel flex h-9 shrink-0 items-center gap-2 px-2 text-[13px]" data-testid="thin-bar">
+    <div className={`px-panel relative flex h-9 shrink-0 items-center gap-2 text-[13px] ${menu ? 'z-30 pl-2' : 'px-2'}`} data-testid="thin-bar">
       <TeamDot team={team} size={12} />
       <span className="min-w-0 flex-1 truncate">
         {playback ? (
@@ -114,6 +149,7 @@ function ThinBar() {
       </span>
       <span className={`shrink-0 text-[14px] ${cash < 0 ? 'text-bad' : 'text-hi'}`}>{fmtMoney(cash)}</span>
       <RunwayWarn className="text-[13px]" />
+      {menu && <ThinMenu />}
     </div>
   );
 }
@@ -207,7 +243,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
     return (
       <div className="flex h-[100dvh] gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
         <div className="flex min-w-0 flex-1 flex-col gap-[4px]">
-          <ThinBar />
+          <ThinBar menu />
           <div className="relative min-h-0 flex-1">
             <div className="absolute inset-0">
               <StadiumView />
@@ -231,7 +267,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
         <>
           {!playback && <TripLine />}
           {/* 구장이 남는 높이를 채운다: 다음 경기·할 일 카드는 제 높이만큼만 */}
-          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[34dvh] flex-1'}`} style={playback ? { height: '65dvh' } : undefined} data-testid="stadium-box">
+          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[34dvh] flex-1'}`} style={playback ? { height: 'min(65dvh, calc(100dvh - 256px))' } : undefined} data-testid="stadium-box">
             <div className="absolute inset-0">
               <StadiumView pan />
             </div>
