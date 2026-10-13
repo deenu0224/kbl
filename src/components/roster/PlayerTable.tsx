@@ -9,6 +9,7 @@ import { ScoutBadge } from '../PlayerCard';
 import { useIsMobile } from '../layout/useLayout';
 import { POS_KO, ratingColor } from '../ui';
 import { PART_KO } from './labels';
+import Help from '../Help';
 
 export type TableMode = 'roster' | 'market' | 'draft';
 type Group = 'core' | 'abil' | 'rec' | 'deal';
@@ -79,7 +80,7 @@ export default function PlayerTable({
   const cash = useStore((s) => s.finance.cash);
   const [kind, setKind] = useState<Kind>(initPos && initPos !== 'weak' ? (PITCH_KEYS.includes(initPos as 'SP') ? 'P' : 'B') : 'all');
   const [pos, setPos] = useState<PosKey | 'weak' | null>(initPos);
-  const [set, setSet] = useState<Group>(mode === 'roster' ? 'abil' : 'deal');
+  const [set, setSet] = useState<Group | null>(null); // 모바일: 기본은 핵심 열만, 칩을 누르면 그 세트가 붙는다
   const [sort, setSort] = useState<{ id: string; dir: 1 | -1 }>({ id: mode === 'draft' ? 'scout' : 'ovr', dir: -1 });
 
   // 약점 = 리그 순위가 가장 낮은 2곳 / 빈 뎁스 = 백업이 리그 평균보다 크게 낮은 자리
@@ -131,7 +132,7 @@ export default function PlayerTable({
         { id: 'origin', label: '출신', group: 'deal', val: (p) => p.age, cell: (p) => <span className="text-white/60">{p.tag ?? (p.age <= 20 ? '고졸' : '대졸')}</span>, left: true },
       );
     } else {
-      out.push({ id: 'pot', label: '잠재', group: 'core', val: (p) => p.pot, cell: (p) => <span className={p.pot - p.ovr >= 6 ? 'text-good' : 'text-white/60'}>{p.pot}</span> });
+      out.push({ id: 'pot', label: '잠재', group: 'abil', val: (p) => p.pot, cell: (p) => <span className={p.pot - p.ovr >= 6 ? 'text-good' : 'text-white/60'}>{p.pot}</span> });
     }
     out.push(
       abil('con', '컨택', 'B'), abil('pow', '파워', 'B'), abil('eye', '선구', 'B'), abil('spd', '주력', 'B'), abil('def', '수비', 'B'),
@@ -148,7 +149,7 @@ export default function PlayerTable({
         { id: 'ops', label: 'OPS', group: 'rec', kind: 'B', val: (p) => (p.kind === 'B' && p.bat.pa ? ops(p) : -1), cell: (p) => (p.kind === 'B' ? (p.bat.pa > 0 ? fmtOps(ops(p)) : '.---') : dash) },
         { id: 'era', label: 'ERA', group: 'rec', kind: 'P', val: (p) => (p.kind === 'P' && p.pit.outs ? era(p) : 99), cell: (p) => (p.kind === 'P' ? fmtEra(p.pit.er, p.pit.outs) : dash), asc: true },
         { id: 'whip', label: 'WHIP', group: 'rec', kind: 'P', val: (p) => (p.kind === 'P' && p.pit.outs ? whip(p) : 99), cell: (p) => (p.kind === 'P' ? fmtWhip(p.pit.h + p.pit.bb, p.pit.outs) : dash), asc: true },
-        { id: 'salary', label: '연봉', group: 'deal', val: (p) => p.salary, cell: (p) => fmtMoney(p.salary) },
+        { id: 'salary', label: '연봉', group: 'core', val: (p) => p.salary, cell: (p) => fmtMoney(p.salary) },
         { id: 'gap', label: '가성비', group: 'deal', val: (p) => valueGap(p, season), cell: gapCell },
       );
     }
@@ -209,7 +210,8 @@ export default function PlayerTable({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={`table-${mode}`}>
-      <div className="flex shrink-0 flex-wrap items-center gap-1 px-1.5 pt-1.5">
+      {/* 필터 칩은 한 줄 (가로 스크롤) */}
+      <div className="px-scroll flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 py-1.5">
         {([['all', '전체'], ['B', '타자'], ['P', '투수']] as const).map(([k, label]) => (
           <Chip key={k} on={kind === k} onClick={() => { setKind(k); if (pos !== 'weak') setPos(null); }} testid={`kind-${k}`}>
             {label}
@@ -221,17 +223,7 @@ export default function PlayerTable({
             {needKeys.length > 0 && ` (${needKeys.map((k) => POS_KO[k]).join('·')})`}
           </Chip>
         )}
-        {mobile && (
-          <span className="ml-auto flex gap-1">
-            {SETS.filter(([g]) => mode !== 'draft' || g !== 'rec').map(([g, label]) => (
-              <Chip key={g} on={set === g} onClick={() => setSet(g)} testid={`set-${g}`}>
-                {mode === 'draft' && g === 'deal' ? '평가' : label}
-              </Chip>
-            ))}
-          </span>
-        )}
-      </div>
-      <div className="px-scroll flex shrink-0 gap-1 overflow-x-auto px-1.5 py-1">
+        <span className="mx-0.5 h-4 w-px shrink-0 bg-white/20" />
         <Chip on={pos === null} onClick={() => setPos(null)}>
           전 포지션
         </Chip>
@@ -242,6 +234,17 @@ export default function PlayerTable({
           </Chip>
         ))}
       </div>
+      {mobile && (
+        <div className="flex shrink-0 items-center gap-1 px-1.5 pb-1" data-testid="col-sets">
+          <span className="text-[11px] text-white/45">열 더 보기</span>
+          {SETS.filter(([g]) => mode !== 'draft' || g !== 'rec').map(([g, label]) => (
+            <Chip key={g} on={set === g} onClick={() => setSet(set === g ? null : g)} testid={`set-${g}`}>
+              {mode === 'draft' && g === 'deal' ? '평가' : label}
+            </Chip>
+          ))}
+          {mode !== 'draft' && <Help topic="value" className="ml-auto" />}
+        </div>
+      )}
       <div className="px-scroll min-h-0 flex-1 overflow-auto" data-testid="table-scroll">
         <table className="border-separate border-spacing-0 text-[11px] mob:text-[12px]" style={{ minWidth: '100%' }}>
           <thead>

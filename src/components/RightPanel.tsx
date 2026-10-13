@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { TodoCard, TodoLines, useTodos } from './Todo';
+import { TodoLines, useTodos } from './Todo';
 import Fold from './Fold';
 import Help from './Help';
 import { FirstTip } from './Briefing';
@@ -20,6 +20,7 @@ import {
 } from '../game/economy';
 import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season';
 import { forcedSaleTarget, runway, runwayPath, runwayPieceOf } from '../game/runway';
+import { teamStrength } from '../game/ratings';
 import Bracket from './Bracket';
 import Leaders from './Leaders';
 import { useUi, type LeagueSub } from './layout/uiStore';
@@ -51,7 +52,7 @@ export function LeagueTab() {
   const upcoming = useMemo(() => {
     const out: { day: number; oppId: string; isHome: boolean }[] = [];
     if (phase !== 'season') return out;
-    for (let d = day; d < schedule.length && out.length < 5; d++) {
+    for (let d = day; d < schedule.length && out.length < 3; d++) {
       const m = userMatch({ schedule, userId }, d);
       if (m) out.push({ day: d, oppId: m.oppId, isHome: m.isHome });
     }
@@ -86,13 +87,11 @@ export function LeagueTab() {
         </div>
       )}
       <SectionTitle>순위표</SectionTitle>
-      <div className="flex px-1 text-[9px] text-white/40">
-        <span className="w-4" />
+      <div className="flex px-1 text-[9px] text-white/40 mob:text-[11px]">
+        <span className="w-5" />
         <span className="flex-1">구단</span>
-        <span className="w-16 text-center">승-패-무</span>
-        <span className="w-9 text-right">승률</span>
-        <span className="w-8 text-right">승차</span>
-        <span className="w-11 text-right">최근10</span>
+        <span className="w-14 text-center">승-패</span>
+        <span className="w-9 text-right">승차</span>
       </div>
       {table.map((t, i) => {
         const gb = (lead.rec.w - t.rec.w + (t.rec.l - lead.rec.l)) / 2;
@@ -100,27 +99,39 @@ export function LeagueTab() {
         return (
           <div
             key={t.id}
-            className={`flex items-center px-1 py-[3px] text-[11px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
+            className={`flex items-center px-1 py-[3px] text-[11px] mob:py-1 mob:text-[13px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
             style={me ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
           >
-            <span className={`w-4 ${i < 4 ? 'text-good' : 'text-white/50'}`}>{i + 1}</span>
+            <span className={`w-5 ${i < 4 ? 'text-good' : 'text-white/50'}`}>{i + 1}</span>
             <span className="flex min-w-0 flex-1 items-center gap-1">
               <TeamDot team={t} />
               <span className="truncate">{t.name}</span>
             </span>
-            <span className="w-16 text-center text-white/85">
+            <span className="w-14 text-center text-white/85">
+              {t.rec.w}-{t.rec.l}
+            </span>
+            <span className="w-9 text-right text-white/60">{i === 0 || gb === 0 ? '-' : gb.toFixed(1)}</span>
+          </div>
+        );
+      })}
+      <Fold label="자세히: 승률 · 최근 10경기 · 타구장 결과" className="mt-1" testid="fold-league">
+        {table.map((t) => (
+          <div key={t.id} className="flex items-center px-1 py-[3px] text-[11px] mob:text-[12px]">
+            <span className="flex min-w-0 flex-1 items-center gap-1">
+              <TeamDot team={t} />
+              <span className="truncate">{t.name}</span>
+            </span>
+            <span className="w-16 text-center text-white/70">
               {t.rec.w}-{t.rec.l}-{t.rec.t}
             </span>
-            <span className="w-9 text-right">{fmtPct(t.rec.w, t.rec.l)}</span>
-            <span className="w-8 text-right text-white/60">{i === 0 || gb === 0 ? '-' : gb.toFixed(1)}</span>
-            <span className="flex w-11 items-end justify-end gap-px">
+            <span className="w-10 text-right">{fmtPct(t.rec.w, t.rec.l)}</span>
+            <span className="flex w-12 items-end justify-end gap-px">
               {t.rec.last10.slice(-10).map((v, k) => (
                 <span key={k} style={{ width: 3, height: v === 1 ? 9 : v === 0 ? 4 : 6, background: v === 1 ? '#6ee07a' : v === 0 ? '#ff6b6b' : '#9aa5c4' }} />
               ))}
             </span>
           </div>
-        );
-      })}
+        ))}
 
       <SectionTitle>타구장 결과</SectionTitle>
       {last && last.others.length ? (
@@ -146,11 +157,11 @@ export function LeagueTab() {
       ) : (
         <div className="px-1 text-[10px] text-white/40">경기를 진행하면 표시됩니다</div>
       )}
+      </Fold>
 
       <SectionTitle>다음 일정</SectionTitle>
       {forecast.map((b) => {
         const n = b.from - day;
-        const games = b.to - Math.max(b.from, day) + 1;
         return (
           <div key={b.id} className="mb-[2px] flex items-center gap-1.5 bg-ink/50 px-1.5 py-[3px] text-[11px] mob:min-h-8 mob:text-[12px]" style={{ boxShadow: 'inset 2px 0 0 #f0a35a' }}>
             <span className="w-[58px] shrink-0 whitespace-nowrap text-[#f0a35a]">{n > 0 ? `D-${n}` : '진행 중'}</span>
@@ -158,23 +169,21 @@ export function LeagueTab() {
               {b.icon ? `${b.icon} ` : ''}
               {b.label}
             </span>
-            <span className="shrink-0 text-[10px] text-white/50">{n > 0 ? `${games}경기` : `남은 ${games}경기`}</span>
           </div>
         );
       })}
-      {upcoming.map((u, i) => {
+      {upcoming.slice(0, Math.max(1, 3 - forecast.length)).map((u, i) => {
         const opp = byId.get(u.oppId);
         return (
           <div key={u.day} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] ${i === 0 ? 'bg-sky/15' : ''}`}>
             <span className="w-[58px] shrink-0 whitespace-nowrap text-white/50">
-              {u.day + 1}차전 {dowOf(u.day)}
+              {u.day + 1}차전
             </span>
             <span className={`w-7 text-center text-[10px] ${u.isHome ? 'bg-good/25 text-good' : 'bg-white/10 text-white/60'}`}>{u.isHome ? '홈' : '원정'}</span>
             <TeamDot team={opp} />
             <span className="flex-1 truncate">
               {opp?.city} {opp?.name}
             </span>
-            <span className="text-[10px] text-white/40">{isNightDay(u.day) ? '야간' : '주간'}</span>
           </div>
         );
       })}
@@ -427,38 +436,56 @@ export function FinanceTab() {
       <div className="-mx-1.5 -mt-1.5 mb-1.5 empty:hidden">
         <FirstTip id="finance" />
       </div>
-      {inSeason && (
-        <div className="mb-1.5 bg-ink/60 px-1.5 py-1 text-[11px] leading-snug mob:text-[13px]" style={{ boxShadow: `inset 3px 0 0 ${rw.cashOut !== null ? '#ff6b6b' : '#6ee07a'}` }} data-testid="runway-line">
-          <div>
-            경기당 평균{' '}
-            <span className={rw.perGame >= 0 ? 'text-good' : 'text-bad'}>
-              {rw.perGame >= 0 ? '+' : '−'}
-              {fmtMoney(Math.abs(rw.perGame))}
-            </span>{' '}
-            · 이 페이스면 시즌 말 <span className={rw.seasonEnd >= 0 ? 'text-hi' : 'text-bad'}>{rw.seasonEnd >= 0 ? `현금 ${fmtMoney(rw.seasonEnd)}` : `${fmtMoney(-rw.seasonEnd)} 부족`}</span>
-          </div>
-          {rw.cashOut !== null && (
-            <div className="text-bad" data-testid="runway-step">
-              ① {rw.cashOut}경기 뒤 바닥 → 모자란 돈은 긴급 대출(연 {Math.round(LOAN_RATE * 100)}%)로 전환
-            </div>
-          )}
-          {rw.forcedSale !== null && (
-            <div className="text-bad" data-testid="runway-step">
-              ② {rw.forcedSale}경기 뒤 부채 {fmtMoney(LOAN_LIMIT)} 초과 → 최고 연봉 선수{victim ? ` ${victim.name}(${fmtMoney(victim.salary)})` : ''} 강제 매각
-            </div>
-          )}
+      {/* 기본 = 현금 · 경기당 손익 · 시즌 말 예상 (+ 경고 시 바닥까지) */}
+      <div className="mb-1.5 grid grid-cols-3 gap-1 text-center" data-testid="runway-line">
+        <div className="bg-ink/60 px-1 py-1.5 leading-tight">
+          <div className="text-[10px] text-white/55 mob:text-[11px]">현금</div>
+          <div className={`font-pixel-lg text-[15px] ${finance.cash < 0 ? 'text-bad' : 'text-hi'}`}>{fmtMoney(finance.cash)}</div>
         </div>
-      )}
-      <SectionTitle>시즌 누적 장부</SectionTitle>
-      <LedgerBars ledger={finance.ledger} />
-
-      <SectionTitle>선수단 인건비</SectionTitle>
-      <div className="flex items-center justify-between bg-panel-2 px-1.5 py-1 text-[11px]" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
-        <span>
-          연봉 총액 <span className="text-hi">{fmtMoney(pay)}</span>
-        </span>
-        <span className="text-white/55">경기당 {fmtMoney(Math.round(pay / games))}</span>
+        <div className="bg-ink/60 px-1 py-1.5 leading-tight">
+          <div className="text-[10px] text-white/55 mob:text-[11px]">경기당 손익</div>
+          <div className={`font-pixel-lg text-[15px] ${rw.perGame >= 0 ? 'text-good' : 'text-bad'}`}>
+            {inSeason ? `${rw.perGame >= 0 ? '+' : '−'}${fmtMoney(Math.abs(rw.perGame))}` : '-'}
+          </div>
+        </div>
+        <div className="relative bg-ink/60 px-1 py-1.5 leading-tight">
+          <div className="text-[10px] text-white/55 mob:text-[11px]">시즌 말 예상</div>
+          <div className={`font-pixel-lg text-[15px] ${rw.seasonEnd >= 0 ? 'text-hi' : 'text-bad'}`}>{rw.seasonEnd >= 0 ? fmtMoney(rw.seasonEnd) : `−${fmtMoney(-rw.seasonEnd)}`}</div>
+        </div>
       </div>
+      <div className="mb-1.5 flex items-center gap-1.5 text-[11px] mob:text-[13px]">
+        {inSeason && rw.cashOut !== null ? (
+          <span className="min-w-0 flex-1 text-bad" data-testid="runway-step">
+            {rw.cashOut}경기 뒤 금고가 빕니다
+          </span>
+        ) : (
+          <span className="min-w-0 flex-1 text-white/55">이 페이스면 금고는 안전합니다</span>
+        )}
+        <Help topic="runway" />
+      </div>
+      <Fold label="자세히: 누적 장부 · 인건비 · 구단 현황" className="mb-1.5" testid="fold-finance">
+        {inSeason && rw.cashOut !== null && (
+          <div className="mb-1 bg-ink/60 px-1.5 py-1 text-[11px] leading-snug text-bad mob:text-[12px]">
+            <div>① {rw.cashOut}경기 뒤 바닥 → 모자란 돈은 긴급 대출(연 {Math.round(LOAN_RATE * 100)}%)로 전환</div>
+            {rw.forcedSale !== null && (
+              <div>
+                ② {rw.forcedSale}경기 뒤 부채 {fmtMoney(LOAN_LIMIT)} 초과 → 최고 연봉 선수{victim ? ` ${victim.name}(${fmtMoney(victim.salary)})` : ''} 강제 매각
+              </div>
+            )}
+          </div>
+        )}
+        <LedgerBars ledger={finance.ledger} />
+        <div className="mt-1.5 flex items-center justify-between bg-panel-2 px-1.5 py-1 text-[11px] mob:text-[12px]" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+          <span>
+            연봉 총액 <span className="text-hi">{fmtMoney(pay)}</span>
+          </span>
+          <span className="text-white/55">경기당 {fmtMoney(Math.round(pay / games))}</span>
+        </div>
+        <div className="mt-1 bg-panel-2 px-1.5 py-1 text-[11px] text-white/75 mob:text-[12px]" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="club-status">
+          전력 {Math.round(teamStrength(team))} · 팬 {fmtInt(Math.round(core.fans))}명 · 만족도 {Math.round(core.fanSat)}
+          {core.crowd ? ` · 최근 홈 관중 ${fmtInt(core.crowd.attendance)}명` : ''}
+        </div>
+      </Fold>
 
       <SectionTitle>대출</SectionTitle>
       <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
@@ -469,9 +496,7 @@ export function FinanceTab() {
           <span className="text-white/55">한도 {fmtMoney(LOAN_LIMIT)}</span>
         </div>
         <Bar ratio={finance.debt / LOAN_LIMIT} color={finance.debt > LOAN_LIMIT * 0.7 ? '#ff6b6b' : '#f0a35a'} h={8} className="my-1" />
-        <div className="text-[10px] text-white/55">
-          연 {Math.round(LOAN_RATE * 100)}% · 지금 이자 경기당 {fmtMoney(Math.round(perGameInterest))}
-        </div>
+        {finance.debt > 0 && <div className="text-[10px] text-white/55 mob:text-[11px]">이자 경기당 {fmtMoney(Math.round(perGameInterest))}</div>}
         {canBorrow && (
           <div className="mt-0.5 text-[11px] text-white" data-testid="loan-effect">
             +{fmtMoney(LOAN_STEP)} 대출: 이자 시즌당 약 {fmtMoney(Math.round(LOAN_STEP * LOAN_RATE))}
@@ -496,7 +521,7 @@ export function FinanceTab() {
         {!canBorrow && <div className="mt-1 text-[10px] text-bad">한도까지 빌렸습니다. 한도를 넘기면 선수가 강제 매각됩니다</div>}
       </div>
 
-      <SectionTitle right={<span className="text-hi">{fmtMoney(finance.cash)}</span>}>현금 추이</SectionTitle>
+      <SectionTitle>현금 추이</SectionTitle>
       <MiniBars values={cashHistory.slice(-84)} ghost={inSeason ? ghost : []} height={56} color={(v) => (v < 0 ? '#ff6b6b' : '#ffd84a')} />
       {inSeason && ghost.length > 0 && (
         <div className="mt-0.5 flex justify-between text-[9px] text-white/40 mob:text-[11px]">
@@ -552,7 +577,7 @@ export default function RightPanel() {
   return (
     <div className="px-panel flex h-full min-h-0 flex-col">
       {/* 데스크톱의 "할 일": 배지가 왜 떴는지 여기서 읽는다 */}
-      <TodoCard className="!shadow-none" />
+      <TodoLines className="p-1 pb-0" />
       <TabBar tabs={tabs} value={tab} onChange={(t) => setTab('right', t)} />
       {tab === 'league' && <LeagueTab />}
       {tab === 'stadium' && <StadiumTab />}
