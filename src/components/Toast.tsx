@@ -11,17 +11,23 @@ export default function Toast() {
 function ToastBox() {
   const toast = useStore((s) => s.toast);
   const [shownKey, setShownKey] = useState<number | null>(null);
+  // 오더 편집기·전체 화면 시트가 열려 있으면 아래쪽 줄(벤치·버튼)을 가리지 않게 화면 맨 위에 띄운다
+  const [overlay, setOverlay] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
     setShownKey(toast.key);
+    setOverlay(!!document.querySelector('[role="dialog"]'));
     const id = window.setTimeout(() => setShownKey(null), 2600);
     return () => window.clearTimeout(id);
   }, [toast]);
 
   if (!toast || shownKey !== toast.key) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-14 z-[60] flex justify-center px-3 mob:top-auto mob:bottom-[calc(env(safe-area-inset-bottom)+164px)] land:bottom-[calc(env(safe-area-inset-bottom)+60px)]">
+    <div
+      data-testid="toast"
+      className={`pointer-events-none fixed inset-x-0 z-[60] flex justify-center px-3 ${overlay ? 'top-[calc(env(safe-area-inset-top)+6px)]' : 'top-14 mob:top-auto mob:bottom-[calc(env(safe-area-inset-bottom)+164px)] land:bottom-[calc(env(safe-area-inset-bottom)+60px)]'}`}
+    >
       <div
         key={toast.key}
         className="anim-pop px-4 py-1.5 text-center text-[13px] text-white"

@@ -3,7 +3,7 @@ import type { BatPos, Core, LineupSlot, Player, Team } from '../../game/types';
 import { ROSTER_MAX, activeRoster } from '../../game/economy';
 import { farmLockLeft } from '../../game/season';
 import { sendDownPreview } from '../../game/analysis';
-import { betterArms, betterBats, homeSwap, offPos } from '../../game/fixes';
+import { recPairs } from '../../game/fixes';
 import { teamParts, type TeamParts } from '../../game/ratings';
 
 // ───────── 오더 편집기의 순수 연산 (미리 보기와 실제 반영이 같은 함수를 쓴다) ─────────
@@ -168,26 +168,13 @@ const POS: Record<string, string> = { C: '포수', '1B': '1루수', '2B': '2루�
 
 export function recommend(team: Team): Rec[] {
   const byId = new Map(team.roster.map((p) => [p.id, p]));
-  const out: Rec[] = [];
-  const bats = betterBats(team);
-  const seen = new Set<string>();
-  team.lineup.forEach((l, i) => {
-    const p = byId.get(l.pid);
-    if (!p) return;
-    const cand = bats.get(p.id);
-    if (cand) return void out.push({ key: `b${p.id}`, a: cand.id, b: p.id, view: 'field', who: cand.name, to: `${i + 1}번 ${POS[l.pos]}` });
-    const j = offPos(p, l.pos) ? homeSwap(team, byId, i) : -1;
-    if (j < 0 || seen.has(p.id)) return;
-    const q = byId.get(team.lineup[j].pid);
-    if (!q) return;
-    seen.add(q.id);
-    out.push({ key: `p${p.id}`, a: p.id, b: q.id, view: 'field', who: p.name, to: `${POS[team.lineup[j].pos as BatPos]} (${q.name}와 교대)` });
+  return recPairs(team).map((r): Rec => {
+    const who = byId.get(r.a)?.name ?? '';
+    if (r.kind === 'bench') return { key: `b${r.b}`, a: r.a, b: r.b, view: 'field', who, to: `${r.slot + 1}번 ${POS[team.lineup[r.slot].pos]}` };
+    if (r.kind === 'home') return { key: `p${r.a}`, a: r.a, b: r.b, view: 'field', who, to: `${POS[team.lineup[r.slot].pos as BatPos]} (${byId.get(r.b)?.name ?? ''}와 교대)` };
+    const ri = team.rotation.indexOf(r.b);
+    return { key: `a${r.b}`, a: r.a, b: r.b, view: 'arms', who, to: ri >= 0 ? `${ri + 1}선발` : '마무리' };
   });
-  for (const [pid, { cand }] of betterArms(team)) {
-    const ri = team.rotation.indexOf(pid);
-    out.push({ key: `a${pid}`, a: cand.id, b: pid, view: 'arms', who: cand.name, to: ri >= 0 ? `${ri + 1}선발` : '마무리' });
-  }
-  return out;
 }
 
 // ───────── 편집기 열기 (선수단 탭 · 선수 카드) ─────────

@@ -7,6 +7,7 @@ import {
 } from './economy';
 import { svcYear } from './contract';
 import { FOREIGN_MAX } from './events';
+import { changePenStyle } from './briefing';
 import { farmAutoOn, shuttleArms } from './farm';
 import { applyFixes, bullpenLoad, orderIssues, ploc, pput } from './fixes';
 import { fmtInt, fmtMoney } from './format';
@@ -274,7 +275,7 @@ function penRemedies(core: Core): Remedy[] {
       });
     }
   }
-  // 방침: 다른 워커가 만드는 campaign.penStyle. store 에 setPenStyle 이 생기면 그쪽을 쓰도록 바꾼다
+  // 방침: campaign.penStyle (실행은 store 의 setPenStyle)
   const style = penStyleOf(core);
   if (style === 'swarm' || style === 'trust') {
     out.push({ id: 'penStyle', run: { t: 'penStyle' }, label: '불펜 방침을 균형으로', effect: style === 'swarm' ? '경기당 등판 투수 수가 줄어 쉬는 투수가 생긴다' : '필승조에 몰린 등판을 나눈다' });
@@ -540,10 +541,8 @@ export function applyRemedy(core: Core, r: Remedy): Res {
     case 'seats':
       return upgradeFacility(core, 'seats');
     case 'penStyle': {
-      // TODO: store 에 setPenStyle 이 생기면 그 액션을 쓴다
-      const next = structuredClone(core);
-      (next.campaign as { penStyle?: string }).penStyle = 'balance';
-      return { core: next };
+      // 화면에서는 store.remedy 가 setPenStyle 로 보낸다. 여기(스크립트·검증)는 같은 함수를 직접 부른다
+      return { core: changePenStyle(core, 'balance') };
     }
     default:
       return { core };

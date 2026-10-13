@@ -2,7 +2,7 @@
 import type { Core, HintTab } from './types';
 import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, userTeam } from './economy';
 import { svcYear } from './contract';
-import { FIX_GAIN_MIN, bullpenLoad, fixGain, orderIssues } from './fixes';
+import { FIX_GAIN_MIN, bullpenLoad, fixGain, orderIssues, recPairs } from './fixes';
 import { fmtInt } from './format';
 import { memoGet } from './memo';
 import { coachShuttles, injuryNotice, remedies } from './remedy';
@@ -55,7 +55,7 @@ export function todoList(core: Core): Todo[] {
     const o = orderIssues(t);
     const g = o.lineup + o.pitchers > 0 ? fixGain(t) : null;
     if (g && g.gain >= FIX_GAIN_MIN) {
-      out.push({ id: 'fix', tab: 'roster', hint: o.lineup ? 'lineup' : 'pitchers', icon: '▲', tone: 'warn', action: 'order', text: `오더 점검 — 추천 ${g.n}건` });
+      out.push({ id: 'fix', tab: 'roster', hint: o.lineup ? 'lineup' : 'pitchers', icon: '▲', tone: 'warn', action: 'order', text: `오더 점검 — 추천 ${recPairs(t).length || g.n}건` });
     }
   }
   // 불펜 과부하: 등판 가능한 투수가 없다 (상태 항목 — 2군 구원 콜업·FA 영입·하루 휴식으로 풀린다)
