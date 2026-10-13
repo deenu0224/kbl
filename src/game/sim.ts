@@ -74,17 +74,17 @@ export const SIM = {
   FAT_CTL: 2.0,
   SP_HOOK_RUNS: 6, // 선발 즉시 강판 실점
   RP_HOOK_RUNS: 3,
-  TIRED_1: 6, // 연투 피로: 전날 던진 불펜 구위 하락
-  TIRED_2: 13, // 2일 연속 던진 뒤 (3연투째)
-  TIRED_CTL_1: 3, // 연투 피로의 제구 하락
-  TIRED_CTL_2: 7,
+  TIRED_1: 10, // 연투 피로: 전날 던진 불펜 구위 하락
+  TIRED_2: 20, // 2일 연속 던진 뒤 (3연투째)
+  TIRED_CTL_1: 5, // 연투 피로의 제구 하락
+  TIRED_CTL_2: 10,
   TIRED_INJ_1: 1.6, // 연투 상태로 등판한 경기의 부상 확률 배율
   TIRED_INJ_2: 2.5,
   SHORT_BF: 4, // 구원이 한 경기에서 상대한 타자가 이 수 이하인 동안은 전력 투구
-  SHORT_STF: 4, // 전력 투구의 구위 가산
+  SHORT_STF: 3, // 전력 투구의 구위 가산
   // 불펜 운영 방침 (믿음 / 균형 / 벌떼)
-  TRUST_SP_LIMIT: 5, // 믿음: 선발 교체 시점을 한계 타자 수보다 이만큼 늦춘다 (지치는 시점은 그대로 — 넘겨 던지는 타석은 구위가 떨어진다)
-  TRUST_SP_HOOK: 1, // 믿음: 선발 강판 실점 가산
+  TRUST_SP_LIMIT: 6, // 믿음: 선발 교체 시점을 한계 타자 수보다 이만큼 늦춘다 (지치는 시점은 그대로 — 넘겨 던지는 타석은 구위가 떨어진다)
+  TRUST_SP_HOOK: 2, // 믿음: 선발 강판 실점 가산
   TRUST_CORE: 2, // 믿음: 필승조 인원 (불펜 앞에서부터). 나머지 구원은 TRUST_REST 점 차 이상 뒤지거나 크게 벌어진 경기에서만
   TRUST_REST: 3,
   TRUST_CLOSER_INN: 8, // 믿음: 마무리가 이 이닝 도중부터 나설 수 있다 (4~5아웃 세이브)
@@ -92,6 +92,7 @@ export const SIM = {
   SWARM_BF: 6, // 벌떼: 구원 1인당 최대 타자 수
   SWARM_BF_TIGHT: 5, // 벌떼: 7회 이후 접전(SWARM_TIGHT 점 차 이내)에서는 이 타자 수에서 이닝 중에도 바꾼다
   SWARM_TIGHT: 2,
+  SWARM_STF: 4, // 벌떼: 타순에 맞춰 끊어 넣는 구원의 전력 투구 가산 (SHORT_STF 에 더한다)
   AI_STYLE_GAP: 4, // AI 구단: 선발 평균 OVR − 불펜 평균 OVR 이 이만큼 높으면 믿음, 낮으면(구원 AI_SWARM_ARMS 명 이상) 벌떼
   AI_SWARM_ARMS: 7,
   CLOSER_MAX_TIRED: 1, // 마무리도 3연투는 하지 않는다: 이틀 연속 던졌으면 쉰 불펜이 9회를 맡는다 (쉰 팔이 없을 때만 나선다)
@@ -432,7 +433,7 @@ export function simulateGame(
 
       // ── 타석 확률 ──
       const fat = Math.max(0, ps.bf - ps.limit);
-      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - ps.tiredPen + (!ps.starter && ps.bf <= SIM.SHORT_BF ? SIM.SHORT_STF : 0));
+      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - ps.tiredPen + (!ps.starter && ps.bf <= SIM.SHORT_BF ? SIM.SHORT_STF + (fld.style === 'swarm' ? SIM.SWARM_STF : 0) : 0));
       const stf = norm(stfRaw);
       const ctl = norm(Math.max(20, ps.p.ctl - fat * SIM.FAT_CTL - ps.tiredCtl));
       const pBB = clamp((SIM.BB * Math.pow(norm(b.eye), SIM.BB_EYE)) / Math.pow(ctl, SIM.BB_CTL), 0.02, 0.28);
