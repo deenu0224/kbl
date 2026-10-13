@@ -12,6 +12,7 @@ import { fmtInt, fmtMoney } from '../game/format';
 import {
   FOOD_LV,
   LOAN_DANGER,
+  OVER_LIMIT_ERR,
   LOAN_STEP,
   LOAN_TIER,
   loanInterest,
@@ -241,7 +242,7 @@ function FacilityCard({ kind }: { kind: FacilityKind }) {
   const cur = facInfo(kind, lv);
   const next = facInfo(kind, lv + 1);
   const cost = upgradeCost(kind, facilities);
-  const reason = cost == null ? '최대 단계입니다' : cash < cost ? `현금 부족 (${fmtMoney(cost - cash)} 모자람)` : null;
+  const reason = cost == null ? '최대 단계입니다' : overLimit(core) ? OVER_LIMIT_ERR : cash < cost ? `현금 부족 (${fmtMoney(cost - cash)} 모자람)` : null;
   // 실행하면 금고가 언제 비는가 (안전하면 없음)
   const piece = useMemo(() => {
     const r = upgradeFacility(core, kind);

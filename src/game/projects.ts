@@ -203,6 +203,7 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
   pv.cash = cashLine(core, pv.cost);
   if (!projectsOpen(core)) pv.error = '첫 우승 뒤에 열립니다';
   else if (core.phase === 'over') pv.error = '구단 운영이 끝났습니다';
+  else if (!pv.done && !pv.error && core.finance.debt > loanLimit(core)) pv.error = OVER_LIMIT_ERR;
   else if (!pv.done && !pv.error && core.finance.cash < pv.cost) pv.error = `현금이 부족합니다 (필요 ${fmtMoney(pv.cost)})`;
   if (pv.done) delete pv.error;
   return pv;
@@ -219,7 +220,6 @@ export function buyProject(core0: Core, id: ProjectId): { core: Core; error?: st
   const pv = projectPreview(core0, id);
   if (pv.done) return { core: core0, error: '이미 마친 프로젝트입니다' };
   if (pv.error) return { core: core0, error: pv.error };
-  if (core0.finance.debt > loanLimit(core0)) return { core: core0, error: OVER_LIMIT_ERR };
   const core = structuredClone(core0);
   const c = core.campaign;
   const s = (c.projects = { ...(c.projects ?? {}) });
