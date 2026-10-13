@@ -13,7 +13,7 @@ import { mulberry32, type Rng } from '../src/game/rng';
 import { NEW_GAME, newCore } from '../src/game/generate';
 import { postTeamsFor } from '../src/game/league';
 import { advanceDay, nextSeason, rankOf } from '../src/game/season';
-import { LUX_TAX, payroll, userTeam } from '../src/game/economy';
+import { DEBT_MOOD, LUX_TAX, LUX_TAX_BIG, luxTax, payroll, userTeam } from '../src/game/economy';
 import { ensureObjectives, STAGES } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { loanLimit } from '../src/game/economy';
@@ -34,6 +34,12 @@ const TRADE_MODE = process.env.TRADE ?? 'on';
 if (TRADE_MODE === 'off') TRADE_AUDIT.offers = false;
 if (process.env.DOME) DOME_COST.splice(0, 3, ...process.env.DOME.split(',').map((v) => Number(v) * 10000)); // 돔 단계 금액(억)을 바꿔 잰다
 if (process.env.LUX === '1') LUX_TAX.on = true; // 경쟁균형세를 켜고 잰다
+// 10구단 5단계(빚내는 플레이) 측정용: LUX=0 (경쟁균형세 끔) · LUXK=top,capRate,rate · MOOD=0 (빚더미 여론 끔) · MOODK=at,trust,trustFull,grace
+if (process.env.LUX === '0') LUX_TAX_BIG.on = false;
+if (process.env.LUXKEEP === '0') LUX_TAX_BIG.keep = false;
+if (process.env.LUXK) { const [a, b, d] = process.env.LUXK.split(',').map(Number); Object.assign(LUX_TAX_BIG, { top: a, capRate: b, rate: d }); }
+if (process.env.MOOD === '0') Object.assign(DEBT_MOOD, { trust: 0, trustFull: 0 }); // 연속 수는 세되 지지는 깎지 않는다 (기준 측정)
+if (process.env.MOODK) { const [a, b, d, e, f] = process.env.MOODK.split(',').map(Number); Object.assign(DEBT_MOOD, { at: a, trust: b, trustFull: d, grace: e ?? 1, full: f ?? DEBT_MOOD.full }); }
 const pickOf = (bot: Bot, c: Core, card: EventCard): number => (TRADE_MODE === 'deny' && baseId(card) === 'trade' ? firstEnabled(card, [1]) : bot.event(c, card));
 
 
@@ -56,6 +62,13 @@ interface SeasonSnap {
   profit: number;
   name: string;
   proj: Record<string, number>; // 왕조 프로젝트 상태 (시즌 말)
+  // 5단계(빚내는 플레이): 결산 시점의 경쟁균형세·AI 연봉·빚더미 여론
+  cap: number;
+  tax: number;
+  ai: number[]; // AI 구단 연봉 총액 (내림차순)
+  heavy: number; // 한도의 80% 이상으로 결산한 연속 수
+  moodCut: number; // 빚더미 여론으로 깎인 지지
+  ratio: number; // 결산 시점 부채 / 한도 (%). 문턱 아래면 0
 }
 
 interface Run {
@@ -309,6 +322,12 @@ function runOne(bot: Bot, seed: number): Run {
         limit: loanLimit(c),
         over: c.campaign.debtOver ?? 0,
         bail: c.campaign.bailout === c.season || c.campaign.bailout === c.season - 1 ? 1 : 0,
+        cap: luxTax(c).cap,
+        tax: c.campaign.verdict?.luxTax?.tax ?? 0,
+        ai: c.teams.filter((t) => t.id !== c.userId).map(payroll).sort((a, b) => b - a),
+        heavy: c.campaign.debtHeavy ?? 0,
+        moodCut: -(c.campaign.verdict?.debtMood?.trust ?? 0),
+        ratio: c.campaign.verdict?.debtMood ? Math.round((c.campaign.verdict.debtMood.debt / c.campaign.verdict.debtMood.limit) * 100) : c.campaign.verdict?.debtOver ? Math.round((c.campaign.verdict.debtOver.debt / c.campaign.verdict.debtOver.limit) * 100) : 0,
       });
       for (let k = 1; k <= 5; k++) if (run.reach[k] === null && c.campaign.stage >= k) run.reach[k] = s;
       if (run.champ === null && c.campaign.titles > 0) run.champ = s;
@@ -398,7 +417,7 @@ if (ONLY_BOTS) {
     const snaps = runs.flatMap((r) => r.snaps);
     const sum = (f: (r: Run) => number) => runs.reduce((a, r) => a + f(r), 0);
     console.log(
-      `${name.padEnd(9)} 이전율 ${pct(over.length, runs.length).trim()} (평균 ${over.length ? mean(over.map((r) => r.over!)).toFixed(1) : '—'}시즌) · 우승 ${runs.filter((r) => r.champ !== null).length}/${runs.length} · 평균 순위 ${mean(snaps.map((x) => x.rank)).toFixed(2)} · 시즌 말 현금 ${fmtMoney(mean(snaps.map((x) => x.cash)))} · 부채 ${fmtMoney(mean(snaps.map((x) => x.debt)))} · 연봉 ${fmtMoney(mean(snaps.map((x) => x.payroll)))} · 영업손익 ${fmtMoney(mean(snaps.map((x) => x.profit)))} · 트레이드 제안 ${(sum((r) => r.trade.offers) / seasons).toFixed(2)} 수락 ${(sum((r) => r.trade.accepts) / seasons).toFixed(2)}/시즌 (건당 예상 ${sum((r) => r.trade.accepts) ? (sum((r) => r.trade.wins) / sum((r) => r.trade.accepts)).toFixed(2) : '—'}승, 가치 ${sum((r) => r.trade.accepts) ? fmtMoney(Math.round(sum((r) => r.trade.net) / sum((r) => r.trade.accepts))) : '—'}) · 크래시 ${runs.filter((r) => r.crash).length}`,
+      `${name.padEnd(9)} 이전율 ${pct(over.length, runs.length).trim()} (평균 ${over.length ? mean(over.map((r) => r.over!)).toFixed(1) : '—'}시즌) · 우승 ${runs.filter((r) => r.champ !== null).length}/${runs.length} (중앙 ${median(runs.map((r) => r.champ).filter((x): x is number => x !== null)).toFixed(1)}시즌) · 제재금 합계 ${fmtMoney(snaps.reduce((a, x) => a + x.tax, 0))} · 빚더미 지지 −${snaps.reduce((a, x) => a + x.moodCut, 0)} · 평균 순위 ${mean(snaps.map((x) => x.rank)).toFixed(2)} · 시즌 말 현금 ${fmtMoney(mean(snaps.map((x) => x.cash)))} · 부채 ${fmtMoney(mean(snaps.map((x) => x.debt)))} · 연봉 ${fmtMoney(mean(snaps.map((x) => x.payroll)))} · 영업손익 ${fmtMoney(mean(snaps.map((x) => x.profit)))} · 트레이드 제안 ${(sum((r) => r.trade.offers) / seasons).toFixed(2)} 수락 ${(sum((r) => r.trade.accepts) / seasons).toFixed(2)}/시즌 (건당 예상 ${sum((r) => r.trade.accepts) ? (sum((r) => r.trade.wins) / sum((r) => r.trade.accepts)).toFixed(2) : '—'}승, 가치 ${sum((r) => r.trade.accepts) ? fmtMoney(Math.round(sum((r) => r.trade.net) / sum((r) => r.trade.accepts))) : '—'}) · 크래시 ${runs.filter((r) => r.crash).length}`,
     );
   }
   process.exit(0);
@@ -634,4 +653,21 @@ for (const name of ['sensible', 'greedy']) {
   const runs = all[name];
   if (!runs) continue;
   console.log(`${name} 시즌별 평균 한도/부채(억): ` + Array.from({ length: N_SEASONS }, (_, s) => { const xs = runs.map((r) => r.snaps[s]).filter((x): x is SeasonSnap => !!x); return xs.length ? `${s + 1}:${Math.round(mean(xs.map((x) => x.limit)) / 10000)}/${Math.round(mean(xs.map((x) => x.debt)) / 10000)}` : ''; }).filter(Boolean).join(' '));
+}
+
+// ── 5단계(빚내는 플레이): 경쟁균형세 · 빚더미 여론 ──
+console.log(`\n── 경쟁균형세·빚더미 여론 (경쟁균형세 ${LUX_TAX_BIG.on ? `상위 ${LUX_TAX_BIG.top} × ${LUX_TAX_BIG.capRate} · 초과분 × ${LUX_TAX_BIG.rate}` : '끔'} · 여론 문턱 ${DEBT_MOOD.at} −${DEBT_MOOD.trust}/−${DEBT_MOOD.trustFull} 유예 ${DEBT_MOOD.grace}) ──`);
+{
+  const e = (v: number) => (v / 10000).toFixed(0);
+  const runs = all.sensible;
+  console.log('AI 구단 연봉(억, sensible 런 평균) 시즌: 1위/3위/5위/9위 · 유저 뺀 상위3 평균');
+  console.log('  ' + Array.from({ length: N_SEASONS }, (_, s) => { const xs = runs.map((r) => r.snaps[s]).filter((x): x is SeasonSnap => !!x); if (!xs.length) return ''; const at = (i: number) => e(mean(xs.map((x) => x.ai[i] ?? 0))); return `${s + 1}: ${at(0)}/${at(2)}/${at(4)}/${at(8)} · ${e(mean(xs.map((x) => (x.ai[0] + x.ai[1] + x.ai[2]) / 3)))}`; }).filter(Boolean).join(' | '));
+  for (const bot of BOTS) {
+    const rs = all[bot.name];
+    const snaps = rs.flatMap((r) => r.snaps);
+    const taxed = snaps.filter((x) => x.tax > 0);
+    console.log(`[${bot.name}] 제재금 ${taxed.length}/${snaps.length}시즌 · 합계 ${fmtMoney(taxed.reduce((a, x) => a + x.tax, 0))} (낸 시즌 평균 ${taxed.length ? fmtMoney(mean(taxed.map((x) => x.tax))) : '—'}) · 빚더미 결산 ${snaps.filter((x) => x.heavy > 0).length}시즌 · 지지 감소 ${snaps.filter((x) => x.moodCut > 0).length}시즌 합계 −${snaps.reduce((a, x) => a + x.moodCut, 0)}`);
+    console.log('  시즌: 연봉/상한(억) 세금 낸 런·평균 | 빚더미 런(평균 부채비율) 지지 −평균');
+    console.log('  ' + Array.from({ length: N_SEASONS }, (_, s) => { const xs = rs.map((r) => r.snaps[s]).filter((x): x is SeasonSnap => !!x); if (!xs.length) return ''; const tx = xs.filter((x) => x.tax > 0); const hv = xs.filter((x) => x.heavy > 0); return `${s + 1}: ${e(mean(xs.map((x) => x.payroll)))}/${e(mean(xs.map((x) => x.cap)))} ${tx.length}런·${tx.length ? (mean(tx.map((x) => x.tax)) / 10000).toFixed(1) : '0'} | ${hv.length}런(${hv.length ? Math.round(mean(hv.map((x) => x.ratio))) : 0}%) −${(mean(xs.map((x) => x.moodCut))).toFixed(1)}`; }).filter(Boolean).join('\n  '));
+  }
 }

@@ -3,7 +3,7 @@ import { josa } from './format';
 // 시즌 대본(일정 배치·구간 효과)은 script.ts, 이벤트 카드는 events.ts, 대사·문구는 story.ts.
 import type { Buff, CharId, Core, DayReport, HintTab, ObjKind, Objective, Player, PostFinish, SeasonRecord, SeasonVerdict, StadiumScene, Team } from './types';
 import { clamp, type Rng } from './rng';
-import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, loanLimit, luxTax, opProfit, payroll, revenueOf, userTeam } from './economy';
+import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, debtMood, loanLimit, luxTax, salaryInflation, opProfit, payroll, revenueOf, userTeam } from './economy';
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
 import { memoGet, memoNum, memoSet } from './memo';
@@ -805,8 +805,9 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
   const exposures = exposeMut(core, rng, finish === 'champion');
   for (const ex of exposures) trust += ex.trust;
 
-  // 경쟁균형세 (economy.ts LUX_TAX — 기본 꺼짐): 연봉 총액이 상한을 넘은 만큼 제재금
+  // 경쟁균형세 (economy.ts LUX_TAX — 8구단 리그는 꺼짐): 연봉 총액이 상한을 넘은 만큼 제재금
   const lux = luxTax(core);
+  if (lux.on && leagueSize(core) > BASE_TEAMS) c.luxCap = Math.round(lux.cap / salaryInflation(core.season));
   if (lux.tax > 0) {
     core.finance.cash -= lux.tax;
     core.finance.ledger.upkeep += lux.tax;
@@ -898,6 +899,17 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     debtOver = { debt: core.finance.debt, limit, streak: c.debtOver, trust: -d };
     addNews(core, `${c.debtOver >= 2 ? '두 시즌 연속 ' : ''}부채 한도 초과로 결산 — 부채 ${fmtMoney(core.finance.debt)} / 한도 ${fmtMoney(limit)} · ${TRUST_LABEL} −${d}`, 'bad');
   } else delete c.debtOver;
+  // 빚더미 구단 여론 (10구단 리그 · loan.ts DEBT_MOOD): 한도의 80% 이상을 안고 결산 — 첫 해는 조합장 경고, 다음 해부터 지지가 깎인다. 한도 초과는 위 규칙이 맡는다
+  const mood = debtMood(core, core.finance.debt);
+  let moodV: SeasonVerdict['debtMood'];
+  if (mood?.heavy) {
+    c.debtHeavy = mood.streak;
+    if (!debtOver) {
+      trust -= mood.trust;
+      moodV = { debt: core.finance.debt, limit, streak: mood.streak, trust: -mood.trust };
+      addNews(core, mood.trust > 0 ? NEWS.debtMood(fmtMoney(core.finance.debt), mood.pct, mood.streak, mood.trust) : NEWS.debtMoodWarn(fmtMoney(core.finance.debt), mood.pct, mood.next), 'bad');
+    }
+  } else delete c.debtHeavy;
   c.prevRevenue = revenueOf(core.finance.ledger);
   c.trust = clamp(Math.round(trust), 0, TRUST_MAX);
 
@@ -944,6 +956,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     ...(exposures.length ? { exposures } : {}),
     ...(lux.tax > 0 ? { luxTax: lux } : {}),
     ...(debtOver ? { debtOver } : {}),
+    ...(moodV ? { debtMood: moodV } : {}),
   };
   c.verdict = verdict;
   const st = STAGES[stageBefore];

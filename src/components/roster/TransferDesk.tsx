@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { farmMax } from '../../game/economy';
+import { luxPiece } from '../../game/runway';
 import type { Player } from '../../game/types';
 import { play } from '../../audio/sfx';
 import { fmtInt, fmtMoney } from '../../game/format';
@@ -315,11 +316,18 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
       ))}
     </div>
   );
+  // 결과를 미리 말한다: 담은 대로 실행하면 연봉 총액이 경쟁균형세 상한을 넘는가 (10구단 리그)
+  const lux = luxPiece(core, pv.payroll.b - pv.payroll.a, true);
   const money = (
     <>
       <Line label="연봉 총액/시즌" testid="sum-payroll">
         <Pair a={fmtMoney(pv.payroll.a)} b={fmtMoney(pv.payroll.b)} good={pv.payroll.b < pv.payroll.a} />
       </Line>
+      {lux && (
+        <div className="text-bad" data-testid="sum-lux">
+          {lux}
+        </div>
+      )}
       <Line label="일회성" testid="sum-oneoff">
         {oneOff ? (
           <>
@@ -453,6 +461,11 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
                 <span className="text-white/55">연봉 총액 </span>
                 {pv.payroll.b === pv.payroll.a ? '그대로' : signed(pv.payroll.b - pv.payroll.a)}
               </div>
+              {lux && (
+                <div className="text-bad" data-testid="sum3-lux">
+                  {lux}
+                </div>
+              )}
               <div data-testid="sum3-cash">
                 <span className="text-white/55">현금 </span>
                 {fmtMoney(pv.cash.a)} → <span className={pv.cash.b < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(pv.cash.b)}</span>
