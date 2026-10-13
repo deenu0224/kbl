@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { fixedStarters } from '../../game/campaign';
 import { uiZoom } from '../layout/uiScale';
 import type { BatPos, Player } from '../../game/types';
 import type { PosKey, PosRow } from '../../game/analysis';
@@ -244,7 +245,7 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
         </div>
         {picked && (
           <div className="flex shrink-0 items-center gap-2">
-            <span className={`min-w-0 flex-1 truncate text-[13px] ${!pickPlan ? 'text-white/55' : pickPlan.sum < 0 ? 'text-bad' : pickPlan.sum > 0 ? 'text-good' : 'text-white/70'}`}>
+            <span className={`min-w-0 flex-1 text-[13px] leading-snug ${!pickPlan ? 'text-white/55' : pickPlan.sum < 0 ? 'text-bad' : pickPlan.sum > 0 ? 'text-good' : 'text-white/70'}`}>
               {pickPlan ? `교체하면 ${pickPlan.text || '±0'}` : picked.rehab ? `재활 중 — ${picked.rehab}경기 뒤 복귀` : errOf(picked.plan) ?? '교체 불가'}
             </span>
             <button className="px-btn primary min-h-10 shrink-0 !px-4 text-[14px]" data-testid="slot-swap" disabled={!pickPlan} onClick={() => pickPlan && onSwap(pickPlan)}>
@@ -319,6 +320,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
   const nRehab = team.roster.filter((p) => p.farm && p.il).length;
   const recs = useMemo(() => recommend(team), [team]);
   const rowOf = useMemo(() => new Map(rows.map((r) => [r.key, r])), [rows]);
+  const fixed = useMemo(() => fixedStarters(core), [core]);
 
   // 끌고 있는 선수를 각 칸에 놓았을 때의 결과
   const plans = useMemo(() => {
@@ -524,7 +526,14 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
           const [x, y] = SPOT[l.pos];
           const off = offPos(p, l.pos);
           // 느낌표만으로는 뜻을 알 수 없다: 제 자리가 아니면 지금 자리(칸 위치로 보인다) 대신 원래 자리를 적는다
-          const sub = off ? <span className="text-hi" data-testid="off-from">원래 {POS_KO[p.pos]}</span> : POS_KO[l.pos];
+          const fx = fixed.get(p.id);
+          const sub = fx ? (
+            <span className="text-sky" data-testid="fixed-start">고정 출전 {fx.left}경기</span>
+          ) : off ? (
+            <span className="text-hi" data-testid="off-from">원래 {POS_KO[p.pos]}</span>
+          ) : (
+            POS_KO[l.pos]
+          );
           return tile(p, sub, { row: rowOf.get(l.pos), off, pan: 'none', className: 'absolute w-[31%] -translate-x-1/2 -translate-y-1/2', style: { left: `${x}%`, top: `${y}%` } });
         })}
       </div>
@@ -550,6 +559,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
             </span>
             <span className="w-4 shrink-0 text-[15px] text-hi">{i + 1}</span>
             <span className={`w-9 shrink-0 text-[13px] ${off ? 'text-hi' : 'text-white/60'}`}>{POS_KO[l.pos]}</span>
+            {fixed.has(p.id) && <span className="shrink-0 text-[13px] text-sky">고정 {fixed.get(p.id)!.left}경기</span>}
             <span className={`min-w-0 flex-1 truncate text-[14px] ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
             <span className="shrink-0 text-[13px]">{delta(stateOf(p.id).plan, null, false)}</span>
             <OvrBadge ovr={p.ovr} size={22} />

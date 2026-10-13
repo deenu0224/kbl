@@ -259,6 +259,18 @@ export function activeBuffs(core: Core): BuffEffect {
   return e;
 }
 
+/** 고정 출전 중인 선수와 남은 경기 수 (약속한 기간에는 경기마다 선발 명단에 다시 들어간다) */
+export function fixedStarters(core: Pick<Core, 'campaign' | 'day'>): Map<string, { left: number; label: string }> {
+  const m = new Map<string, { left: number; label: string }>();
+  for (const b of core.campaign?.buffs ?? []) {
+    if (!b.pid || (b.kind !== 'fixed' && b.kind !== 'demand') || !buffActive(b, core.day)) continue;
+    const left = b.left !== undefined ? b.left : Math.max(1, b.until - core.day);
+    const cur = m.get(b.pid);
+    if (!cur || left > cur.left) m.set(b.pid, { left, label: b.label });
+  }
+  return m;
+}
+
 /** 경기 후 버프 만료 처리 (mutate). 홈경기였으면 left 를 1 줄인다. */
 export function tickBuffs(core: Core, wasHome: boolean): void {
   const c = core.campaign;

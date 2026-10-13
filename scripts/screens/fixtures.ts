@@ -1,6 +1,7 @@
 // 화면 검증용 세이브 픽스처. 순수 게임 함수와 scripts/bots.ts 의 봇으로 시즌을 굴리며
 // 필요한 상태를 만나는 순간의 Core 를 zustand persist 형식({ state, version })으로 떠 둔다.
 // 실행: npx tsx scripts/screens/fixtures.ts  →  screens-out/fixtures/*.json (+ index.json)
+import { fixedStarters } from '../../src/game/campaign';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -82,6 +83,7 @@ const WANT: Record<string, Pred> = {
   soldout: (c) => inSeason(c) && quiet(c) && lastWasHome(c) && nextIsHome(c) && (c.crowd?.turnedAway ?? 0) > 0,
   farm: (c) => inSeason(c) && quiet(c) && c.day >= 10 && nextIsHome(c) && farmRoster(userTeam(c)).length >= 5,
   // 부상자 명단: 복귀까지 며칠 남은 재활 타자가 있는 날 (2군 트레이의 재활 칩 · 자리 시트의 재활 줄)
+  fixedStart: (c) => inSeason(c) && quiet(c) && c.day >= 1 && [...fixedStarters(c).keys()].some((pid) => userTeam(c).lineup.some((l) => l.pid === pid)),
   rehab: (c) => inSeason(c) && quiet(c) && c.day >= 10 && nextIsHome(c) && farmRoster(userTeam(c)).length >= 3 && rehabRoster(userTeam(c)).some((p) => p.kind === 'B' && (p.farmUntil ?? 0) - c.day >= 3),
   // 할 일에 "매진 —" 줄이 있는 포스트시즌 (todo-action 화면이 그 줄을 누른다)
   post: (c) => c.phase === 'post' && quiet(c) && !!c.post && !!postMatch(c) && todoList(c).some((t) => t.text.startsWith('매진 —')),

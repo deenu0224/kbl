@@ -1,4 +1,5 @@
 import type { BatPos, Core, LineupSlot, Player, Team } from '../../game/types';
+import { fixedStarters } from '../../game/campaign';
 import { ROSTER_MAX, activeRoster } from '../../game/economy';
 import { farmLockLeft } from '../../game/season';
 import { sendDownPreview } from '../../game/analysis';
@@ -105,6 +106,19 @@ export type PlanResult = Plan | { error: string } | null;
  * move: 타순 화면에서 끌어 놓을 때는 맞바꾸지 않고 그 자리에 끼워 넣는다.
  */
 export function planEdit(core: Core, team: Team, view: EditorView, a: string, b: string, move = false): PlanResult {
+  const r = planEdit0(core, team, view, a, b, move);
+  if (!r || 'error' in r) return r;
+  // 고정 출전을 약속한 선수는 그 기간에 선발에서 뺄 수 없다 (빼도 경기 때 다시 들어가 "되돌아간" 것처럼 보인다)
+  for (const [pid, f] of fixedStarters(core)) {
+    if (team.lineup.some((l) => l.pid === pid) && !r.after.lineup.some((l) => l.pid === pid)) {
+      const p = team.roster.find((x) => x.id === pid);
+      return { error: `${p?.name ?? '이 선수'}: 고정 출전 약속 중 — ${f.left}경기 뒤에 뺄 수 있습니다` };
+    }
+  }
+  return r;
+}
+
+function planEdit0(core: Core, team: Team, view: EditorView, a: string, b: string, move = false): PlanResult {
   if (a === b) return null;
   const pa = team.roster.find((p) => p.id === a);
   const pb = team.roster.find((p) => p.id === b);

@@ -118,6 +118,8 @@ export const SCREENS = [
   // ── 선수단 (모바일: 선수단 탭, 데스크톱: [선수단 열기] 모달)
   S('roster-field', 'farm', game(...SQUAD)),
   S('roster-field-s3', 'season3', game(...SQUAD)),
+  S('roster-fixed', 'fixedStart', game(...SQUAD)),
+  S('roster-fixed-slot', 'fixedStart', game(...SQUAD, 'css:[data-testid="squad-field"] [data-item]:has([data-testid="fixed-start"])', 'slot-row')),
   S('roster-injury', 'injury', game(...SQUAD)),
   S('roster-farm', 'farm', game(...SQUAD, 'squad-farm-toggle')),
   S('roster-slot', 'season3', game(...SQUAD, WEAK)),
