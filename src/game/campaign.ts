@@ -133,7 +133,7 @@ export const STAGES: StageDef[] = [
       { kind: 'profit', target: 300000, text: '영업 흑자 30억' },
       { kind: 'avgAtt', target: 20000, text: '홈 평균 관중 20,000명' },
     ],
-    reward: { cash: 150000, trust: 10 },
+    reward: { cash: 60000, trust: 10 }, // 15억 → 6억: 시설을 다 올린 뒤의 지원금은 쓸 곳이 없어 현금만 쌓였다 (감사: 시즌 12 평균 164억)
     failTrust: DYNASTY_FAIL_TRUST,
     starCash: 30000,
     midCash: 40000,
