@@ -29,7 +29,7 @@ export const SC = {
   max: 0.6,
   rollDay: 8, // 이 경기 뒤에 그 시즌의 일을 정한다
   cardFrom: 30, // 카드가 뜨는 경기 범위
-  cardTo: 68,
+  cardTo: 54,
   // 윤리 교육
   ethicsMax: 3,
   ethicsMult: 0.8, // 단계마다 발생 확률 배율 (3단계 0.51배)
@@ -43,7 +43,7 @@ export const SC = {
   // 약물
   dopeAge: 28,
   dopeLead: [12, 18],
-  dopeUp: [4, 6],
+  dopeUp: [5, 6],
   reportBan: 48,
   reportExtra: 1, // 자진 신고: 올랐던 능력치를 되돌리고 이만큼 더
   reportStar: -15,
