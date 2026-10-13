@@ -214,18 +214,20 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
       })}
     </div>
   );
+  const heads: [string, string, { a: number; b: number }, number][] = [
+    ['1군', 'sum-active', pv.active, ROSTER_MAX],
+    ['2군', 'sum-farm', pv.farm, FARM_MAX],
+    ['외국인', 'sum-foreign', pv.foreign, FOREIGN_MAX],
+  ];
   const headcount = (
-    <>
-      <Line label="1군" testid="sum-active">
-        <Pair a={`${pv.active.a}/${ROSTER_MAX}`} b={`${pv.active.b}/${ROSTER_MAX}`} good={pv.active.b > ROSTER_MAX ? false : null} />
-      </Line>
-      <Line label="2군" testid="sum-farm">
-        <Pair a={`${pv.farm.a}/${FARM_MAX}`} b={`${pv.farm.b}/${FARM_MAX}`} good={pv.farm.b > FARM_MAX ? false : null} />
-      </Line>
-      <Line label="외국인" testid="sum-foreign">
-        <Pair a={`${pv.foreign.a}/${FOREIGN_MAX}`} b={`${pv.foreign.b}/${FOREIGN_MAX}`} good={pv.foreign.b > FOREIGN_MAX ? false : null} />
-      </Line>
-    </>
+    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+      {heads.map(([label, testid, v, max]) => (
+        <span key={testid} className="whitespace-nowrap" data-testid={testid}>
+          <span className="text-white/55">{label} </span>
+          <Pair a={`${v.a}/${max}`} b={`${v.b}/${max}`} good={v.b > max ? false : null} />
+        </span>
+      ))}
+    </div>
   );
   const money = (
     <>
@@ -320,7 +322,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
   return (
     <div className="shrink-0 bg-panel-2 px-1.5 pt-1 pb-1.5 text-[11px] mob:text-[12px]" style={{ boxShadow: 'inset 0 2px 0 #ffd84a' }} data-testid="desk-summary" data-wide={full || undefined}>
       {full ? (
-        <div className="px-scroll grid max-h-[34dvh] grid-cols-[1.15fr_1.25fr_1.35fr] gap-1 overflow-y-auto mob:max-h-[46dvh] mob:grid-cols-1">
+        <div className="px-scroll grid max-h-[34dvh] grid-cols-[1.15fr_1.25fr_1.35fr] gap-1 overflow-y-auto mob:max-h-[52dvh] mob:grid-cols-1">
           <div className="flex min-w-0 flex-col gap-1">
             <Box title={`전력 · 예상 승수 ${pv.exact && !empty ? winText : '—'} (${pv.winGames}경기 환산)`} testid="sum-power">
               {partsRow}

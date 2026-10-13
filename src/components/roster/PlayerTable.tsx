@@ -272,17 +272,19 @@ export default function PlayerTable({
                     className={`sticky left-0 z-[5] whitespace-nowrap px-1.5 py-1 ${rowAction ? 'max-w-[240px] mob:max-w-[150px] mob:py-1' : 'max-w-[150px] mob:py-2'}`}
                     style={{ background: bg, boxShadow: `${bd ? `inset 4px 0 0 ${bd.color}, ` : ''}inset -1px 0 0 #0f1420` }}
                   >
-                    {rowAction && (
-                      <span className="mr-1.5 inline-flex gap-1 align-middle mob:mr-0 mob:mb-0.5 mob:flex" onClick={(e) => e.stopPropagation()}>
-                        {rowAction(p)}
+                    <span className={rowAction ? 'flex items-center gap-1.5 mob:flex-col mob:items-start mob:gap-0.5' : undefined}>
+                      <span className={`block truncate ${rowAction ? 'w-[124px] shrink-0 mob:w-auto mob:max-w-[138px]' : ''} ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
+                        {p.name}
+                        {mine && p.farm && <span className="ml-1 text-[9px] text-sky mob:text-[10px]">2군</span>}
+                        {mode !== 'roster' && needs(p) && (
+                          <span className="ml-1 bg-bad px-1 text-[9px] text-ink mob:text-[10px]" data-testid="need-badge">
+                            {mode === 'draft' ? '빈 뎁스' : '약점 보강'}
+                          </span>
+                        )}
                       </span>
-                    )}
-                    <span className={`truncate align-middle ${rowAction ? 'inline-block max-w-[120px] mob:block mob:max-w-none' : 'block'} ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
-                      {p.name}
-                      {mine && p.farm && <span className="ml-1 text-[9px] text-sky mob:text-[10px]">2군</span>}
-                      {mode !== 'roster' && needs(p) && (
-                        <span className="ml-1 bg-bad px-1 text-[9px] text-ink mob:text-[10px]" data-testid="need-badge">
-                          {mode === 'draft' ? '빈 뎁스' : '약점 보강'}
+                      {rowAction && (
+                        <span className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                          {rowAction(p)}
                         </span>
                       )}
                     </span>
