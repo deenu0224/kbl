@@ -1,7 +1,7 @@
 {
-  "name": "KBL 픽셀 야구 타이쿤",
-  "short_name": "KBL 타이쿤",
-  "description": "픽셀 야구 구단 경영 타이쿤",
+  "name": "답답해서 내가 야구 단장을 해도 될까?",
+  "short_name": "답답해서 내가",
+  "description": "만년 꼴찌 제주 야구단의 단장이 되는 픽셀 야구 구단 타이쿤",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",

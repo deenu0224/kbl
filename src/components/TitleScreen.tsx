@@ -55,11 +55,11 @@ function Backdrop({ dim = 0.55 }: { dim?: number }) {
 function Logo({ nick }: { nick: string }) {
   return (
     <div className="relative text-center" data-testid="logo">
-      <div className="font-pixel-lg title-logo text-[64px] leading-none tracking-[6px] text-hi short:text-[48px]">KBL</div>
-      <div className="font-pixel-lg title-logo mt-2 text-[24px] leading-tight short:text-[20px]" style={{ color: DEF.color }}>
+      <div className="font-pixel-lg title-logo whitespace-nowrap text-[44px] leading-none tracking-[2px] text-hi short:text-[34px]">답답해서 내가</div>
+      <div className="font-pixel-lg title-logo mt-2 whitespace-nowrap text-[20px] leading-tight text-white short:text-[17px]">야구 단장을 해도 될까?</div>
+      <div className="font-pixel-lg title-logo mt-3 text-[18px] leading-tight short:text-[16px]" style={{ color: DEF.color }}>
         {DEF.city} {nick}
       </div>
-      <div className="mt-1 text-[13px] text-white/60">픽셀 야구 구단 타이쿤</div>
     </div>
   );
 }
