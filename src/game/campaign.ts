@@ -147,6 +147,7 @@ export const STAGES: StageDef[] = [
 // ───────── 구단 수별 장 목표 (docs/TEN_TEAMS.md 3단계) ─────────
 // STAGES 는 원년 8구단 리그의 값이다. 구단이 더 많은 리그에서 뜻이 달라지는 목표만 여기서 덮어쓴다 (8구단 세이브는 STAGES 그대로).
 
+const FAIL_TRUST_0_BIG = 20; // 0장 깃발 실패 시 도민 지지 감소 (구단이 8개보다 많은 리그)
 const ERA_RANK_8 = 2; // 3장 별 "팀 평균자책점 리그 n위 이내"의 8구단 기준
 const stageCache = new Map<number, StageDef[]>();
 
@@ -157,6 +158,8 @@ function stagesFor(teams: number): StageDef[] {
     out = STAGES.map((st) => ({ ...st, main: { ...st.main }, stars: st.stars.map((x) => ({ ...x })) as StageDef['stars'] }));
     // 0장 깃발 = 탈꼴찌 (10구단 9위 이내)
     out[0].main.target = teams - 1;
+    // 꼴찌를 못 벗어난 시즌의 벌을 키운다: 방치하면 세 시즌(60 → 40 → 20 → 0)에 연고 이전 (8구단은 15 — 네 시즌)
+    out[0].failTrust = FAIL_TRUST_0_BIG;
     // 3장 별: 리그 n위는 구단 수 비율로 (8팀의 2위 ≈ 10팀의 3위)
     const era = Math.round((ERA_RANK_8 * teams) / BASE_TEAMS);
     out[3].stars[0] = { ...out[3].stars[0], target: era, text: `팀 평균자책점 리그 ${era}위 이내` };
