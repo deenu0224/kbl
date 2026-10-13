@@ -25,6 +25,7 @@ export const MID_FAIL_TRUST = 5; // 중간 점검에서 출자를 받고 깃발 
 export const MID_UP_FAIL_TRUST = 12; // 목표 상향을 약속하고 깃발 실패 시 추가 감소
 export const MID_UP_MULT = 2; // 목표 상향 약속 성공 시 깃발 지원금 배율
 // 포스트시즌 배당금 (유저 최종 도달 지점별, ledger.league 합산)
+// WC(와일드카드 탈락) 값은 준PO 탈락의 절반~3분의 2 로 확정: 배당 50% · 위로 60% · 재계약 프리미엄 67%(economy.ts) · 관중 수요 가산 60%(postseason.ts). 깃발 단계(POST_LEVEL)는 준PO 와 같은 1 = "포스트시즌 진출"
 export const POST_DIVIDEND: Record<PostFinish, number> = { none: 0, WC: 15000, SPO: 30000, PO: 60000, KS: 120000, champion: 250000 };
 export const POST_LEVEL: Record<PostFinish, number> = { none: 0, WC: 1, SPO: 1, PO: 2, KS: 3, champion: 4 };
 // 깃발은 놓쳤어도 가을야구를 한 시즌은 섬이 덜 등을 돌린다 (깃발 실패 감소분을 이만큼 덜어 준다)
