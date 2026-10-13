@@ -4,7 +4,7 @@ import { play } from '../../audio/sfx';
 import { fmtInt, fmtMoney } from '../../game/format';
 import { FARM_MAX, FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTransfer, type BasketKind, type TransferPreview } from '../../game/transfer';
 import { TR, tradeLeft, tradeOpen } from '../../game/trade';
-import { REG_DEADLINE, signingOpen } from '../../game/economy';
+import { REG_DEADLINE, blockClosedWhy, signingClosedWhy, signingOpen } from '../../game/economy';
 import { useCore, useStore, useUserTeam } from '../../store';
 import { useIsMobile } from '../layout/useLayout';
 import { POS_FULL } from '../ui';
@@ -36,14 +36,18 @@ export default function TransferDesk() {
 export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: string; big?: boolean }) {
   const on = useTransferUi((s) => s.basket[kind].includes(pid));
   const toggle = useTransferUi((s) => s.toggle);
+  // 등록 마감 뒤와 포스트시즌에는 영입을 담을 수 없다 (이미 담은 것은 뺄 수 있다)
+  const closed = useStore((s) => (kind === 'sign' ? signingClosedWhy(s) : null));
   const b = BAND[kind];
   return (
     <button
       data-testid={`add-${kind}`}
       data-on={on || undefined}
       data-sfx="tab"
+      disabled={!!closed && !on}
+      title={closed ?? undefined}
       onClick={() => toggle(kind, pid)}
-      className={`shrink-0 cursor-pointer whitespace-nowrap ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
+      className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
       style={on ? { background: b.color, color: '#0f1420' } : { background: '#0f1420', color: b.color, boxShadow: `inset 0 0 0 1px ${b.color}88` }}
     >
       {on ? `✓ ${b.label}` : b.add}
@@ -55,16 +59,18 @@ export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: str
 function BlockChip({ pid }: { pid: string }) {
   const on = useStore((s) => (s.campaign.block ?? []).includes(pid));
   const toggle = useStore((s) => s.blockToggle);
+  const closed = useStore((s) => blockClosedWhy(s));
   const color = '#c9a0ff';
   return (
     <button
       data-testid="add-block"
       data-on={on || undefined}
       data-sfx="tab"
-      title="트레이드 시장에 내놓기"
+      disabled={!!closed && !on}
+      title={closed ?? '트레이드 시장에 내놓기'}
       aria-label="트레이드 시장에 내놓기"
       onClick={() => toggle(pid)}
-      className="shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]"
+      className="shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-35 mob:min-h-9 mob:px-1.5 mob:text-[13px]"
       style={on ? { background: color, color: '#0f1420' } : { background: '#0f1420', color, boxShadow: `inset 0 0 0 1px ${color}88` }}
     >
       {on ? '✓' : '⇄'}
@@ -133,10 +139,23 @@ function Desk() {
     timer.current = setTimeout(() => setDone(null), DONE_MS);
   };
 
+  const regWhy = signingClosedWhy(core);
+  const blockWhy = blockClosedWhy(core);
+  const closedLine = (why: string | null, testid: string) =>
+    why && (
+      <div className="shrink-0 bg-bad/20 px-1.5 py-1 text-[11px] text-bad mob:text-[13px]" data-testid={testid}>
+        ⛔ {why}
+      </div>
+    );
   const market = (
+    <>
+    {closedLine(regWhy, 'reg-closed')}
     <PlayerBrowser key={`m${nonce}`} mode="market" players={freeAgents} rows={rows} sel={card} onPick={(p) => setCard(p.id)} initPos={pos} band={band} rowAction={(p) => <AddChip kind="sign" pid={p.id} />} />
+    </>
   );
   const squad = (
+    <>
+    {closedLine(blockWhy, 'block-closed')}
     <PlayerBrowser
       key={`s${nonce}`}
       mode="roster"
@@ -147,6 +166,7 @@ function Desk() {
       band={band}
       rowAction={(p) => [...squadKinds(p).map((k) => <AddChip key={k} kind={k} pid={p.id} />), <BlockChip key="block" pid={p.id} />]}
     />
+    </>
   );
   const tabs: [typeof side, string, number][] = [
     ['market', '영입 시장', freeAgents.length],

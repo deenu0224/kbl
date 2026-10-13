@@ -20,6 +20,7 @@ import {
   upgradeCost,
 } from '../game/economy';
 import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season';
+import { deadlinesSoon } from '../game/economy';
 import { RUNWAY_DANGER, forcedSaleTarget, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import { teamStrength } from '../game/ratings';
 import Bracket from './Bracket';
@@ -66,6 +67,7 @@ export function LeagueTab() {
         ? []
         : (beats ?? [])
             .filter((b) => !!b.label && b.to >= day && b.from < schedule.length)
+            .concat(deadlinesSoon({ phase, day }).map((d) => ({ id: `dl-${d.id}`, part: 'mid' as const, from: d.day, to: d.day, label: d.label, icon: d.icon })))
             .sort((a, b) => a.from - b.from)
             .slice(0, 3),
     [beats, day, phase, schedule.length],

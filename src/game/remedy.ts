@@ -3,7 +3,7 @@
 import type { BatPos, Core, Player, Team } from './types';
 import {
   FARM_LOCK, FOOD_LV, LOAN_RATE, LOAN_STEP, MIN_BATTERS, MIN_PITCHERS, RAIN_ROOF, ROOF_SEATS, ROSTER_MAX, SEAT_LV, SVC_YEARS, WEATHER_MULT,
-  activeRoster, capacityOf, farmRoster, hasRoof, previewDemand, releaseCost, signingBonus, upgradeCost, userTeam,
+  activeRoster, capacityOf, farmRoster, hasRoof, previewDemand, releaseCost, signingBonus, upgradeCost, userTeam, deadlinesSoon,
 } from './economy';
 import { svcYear } from './contract';
 import { FOREIGN_MAX } from './events';
@@ -456,6 +456,15 @@ function beatRemedies(core: Core, todoId: string): Remedy[] {
 // ───────── 공개 함수 ─────────
 
 /** 그 할 일에 지금 가능한 조치 (효과 큰 순, 0~4개). 마지막은 항상 "그대로 둔다"(확인 항목은 "확인하고 닫기") */
+/** 마감 예고: 마감 전에 이적 창구에서 할 일을 마치라는 확인 항목 */
+function deadlineRemedies(core: Core, todoId: string): Remedy[] {
+  const d = deadlinesSoon(core).find((x) => todoId.startsWith(`dl-${x.id}-`));
+  if (!d) return [CLOSE];
+  return d.id === 'reg'
+    ? [{ id: 'go', run: { t: 'go', to: 'market' }, label: '이적 창구 열기 — 영입 시장', effect: `${d.left}경기 뒤부터 외부 영입 불가 (1군·2군 이동은 가능) · 스토브리그에 다시 열린다` }, CLOSE]
+    : [{ id: 'go', run: { t: 'go', to: 'squad' }, label: '이적 창구 열기 — 우리 선수단', effect: `${d.left}경기 뒤부터 트레이드 제안·시장 등록 불가 · 스토브리그에 다시 열린다` }, CLOSE];
+}
+
 export function remedies(core: Core, todoId: string): Remedy[] {
   const id = todoId.split('-')[0];
   const list =
@@ -470,6 +479,7 @@ export function remedies(core: Core, todoId: string): Remedy[] {
     : id === 'scout' ? scoutRemedies(core)
     : id === 'fa' ? faRemedies(core)
     : id === 'beat' ? beatRemedies(core, todoId)
+    : id === 'dl' ? deadlineRemedies(core, todoId)
     : [];
   return list.length > REMEDY_MAX ? [...list.slice(0, REMEDY_MAX - 1), list[list.length - 1]] : list;
 }

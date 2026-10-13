@@ -32,7 +32,9 @@ export const TRAIN_LV: { grow: number; inj: number; cost: number; upkeep: number
 export const LOAN_LIMIT = 500000; // 50억
 export const LOAN_STEP = 50000; // 5억
 export const LOAN_RATE = 0.08; // 연이율
-export const ROSTER_MAX = 28;
+export const ROSTER_MAX = 28; // 1군 등록 정원
+export const TRADE_DEADLINE = 54; // 트레이드 마감: 이 경기 수를 치른 뒤에는 트레이드 제안·시장 등록 불가 (스토브리그에 다시 열린다)
+export const DEADLINE_WARN = 6; // 마감 이 경기 전부터 일정표 예보·할 일에 올린다
 export const REG_DEADLINE = 72; // 선수 등록 마감: 이 경기 수를 치른 뒤와 포스트시즌에는 외부 영입 불가 (1군·2군 이동은 가능)
 
 /** 지금 외부 영입(FA·트레이드)이 가능한가. 스토브리그(결산~드래프트)에는 다시 열린다 */
@@ -40,7 +42,34 @@ export function signingOpen(core: Pick<Core, 'phase' | 'day'>): boolean {
   if (core.phase === 'post') return false;
   if (core.phase === 'season') return core.day < REG_DEADLINE;
   return true;
-} // 1군 등록 정원
+}
+/** 외부 영입이 닫힌 사유 (열려 있으면 null) */
+export function signingClosedWhy(core: Pick<Core, 'phase' | 'day'>): string | null {
+  if (signingOpen(core)) return null;
+  return core.phase === 'post' ? '포스트시즌 — 선수 등록 마감 (스토브리그에 다시 열립니다)' : `선수 등록 마감 (${REG_DEADLINE}경기) — 스토브리그에 다시 열립니다`;
+}
+/** 트레이드 시장에 선수를 내놓을 수 없는 사유 (열려 있으면 null). 마감 전과 스토브리그에는 열려 있다 */
+export function blockClosedWhy(core: Pick<Core, 'phase' | 'day'>): string | null {
+  if (core.phase === 'post') return '포스트시즌 — 트레이드 마감 (스토브리그에 다시 열립니다)';
+  if (core.phase === 'season' && core.day >= TRADE_DEADLINE) return `트레이드 마감 (${TRADE_DEADLINE}경기) — 스토브리그에 다시 열립니다`;
+  return null;
+}
+export interface Deadline {
+  id: 'trade' | 'reg';
+  day: number;
+  left: number; // 남은 경기 수
+  label: string;
+  icon: string;
+}
+/** 다가온 마감 (정규시즌, 마감 DEADLINE_WARN 경기 전부터 마감 전까지). 일정표 예보와 할 일이 같이 쓴다 */
+export function deadlinesSoon(core: Pick<Core, 'phase' | 'day'>): Deadline[] {
+  if (core.phase !== 'season') return [];
+  const all: Deadline[] = [
+    { id: 'trade', day: TRADE_DEADLINE, left: TRADE_DEADLINE - core.day, label: '트레이드 마감', icon: '🔄' },
+    { id: 'reg', day: REG_DEADLINE, left: REG_DEADLINE - core.day, label: '선수 등록 마감', icon: '📋' },
+  ];
+  return all.filter((d) => d.left > 0 && d.left <= DEADLINE_WARN);
+}
 export const FARM_MAX = 20; // 2군(퓨처스) 정원
 export const FARM_CAP = 64; // 2군에서는 이 OVR 까지만 자란다 (그 위는 1군에서만)
 export const FARM_GROW = 2.2; // 2군의 주간 성장 확률 = 훈련장 확률 × 이 값
