@@ -154,7 +154,7 @@ export const parseFrom = (search: string): CodeInfo | null => codeInfo(new URLSe
 
 // ───────── 구단사 요약 ─────────
 
-const POST_ORDER: PostFinish[] = ['none', 'SPO', 'PO', 'KS', 'champion'];
+const POST_ORDER: PostFinish[] = ['none', 'WC', 'SPO', 'PO', 'KS', 'champion'];
 const firstAt = <T,>(xs: T[], f: (x: T) => boolean): number | null => {
   const i = xs.findIndex(f);
   return i < 0 ? null : i + 1;
@@ -260,7 +260,7 @@ export function endingLine(r: ShareRecord): string {
   return r.champAt ? `우승 뒤 ${r.seasons}시즌째 진행 중` : `${r.seasons}시즌째 진행 중`;
 }
 
-const BEST_KO: Record<PostFinish, string> = { none: '', SPO: '준플레이오프', PO: '플레이오프', KS: '한국시리즈 준우승', champion: '한국시리즈 우승' };
+const BEST_KO: Record<PostFinish, string> = { none: '', WC: '와일드카드 결정전', SPO: '준플레이오프', PO: '플레이오프', KS: '한국시리즈 준우승', champion: '한국시리즈 우승' };
 export function bestLine(r: ShareRecord): string {
   if (r.champs.length > 1) return `한국시리즈 우승 ${r.champs.length}회`;
   return BEST_KO[r.bestPost] || `정규시즌 ${Math.min(8, ...r.ranks)}위`;

@@ -15,6 +15,10 @@ import { autoPenStyle } from '../src/game/sim';
 import { subBestIdx } from '../src/game/subpick';
 import { buyEthics, ethicsCost, scandalOpen } from '../src/game/scandal';
 import { parseOffer, toggleBlock, tradeOpen, tradePreview, tradeValue } from '../src/game/trade';
+import { NEW_GAME } from '../src/game/generate';
+
+// TEAMS=8 → 원년 8구단 리그로 돌린다 (기존 세이브 점검용). 기본은 새 게임과 같은 10구단
+if (process.env.TEAMS) NEW_GAME.teams = Number(process.env.TEAMS);
 
 // ───────── 동사 ─────────
 
@@ -147,9 +151,10 @@ const RESERVE = 50000; // 5억 비상금
 function expectedMargin(c: Core): number {
   const t = userTeam(c);
   const att = Math.min(capacityOf(c), previewDemand(c) * 1.08);
+  const G = c.schedule.length || 84; // 시즌 경기 수 (경기당 분배금·고정비는 시즌 합계가 84경기 기준과 같다)
   const gate = 42 * att * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend);
   const league = 84 * (LEAGUE_BASE + c.fans * LEAGUE_PER_FAN + 3 * LEAGUE_PER_RANK);
-  const merch = 84 * c.fans * MERCH_K * (starPower(t, c.season) / 100);
+  const merch = G * c.fans * MERCH_K * (starPower(t, c.season) / 100);
   const fixed = 42 * (SEAT_LV[c.facilities.seats].upkeep + FOOD_LV[c.facilities.food].upkeep) + 84 * (TRAIN_LV[c.facilities.training].upkeep + opsCost(c)) + c.finance.debt * 0.08;
   return gate + league + merch - fixed;
 }

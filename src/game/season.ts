@@ -25,6 +25,7 @@ import { leagueMult, scandalTickMut } from './scandal';
 import { tradeTickMut } from './trade';
 import { svcSalary, svcYearAt } from './contract';
 import { farmDailyMut, subEnqueueMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
+import { perGame, rankUnits } from './league';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -415,13 +416,11 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const ticket = Math.round(att * price * fx.ticket);
   const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather, core)) : 0;
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
-  const league = Math.round((LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rankNow) * LEAGUE_PER_RANK) * leagueMult(core));
+  const league = Math.round(perGame(core, (LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + rankUnits(core, rankNow) * LEAGUE_PER_RANK) * leagueMult(core)));
   const salary = Math.round(payroll(user) / core.schedule.length);
   const upkeep =
     (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep + projectFx(core).upkeep : 0) +
-    TRAIN_LV[core.facilities.training].upkeep +
-    farmUpkeep(user) +
-    opsCost(core);
+    Math.round(perGame(core, TRAIN_LV[core.facilities.training].upkeep + farmUpkeep(user) + opsCost(core)));
   const interest = Math.round(loanInterest(core, f.debt) / core.schedule.length);
   const net = ticket + food + merch + league - salary - upkeep - interest;
   f.cash += net;
@@ -871,9 +870,9 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   // 지난 시즌 남은 FA 로 AI 스토브리그 → 새 FA 시장
   for (const p of core.freeAgents) develop(p, rng, core.season);
   aiStoveLeague(core, rng, ctx);
-  core.freeAgents = genFreeAgents(ctx);
+  core.freeAgents = genFreeAgents(ctx, core.teams.length);
   for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
-  core.schedule = buildSchedule(core.teams.map((t) => t.id), rng);
+  core.schedule = buildSchedule(core.teams.map((t) => t.id), rng, core.userId);
   core.crowd = null; // 관중 칩·게이트 줄은 개막 전으로
   core.finance.ledger = ledgerZero();
   core.attHistory = [];
@@ -920,7 +919,7 @@ export function seasonAwards(core: Core): {
   const profit = opProfit(core.finance.ledger);
   const cap = SEAT_LV[core.facilities.seats].cap;
   const avgAtt = core.attHistory.length ? core.attHistory.reduce((s, v) => s + v, 0) / core.attHistory.length : 0;
-  let pts = core.teams.length + 1 - rank;
+  let pts = Math.round(rankUnits(core, rank)) + 1; // 8구단 눈금 (1위 8점 ~ 꼴찌 1점)
   pts += profit >= 150000 ? 2 : profit >= 50000 ? 1 : profit < -150000 ? -2 : profit < 0 ? -1 : 0;
   if (avgAtt / cap >= 0.9) pts += 1;
   const grade = pts >= 9 ? 'S' : pts >= 7 ? 'A' : pts >= 4 ? 'B' : pts >= 2 ? 'C' : 'D';

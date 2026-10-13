@@ -74,10 +74,10 @@ export function LeagueTab() {
         ? []
         : (beats ?? [])
             .filter((b) => !!b.label && b.to >= day && b.from < schedule.length)
-            .concat(deadlinesSoon({ phase, day }).map((d) => ({ id: `dl-${d.id}`, part: 'mid' as const, from: d.day, to: d.day, label: d.label, icon: d.icon })))
+            .concat(deadlinesSoon({ phase, day, schedule }).map((d) => ({ id: `dl-${d.id}`, part: 'mid' as const, from: d.day, to: d.day, label: d.label, icon: d.icon })))
             .sort((a, b) => a.from - b.from)
             .slice(0, 3),
-    [beats, day, phase, schedule.length],
+    [beats, day, phase, schedule],
   );
 
   return (

@@ -4,8 +4,8 @@ import type { Player } from '../../game/types';
 import { play } from '../../audio/sfx';
 import { fmtInt, fmtMoney } from '../../game/format';
 import { FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTransfer, type BasketKind, type TransferPreview } from '../../game/transfer';
-import { TR, tradeLeft, tradeOpen } from '../../game/trade';
-import { REG_DEADLINE, blockClosedWhy, signingClosedWhy, signingOpen } from '../../game/economy';
+import { TR, trFrom, tradeLeft, tradeOpen } from '../../game/trade';
+import { regDeadline, blockClosedWhy, signingClosedWhy, signingOpen } from '../../game/economy';
 import { useCore, useStore, useUserTeam } from '../../store';
 import { useIsMobile } from '../layout/useLayout';
 import { POS_FULL } from '../ui';
@@ -81,20 +81,20 @@ function BlockChip({ pid }: { pid: string }) {
 }
 
 /** 창구 상단 한 줄: 트레이드 기간과 내놓은 인원 */
-function tradeStatus(core: { phase: string; day: number }, n: number): string {
+function tradeStatus(core: { phase: string; day: number; schedule: unknown[] }, n: number): string {
   const when =
     core.phase === 'season'
       ? tradeOpen(core as never)
         ? `트레이드 기간: ${tradeLeft(core)}경기 남음`
-        : core.day < TR.from
-          ? `트레이드 기간: ${TR.from - core.day}경기 뒤 열림`
+        : core.day < trFrom(core)
+          ? `트레이드 기간: ${trFrom(core) - core.day}경기 뒤 열림`
           : '트레이드 기간: 마감 (스토브리그에 다시 열림)'
       : core.phase === 'ended'
         ? '트레이드 기간: 스토브리그'
         : '트레이드 기간: 마감';
   const reg = signingOpen(core as never)
     ? core.phase === 'season'
-      ? ` · 영입 마감까지 ${REG_DEADLINE - core.day}경기`
+      ? ` · 영입 마감까지 ${regDeadline(core) - core.day}경기`
       : ''
     : ' · 영입: 등록 마감 (스토브리그에 다시 열림)';
   return `${when}${reg} · 시장에 내놓음 ${n}/${TR.blockMax}`;

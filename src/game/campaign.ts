@@ -7,6 +7,7 @@ import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, loanLimit, luxTax, opProfit, payroll
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
 import { memoGet, memoNum, memoSet } from './memo';
+import { leagueSize, postTeams, seasonGames } from './league';
 import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine, withTeam } from './story';
 import { beatById, startSeasonScriptMut, userHomeDays } from './script';
 import { exposeMut } from './scandal';
@@ -24,10 +25,10 @@ export const MID_FAIL_TRUST = 5; // 중간 점검에서 출자를 받고 깃발 
 export const MID_UP_FAIL_TRUST = 12; // 목표 상향을 약속하고 깃발 실패 시 추가 감소
 export const MID_UP_MULT = 2; // 목표 상향 약속 성공 시 깃발 지원금 배율
 // 포스트시즌 배당금 (유저 최종 도달 지점별, ledger.league 합산)
-export const POST_DIVIDEND: Record<PostFinish, number> = { none: 0, SPO: 30000, PO: 60000, KS: 120000, champion: 250000 };
-export const POST_LEVEL: Record<PostFinish, number> = { none: 0, SPO: 1, PO: 2, KS: 3, champion: 4 };
+export const POST_DIVIDEND: Record<PostFinish, number> = { none: 0, WC: 15000, SPO: 30000, PO: 60000, KS: 120000, champion: 250000 };
+export const POST_LEVEL: Record<PostFinish, number> = { none: 0, WC: 1, SPO: 1, PO: 2, KS: 3, champion: 4 };
 // 깃발은 놓쳤어도 가을야구를 한 시즌은 섬이 덜 등을 돌린다 (깃발 실패 감소분을 이만큼 덜어 준다)
-export const POST_CONSOLE: Record<PostFinish, number> = { none: 0, SPO: 5, PO: 8, KS: 12, champion: 12 };
+export const POST_CONSOLE: Record<PostFinish, number> = { none: 0, WC: 3, SPO: 5, PO: 8, KS: 12, champion: 12 };
 export const DRAFT_PREFIX = 'dr'; // 드래프트 출신 선수 id 접두 (draft.ts 의 DRAFT_ID_PREFIX 와 같다)
 
 interface ObjSpec {
@@ -622,7 +623,7 @@ export function flagOnTrack(core: Core): boolean {
     case 'rank':
       return rank <= st.main.target;
     case 'post':
-      return rank <= (st.main.target >= 3 ? 2 : 4);
+      return rank <= (st.main.target >= 3 ? 2 : postTeams(core));
     default:
       return objMet(st.main.kind, st.main.target, objValue(core, st.main.kind));
   }
@@ -653,7 +654,7 @@ export function flagForecast(core: Core): { text: string; ok: boolean } {
       return { text: `지금 페이스: ${pace} · ${rank}위 예상 · 깃발 ${target}위 이내 ${mark(ok)}`, ok };
     }
     case 'post': {
-      const need = target >= 3 ? 2 : 4;
+      const need = target >= 3 ? 2 : postTeams(core);
       const ok = rank <= need;
       return { text: `지금 페이스: ${pace} · ${rank}위 예상 · ${objText(kind, target)}은 ${need}위 이내부터 ${mark(ok)}`, ok };
     }
@@ -873,6 +874,9 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     prev: c.history,
     dealt: !!c.dealt,
     titlesBefore,
+    teams: leagueSize(core),
+    games: seasonGames(core),
+    postTeams: postTeams(core),
   });
   c.history.push(rec);
 

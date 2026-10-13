@@ -22,6 +22,7 @@ import { bullpenLoad } from '../../src/game/fixes';
 import { todoList } from '../../src/game/todo';
 import { emptyHof, recordClub, seatsLabel, HOF_KEY, SAVE_VERSION } from '../../src/game/hof';
 import { greedy, passive, sensible, type Bot } from '../bots';
+import { regDeadline } from '../../src/game/economy';
 
 const OUT = resolve(dirname(fileURLToPath(import.meta.url)), '../../screens-out/fixtures');
 const SEED_MAX = 200; // 시드를 바꿔 가며 찾는 상한
@@ -108,7 +109,7 @@ const WANT: Record<string, Pred> = {
   // 스토브리그의 트레이드 제안 카드 · 마감 예고(트레이드 마감 6경기 전) · 등록 마감 뒤
   stoveTrade: (c) => c.phase === 'ended' && !!c.campaign.event && c.campaign.event.id.startsWith('trade'),
   deadlineSoon: (c) => inSeason(c) && quiet(c) && c.day >= 49 && c.day <= 52,
-  regClosed: (c) => inSeason(c) && quiet(c) && c.day >= 73 && c.day < c.schedule.length - 2,
+  regClosed: (c) => inSeason(c) && quiet(c) && c.day >= regDeadline(c) + 1 && c.day < c.schedule.length - 2,
   tradeWindow: (c) => inSeason(c) && quiet(c) && tradeOpen(c) && c.season >= 2 && nextIsHome(c),
   dynasty: (c) => inSeason(c) && stageName(c) === '왕조' && c.day >= 20 && quiet(c) && nextIsHome(c),
 };

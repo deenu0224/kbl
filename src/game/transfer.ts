@@ -7,7 +7,7 @@ import { isFranchise } from './franchise';
 import { slotNewcomer } from './lineup';
 import { teamParts, type TeamParts } from './ratings';
 import { runway, runwayAfter } from './runway';
-import { GAMES } from './schedule';
+import { seasonGames } from './league';
 import { callUp, releasePlayer, sendDown, signPlayer } from './season';
 
 /** 이적 창구의 바구니: 담는 동안 실제 core 는 변하지 않는다 */
@@ -155,7 +155,7 @@ export function previewTransfer(core: Core, basket: Basket): TransferPreview {
   const count = (ps: Player[], f: (p: Player) => boolean) => ps.filter(f).length;
   const t1 = after ? userTeam(after) : null;
   const inSeason = core.phase === 'season' && core.day < core.schedule.length;
-  const len = core.schedule.length || GAMES;
+  const len = seasonGames(core);
 
   const pa = teamParts(t0);
   const pb = t1 ? teamParts(t1) : pa;

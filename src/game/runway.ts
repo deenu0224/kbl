@@ -22,6 +22,7 @@ import {
 } from './economy';
 import { fmtMoney } from './format';
 import { rankOf } from './season';
+import { perGame, rankUnits } from './league';
 
 export interface Runway {
   perGame: number; // 경기당 평균 손익(만원): 남은 일정(홈/원정)의 평균. 최근 홈 관중 실적 × 현재 가격·연봉·유지비·이자
@@ -51,8 +52,8 @@ function baseNet(core: Core): { home: number; away: number } {
   const food = FOOD_LV[core.facilities.food].spend * (core.facilities.food < FOOD_LV.length - 1 ? 1 - RAIN_P * (1 - RAIN_FOOD) : 1);
   const gate = Math.min(cap, att) * (core.finance.ticketPrice + food);
   const merch = core.fans * MERCH_K * (starPower(t, core.season) / 100);
-  const league = (LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rank) * LEAGUE_PER_RANK) * leagueMult(core);
-  const fixed = payroll(t) / len + TRAIN_LV[core.facilities.training].upkeep + opsCost(core);
+  const league = perGame(core, (LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + rankUnits(core, rank) * LEAGUE_PER_RANK) * leagueMult(core));
+  const fixed = payroll(t) / len + perGame(core, TRAIN_LV[core.facilities.training].upkeep + opsCost(core));
   return {
     home: gate + merch * 1.4 + league - fixed - SEAT_LV[core.facilities.seats].upkeep - FOOD_LV[core.facilities.food].upkeep,
     away: merch * 0.6 + league - fixed,

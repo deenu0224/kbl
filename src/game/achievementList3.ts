@@ -3,6 +3,7 @@ import { gv, mk, some, streaks, totAtLeast, won } from './achievementList1';
 import { isFranchise } from './franchise';
 import { loanLimit } from './loan';
 import { memoGet } from './memo';
+import { isLast } from './league';
 import { GIVE_STAR, YOUTH_MAX, domePaid, giveTotal } from './projects';
 
 // 도전과제 목록 3: 이야기 · 기행 · 누적
@@ -57,7 +58,7 @@ const STORY: AchvDef[] = [
 
 const O = mk('odd');
 const ODD: AchvDef[] = [
-  O('o-last-profit', '꼴찌로 흑자', '정규시즌 8위인데 영업 흑자로 시즌을 마친다', '🧮', 2, 'season', (x) => x.rec!.rank === 8 && x.rec!.profit > 0),
+  O('o-last-profit', '꼴찌로 흑자', '정규시즌 8위인데 영업 흑자로 시즌을 마친다', '🧮', 2, 'season', (x) => isLast(x.core, x.rec!.rank) && x.rec!.profit > 0),
   O('o-lose10', '오늘 경기는 없었던 걸로', '10점 차 이상으로 패배', '🙈', 1, 'game', (x) => lost(x) && gv(x).opp - gv(x).my >= 10),
   O('o-score10-lose', '10점 내고 지는 법', '10득점 이상 하고도 패배', '🫠', 1, 'game', (x) => lost(x) && gv(x).my >= 10),
   O('o-tie12', '아무도 이기지 못했다', '12회까지 가서 무승부', '🤝', 1, 'game', (x) => !!x.r && x.r.won === null && x.r.result.innings >= 12),

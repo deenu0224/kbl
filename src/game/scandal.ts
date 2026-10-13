@@ -19,6 +19,7 @@ import { marketRatio } from './contract';
 import { cardRested, markCardMut, memoGet, memoSet } from './memo';
 import { rowCash, rowFans, rowInfo, rowPayroll, rowSat, rowTrust, satAfter, trustAfter } from './eventRows';
 import { CHARACTERS, SCANDAL_NEWS, TRUST_LABEL } from './story';
+import { dayAt } from './league';
 
 // ── 튜닝 상수 ──
 export const SC = {
@@ -203,7 +204,7 @@ export function scandalTickMut(core: Core, rng: Rng): void {
     if (wDope + wFix <= 0) return;
     const kind: Kind = rng() * (wDope + wFix) < wDope ? 'dope' : 'fix';
     const who = pick(rng, kind === 'dope' ? dope : fix);
-    const card = randInt(rng, Math.max(SC.cardFrom, core.day + SC.dopeLead[1] + 1), SC.cardTo);
+    const card = randInt(rng, Math.max(dayAt(core, SC.cardFrom), core.day + SC.dopeLead[1] + 1), dayAt(core, SC.cardTo));
     const lead = kind === 'dope' ? SC.dopeLead : SC.fixLead;
     savePlan(core, { kind, pid: who.id, sign: card - randInt(rng, lead[0], lead[1]), card, ups: '', state: 'wait' });
     return;
