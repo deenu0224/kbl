@@ -1,3 +1,4 @@
+import Fold from './Fold';
 import { useUi } from './layout/uiStore';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { BatPos, Objective, Player, Team } from '../game/types';
@@ -231,14 +232,15 @@ export default function SeasonEnd() {
         {/* 포스트시즌 대진표 결과 */}
         {core.post && (
           <Step i={5} className="mt-3">
-            <Title>포스트시즌</Title>
-            <Bracket wide />
+            <Fold label="포스트시즌 대진표" testid="fold-bracket">
+              <Bracket wide />
+            </Fold>
           </Step>
         )}
 
         {/* 리그 시상 */}
         <Step i={6} className="mt-3">
-          <Title>리그 시상</Title>
+          <Fold label="리그 시상 · 타이틀 · 골든글러브" testid="fold-awards">
           <div className="flex gap-2 por:flex-col">
             <AwardCard title="정규시즌 MVP" row={league.mvp} byId={byId} userId={core.userId} />
             <AwardCard title="신인왕" row={league.rookie} byId={byId} userId={core.userId} />
@@ -282,6 +284,7 @@ export default function SeasonEnd() {
               </div>
             </div>
           </div>
+          </Fold>
         </Step>
 
         {/* 다음 장 공개 */}
@@ -303,7 +306,8 @@ export default function SeasonEnd() {
           <StageTrail stage={stageAfter} />
         </Step>
 
-        {/* 살림 */}
+        {/* 살림: 최종 순위 · 손익 · 구단 MVP 는 접어 둔다 */}
+        <Fold label="최종 순위 · 손익 결산 · 구단 MVP" className="mt-3" testid="fold-ledger">
         <div className="mt-3 grid grid-cols-3 gap-3 mob:grid-cols-2 por:grid-cols-1">
           <div>
             <Title>최종 순위</Title>
@@ -367,6 +371,7 @@ export default function SeasonEnd() {
             </div>
           </div>
         </div>
+        </Fold>
 
         <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
           <button
