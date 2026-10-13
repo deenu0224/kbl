@@ -27,15 +27,18 @@ function pick<T>(xs: T[], seed: number, slot: number): T {
 }
 
 // ── 문장 풀: 자조와 농담. 승인된 문장만 쓴다 (변형을 늘리지 않는다) ──
-const OPEN = ['"내가 해도 저것보단 잘하겠다"를 20년째 말하다가 진짜 해 봤다.', '야구 끊는다고 한 게 올해로 열한 번째다. 이번엔 구단을 맡았다.', '프런트 욕만 하다가 프런트가 됐다.'];
+const OPEN_N = (n: number) => `방구석 단장 20년 차, 진짜 단장 ${n}년 차.`;
+const OPEN = ['"저걸 왜 저기서 바꿔"를 하도 외쳐서, 직접 바꾸러 왔다.', '야구 끊는다고 한 게 올해로 열한 번째다. 이번엔 구단을 맡았다.', '프런트 욕만 하다가 프런트가 됐다.'];
 const LAST = '올해는 다르다고 했다. 달랐다. 더 못했다.';
 const NEXT = '내년엔 진짜다. 이번엔 진짜 진짜다.';
 const RACE = '9월에도 야구가 재밌는 건 처음이다.';
 const FALL = '가을에 야구하는 팀이 됐다. 이 문장을 쓰려고 단장을 했다.';
-const CHAMP = (w: number) => `${w}시즌 만에 우승했다. 울었냐고 묻지 마라.`;
-const CHAMP_MORE = (w: number) => [`바랜 깃발 옆에 새 깃발을 걸었다. ${TITLE_YEARS_AGO + w - 1}년 걸렸다.`, '우승하면 다 용서된다더니, 진짜였다.'];
+const CHAMP = (w: number) => `${w}시즌 만에, 바랜 우승기 옆에 새 우승기를 걸었다. ${TITLE_YEARS_AGO + w - 1}년 만이다.`;
+const FLAG_ONLY = '약속은 지켰다. 박수는 없었다.';
+const RUNNER = '한 계단 남기고 졌다. 올해 야구는 여기까지.';
+const AGAIN = '가을야구가 당연해졌다. 이 말이 이상하다.';
 const MOVED = (n: number) => `${n}시즌을 버텼다. 팀은 섬을 떠났다.`;
-const MOVED_MORE = ['"이게 팀이냐" 소리를 내가 들었다. 할 말이 없었다.', '욕하는 것과 하는 것은 달랐다. 인정한다.', '프런트가 문제라고 했는데, 그 프런트가 나였다.'];
+const MOVED_MORE = ['"해체해라" 소리를 내가 들었다. 할 말이 없었다.', '프런트가 문제라고 했는데, 그 프런트가 나였다.'];
 const LESSON: Record<Lesson, string> = {
   money: '돈을 쓰라고 소리쳤는데, 써 보니 돈이 없었다.',
   raise: '육성은 언제 하냐고 했는데, 키워 놓으니 연봉을 올려 달란다.',
@@ -71,16 +74,17 @@ export function storyOf(d: ShareData): Story {
     results.push(MOVED(n), pick(MOVED_MORE, r.seed, slot(1)));
   } else if (r.champAt) {
     const w = r.champAt;
-    results.push(`${r.kind === 'season' && n > w ? `${n}시즌째. ` : ''}${CHAMP(w)}`, pick(CHAMP_MORE(w), r.seed, slot(1)));
+    results.push(`${r.kind === 'season' && n > w ? `${n}시즌째. ` : ''}${CHAMP(w)}`);
   } else {
     const now = `${n}시즌째. `;
     const post = r.last.post !== 'none';
-    if (r.firstPostAt) results.push(now + FALL);
-    if (!post) results.push(r.firstPostAt ? seasonLine(r) : now + seasonLine(r));
+    // 이번 시즌의 일 한 줄: 준우승 > 첫 가을야구 > 가을야구 재진출 > 목표만 달성 > 순위
+    if (post) results.push(now + (r.last.post === 'KS' ? RUNNER : r.firstPostAt === n ? FALL : AGAIN));
+    else results.push(now + (r.last.cleared ? FLAG_ONLY : seasonLine(r)));
   }
   const ls = d.lessons ?? [];
   return {
-    open: pick(OPEN, r.seed, slot(0)),
+    open: pick([OPEN_N(n), ...OPEN], r.seed, slot(0)),
     results,
     lesson: ls.length ? LESSON[pick(ls, r.seed, slot(2))] : null,
     versus: moved ? null : `시뮬레이션 단장 ${d.pct.n}명과 견주면 상위 ${d.pct.pct}%.`,

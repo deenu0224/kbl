@@ -451,7 +451,7 @@ function SeasonEndBody() {
         </div>
         </Fold>
 
-        <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:gap-1.5 mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
+        <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:flex-wrap mob:gap-1.5 mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
           <button
             className="px-btn whitespace-nowrap !px-4 !py-1.5 mob:!px-2 mob:text-[13px]"
             onClick={() => {

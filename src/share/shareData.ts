@@ -239,7 +239,8 @@ export function lessonsOf(core: Core): Lesson[] {
   if (core.finance.debt > 0 || core.news.some((x) => /긴급 대출|강제 매각/.test(x.text))) out.push('money');
   if (team?.roster.some((p) => p.ask !== undefined || (svcYear(core, p) ?? 0) >= SVC_YEARS)) out.push('raise');
   if (memoNum(core, 'trDone') > 0) out.push('trade');
-  if (core.campaign.cardSeen?.arm !== undefined) out.push('pen');
+  // 혹사 카드를 이번 시즌에 본 구단만 (한 번이라도 본 구단으로 하면 거의 전부 해당한다)
+  if (core.campaign.cardSeen?.arm === core.season) out.push('pen');
   return out;
 }
 export const shareFromCore = (core: Core, kind: ShareKind): ShareData => ({ ...shareOf(recordFromCore(core, kind)), lessons: lessonsOf(core) });
