@@ -19,7 +19,7 @@ import {
   upgradeCost,
 } from '../game/economy';
 import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season';
-import { forcedSaleTarget, runway, runwayPath, runwayPieceOf } from '../game/runway';
+import { RUNWAY_DANGER, forcedSaleTarget, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import { teamStrength } from '../game/ratings';
 import Bracket from './Bracket';
 import Leaders from './Leaders';
@@ -463,6 +463,11 @@ export function FinanceTab() {
         )}
         <Help topic="runway" />
       </div>
+      {inSeason && rw.forcedSale !== null && rw.forcedSale <= RUNWAY_DANGER && (
+        <div className="mb-1.5 bg-bad/20 px-1.5 py-1 text-[11px] text-bad mob:text-[13px]" data-testid="forced-line">
+          강제 매각까지 {rw.forcedSale}경기{victim ? ` · ${victim.name}` : ''}
+        </div>
+      )}
       <Fold label="자세히: 누적 장부 · 인건비 · 구단 현황" className="mb-1.5" testid="fold-finance">
         {inSeason && rw.cashOut !== null && (
           <div className="mb-1 bg-ink/60 px-1.5 py-1 text-[11px] leading-snug text-bad mob:text-[12px]">

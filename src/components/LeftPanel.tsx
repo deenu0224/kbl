@@ -51,6 +51,15 @@ function CardDock({ open, onClose, placeholder, children }: { open: boolean; onC
 }
 
 /** [2군으로] / [콜업] 버튼 + 누르기 전에 보이는 결과 줄 */
+/** 미리 보기 문장을 숫자 한 줄로: "재등록 10경기 · 성장 12% → 30%" */
+const shortPv = (text: string) =>
+  text
+    .replace(/(\d+)경기 동안 재등록 불가/, '재등록 $1경기')
+    .replace('시즌 전: 재등록 제한 없음', '재등록 제한 없음')
+    .replace('주당 성장 확률', '성장')
+    .replace(/OVR (\d+) 이상은 2군에서 안 자란다/, 'OVR $1 이상 성장 없음')
+    .replace('더 자라지 않는 선수', '성장 없음');
+
 export function FarmMoveButton({ player, onDone }: { player: Player; onDone?: () => void }) {
   const core = useCore();
   const sendDown = useStore((s) => s.sendDown);
@@ -69,8 +78,8 @@ export function FarmMoveButton({ player, onDone }: { player: Player; onDone?: ()
       >
         {player.farm ? '▲ 콜업' : '▼ 2군으로'}
       </button>
-      <span className={`basis-full text-[10px] leading-snug ${pv.ok ? 'text-white/65' : 'text-bad'}`} data-testid="farm-preview">
-        {player.farm ? '콜업하면' : '2군으로 내리면'}: {pv.text}
+      <span className={`basis-full truncate text-[10px] leading-snug mob:text-[13px] ${pv.ok ? 'text-white/65' : 'text-bad'}`} data-testid="farm-preview">
+        {shortPv(pv.text)}
       </span>
     </>
   );
@@ -136,7 +145,7 @@ export function ReleaseButton({ player }: { player: Player; team?: Team }) {
       <button className="px-btn" data-testid="release-to-desk" title="이적 창구에 방출로 담는다 (확정 전까지 실제 선수단은 그대로)" onClick={() => openDesk({ add: [['release', player.id]] })}>
         방출 담기 ⤢
       </button>
-      <span className="text-[10px] text-white/50">위약금 {fmtMoney(cost)}</span>
+      <span className="text-[10px] text-white/50 mob:text-[13px]" data-testid="release-cost" title="방출 위약금">−{fmtMoney(cost)}</span>
     </>
   );
 }

@@ -108,6 +108,8 @@ interface DragState {
  * 오더 편집기: 고치기 전용 화면. 끌어서 놓거나(드래그), 두 번 눌러(탭-탭) 자리를 맞바꾼다.
  * 놓기 전에 각 칸에 전력 변화가 뜨고, 놓으면 바로 반영된다. 닫으면 확정.
  */
+const EMPTY_CLOSER = '__closer'; // 비어 있는 마무리 자리 (data-item)
+
 export default function LineupEditor({ top, action, chanceLabel, fixNote, focus }: { top?: ReactNode; action: ReactNode; chanceLabel: string | null; fixNote?: boolean; focus?: string | null }) {
   const team = useUserTeam();
   const core = useCore();
@@ -186,9 +188,24 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
     } else if (errOf(r)) setMsg(errOf(r));
     else setSel(pid); // 바꿀 것이 없는 사이면 선택만 옮긴다
   };
+  // 비어 있는 마무리 자리에 불펜(대기) 투수를 놓는다
+  const setCloser = (pid: string): boolean => {
+    const p = byId.get(pid);
+    if (team.closer || !p || p.kind !== 'P' || p.farm) return false;
+    if (team.rotation.includes(pid)) {
+      setMsg('선발 투수는 마무리 자리에 놓을 수 없습니다 — 불펜 투수를 고르세요');
+      return false;
+    }
+    const snap = snapOf(team);
+    push();
+    restoreLineup({ ...snap, bullpen: snap.bullpen.filter((id) => id !== pid), closer: pid });
+    setSel(null);
+    setMsg(null);
+    return true;
+  };
   // 포인터 리스너는 누를 때 한 번 걸리므로, 항상 최신 상태를 보게 한다
-  const live = useRef({ tap, tryEdit, view });
-  live.current = { tap, tryEdit, view };
+  const live = useRef({ tap, tryEdit, view, setCloser });
+  live.current = { tap, tryEdit, view, setCloser };
 
   const undo = () => {
     const last = hist[hist.length - 1];
@@ -284,6 +301,8 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
       const over = itemAt(ev.clientX, ev.clientY);
       if (over === pid) {
         if (!d.moved) live.current.tap(pid); // 길게 눌렀다 뗀 것은 탭
+      } else if (over === EMPTY_CLOSER) {
+        live.current.setCloser(pid);
       } else if (over) {
         setSel(null);
         live.current.tryEdit(pid, over, live.current.view === 'order');
@@ -402,7 +421,21 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
       </div>
       <div className="pb-1 pt-2 text-[13px] text-white/60">마무리 · 불펜</div>
       <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3" data-testid="editor-pen">
-        {arm(team.closer, '마무리', (p) => p.pos === 'SP')}
+        {team.closer ? (
+          arm(team.closer, '마무리', (p) => p.pos === 'SP')
+        ) : (
+          <button
+            type="button"
+            data-item={EMPTY_CLOSER}
+            data-testid="editor-closer-empty"
+            className="flex min-h-[50px] cursor-pointer flex-col items-start justify-center bg-ink/50 px-2 text-left text-[13px] leading-snug text-white/70"
+            style={{ boxShadow: sel && byId.get(sel)?.kind === 'P' ? '0 0 0 2px #6ee07a' : '0 0 0 2px #ff6b6b' }}
+            onClick={() => (sel ? setCloser(sel) : setMsg('불펜 투수를 먼저 고른 뒤 마무리 자리를 누르세요'))}
+          >
+            <span className="text-bad">마무리 비어 있음</span>
+            <span>불펜 투수를 놓으세요</span>
+          </button>
+        )}
         {team.bullpen.map((pid, i) => arm(pid, `불펜 ${i + 1}`, (p) => p.pos === 'SP'))}
         {spare.map((p) => arm(p.id, '대기', () => false))}
       </div>
@@ -506,7 +539,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
             </button>
           </div>
           {recOpen && (
-            <div className="px-scroll mt-1 flex max-h-[30dvh] flex-col gap-1 overflow-y-auto">
+            <div className="px-scroll mt-1 flex max-h-[30dvh] flex-col gap-1 overflow-y-auto mob:max-h-[calc(40dvh-52px)]">
               {recs.map((r) => {
                 const plan = planEdit(core, team, r.view, r.a, r.b);
                 return (

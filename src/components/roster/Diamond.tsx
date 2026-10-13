@@ -95,7 +95,6 @@ const DOT: Record<string, [number, number]> = {
 /** 선수단 탭 상단의 작은 다이아몬드. 탭하면 프런트 오피스(진단)가 전체 화면으로 열린다 */
 export function MiniDiamond({ rows, onOpen }: { rows: PosRow[]; onOpen: () => void }) {
   const flash = useRankFlash(rows);
-  const { weak, strong } = diagSummary(rows);
   const dot = (r: PosRow, style: CSSProperties) => {
     const f = flash.includes(r.key);
     return (
@@ -104,7 +103,7 @@ export function MiniDiamond({ rows, onOpen }: { rows: PosRow[]; onOpen: () => vo
         data-pos={r.key}
         data-flash={f || undefined}
         className={`absolute flex items-center justify-center text-[9px] leading-none text-ink ${f ? 'anim-blink' : ''}`}
-        style={{ width: 13, height: 13, background: f ? '#6ee07a' : TONE_BG[rankTone(r)], boxShadow: `0 0 0 ${r.weak ? 2 : 1}px ${r.weak ? '#fff' : '#0f1420'}`, ...style }}
+        style={{ width: 13, height: 13, background: f ? '#6ee07a' : TONE_BG[rankTone(r)], boxShadow: `0 0 0 ${r.weak ? 2 : 1}px ${r.weak ? '#ff6b6b' : '#0f1420'}`, ...style }}
       >
         {r.rank}
       </span>
@@ -126,16 +125,7 @@ export function MiniDiamond({ rows, onOpen }: { rows: PosRow[]; onOpen: () => vo
           ) : null;
         })}
       </span>
-      <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-[10px] leading-tight mob:text-[11px]">
-        <span className="truncate text-bad">
-          <span className="text-white/55">약점 </span>
-          {weak.length ? weak.map((r) => `${r.label} ${r.rank}위`).join(' · ') : '없음'}
-        </span>
-        <span className="truncate text-good">
-          <span className="text-white/55">강점 </span>
-          {strong.length ? strong.map((r) => `${r.label} ${r.rank}위`).join(' · ') : '없음'}
-        </span>
-      </span>
+      <span className="min-w-0 flex-1" />
       <span className="shrink-0 self-center bg-panel-2 px-1 py-1 text-center text-[10px] leading-tight text-hi mob:px-1.5 mob:text-[11px]">
         크게
         <br className="mob:hidden" /> 보기 ⤢
