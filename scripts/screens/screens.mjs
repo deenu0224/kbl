@@ -235,6 +235,7 @@ export const SCREENS = [
   S('play-highlight', 'season3', game(...PLAY, { wait: 1000 })),
   S('play-away', 'away', game(...PLAY, { wait: 1000 })),
   S('summary', 'season3', game(...SUMMARY)),
+  S('summary-box', 'season3', game(...SUMMARY, '자세히: 이닝별', { scroll: 'bottom' })),
   S('summary-more', 'season3', game(...SUMMARY, '자세히: 이닝별')),
   S('summary-opener', 'fresh', game('order-submit', { wait: 600 }, c('▶ 경기 진행', { optional: true }), { wait: 600 }, c('건너뛰기 ▶▶', { optional: true }), { wait: 500 })),
   S('week', 'opened', game('1주', { wait: 1500 })),

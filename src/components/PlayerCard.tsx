@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Player, Team } from '../game/types';
-import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
+import { fmtAvg, fmtIp, fmtEra, fmtMoney } from '../game/format';
 import { VALUE_FAIR, valueGap } from '../game/analysis';
 import { svcLeft } from '../game/contract';
 import { useStore } from '../store';
@@ -31,6 +31,21 @@ function Tag({ text, tone, help }: { text: string; tone: string; help?: HelpTopi
       <span className={tone}>{text}</span>
       {help && <Help topic={help} />}
     </span>
+  );
+}
+
+/** 시즌 기록 한 줄: 타자 "84경기 .312 12홈런 45타점 8도루", 투수 "24경기 3.45 8승 5패 2세 120.1이닝" */
+function StatLine({ label, p, bat: b, pit: t, testid, dim }: { label: string; p: Player; bat: Player['bat']; pit: Player['pit']; testid: string; dim?: boolean }) {
+  const none = p.kind === 'B' ? b.pa === 0 : t.outs === 0;
+  const cells: string[] =
+    p.kind === 'B'
+      ? [`${b.g}경기`, fmtAvg(b.h, b.ab), `${b.hr}홈런`, `${b.rbi}타점`, `${b.sb}도루`]
+      : [`${t.g}경기`, fmtEra(t.er, t.outs), `${t.w}승 ${t.l}패${t.sv ? ` ${t.sv}세` : ''}`, `${fmtIp(t.outs)}이닝`, `${t.so}삼진`];
+  return (
+    <div className={`flex items-center gap-2 leading-tight ${dim ? 'text-white/60' : 'text-white/90'}`} data-testid={testid}>
+      <span className="shrink-0 whitespace-nowrap text-white/55">{label}</span>
+      {none ? <span className="text-white/40">기록 없음</span> : <span className="flex min-w-0 flex-1 flex-wrap justify-between gap-x-2">{cells.map((c, i) => <span key={i} className="whitespace-nowrap">{c}</span>)}</span>}
+    </div>
   );
 }
 
@@ -122,12 +137,13 @@ export default function PlayerCard({
           <span className="text-white/60">
             연봉 <span className="text-white">{fmtMoney(p.salary)}</span>
           </span>
-          {!prospect && (
-            <span className="truncate text-white/80" data-testid="card-stat">
-              {p.kind === 'B' ? `${fmtAvg(b.h, b.ab)} · ${b.hr}홈런 · ${b.rbi}타점` : `ERA ${fmtEra(t.er, t.outs)} · ${t.w}승 ${t.l}패${t.sv ? ` ${t.sv}세` : ''}`}
-            </span>
-          )}
         </div>
+        {!prospect && (
+          <div className="flex flex-col gap-[2px] bg-ink/40 px-1.5 py-1" data-testid="card-stats">
+            <StatLine label="이번 시즌" p={p} bat={b} pit={t} testid="card-stat" />
+            {p.prev && <StatLine label="지난 시즌" p={p} bat={p.prev.bat} pit={p.prev.pit} testid="card-stat-prev" dim />}
+          </div>
+        )}
         <div className="flex flex-wrap gap-1 empty:hidden">
           {p.injury > 0 && <Tag text={p.ban ? `징계 ${p.ban}경기` : `부상 ${p.injury}경기`} tone="text-bad" />}
           {(p.tired ?? 0) > 0 && <Tag text={`연투 ${p.tired}일째`} tone="text-[#f0a35a]" help="fatigue" />}

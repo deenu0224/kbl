@@ -1,4 +1,4 @@
-import type { Core, Crowd, DayReport, FacilityKind, FarmStat, GameResult, Player, Team, Weather } from './types';
+import type { BatStats, BoxSide, PitStats, Core, Crowd, DayReport, FacilityKind, FarmStat, GameResult, Player, Team, Weather } from './types';
 import { clamp, gauss, randInt, pick, type Rng } from './rng';
 import { calcOvr, calcSalary, teamStrength } from './ratings';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
@@ -257,6 +257,30 @@ function userJetLag(core: Core, home: Team): boolean {
   return core.phase === 'season' && home.id === core.userId && jetLag(core, core.day);
 }
 
+function boxOf(team: Team, lineup: Team['lineup'], before: Map<string, { bat: BatStats; pit: PitStats }>, res: GameResult, side: 0 | 1): BoxSide {
+  const pos = new Map(lineup.map((l) => [l.pid, l.pos as string]));
+  const rank = new Map(lineup.map((l, i) => [l.pid, i]));
+  const bat: BoxSide['bat'] = [];
+  const pit: BoxSide['pit'] = [];
+  for (const p of team.roster) {
+    const b0 = before.get(p.id);
+    if (!b0) continue;
+    const pa = p.bat.pa - b0.bat.pa;
+    if (pa > 0 || rank.has(p.id)) {
+      const d = (k: keyof BatStats) => p.bat[k] - b0.bat[k];
+      bat.push({ pid: p.id, name: p.name, pos: pos.get(p.id) ?? '대타', ab: d('ab'), h: d('h'), hr: d('hr'), rbi: d('rbi'), bb: d('bb'), so: d('so'), r: d('r') });
+    }
+    if (p.pit.g - b0.pit.g > 0 || p.pit.outs - b0.pit.outs > 0) {
+      const d = (k: keyof PitStats) => p.pit[k] - b0.pit[k];
+      pit.push({ pid: p.id, name: p.name, outs: d('outs'), h: d('h'), er: d('er'), bb: d('bb'), so: d('so'), dec: res.winP === p.id ? 'W' : res.lossP === p.id ? 'L' : res.saveP === p.id ? 'S' : undefined });
+    }
+  }
+  bat.sort((a, b) => (rank.get(a.pid) ?? 99) - (rank.get(b.pid) ?? 99));
+  const starter = res.starters[side];
+  pit.sort((a, b) => Number(b.pid === starter) - Number(a.pid === starter));
+  return { bat, pit };
+}
+
 /**
  * 한 경기 시뮬 (정규시즌·포스트시즌 공용). core 가 있으면 유저 구단에 훈련장 부상 보정과
  * 이벤트 버프(집중력·고정 출전)를 적용한다. 팀/선수는 simulateGame 과 같이 mutate.
@@ -283,8 +307,12 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
       if (fx.rest.length) rest = new Set(fx.rest);
     }
   }
+  // 선수별 기록은 경기 전후의 시즌 누적을 빼서 만든다 (유저 경기만)
+  const before = track ? new Map([...away.roster, ...home.roster].map((p) => [p.id, { bat: { ...p.bat }, pit: { ...p.pit } }])) : null;
+  const order = track ? ([away, home].map((t) => t.lineup.map((l) => ({ ...l }))) as [Team['lineup'], Team['lineup']]) : null;
   const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId, rest, awayEdge, penStyle });
   restore?.();
+  if (before && order) res.box = [boxOf(away, order[0], before, res, 0), boxOf(home, order[1], before, res, 1)];
   return res;
 }
 
@@ -718,6 +746,8 @@ function develop(p: Player, rng: Rng, season: number): void {
   p.salary = marketSalary(p, season);
   p.star = clamp(Math.round(p.star * 0.75 + (baseStar(p.ovr) + 6) * 0.25), 0, 100);
   p.injury = 0;
+  // 뛴 기록이 있으면 지난 시즌 기록으로 옮겨 적는다 (선수 카드)
+  if (p.bat.pa > 0 || p.pit.outs > 0) p.prev = { season: season - 1, bat: p.bat, pit: p.pit };
   p.bat = batZero();
   p.pit = pitZero();
 }

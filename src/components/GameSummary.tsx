@@ -1,11 +1,12 @@
-import type { DayReport, Team } from '../game/types';
+import { useState } from 'react';
+import type { BoxSide, DayReport, GameResult, Team } from '../game/types';
 import { useIsMobile } from './layout/useLayout';
 import Fold from './Fold';
 import { findPlayer, useStore } from '../store';
-import { fmtInt, fmtMoney } from '../game/format';
+import { fmtInt, fmtIp, fmtMoney } from '../game/format';
 import { PART_LABEL } from './LeftPanel';
 import { chanceKey, useUi } from './layout/uiStore';
-import { Bar, MoneyBar, TeamDot, WEATHER_ICON, WEATHER_KO, dowOf } from './ui';
+import { Bar, MoneyBar, POS_KO, TeamDot, WEATHER_ICON, WEATHER_KO, dowOf } from './ui';
 
 /** 팀 색 점 + 구단 약칭. 우리 팀은 밝은 테두리 — 하이라이트 배너·경기 요약에서 "누구 팀 선수인지"를 붙인다 */
 export function TeamTag({ team, mine, size = 11 }: { team: Pick<Team, 'id' | 'color' | 'color2'> | undefined; mine: boolean; size?: number | string }) {
@@ -65,6 +66,95 @@ function CashNotes({ notes }: { notes: string[] }) {
       {hit.map((n, i) => (
         <div key={i}>⚠ {n}</div>
       ))}
+    </div>
+  );
+}
+
+/** 선수별 기록: 우리 팀이 먼저 보이고, 탭으로 상대 팀을 본다 */
+function BoxScore({ box, errs, away, home, userId }: { box: [BoxSide, BoxSide]; errs?: GameResult['errs']; away?: Team; home?: Team; userId: string }) {
+  const mineSide = home?.id === userId ? 1 : 0;
+  const [side, setSide] = useState<0 | 1>(mineSide);
+  const b = box[side];
+  const th = 'w-[2.7em] whitespace-nowrap font-normal';
+  const num = (v: number, hot = false) => <td className={v ? (hot ? 'text-hi' : '') : 'text-white/35'}>{v}</td>;
+  return (
+    <div className="mt-2 bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="box-score">
+      <div className="flex gap-1 pb-1">
+        {([mineSide, 1 - mineSide] as (0 | 1)[]).map((sd) => {
+          const t = sd === 0 ? away : home;
+          return (
+            <button key={sd} className={`flex min-h-9 flex-1 cursor-pointer items-center justify-center gap-1 text-[12px] mob:text-[13px] ${side === sd ? 'bg-panel text-hi' : 'bg-panel-2/60 text-white/60'}`} data-testid={`box-side-${sd === mineSide ? 'mine' : 'opp'}`} onClick={() => setSide(sd)}>
+              <TeamDot team={t} />
+              {t?.name} 기록
+            </button>
+          );
+        })}
+      </div>
+      <table className="w-full border-collapse text-center text-[12px] mob:text-[13px]">
+        <thead>
+          <tr className="text-[10px] text-white/45">
+            <th className="text-left font-normal">타자</th>
+            <th className={th}>타수</th>
+            <th className={th}>안타</th>
+            <th className={th}>홈런</th>
+            <th className={th}>타점</th>
+            <th className={th}>볼넷</th>
+            <th className={th}>삼진</th>
+          </tr>
+        </thead>
+        <tbody>
+          {b.bat.map((x, i) => (
+            <tr key={x.pid} className={i % 2 ? 'bg-white/4' : ''} data-testid="box-bat">
+              <td className="text-left">
+                <span className="flex items-center gap-1 whitespace-nowrap">
+                  <span className="w-[2.2em] shrink-0 text-[10px] text-white/45">{POS_KO[x.pos as keyof typeof POS_KO] ?? x.pos}</span>
+                  {x.name}
+                </span>
+              </td>
+              {num(x.ab)}
+              {num(x.h, true)}
+              {num(x.hr, true)}
+              {num(x.rbi, true)}
+              {num(x.bb)}
+              {num(x.so)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {errs && (
+        <div className={`px-0.5 pt-1 text-left text-[12px] mob:text-[13px] ${errs[side].length ? 'text-bad' : 'text-white/45'}`} data-testid="box-errs">
+          실책 {errs[side].length ? errs[side].map((e) => `${e.name}(${POS_KO[e.pos as keyof typeof POS_KO] ?? e.pos})`).join(', ') : '없음'}
+        </div>
+      )}
+      <table className="mt-1.5 w-full border-collapse text-center text-[12px] mob:text-[13px]">
+        <thead>
+          <tr className="text-[10px] text-white/45">
+            <th className="text-left font-normal">투수</th>
+            <th className="w-[2.6em] font-normal">이닝</th>
+            <th className={th}>안타</th>
+            <th className={th}>자책</th>
+            <th className={th}>볼넷</th>
+            <th className={th}>삼진</th>
+          </tr>
+        </thead>
+        <tbody>
+          {b.pit.map((x, i) => (
+            <tr key={x.pid} className={i % 2 ? 'bg-white/4' : ''} data-testid="box-pit">
+              <td className="text-left">
+                <span className="flex items-center gap-1 whitespace-nowrap">
+                  {x.name}
+                  {x.dec && <span className={`px-1 text-[10px] text-ink ${x.dec === 'W' ? 'bg-good' : x.dec === 'L' ? 'bg-bad' : 'bg-sky'}`}>{x.dec === 'W' ? '승' : x.dec === 'L' ? '패' : '세'}</span>}
+                </span>
+              </td>
+              <td>{fmtIp(x.outs)}</td>
+              {num(x.h)}
+              {num(x.er)}
+              {num(x.bb)}
+              {num(x.so, true)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -167,7 +257,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
         </div>
       )}
 
-      <Fold label="자세히: 이닝별 득점 · 투수 · 관중 · 정산" className="mt-2" testid="fold-summary">
+      <Fold label="자세히: 이닝별 득점 · 선수 기록 · 관중 · 정산" className="mt-2" testid="fold-summary">
       {/* 라인스코어 */}
       <div className="mt-2 shrink-0 overflow-x-auto bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
         <table className="w-full border-collapse text-center text-[12px]">
@@ -181,6 +271,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
               ))}
               <th className="w-7 font-normal text-hi">R</th>
               <th className="w-7 font-normal">H</th>
+              {res.errs && <th className="w-7 font-normal">E</th>}
             </tr>
           </thead>
           <tbody>
@@ -205,12 +296,15 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
                   })}
                   <td className="font-pixel-lg text-[14px] text-hi">{total}</td>
                   <td>{res.hits[side]}</td>
+                  {res.errs && <td className={res.errs[side].length ? 'text-bad' : 'text-white/45'}>{res.errs[side].length}</td>}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {res.box && <BoxScore box={res.box} errs={res.errs} away={away} home={home} userId={userId} />}
 
       {edit && edits.length > 0 && (
         <div className="mt-1.5 bg-ink/70 px-1.5 py-1 text-[11px]" style={{ boxShadow: 'inset 2px 0 0 #6ee07a' }} data-testid="order-edit">

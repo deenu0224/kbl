@@ -158,6 +158,7 @@ interface Side {
   hits: number;
   line: number[];
   lines: Map<string, BLine>;
+  errors: { pid: string; name: string; pos: BatPos }[]; // 이 팀 야수가 저지른 실책
 }
 interface Cand {
   ev: GameEvent;
@@ -263,7 +264,7 @@ function makeSide(t: Team, isHome: boolean, rest: Set<string> | undefined, style
   const side: Side = {
     team: t, isHome, order, idx: 0,
     cur: undefined as unknown as PState,
-    used: [], pen, closer, style, core: new Set(pen.slice(0, SIM.TRUST_CORE).map((p) => p.id)), def, misfit, cDef, runs: 0, hits: 0, line: [], lines: new Map(),
+    used: [], pen, closer, style, core: new Set(pen.slice(0, SIM.TRUST_CORE).map((p) => p.id)), def, misfit, cDef, runs: 0, hits: 0, line: [], lines: new Map(), errors: [],
   };
   for (const s of order) {
     s.p.bat.g++;
@@ -531,6 +532,15 @@ export function simulateGame(
         kind = 'roe';
         SIM_TALLY.roe++;
         errs++;
+        {
+          // 누구의 실책인지: 그 자리 수비가 낮을수록 걸리기 쉽다. 난수를 더 뽑지 않고 경기 상황으로 고른다 (결과 재현성 유지)
+          const fs = fld.order.filter((x) => x.pos !== 'DH');
+          const ws = fs.map((x) => Math.max(10, 110 - effDef(x.p, x.pos)));
+          const sum = ws.reduce((a, w) => a + w, 0);
+          let u = (((fld.runs * 31 + fld.hits * 17 + outs * 7 + fld.errors.length * 101 + b.con * 13 + b.spd * 5) % 97) / 97) * sum;
+          const f = fs.find((_, i) => (u -= ws[i]) < 0) ?? fs[0];
+          if (f) fld.errors.push({ pid: f.p.id, name: f.p.name, pos: f.pos });
+        }
         if (outs + errs >= 3) ueRest = true;
         const [r1, r2, r3] = bases;
         if (r3) plate({ ...r3, ue: true }, false);
@@ -678,6 +688,7 @@ export function simulateGame(
     innings,
     line: [A.line, H.line],
     hits: [A.hits, H.hits],
+    errs: [A.errors, H.errors],
     events: [],
     starters: [A.used[0].p.id, H.used[0].p.id],
     injuries: [],

@@ -239,7 +239,8 @@ console.log(
     let n = 0;
     while (c.phase === 'season') {
       c = maybeDrawEvent(c, rng);
-      if (c.campaign.event) {
+      // 부상 대체 카드는 같은 날 여러 장이 이어질 수 있다
+      while (c.campaign.event) {
         if (c.campaign.event.id.startsWith('f-')) (cards++, n++);
         c = resolveEvent(c, c.campaign.event.choices.length - 1, rng).core;
       }
