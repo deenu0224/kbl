@@ -44,6 +44,85 @@ const F = FARM_N;
 
 export const farmAutoOn = (core: Pick<Core, 'campaign'>): boolean => core.campaign.farmAuto !== false;
 
+// ── 부상 대체 선택 (subpick.ts): 카드로 물을 부상자의 대기열. 여기 있는 동안에는 자동 말소·자동 콜업을 미룬다 ──
+export const subAutoOn = (core: Pick<Core, 'campaign'>): boolean => core.campaign.subAuto === true;
+export const subQueue = (core: Core): string[] => (memoGet(core, 'subq') ?? '').split(',').filter(Boolean);
+export const subQueueSet = (core: Core, ids: string[]): void => memoSet(core, 'subq', ids.join(','));
+export const subSlotKey = (id: string) => `subslot-${id}`;
+export type SubRole = { k: 'L'; i: number; pos: BatPos } | { k: 'R' | 'B'; i: number } | { k: 'C' };
+
+/** 카드를 띄울 자리: 타순 9명 · 선발 로테이션 · 마무리 · 필승조(불펜 상위 2명) */
+export function subRole(t: Team, p: Player): SubRole | null {
+  const li = t.lineup.findIndex((s) => s.pid === p.id);
+  if (li >= 0) return { k: 'L', i: li, pos: t.lineup[li].pos };
+  const ri = t.rotation.indexOf(p.id);
+  if (ri >= 0) return { k: 'R', i: ri };
+  if (t.closer === p.id) return { k: 'C' };
+  const bi = t.bullpen.indexOf(p.id);
+  return bi >= 0 && bi < 2 ? { k: 'B', i: bi } : null;
+}
+
+/** 오늘 다친 주전을 대기열에 올린다 (advanceDay, mutate). "감독에게 맡기기"면 올리지 않는다 */
+export function subEnqueueMut(core: Core, pids: string[]): void {
+  if (subAutoOn(core) || core.phase !== 'season' || core.day >= core.schedule.length) return;
+  const t = userTeam(core);
+  const add = pids.filter((id) => {
+    const p = t.roster.find((x) => x.id === id);
+    return !!p && !p.farm && p.injury > 0 && !p.ban && !!subRole(t, p);
+  });
+  if (add.length) subQueueSet(core, [...new Set([...subQueue(core), ...add])]);
+}
+
+/** 부상자가 돌아왔다: 대체 선수가 맡던 칸을 원래 주인에게 돌려준다 (mutate). 유저가 그 사이 편성을 바꿨으면 건드리지 않는다 */
+function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player): void {
+  const v = memoGet(core, subSlotKey(orig.id));
+  if (!v) return;
+  memoSet(core, subSlotKey(orig.id), '');
+  const [k, , pos, mover, mpos] = v.split('~');
+  if (orig.farm || orig.injury > 0) return;
+  if (k === 'L') {
+    const s = t.lineup.find((x) => x.pid === sub.id);
+    if (!s || t.lineup.some((x) => x.pid === orig.id)) return;
+    s.pid = orig.id;
+    const ms = mover ? t.lineup.find((x) => x.pid === mover) : undefined;
+    if (ms && ms.pos === pos && s.pos === mpos) [ms.pos, s.pos] = [s.pos, ms.pos];
+  } else if (k === 'R') {
+    const i = t.rotation.indexOf(sub.id);
+    if (i < 0 || t.rotation.includes(orig.id)) return;
+    t.bullpen = t.bullpen.filter((id) => id !== orig.id);
+    if (t.closer === orig.id) t.closer = null;
+    t.rotation[i] = orig.id;
+    t.bullpen.push(sub.id);
+  } else if (k === 'C') {
+    if (t.closer !== sub.id || t.rotation.includes(orig.id)) return;
+    t.bullpen = t.bullpen.filter((id) => id !== orig.id);
+    t.closer = orig.id;
+    t.bullpen.unshift(sub.id);
+  } else {
+    const i = t.bullpen.indexOf(sub.id);
+    if (i < 0 || i >= 2 || t.rotation.includes(orig.id) || t.closer === orig.id) return;
+    t.bullpen = t.bullpen.filter((id) => id !== orig.id && id !== sub.id);
+    t.bullpen.splice(i, 0, orig.id);
+    t.bullpen.splice(Math.min(2, t.bullpen.length), 0, sub.id);
+  }
+  fixLineup(t);
+}
+
+/** 카드에서 고른 1군 벤치·불펜 대체 선수: 부상자가 돌아오면 원래 자리(벤치·불펜)로 (mutate. 자동 운영과 무관) */
+function subBackMut(core: Core, notes: string[]): void {
+  const t = userTeam(core);
+  for (const p of t.roster.filter((x) => x.subFor && x.subFrom === 'bench')) {
+    const orig = t.roster.find((x) => x.id === p.subFor);
+    if (!p.farm && orig && (orig.injury > 0 || orig.farm)) continue;
+    if (orig && !p.farm) {
+      restoreSlotMut(core, t, orig, p);
+      say(core, notes, `${orig.name} 복귀 — ${p.name}은(는) ${p.kind === 'B' ? '벤치' : '불펜'}로`, 'good');
+    }
+    delete p.subFor;
+    delete p.subFrom;
+  }
+}
+
 /** 2군 자동 운영 켜기/끄기 */
 export function setFarmAuto(core0: Core, on: boolean): Core {
   if (farmAutoOn(core0) === on) return core0;
@@ -71,6 +150,7 @@ export function starterFor(t: Team, k: Player): Player | undefined {
 }
 
 /** 1군이 가득일 때 대신 내려갈 선수: 같은 종류의 가장 약한 벤치(타자)·추격조(투수). 부상자·부상 대체 선수는 제외 */
+export const subBenchOut = (t: Team, kind: 'B' | 'P', keep: string[] = []): Player | null => benchOut(t, kind, keep);
 function benchOut(t: Team, kind: 'B' | 'P', keep: string[] = []): Player | null {
   const used = keySet(t);
   return activeRoster(t).filter((p) => p.kind === kind && !used.has(p.id) && !keep.includes(p.id) && p.injury === 0 && !p.subFor).sort((a, b) => a.ovr - b.ovr || b.age - a.age)[0] ?? null;
@@ -135,6 +215,7 @@ function demoteMut(core: Core, t: Team, p: Player, lock: boolean): void {
   delete p.il;
   delete p.tired;
   delete p.subFor;
+  delete p.subFrom;
   if (lock) p.farmUntil = core.day + FARM_LOCK;
   else delete p.farmUntil;
   fixLineup(t);
@@ -168,6 +249,7 @@ function enlistMut(core: Core, p: Player, notes: string[]): void {
   delete p.farmStat;
   delete p.tired;
   delete p.subFor;
+  delete p.subFrom;
   delete p.armyDue;
   unshiftPosMut(p);
   p.injury = 0;
@@ -260,7 +342,7 @@ export function farmCutMut(core: Core): Player | null {
   if (!p) return null;
   const t = userTeam(core);
   t.roster = t.roster.filter((x) => x.id !== p.id);
-  for (const k of ['since', 'svc', 'ask', 'tired', 'farm', 'farmUntil', 'farmStat', 'subFor', 'armyDue'] as const) delete p[k];
+  for (const k of ['since', 'svc', 'ask', 'tired', 'farm', 'farmUntil', 'farmStat', 'subFor', 'subFrom', 'armyDue'] as const) delete p[k];
   unshiftPosMut(p);
   core.freeAgents.push(p);
   addNews(core, `${FARM_COACH}지명 자리를 위해 ${p.name}(${p.age}세 · 오버롤 ${p.ovr}) 방출`, 'info');
@@ -296,6 +378,7 @@ function depthEmpty(t: Team, inj: Player): boolean {
 }
 
 /** 부상자 자리에 올릴 2군 선수: 같은 포지션의 최고, 없으면 그 자리에 가장 맞는 선수 */
+export const subFarmPick = (core: Core, t: Team, inj: Player): Player | undefined => subPick(core, t, inj);
 function subPick(core: Core, t: Team, inj: Player): Player | undefined {
   const pool = farmRoster(t).filter((p) => p.kind === inj.kind && p.injury === 0 && lockLeft(core, p) === 0);
   const same = pool.filter((p) => p.pos === inj.pos).sort((a, b) => b.ovr - a.ovr);
@@ -382,13 +465,16 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     memoAdd(core, PEN_OVER_SUM);
   }
   else if (memoNum(core, PEN_OVER_KEY) > 0) memoAdd(core, PEN_OVER_KEY, -1);
-  if (!farmAutoOn(core)) return;
+  if (!farmAutoOn(core)) {
+    subBackMut(core, notes);
+    return;
+  }
   shuttleMut(core, notes);
 
   // ── 재활을 마친 선수는 1군으로 (대체 선수가 맹활약 중이면 둘 다 1군에 두고 사건 B3 로 넘긴다) ──
   const pend = pending(core);
   for (const p of rehabReady(core)) {
-    const sub = t.roster.find((x) => x.subFor === p.id && !x.farm);
+    const sub = t.roster.find((x) => x.subFor === p.id && !x.farm && x.subFrom !== 'bench');
     let tail = '';
     if (activeRoster(t).length >= ROSTER_MAX) {
       const room = farmRoster(t).length < farmMax(core);
@@ -406,9 +492,11 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     say(core, notes, `${FARM_COACH}${p.name} 복귀${tail}`, 'good');
   }
 
+  subBackMut(core, notes);
+
   // ── 부상자가 돌아오면 대체 선수는 2군으로 (맹활약 중이면 사건 B3 로 넘긴다) ──
   let askedNow = false;
-  for (const p of t.roster.filter((x) => x.subFor && !x.farm)) {
+  for (const p of t.roster.filter((x) => x.subFor && !x.farm && x.subFrom !== 'bench')) {
     const orig = t.roster.find((x) => x.id === p.subFor);
     if (orig && (orig.injury > 0 || (orig.farm && orig.il))) continue; // 아직 결장 중이거나 재활 명단에서 복귀를 기다린다
     if (p.injury > 0) continue; // 다친 대체 선수는 나은 뒤에 내린다
@@ -419,6 +507,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
       continue;
     }
     if (asked && pend!.day === core.day) continue;
+    if (orig) restoreSlotMut(core, t, orig, p);
     if (farmRoster(t).length >= farmMax(core)) {
       delete p.subFor;
       continue;
@@ -428,10 +517,17 @@ export function farmDailyMut(core: Core, notes: string[]): void {
   }
 
   ilAutoMut(core, notes);
+  subGapMut(core, notes);
+  benchKidsMut(core, notes);
+}
 
-  // ── 부상 공백에 콜업 (명단에 올리지 않는 짧은 부상: 뎁스가 빌 때만) ──
+/** 부상 공백에 콜업 (명단에 올리지 않는 짧은 부상: 뎁스가 빌 때만). 카드로 물을 부상자는 건너뛴다 */
+export function subGapMut(core: Core, notes: string[]): void {
+  if (!farmAutoOn(core)) return;
+  const t = userTeam(core);
+  const q = subQueue(core);
   for (const inj of activeRoster(t).filter((p) => p.injury >= F.subInjury)) {
-    if (t.roster.some((p) => p.subFor === inj.id) || !depthEmpty(t, inj)) continue;
+    if (q.includes(inj.id) || t.roster.some((p) => p.subFor === inj.id) || !depthEmpty(t, inj)) continue;
     const k = subPick(core, t, inj);
     if (!k) continue;
     let tail = '';
@@ -448,7 +544,17 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     fixLineup(t);
     say(core, notes, `${FARM_COACH}${inj.name} 부상(${inj.injury}경기) 공백에 ${k.name}(${posKo(k.pos)} 오버롤 ${k.ovr}) 콜업${tail}`);
   }
-  benchKidsMut(core, notes);
+}
+
+/** 부상자 명단으로 옮긴다 (mutate. 편성 정리는 부르는 쪽이) */
+export function ilMoveMut(core: Core, inj: Player): void {
+  inj.farm = true;
+  inj.il = true;
+  inj.farmUntil = core.day + Math.max(IL_MIN, inj.injury);
+  delete inj.tired;
+  delete inj.subFor;
+  delete inj.subFrom;
+  memoAdd(core, 'ilOut');
 }
 
 /**
@@ -458,7 +564,9 @@ export function farmDailyMut(core: Core, notes: string[]): void {
 export function ilAutoMut(core: Core, notes: string[]): void {
   if (!farmAutoOn(core)) return;
   const t = userTeam(core);
+  const q = subQueue(core);
   for (const inj of activeRoster(t).filter((p) => p.injury >= (p.ban ? IL_AUTO_BAN : IL_AUTO))) {
+    if (q.includes(inj.id)) continue; // 대체 선수를 고른 뒤에 옮긴다 (subpick.ts)
     const has = t.roster.find((p) => p.subFor === inj.id && !p.farm);
     const k = has ? undefined : subPick(core, t, inj);
     const min = inj.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS;
@@ -466,11 +574,7 @@ export function ilAutoMut(core: Core, notes: string[]): void {
     if (!k && activeRoster(t).filter((p) => p.kind === inj.kind).length - 1 < min) continue;
     const slotPos = t.lineup.find((s) => s.pid === inj.id)?.pos;
     const games = inj.injury;
-    inj.farm = true;
-    inj.il = true;
-    inj.farmUntil = core.day + Math.max(IL_MIN, games);
-    delete inj.tired;
-    delete inj.subFor;
+    ilMoveMut(core, inj);
     if (k) {
       markUpMut(core, k);
       delete k.farm;
@@ -481,7 +585,6 @@ export function ilAutoMut(core: Core, notes: string[]): void {
       if (slot && !activeRoster(t).some((x) => x.kind === 'B' && x.injury === 0 && !t.lineup.some((s) => s.pid === x.id) && slotValue(x, slot.pos) > slotValue(k, slot.pos))) slot.pid = k.id;
     }
     fixLineup(t);
-    memoAdd(core, 'ilOut');
     say(core, notes, `${FARM_COACH}${inj.name} ${inj.ban ? '징계 말소' : '부상자 명단'}(${games}경기)${k ? ` — ${k.name} 콜업` : has ? '' : ' — 올릴 2군 선수 없음'}`);
   }
 

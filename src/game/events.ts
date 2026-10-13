@@ -21,6 +21,7 @@ import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story'
 import { batLeaders, era, ops, pitLeaders } from './leaders';
 import { isFranchise } from './franchise';
 import { drawFarmEvent, farmCardDef } from './farm';
+import { drawSubCard, resolveSubCard } from './subpick';
 import { positionReport } from './analysis';
 import { SCANDAL_CARDS } from './scandal';
 import { TRADE_ID, drawTrade, resolveTradeMut } from './trade';
@@ -976,6 +977,10 @@ const all = () => (ALL ??= ((cs: CardDef[]) => ({ def: new Map(cs.map((d) => [d.
 /** 매 경기 후: 조건이 맞는 카드 중 우선순위가 가장 높은 1장을 campaign.event 에 둔다. 해당 없으면 원본 반환. */
 export function maybeDrawEvent(core0: Core, rng: Rng): Core {
   if (core0.phase !== 'season' || core0.campaign.event || core0.day >= core0.schedule.length) return core0;
+  // 주전 부상: 대체 선수를 고르는 카드가 먼저다 (예산·간격과 무관. subpick.ts)
+  const sub = drawSubCard(core0);
+  if (sub.campaign.event) return sub;
+  core0 = sub;
   const sale = drawDebtSale(core0);
   if (sale) return sale;
   const seen = new Set(seenCards(core0));
@@ -1010,10 +1015,11 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   const core = structuredClone(core0);
   const cd = core.campaign.event!;
   core.campaign.event = null;
-  const result = def ? def.resolve(core, choiceIdx, cd, rng) : '이벤트가 지나갔습니다';
+  const result = baseId(cd.id) === 'sub' ? resolveSubCard(core, choiceIdx, cd) : def ? def.resolve(core, choiceIdx, cd, rng) : '이벤트가 지나갔습니다';
   core.fans = Math.max(1000, Math.round(core.fans));
   addNews(core, `${cd.icon} ${cd.title}: ${result}`, 'info');
-  return { core, result };
+  // 같은 날 다친 주전이 더 있으면 다음 카드로
+  return { core: drawSubCard(core), result };
 }
 
 /** 혹사 기간의 경기당 추가 부상 확률: 기본 판정(등판한 날)의 (N.armRisk − 1)배를 기간 내내 고르게 건다 */

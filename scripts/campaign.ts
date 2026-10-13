@@ -550,6 +550,7 @@ for (const bot of BOTS) {
   const byCard = FARM_CARDS.map((d) => `${d.id} ${per(sum((r) => r.cards[d.id] ?? 0))}`).join(' · ');
   const farmCards = sum((r) => FARM_CARDS.reduce((a, d) => a + (r.cards[d.id] ?? 0), 0));
   console.log(`${bot.name.padEnd(9)} 2군 사건 ${per(farmCards)}장 [${byCard}]`);
+  console.log(`          부상 대체 카드 ${per(sum((r) => r.cards.sub ?? 0))}장/시즌`);
   console.log(`          자동: 부상 대체 콜업 ${per(sum((r) => r.farm.up))} · 대체 선수 복귀 ${per(sum((r) => r.farm.back))} · 벤치 유망주 2군행 ${per(sum((r) => r.farm.down))} · 지명 직전 방출 ${per(sum((r) => r.farm.cut))} | 입대 ${sum((r) => r.farm.army)}명 · 전역 복귀 ${sum((r) => r.farm.armyBack)}명 (${seasons}시즌)`);
 }
 const names: Record<string, number> = {};

@@ -10,7 +10,7 @@ import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { closeBriefing, drawBriefing } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
-import { farmAutoOn, setFarmAuto } from '../src/game/farm';
+import { farmAutoOn, setFarmAuto, subQueue } from '../src/game/farm';
 import { memoGet } from '../src/game/memo';
 import { BOTS, type Bot } from './bots';
 
@@ -101,7 +101,7 @@ function track(c: Core): void {
   // 자동 운영: 장기 부상자가 1군에 남아 있으면 이유가 있어야 한다 (올릴 선수가 없어 최소 인원이 깨지는 경우뿐)
   if (farmAutoOn(c) && c.phase === 'season') {
     for (const p of activeRoster(t)) {
-      if (p.ban || p.injury < IL_AUTO) continue;
+      if (p.ban || p.injury < IL_AUTO || subQueue(c).includes(p.id)) continue; // 대체 선택 카드가 대기 중이면 고른 뒤에 옮긴다
       const same = activeRoster(t).filter((x) => x.kind === p.kind).length;
       if (same - 1 >= (p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS)) bad.push(`seed${curSeed} s${c.season} d${c.day}: ${p.name} 부상 ${p.injury}경기인데 1군에 남음`);
     }
@@ -138,6 +138,14 @@ function run(bot: Bot, seed: number, auto: boolean): void {
         const card = c.campaign.event;
         const id = card.id.split('|')[0];
         let i = bot.event(c, card);
+        if (id === 'sub') {
+          // 부상 대체 카드: 홀수 시드는 선택지를 돌아가며 골라 모든 경로(벤치·재배치·콜업·감독)를 밟는다
+          if (seed % 2 === 1) i = turn++ % card.choices.length;
+          const sv = (seen.sub ??= []);
+          sv[i] = (sv[i] ?? 0) + 1;
+          subCards++;
+          if (!card.who || !card.line || card.choices.some((ch) => !ch.desc || !ch.detail)) bad.push(`${card.id}: 인물·대사·상세 누락`);
+        }
         if (id.startsWith('f-') && bot.name === 'sensible') {
           // 2군 사건은 두 선택지를 번갈아 고른다
           i = turn++ % 2;
@@ -181,6 +189,7 @@ function run(bot: Bot, seed: number, auto: boolean): void {
   }
 }
 
+let subCards = 0;
 const ONLY = process.argv[4];
 for (const bot of BOTS) if (!ONLY || bot.name === ONLY) for (let seed = 1; seed <= N_SEEDS; seed++) run(bot, seed, true);
 const autoStat = { seasons, games, ilOut, ilBack, ilDays, waitDays };
@@ -191,6 +200,7 @@ console.log(`\n2군 불변식 점검: 봇 ${BOTS.length}종 × ${N_SEEDS} 시드
 console.log(`자동 운영 ${autoStat.seasons}시즌: 시즌당 자동 말소 ${(autoStat.ilOut / autoStat.seasons).toFixed(2)}회 · 복귀 ${(autoStat.ilBack / autoStat.seasons).toFixed(2)}회 · 비워 준 1군 자리 ${(autoStat.ilDays / autoStat.seasons).toFixed(1)}명·경기/시즌 · 복귀 대기 ${autoStat.waitDays}명·경기`);
 console.log(`자동 운영 끔 ${seasons - autoStat.seasons}시즌: 직접 말소 ${ilOut - autoStat.ilOut}회 · 복귀 ${ilBack - autoStat.ilBack}회`);
 console.log(`참고: 징계 중인 1군 선수가 편성 칸에 남아 있던 경기 ${banInOrder} (20경기 미만 징계 — 경기마다 벤치가 대신 출전)`);
+console.log(`부상 대체 카드: 시즌당 ${(subCards / seasons).toFixed(2)}장 (선택지별 ${(seen.sub ?? []).map((v) => v ?? 0).join('/')})`);
 console.log(`사건별 선택 [첫째, 둘째]: ${Object.entries(seen).map(([k, v]) => `${k} ${v.join('/')}`).join(' · ')}`);
 console.log(`원정 응원단 awaySupport: 팬 5천 ${awaySupport({ fans: 5000 })} · 1만 ${awaySupport({ fans: 10000 }).toFixed(3)} · 2만 ${awaySupport({ fans: 20000 }).toFixed(3)} · 3만 ${awaySupport({ fans: 30000 })} · 5만 ${awaySupport({ fans: 50000 })}`);
 if (bad.length) {

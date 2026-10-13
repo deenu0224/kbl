@@ -12,6 +12,7 @@ import { autoBatting, autoPitching, slotValue } from '../src/game/lineup';
 import { bullpenLoad } from '../src/game/fixes';
 import { shuttleArms } from '../src/game/farm';
 import { autoPenStyle } from '../src/game/sim';
+import { subBestIdx } from '../src/game/subpick';
 import { buyEthics, ethicsCost, scandalOpen } from '../src/game/scandal';
 import { parseOffer, toggleBlock, tradeOpen, tradePreview, tradeValue } from '../src/game/trade';
 
@@ -318,6 +319,8 @@ function bestProspect(c: Core, score: (p: Player) => number): string | null {
 
 // ───────── 2군 사건 (farm.ts) ─────────
 // 모든 봇은 2군 자동 운영을 켠 채로 돈다 (campaign.farmAuto 기본값).
+/** 부상 대체 카드: 봇은 감독에게 맡긴다(마지막 선택지). sensible 만 전력 손실이 가장 작은 쪽 */
+export const isSubCard = (card: EventCard) => baseId(card) === 'sub';
 export const isFarmCard = (card: EventCard) => baseId(card).startsWith('f-');
 
 /** sensible: 올린다 · 기다린다 · OVR 높은 쪽 · 주전이 아니면 지금 보낸다 · 전향 · 내린다 · 현금 여유 있으면 맡긴다 */
@@ -381,7 +384,7 @@ export const passive: Bot = {
   preseason: (c) => c,
   daily: (c) => c,
   // 감독·팀장이 하자는 대로(첫 선택지), 그 외에는 아무것도 하지 않는 쪽(마지막)
-  event: (_c, card) => (isFarmCard(card) ? farmFirst(card) : baseId(card) === 'debtsale' ? 0 : firstEnabled(card, ['veteran', 'dope', 'fix'].includes(baseId(card)) ? [0] : baseId(card) === 'trade' ? [1] : [card.choices.length - 1])),
+  event: (_c, card) => (isSubCard(card) ? card.choices.length - 1 : isFarmCard(card) ? farmFirst(card) : baseId(card) === 'debtsale' ? 0 : firstEnabled(card, ['veteran', 'dope', 'fix'].includes(baseId(card)) ? [0] : baseId(card) === 'trade' ? [1] : [card.choices.length - 1])),
   beforeDraft: (c) => c,
   draft: () => null,
 };
@@ -443,6 +446,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
       const id = baseId(card);
       // 부채 한도 초과 매각: sensible 은 가성비가 가장 나쁜 선수(후보의 마지막), 나머지는 첫 선택지
       if (id === 'debtsale') return name === 'sensible' ? Math.max(0, card.choices.length - 2) : 0;
+      if (isSubCard(card)) return name === 'sensible' ? subBestIdx(c, card) : card.choices.length - 1;
       if (isFarmCard(card)) return name === 'sensible' ? farmSensible(c, card) : farmFirst(card);
       const v = verbs(c);
       // 목표 상향 약속은 실패하면 지지를 크게 잃는다 — 지지에 여유가 있을 때만 건다
@@ -503,7 +507,7 @@ export const greedy: Bot = {
   },
   daily: (c) => (c.day === 42 ? doLineup(greedySign(c), true) : c.day % 12 === 0 ? doLineup(c, true) : c),
   // 스캔들은 덮는다 · 선수 말을 믿는다
-  event: (c, card) => (isFarmCard(card) ? farmFirst(card, true) : baseId(card) === 'debtsale' ? card.choices.length - 1 : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : baseId(card) === 'trade' ? ((tradeLook(c, card)?.wins ?? 0) > 0 ? [0, 1] : [1]) : [0])),
+  event: (c, card) => (isSubCard(card) ? card.choices.length - 1 : isFarmCard(card) ? farmFirst(card, true) : baseId(card) === 'debtsale' ? card.choices.length - 1 : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : baseId(card) === 'trade' ? ((tradeLook(c, card)?.wins ?? 0) > 0 ? [0, 1] : [1]) : [0])),
   beforeDraft: (c) => trimRoster(buyProjects(c, ['camp', 'dome'], false), 25),
   draft: (c) => bestProspect(c, (p) => p.ovr),
 };

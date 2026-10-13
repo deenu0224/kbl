@@ -261,7 +261,7 @@ function removeMut(core: Core, p: Player, toFa: boolean): void {
     }
   }
   if (toFa) {
-    for (const k of ['since', 'svc', 'ask', 'lever', 'tired', 'farm', 'il', 'farmUntil', 'farmStat', 'subFor', 'armyDue', 'ban'] as const) delete p[k];
+    for (const k of ['since', 'svc', 'ask', 'lever', 'tired', 'farm', 'il', 'farmUntil', 'farmStat', 'subFor', 'subFrom', 'armyDue', 'ban'] as const) delete p[k];
     p.injury = 0;
     core.freeAgents.push(p);
   }
