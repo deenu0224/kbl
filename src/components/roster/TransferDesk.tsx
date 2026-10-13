@@ -13,6 +13,7 @@ import { POS_FULL } from '../ui';
 import { CardPop, FullScreen } from './RosterList';
 import PlayerBrowser from './PlayerBrowser';
 import Help from '../Help';
+import { CHARACTERS } from '../../game/story';
 import { PART_KO } from './labels';
 import { usePosReport } from './rosterUi';
 import { useTransferUi } from './transferUi';
@@ -161,6 +162,11 @@ function Desk() {
       <div className={`shrink-0 px-1.5 py-1 text-[11px] mob:text-[13px] ${heatN > 0 ? 'bg-[#4a3a2a] text-[#f0a35a]' : 'bg-ink/40 text-white/55'}`} data-testid="fa-heat">
         {heatN > 0 ? '🔥 ' : ''}{heatLine}
         <Help topic="faheat" className="ml-1" />
+        {heatN > 0 && (
+          <div className="text-white/60" data-testid="fa-heat-say">
+            {CHARACTERS.scout.name} {CHARACTERS.scout.title}: “시장이 달아올랐습니다. 에이전트들이 제주가 급하다는 걸 압니다.”
+          </div>
+        )}
       </div>
     )}
     <PlayerBrowser key={`m${nonce}`} mode="market" players={freeAgents} rows={rows} sel={card} onPick={(p) => setCard(p.id)} initPos={pos} band={band} rowAction={(p) => <AddChip kind="sign" pid={p.id} />} />
