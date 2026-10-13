@@ -3,7 +3,7 @@ import { clamp, gauss, randInt, pick, type Rng } from './rng';
 import { calcOvr, calcSalary, teamStrength } from './ratings';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
 import { buildSchedule } from './schedule';
-import { simulateGame } from './sim';
+import { simulateGame, type PenStyle } from './sim';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
@@ -276,7 +276,9 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
   let restore: (() => void) | null = null;
   let rest: Set<string> | undefined;
   const awayEdge: Record<string, number> = {};
+  let penStyle: Record<string, PenStyle> | undefined;
   if (core) {
+    penStyle = { [core.userId]: core.campaign?.penStyle ?? 'balance' };
     if (away.id === core.userId) awayEdge[core.userId] = awaySupport(core); // 원정 응원단
     injMult[core.userId] = TRAIN_LV[core.facilities.training].inj;
     const ut = home.id === core.userId ? home : away.id === core.userId ? away : null;
@@ -291,7 +293,7 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
       if (fx.rest.length) rest = new Set(fx.rest);
     }
   }
-  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId, rest, awayEdge });
+  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId, rest, awayEdge, penStyle });
   restore?.();
   return res;
 }

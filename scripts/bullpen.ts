@@ -9,8 +9,12 @@ import { autoLineup } from '../src/game/lineup';
 import { userTeam } from '../src/game/economy';
 import { shiftOvr } from '../src/game/draft';
 import { calcSalary } from '../src/game/ratings';
+import { PEN_STYLES, type PenStyle } from '../src/game/sim';
 
 const N_SEEDS = Number(process.argv[2]) || 16;
+const X_SEEDS = Number(process.argv[3]) || 48; // 방침 교차표의 시드 수 (차이가 보일 만큼)
+const SP_SHIFT = 6; // 교차표의 선발진 강함/약함: 로테이션 전원 OVR ±
+const STYLE_KO: Record<PenStyle, string> = { trust: '믿음', balance: '균형', swarm: '벌떼' };
 const ADD_OVR = 57; // 불펜 인원 실험에서 더하는 팔: 저가 FA 급 구원
 
 interface Tally {
@@ -53,11 +57,16 @@ function setPen(core: Core, n: number, seed: number): void {
 }
 
 /** 한 시즌을 무개입(사건 카드 없이)으로 돌리며 팀별 집계. pen = 유저 팀 불펜 인원 강제 (없으면 생성 그대로) */
-function season(seed: number, pen?: number): { league: Tally; user: Tally; wins: number; losses: number; penN: number } {
+function season(seed: number, pen?: number, style?: PenStyle, spShift = 0): { league: Tally; user: Tally; wins: number; losses: number; penN: number } {
   const rng = mulberry32(seed * 7919 + 13);
   let c = ensureObjectives(newCore(seed), rng);
   autoLineup(userTeam(c)); // 개막 오더만 고친다
   if (pen !== undefined) setPen(c, pen, seed);
+  if (spShift) {
+    const t = userTeam(c);
+    for (const p of t.roster) if (t.rotation.includes(p.id)) shiftOvr(p, p.ovr + spShift);
+  }
+  if (style) c = { ...c, campaign: { ...c.campaign, penStyle: style } };
   const penN = penArms(userTeam(c)).length;
   const league = zero();
   const user = zero();
@@ -160,4 +169,27 @@ for (const n of [5, 6, 7, 8]) {
     l += r.losses;
   }
   console.log(`${line(`불펜 ${n}명`, T)} | 승률 ${(w / (w + l)).toFixed(3)} (${(w / N_SEEDS).toFixed(1)}승)`);
+}
+
+console.log(`\n=== 방침 교차표 × ${X_SEEDS} 시드: 유저 팀 평균 승수 (84경기 · 같은 시드 · 선발진 = 로테이션 전원 OVR ±${SP_SHIFT}) · 괄호는 균형 대비 ===`);
+console.log(`${'선발진'.padEnd(6)}${'불펜'.padEnd(6)}${PEN_STYLES.map((st) => STYLE_KO[st].padEnd(16)).join('')}경기당 구원(믿/균/벌) · 선발 이닝 · 쉰 불펜 0명`);
+for (const [label, shift] of [['강함', SP_SHIFT], ['약함', -SP_SHIFT]] as const) {
+  for (const n of [5, 6, 7, 8]) {
+    const rows = PEN_STYLES.map((st) => {
+      const T = zero();
+      let w = 0;
+      for (let seed = 1; seed <= X_SEEDS; seed++) {
+        const r = season(seed, n, st, shift);
+        add(T, r.user);
+        w += r.wins;
+      }
+      return { T, w: w / X_SEEDS };
+    });
+    const base = rows[PEN_STYLES.indexOf('balance')].w;
+    const cell = (r: { w: number }, st: PenStyle) => (st === 'balance' ? `${r.w.toFixed(1)}승` : `${r.w.toFixed(1)}승 (${r.w - base >= 0 ? '+' : ''}${(r.w - base).toFixed(1)})`).padEnd(16);
+    console.log(
+      `${label.padEnd(6)}${`${n}명`.padEnd(6)}${rows.map((r, i) => cell(r, PEN_STYLES[i])).join('')}` +
+        `${rows.map((r) => (r.T.relApps / r.T.teamGames).toFixed(1)).join('/')} · ${rows.map((r) => (r.T.spOuts / Math.max(1, r.T.spStarts) / 3).toFixed(1)).join('/')} · ${rows.map((r) => pct(r.T.overDays / r.T.teamGames)).join('/')}`,
+    );
+  }
 }

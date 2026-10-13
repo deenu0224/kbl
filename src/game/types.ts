@@ -385,6 +385,7 @@ export interface Campaign {
   briefMemo?: BriefMemo; // 주간 브리핑의 기억: 지난주 수치 · 실행한 제안 · 넘긴 제안
   resignQueue?: string[]; // 스토브리그 재계약 대기열: FA 자격을 얻은 선수 id (contract.ts drawResign 이 채우고 카드로 하나씩 처리)
   farmAuto?: boolean; // 2군 자동 운영 (undefined = 켜짐). farm.ts
+  penStyle?: 'trust' | 'balance' | 'swarm'; // 불펜 운영 방침 (undefined = 균형). sim.ts
   away?: Player[]; // 팀을 떠나 있는 선수 (입대). 각 선수의 away.until 시즌 개막에 돌아온다
   posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)
 }
