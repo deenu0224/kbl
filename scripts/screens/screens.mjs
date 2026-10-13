@@ -88,6 +88,8 @@ export const SCREENS = [
   S('new-farm-arms', 'fresh', game('squad-view-arms', 'squad-farm-toggle')),
   // 불펜 방침 스위치
   S('pen-style', 'farm', game(...SQUAD, 'squad-view-arms')),
+  S('help-pen', 'farm', game(...SQUAD, 'squad-view-arms', 'css:[data-testid="squad-arms"] button[aria-label$="설명"]')),
+  S('help-ovr-card', 'farm', game(...SQUAD, 'css:[data-testid="squad-bench"] [data-item]', 'css:[role="dialog"] button[aria-label$="설명"]')),
   S('pen-style-swarm', 'farm', game(...SQUAD, 'squad-view-arms', 'pen-style-swarm', { wait: 400 })),
 
   // ── 홈
@@ -151,6 +153,7 @@ export const SCREENS = [
   S('market-list', 'season3', game(...MARKET)),
   S('market-table', 'season3', game(...MARKET, 'view-toggle')),
   S('desk', 'season3', game(...DESK)),
+  S('desk-fa-card', 'season3', game(...DESK, 'css:[data-testid="browser-market"] [data-testid="player-list"] > * button')),
   S('desk-table', 'season3', game(...DESK, 'view-toggle')),
   S('desk-added', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }))),
   S('desk-summary', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), m('sum-toggle'))),

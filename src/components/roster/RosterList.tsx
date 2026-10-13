@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import VsStarter from './VsStarter';
 import { createPortal } from 'react-dom';
 import type { Player } from '../../game/types';
 import { salaryReport, type PosKey } from '../../game/analysis';
@@ -61,7 +62,7 @@ export function CardPop({ player, onClose, children, extra }: { player: Player; 
   const mine = team.roster.some((p) => p.id === player.id);
   return (
     <Dialog onClose={onClose} label="선수 카드" width={420}>
-      <PlayerCard player={player} team={mine ? team : undefined} extra={extra}>
+      <PlayerCard player={player} team={mine ? team : undefined} extra={extra ?? (mine ? undefined : <VsStarter team={team} player={player} />)}>
         {children}
       </PlayerCard>
     </Dialog>
