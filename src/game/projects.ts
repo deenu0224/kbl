@@ -190,10 +190,10 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
       const n = s.give ?? 0;
       const fx = n < GIVE_FX_MAX;
       pv = {
-        ...base, name: '도민 환원', icon: '🍊', done: false, cost: GIVE_COST, step: `누적 ${fmtMoney(n * GIVE_COST)}`,
+        ...base, name: '도민 환원', icon: '🍊', done: false, cost: GIVE_COST, step: `${n}회`,
         line: '조합원 배당 · 전당에 기록',
         rows: ['감귤 조합원 배당·지역 기부', fx ? `도민 지지 +1 · 팬 만족 +1 (효과는 누적 ${GIVE_FX_MAX}회까지 · 지금 ${n}회)` : `지지·만족 효과는 다 받았습니다 (${GIVE_FX_MAX}회) — 기록만 쌓입니다`, `명예의 전당: 도민 환원 누적 ${fmtMoney(n * GIVE_COST)} → ${fmtMoney((n + 1) * GIVE_COST)}`, `왕조 장의 별: 누적 ${fmtMoney(GIVE_STAR)}`],
-        status: `누적 ${fmtMoney(n * GIVE_COST)}`,
+        status: n ? `누적 ${fmtMoney(n * GIVE_COST)}` : '10억 단위',
       };
       break;
     }
@@ -277,7 +277,7 @@ export function projectSeasonOpenMut(core: Core): void {
 export function projectVerdictLine(core: P): string | null {
   const s = st(core);
   if (!projectsOpen(core)) return null;
-  if (s.open === core.season) return `조합장: "${PROJECT_OPEN_LINE}" — 왕조 프로젝트가 열렸습니다 (구단 탭)`;
+  if (s.open === core.season) return `조합장: "${PROJECT_OPEN_LINE}" — 왕조 프로젝트가 열렸습니다`;
   if ((s.dome ?? 0) >= 3 && s.domeAt === core.season) return `${DOME_DONE_LINE} — 다음 시즌 개막에 문을 엽니다`;
   return null;
 }

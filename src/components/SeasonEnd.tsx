@@ -1,4 +1,6 @@
-import { projectVerdictLine } from '../game/projects';
+import { projectVerdictLine, projectsOpen } from '../game/projects';
+import Sheet from './layout/Sheet';
+import { ProjectsSection } from './RightPanel';
 import { exposureLines } from '../game/scandal';
 import { CHARACTERS, SCANDAL_NEWS } from '../game/story';
 import Fold from './Fold';
@@ -161,6 +163,7 @@ function SeasonEndBody() {
   const stoveCards = useStore((s) => s.stoveCards);
   const newGame = () => useUi.getState().setScreen('title');
   const [armNew, setArmNew] = useState(false);
+  const [projOpen, setProjOpen] = useState(false);
   const [endingSeen, setEndingSeen] = useState(false);
 
   const awards = useMemo(() => seasonAwards(core), [core]);
@@ -226,10 +229,21 @@ function SeasonEndBody() {
             <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} (리그 상위 3구단 평균의 120%)</span>
           </div>
         )}
-        {projectVerdictLine(core) && (
-          <div className="mt-3 bg-hi/10 px-2 py-1.5 text-[12px] leading-snug text-hi mob:text-[13px]" data-testid="project-line">
-            {projectVerdictLine(core)}
+        {/* 왕조 프로젝트: 스토브리그에는 이 화면에서만 열 수 있다 (전지훈련·돔 다음 단계) */}
+        {projectsOpen(core) && (
+          <div className="mt-3 flex items-center gap-2 bg-hi/10 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="project-line">
+            <span className="min-w-0 flex-1 text-hi">{projectVerdictLine(core) ?? '왕조 프로젝트 — 스토브리그에 진행할 수 있습니다'}</span>
+            <button className="px-btn gold shrink-0 whitespace-nowrap" data-testid="stove-projects" onClick={() => setProjOpen(true)}>
+              프로젝트
+            </button>
           </div>
+        )}
+        {projOpen && (
+          <Sheet onClose={() => setProjOpen(false)} label="왕조 프로젝트">
+            <div className="px-3 pb-4">
+              <ProjectsSection />
+            </div>
+          </Sheet>
         )}
         {/* 덮은 일이 드러났다: 무슨 일 · 잃은 것 */}
         {v?.exposures?.map((ex, i) => {

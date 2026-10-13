@@ -150,6 +150,7 @@ export const SCREENS = [
   S('club-projects', 'dome2', game(...CLUB, '구장', { scroll: 'bottom' })),
   S('club-project-detail', 'dome2', game(...CLUB, '구장', { scroll: 'bottom' }, c('우리 돔구장 상세'))),
   S('club-project-give', 'dome3', game(...CLUB, '구장', { scroll: 'bottom' }, c('도민 환원 상세'))),
+  S('ended-projects', 'ending', game('계속', c('stove-projects'))),
   S('home-dome1', 'dome1', game()),
   S('home-dome2', 'dome2', game()),
   S('home-dome3', 'dome3', game()),
