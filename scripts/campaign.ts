@@ -17,7 +17,7 @@ import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { closeBriefing, drawBriefing, runOffer } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
-import { BOTS, baseId, offVerb, passive, sensible, type Bot } from './bots';
+import { BOTS, baseId, firstEnabled, offVerb, passive, sensible, type Bot } from './bots';
 import { FARM_CARDS, FARM_COACH } from '../src/game/farm';
 import { fmtMoney } from '../src/game/format';
 
@@ -56,6 +56,7 @@ interface Run {
   drafted: number;
   retired: number;
   crash: string | null;
+  scandal: { dope: number; fix: number; covered: number; exposed: number; ethics: number };
   // 2군 자동 운영이 한 일 · 입대/전역
   farm: { up: number; back: number; down: number; cut: number; army: number; armyBack: number };
 }
@@ -92,8 +93,8 @@ process.on('exit', () => {
 });
 
 /** 한 시즌(정규 + 포스트시즌)을 끝까지. 결산이 끝난 Core 를 돌려준다 */
-function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
-  let c = bot.preseason(c0);
+function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run, mid = false): Core {
+  let c = mid ? c0 : bot.preseason(c0);
   let guard = 0;
   const q = QUIET[BRIEF_MODE];
   const offered: { t: string; d: 1 | -1; day: number }[] = [];
@@ -104,7 +105,14 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
     if (c.campaign.event) {
       const card = c.campaign.event;
       const a0 = awayN(c);
+      const scn = baseId(card) === 'dope' || baseId(card) === 'fix';
+      if (run && scn && bot === sensible && FORK_REPS > 0) forkScandal(c, baseId(card));
+      const s0 = c.campaign.secrets?.length ?? 0;
       const r = resolveEvent(c, bot.event(c, card), rng);
+      if (run && scn) {
+        run.scandal[baseId(card) as 'dope' | 'fix']++;
+        run.scandal.covered += Math.max(0, (r.core.campaign.secrets?.length ?? 0) - s0);
+      }
       if (r.error) throw new Error(`이벤트 해소 실패: ${card.id} ${r.error}`);
       c = r.core;
       if (run) run.farm.army += Math.max(0, awayN(c) - a0);
@@ -165,12 +173,61 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run): Core {
   return c;
 }
 
+/** 시즌 사이: 재계약 → 정리 → 드래프트 → 새 시즌 */
+function offseason(bot: Bot, c0: Core, rng: Rng): Core {
+  let c = drawResign(c0);
+  while (c.campaign.event) c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
+  c = bot.beforeDraft(c);
+  const d = beginDraft(c, rng);
+  if (d.error) throw new Error(`드래프트 시작 실패: ${d.error}`);
+  c = d.core;
+  for (let g = 0; !isDraftDone(c) && g < 10; g++) {
+    const pid = bot.draft(c);
+    const r = pid ? draftPick(c, pid, rng) : draftSkip(c, rng);
+    c = r.error ? draftSkip(c, rng).core : r.core;
+  }
+  return nextSeason(c, rng);
+}
+
+// 스캔들 분기: sensible 이 스캔들 카드를 만난 그 상태에서, 신고(첫 선택지)하는 봇과 덮는(둘째 선택지) 봇으로 갈라
+// 그 시즌과 이후 FORK_AFTER 시즌을 따로 돌려 승수와 도민 지지를 비교한다 (같은 난수 시드, FORK_REPS 번)
+const FORK_REPS = process.argv[5] !== undefined ? Number(process.argv[5]) : 2;
+const FORK_AFTER = 3;
+const coverBot: Bot = { ...sensible, event: (c, card) => (baseId(card) === 'dope' || baseId(card) === 'fix' ? firstEnabled(card, [1]) : sensible.event(c, card)) };
+interface ForkRow { kind: string; w0: number; trust0: number; wAfter: number; trustEnd: number; exposed: number; over: boolean }
+const FORK: { report: ForkRow[]; cover: ForkRow[] } = { report: [], cover: [] };
+let FORK_N = 0;
+function forkScandal(c0: Core, kind: string): void {
+  FORK_N++;
+  for (let k = 0; k < FORK_REPS; k++) {
+    for (const [key, bot] of [['report', sensible], ['cover', coverBot]] as const) {
+      const rng = mulberry32(c0.seed * 15485863 + c0.season * 7919 + c0.day * 131 + k * 17);
+      const x0 = c0.campaign.exposed ?? 0;
+      try {
+        let c = playSeason(bot, c0, rng, undefined, true);
+        const h0 = c.campaign.history[c.campaign.history.length - 1];
+        const row: ForkRow = { kind, w0: h0.w, trust0: c.campaign.trust, wAfter: 0, trustEnd: c.campaign.trust, exposed: 0, over: c.phase === 'over' };
+        for (let s = 0; s < FORK_AFTER && c.phase === 'ended'; s++) {
+          c = playSeason(bot, offseason(bot, c, rng), rng);
+          row.wAfter += c.campaign.history[c.campaign.history.length - 1].w;
+          row.trustEnd = c.campaign.trust;
+          row.over = c.phase === 'over';
+        }
+        row.exposed = (c.campaign.exposed ?? 0) - x0;
+        FORK[key].push(row);
+      } catch {
+        /* 분기 런의 실패는 본 검증에 넣지 않는다 */
+      }
+    }
+  }
+}
+
 // A/B 분기: sensible 이 도달한 각 시즌의 출발 상태에서, 그 한 시즌만 sensible / off-verb 로 따로 돌려 깃발 달성을 비교한다
 const AB: { stage: number; a: boolean; b: boolean }[] = [];
 
 function runOne(bot: Bot, seed: number): Run {
   const rng: Rng = mulberry32(seed * 7919 + 101);
-  const run: Run = { reach: [null, null, null, null, null, null], champ: null, over: null, forcedSale: false, snaps: [], stars: [], events: 0, cards: {}, postGames: 0, drafted: 0, retired: 0, crash: null, farm: { up: 0, back: 0, down: 0, cut: 0, army: 0, armyBack: 0 } };
+  const run: Run = { reach: [null, null, null, null, null, null], champ: null, over: null, forcedSale: false, snaps: [], stars: [], events: 0, cards: {}, postGames: 0, drafted: 0, retired: 0, crash: null, scandal: { dope: 0, fix: 0, covered: 0, exposed: 0, ethics: 0 }, farm: { up: 0, back: 0, down: 0, cut: 0, army: 0, armyBack: 0 } };
   let c = ensureObjectives(newCore(seed), rng);
   try {
     for (let s = 1; s <= N_SEASONS; s++) {
@@ -202,6 +259,8 @@ function runOne(bot: Bot, seed: number): Run {
       if (run.champ === null && c.campaign.titles > 0) run.champ = s;
       run.stars = c.campaign.achievements.slice();
       run.retired = c.campaign.retired?.length ?? 0;
+      run.scandal.exposed = c.campaign.exposed ?? 0;
+      run.scandal.ethics = c.campaign.ethics ?? 0;
       if (c.phase === 'over') {
         run.over = s;
         break;
@@ -362,6 +421,46 @@ for (const bot of BOTS) {
   );
   console.log(`          카드별: ${Object.entries(cards).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
 }
+console.log('\n── 카드별 시즌당 횟수 ──');
+{
+  const ids = new Set<string>();
+  for (const bot of BOTS) for (const r of all[bot.name]) for (const k of Object.keys(r.cards)) ids.add(k);
+  console.log('카드'.padEnd(10) + ' | ' + BOTS.map((b) => b.name.padStart(8)).join(' | '));
+  for (const id of [...ids].sort()) {
+    const cells = BOTS.map((b) => {
+      const runs = all[b.name];
+      const seasons = Math.max(1, runs.reduce((a, r) => a + r.snaps.length, 0));
+      return (runs.reduce((a, r) => a + (r.cards[id] ?? 0), 0) / seasons).toFixed(2).padStart(8);
+    });
+    console.log(`${id.padEnd(10)} | ${cells.join(' | ')}`);
+  }
+}
+
+console.log('\n── 후반 스캔들 (플레이당 평균 · 목표: 끝까지 간 플레이에서 2~3회) ──');
+for (const bot of BOTS) {
+  const runs = all[bot.name];
+  const m = (f: (r: Run) => number, rs = runs) => (rs.length ? (rs.reduce((a, r) => a + f(r), 0) / rs.length).toFixed(2) : '—');
+  const full = runs.filter((r) => r.over === null);
+  console.log(
+    `${bot.name.padEnd(9)} 발생 ${m((r) => r.scandal.dope + r.scandal.fix)}회 (약물 ${m((r) => r.scandal.dope)} · 승부조작 ${m((r) => r.scandal.fix)}) · 덮은 일 ${m((r) => r.scandal.covered)}건 · 적발 ${m((r) => r.scandal.exposed)}건 · 윤리 교육 ${m((r) => r.scandal.ethics)}단계 | 끝까지 간 ${full.length}런: 발생 ${m((r) => r.scandal.dope + r.scandal.fix, full)}회`,
+  );
+}
+if (FORK.report.length) {
+  const avg = (rows: ForkRow[], f: (r: ForkRow) => number) => (rows.length ? rows.reduce((a, r) => a + f(r), 0) / rows.length : NaN);
+  console.log(`스캔들 분기 (sensible 이 만난 카드 ${FORK_N}장 × ${FORK_REPS}회, 같은 상태에서 신고 vs 덮기 · 이후 ${FORK_AFTER}시즌)`);
+  for (const [key, label] of [['report', '신고·협조'], ['cover', '덮기·믿기 ']] as const) {
+    const rows = FORK[key];
+    console.log(
+      `  ${label}: 그 시즌 ${avg(rows, (r) => r.w0).toFixed(1)}승 · 그 시즌 결산 뒤 지지 ${avg(rows, (r) => r.trust0).toFixed(1)} · 이후 ${FORK_AFTER}시즌 ${avg(rows, (r) => r.wAfter).toFixed(1)}승 · ${FORK_AFTER}시즌 뒤 지지 ${avg(rows, (r) => r.trustEnd).toFixed(1)} · 적발 ${avg(rows, (r) => r.exposed).toFixed(2)}건 · 연고 이전 ${rows.filter((r) => r.over).length}/${rows.length}`,
+    );
+  }
+  for (const kind of ['dope', 'fix']) {
+    const a = FORK.report.filter((r) => r.kind === kind);
+    const b = FORK.cover.filter((r) => r.kind === kind);
+    if (a.length && b.length) console.log(`  ${kind}: 덮기 − 신고 = 그 시즌 ${(avg(b, (r) => r.w0) - avg(a, (r) => r.w0)).toFixed(2)}승 · 이후 ${FORK_AFTER}시즌 ${(avg(b, (r) => r.wAfter) - avg(a, (r) => r.wAfter)).toFixed(2)}승 · ${FORK_AFTER}시즌 뒤 지지 ${(avg(b, (r) => r.trustEnd) - avg(a, (r) => r.trustEnd)).toFixed(1)} (n=${a.length})`);
+  }
+}
+
 console.log('\n── 2군 자동 운영과 2군 사건 (시즌당) ──');
 for (const bot of BOTS) {
   const runs = all[bot.name];

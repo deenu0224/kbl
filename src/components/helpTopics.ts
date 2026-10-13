@@ -5,6 +5,7 @@ import { RUNWAY_DANGER, RUNWAY_SHOW } from '../game/runway';
 import { VALUE_FAIR } from '../game/analysis';
 import { fmtMoney } from '../game/format';
 import { SIM } from '../game/sim';
+import { SC } from '../game/scandal';
 
 export type HelpTopic =
   | 'ovr'
@@ -20,9 +21,30 @@ export type HelpTopic =
   | 'service'
   | 'value'
   | 'posRank'
-  | 'demand';
+  | 'demand'
+  | 'ethics'
+  | 'secrets';
 
 export const HELP: Record<HelpTopic, { title: string; lines: string[] }> = {
+  ethics: {
+    title: '선수단 윤리 교육',
+    lines: [
+      '상위권 구단에는 금지 약물과 승부조작의 유혹이 찾아옵니다.',
+      `교육을 한 단계 받을 때마다 그런 일이 생길 확률이 ×${SC.ethicsMult}가 됩니다.`,
+      `시즌에 한 번, 최대 ${SC.ethicsMax}단계까지 받을 수 있습니다.`,
+      `비용은 연봉 총액의 ${SC.ethicsRate * 100}%입니다 (최소 ${fmtMoney(SC.ethicsMin)}).`,
+      '시장가보다 크게 싼 연봉으로 뛰는 선수가 많을수록 확률이 오릅니다.',
+    ],
+  },
+  secrets: {
+    title: '말하지 않은 일',
+    lines: [
+      '덮은 일은 매 시즌 드러날 수 있습니다.',
+      `결산 때마다 판정합니다: 덮은 그 시즌 ${Math.round(SC.detect0 * 100)}%, 해마다 +${Math.round(SC.detectStep * 100)}%p, 상한 ${Math.round(SC.detectMax * 100)}%.`,
+      `드러나면 도민 지지가 크게 내려가고(약물 ${SC.trust.dope}, 승부조작 ${SC.trust.fix}) 그 시즌의 별을 잃습니다.`,
+      `승부조작이면 ${SC.forfeit}승 몰수와 벌금이 더해집니다.`,
+    ],
+  },
   ovr: { title: '종합 능력(오버롤)', lines: ['선수의 능력치를 하나로 합친 숫자입니다.', '50이 리그 평균입니다.', '표의 열 머리를 누르면 그 값으로 정렬됩니다.'] },
   potential: { title: '잠재력', lines: ['이 선수가 자랄 수 있는 종합 능력의 상한입니다.', '잠재력이 지금 능력보다 6 이상 높으면 초록색으로 보입니다.', `2군에서는 종합 능력 ${FARM_CAP}까지만 자랍니다.`] },
   strength: { title: '팀 전력', lines: ['지금 오더로 계산한 타선·수비·선발·불펜 점수입니다.', '오더를 바꾸면 바로 변합니다.', '부상자가 주전에 있으면 그만큼 내려갑니다.'] },

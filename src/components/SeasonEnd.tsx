@@ -1,3 +1,5 @@
+import { exposureLines } from '../game/scandal';
+import { CHARACTERS, SCANDAL_NEWS } from '../game/story';
 import Fold from './Fold';
 import { useUi } from './layout/uiStore';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -211,6 +213,20 @@ function SeasonEndBody() {
             {grade}
           </div>
         </div>
+
+        {/* 덮은 일이 드러났다: 무슨 일 · 잃은 것 */}
+        {v?.exposures?.map((ex, i) => {
+          const l = exposureLines(ex);
+          return (
+            <div key={i} className="mt-3 bg-bad/20 px-2 py-2 text-[13px] leading-snug" style={{ boxShadow: '0 0 0 1px #ff6b6b' }} data-testid="exposed">
+              <div className="text-bad">{l.what}</div>
+              <div className="mt-0.5 text-white/85">{l.lost.join(' · ')}</div>
+              <div className="mt-1 text-white/60">
+                {CHARACTERS.chair.name} {CHARACTERS.chair.title} — “{SCANDAL_NEWS.chairExposed}”
+              </div>
+            </div>
+          );
+        })}
 
         {/* 깃발 → 별 → 도민 지지 → 시즌 이름 */}
         <div className="mt-3 grid grid-cols-2 gap-3 por:grid-cols-1">

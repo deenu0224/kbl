@@ -20,6 +20,7 @@ import { isFranchise } from './franchise';
 import { afterRegularSeasonMut, playPostDayMut } from './postseason';
 import { isDraftDone } from './draft';
 import { cutGoodsMut, FOREIGN_MAX } from './events';
+import { scandalTickMut } from './scandal';
 import { svcSalary, svcYearAt } from './contract';
 import { farmDailyMut, growBonus, markUpMut, seasonTurnFarmMut } from './farm';
 
@@ -35,6 +36,8 @@ const SAT_BASE = 45;
 const SAT_CONVERGE = 0.15;
 const NOISE_SD = 0.06;
 export const WEEK = 6;
+export const ALUMNI_STAR = 60; // 이 스타성 이상으로 35세 넘어 은퇴한 유저 팀 선수는 인스트럭터 후보
+export const ALUMNI_AGE = 35;
 export const TRAIN_MAX_AGE = 28;
 export const DECLINE_AGE = 33;
 export const DECLINE_RATE = 0.06;
@@ -366,8 +369,10 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     for (const p of t.roster) {
       if (!injuredBefore.has(p.id)) continue;
       p.injury = Math.max(0, p.injury - 1);
+      const banned = !!p.ban;
+      if (p.ban && (p.ban = Math.min(p.ban - 1, p.injury)) <= 0) delete p.ban;
       if (p.injury === 0 && t.id === core.userId) {
-        const msg = `부상 복귀: ${p.name}`;
+        const msg = banned ? `징계 해제: ${p.name}` : `부상 복귀: ${p.name}`;
         notes.push(msg);
         addNews(core, msg, 'good');
       }
@@ -477,6 +482,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   }
   if (core.phase === 'season') farmDailyMut(core, notes); // 2군 코치의 하루
   if (core.phase === 'season') scriptTickMut(core, rng);
+  if (core.phase === 'season') scandalTickMut(core, rng);
   if (core.phase === 'season' || core.phase === 'post') refreshProgressMut(core);
   core.cashHistory.push(f.cash);
 
@@ -557,6 +563,11 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   delete p.farmStat;
   delete p.subFor;
   delete p.armyDue;
+  delete p.lever;
+  if (p.ban) {
+    delete p.ban;
+    p.injury = 0;
+  }
   if (p.posShift) {
     p.def = clamp(p.def + p.posShift.pen, 20, 99);
     delete p.posShift;
@@ -773,7 +784,10 @@ export function nextSeason(core0: Core, rng: Rng): Core {
         delete p.posShift;
       }
       const franchise = t.id === core.userId && isFranchise(p, endedSeason);
+      const alumnus = t.id === core.userId && p.star >= ALUMNI_STAR && p.age >= ALUMNI_AGE - 1;
+      const ban = p.ban;
       develop(p, rng, core.season);
+      if (ban) p.injury = ban; // 징계는 시즌을 넘겨 이월된다
       if (t.id === core.userId) {
         // 보유 기간 안의 드래프트 출신은 시장가의 일부만 받는다. FA 자격을 얻고도 재계약 카드를 거치지 않았으면 시장가로 자동 재계약
         const yr = AUDIT.svc ? svcYearAt(p, core.season) : null;
@@ -787,6 +801,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       // 은퇴 → 같은 포지션 신인으로 충원. 프랜차이즈 스타는 영구결번
       if (t.id === core.userId) {
         retired.push(p.name);
+        if (alumnus) core.campaign.alumni = [...(core.campaign.alumni ?? []).slice(-4), { name: p.name, season: endedSeason, pos: p.pos }];
         if (franchise) {
           core.campaign.retired = [...(core.campaign.retired ?? []), { name: p.name, season: endedSeason, pos: p.pos }];
           addNews(core, NEWS.retiredNumber(p.name), 'good');

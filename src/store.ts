@@ -21,6 +21,7 @@ import { autoLineup, fixLineup, managerLineup } from './game/lineup';
 import { ensureObjectives, fillObjectivesMut, stopReason } from './game/campaign';
 import { CHARACTERS, OVER_LABEL } from './game/story';
 import { maybeDrawEvent, resolveEvent as resolveEventFn } from './game/events';
+import { buyEthics as buyEthicsFn } from './game/scandal';
 import { closeBriefing, drawBriefing, refreshBriefing, runOffer, skipOffer } from './game/briefing';
 import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
 import { postMatch } from './game/postseason';
@@ -59,6 +60,7 @@ export interface Store extends Core {
   upgrade(kind: FacilityKind): void;
   setPrice(v: number): void;
   borrow(): void;
+  buyEthics(): void; // 선수단 윤리 교육 (scandal.ts)
   repay(): void;
   swapLineup(i: number, j: number): void;
   substitute(slot: number, benchPid: string): void;
@@ -305,6 +307,10 @@ export const useStore = create<Store>()(
         borrow() {
           if (locked()) return;
           applyResult(borrowLoan(pickCore(get())), '대출 실행');
+        },
+        buyEthics() {
+          if (locked()) return;
+          applyResult(buyEthicsFn(pickCore(get())), '윤리 교육 실시');
         },
         repay() {
           if (locked()) return;

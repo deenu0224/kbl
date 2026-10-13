@@ -6,7 +6,7 @@ import type { BatPos, Buff, CharId, Core, EventCard, Player } from './types';
 import { clamp, pick, randInt, type Rng } from './rng';
 import { calcOvr } from './ratings';
 import { fixLineup, slotNewcomer, slotValue } from './lineup';
-import { PEN_OVER_GAMES, PEN_OVER_KEY } from './fixes';
+import { PEN_OVER_KEY, PEN_OVER_SUM } from './fixes';
 import { ROSTER_MAX, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { addNews } from './season';
@@ -14,11 +14,13 @@ import { flagForecast, flagOnTrack, hintMut, MID_FAIL_TRUST, MID_UP_FAIL_TRUST, 
 import { rowAdd, rowCash, rowFans, rowInfo, rowMult, rowNone, rowOvr, rowPayroll, rowSat, rowTrust, satAfter } from './eventRows';
 import { tiredPenalty } from './sim';
 import { beatOn, MID_DAY, POS_NAME } from './script';
-import { memoGet, memoNum, memoSet, seenCards } from './memo';
+import { cardRested, markCardMut, memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
 import { batLeaders, era, ops, pitLeaders } from './leaders';
 import { isFranchise } from './franchise';
 import { drawFarmEvent, farmCardDef } from './farm';
+import { positionReport } from './analysis';
+import { SCANDAL_CARDS } from './scandal';
 
 const posKo = (pos: string): string => POS_NAME[pos] ?? pos;
 
@@ -65,9 +67,10 @@ const N = {
   refuseStar: -10,
   refuseAbil: -2,
   refuseFans: -200,
-  tradeBench: 65,
-  tradeWeak: 55,
-  earlyGames: 5,
+  tradeRank: 6, // 트레이드 제안: 이 순위 이하인 포지션이 있어야 한다
+  earlyGames: 8, // 조기 복귀: 이만큼 이상 결장하는 핵심 선수만
+  earlyTop: 3, // 타자는 팀 내 오버롤 상위 이 인원, 투수는 1~2선발
+  armDays: 6, // 벌떼 방침에서 불펜 과부하가 누적 이 일수면 '팔은 소모품이 아니다'
   reinjury: 0.3,
   pushGain: 3,
   pushSlump: -3,
@@ -211,27 +214,29 @@ function titleRace(core: Core): Player | null {
   return hit ? p : null;
 }
 
+/** 트레이드 제안: 한 포지션에 1군급이 남고(2순위가 리그 평균 주전 이상) 다른 포지션이 리그 6위 이하일 때, 남는 선수와 약한 자리 */
 function tradeCase(core: Core): { me: Player; slot: number; weak: Player } | null {
   const t = userTeam(core);
-  const bench = benchBatters(core).filter((p) => p.ovr >= N.tradeBench);
-  if (!bench.length) return null;
-  const byId = new Map(t.roster.map((p) => [p.id, p]));
-  let slot = -1;
-  let weak: Player | null = null;
-  t.lineup.forEach((s, i) => {
-    const p = byId.get(s.pid);
-    if (p && s.pos !== 'DH' && (!weak || p.ovr < weak.ovr)) {
-      weak = p;
-      slot = i;
-    }
-  });
-  if (!weak || (weak as Player).ovr >= N.tradeWeak) return null;
-  return { me: bench.reduce((a, b) => (a.ovr >= b.ovr ? a : b)), slot, weak };
+  if (!benchBatters(core).length) return null;
+  const rows = positionReport(core).filter((r) => r.kind === 'B' && r.key !== 'DH');
+  const ids = lineupIds(core);
+  const spare = rows
+    .filter((r) => r.backup && !ids.has(r.backup.id) && r.backup.injury === 0 && r.backupScore >= r.avg)
+    .sort((a, b) => b.backupScore - b.avg - (a.backupScore - a.avg))[0];
+  if (!spare?.backup) return null;
+  const me = spare.backup;
+  const weakRow = rows.filter((r) => r.key !== spare.key && r.rank >= N.tradeRank && r.players[0] && r.players[0].id !== me.id).sort((a, b) => b.rank - a.rank || a.diff - b.diff)[0];
+  if (!weakRow) return null;
+  const slot = t.lineup.findIndex((s) => s.pos === weakRow.key);
+  return slot < 0 ? null : { me, slot, weak: weakRow.players[0] };
 }
 
+/** 조기 복귀를 꺼낼 만한 부상자: 팀 내 오버롤 상위 3명(타자) 또는 1~2선발 (징계 중인 선수는 아니다) */
 const hurtStarters = (core: Core) => {
-  const ids = keyIds(core);
-  return userTeam(core).roster.filter((p) => ids.has(p.id) && p.injury >= N.earlyGames);
+  const t = userTeam(core);
+  const top = t.roster.filter((p) => p.kind === 'B' && !p.farm).sort((a, b) => b.ovr - a.ovr).slice(0, N.earlyTop);
+  const ids = new Set([...top.map((p) => p.id), ...t.rotation.slice(0, 2)]);
+  return t.roster.filter((p) => ids.has(p.id) && p.injury >= N.earlyGames && !p.ban);
 };
 
 /** 세대교체 구간에서 새로 주전에 오른 23세 이하 */
@@ -245,7 +250,7 @@ function promotedYoung(core: Core): Player | null {
 
 // 불펜 과부하가 PEN_OVER_GAMES 경기 이어졌을 때의 가장 지친 구원들 (쉰 팔이 있으면 3연투는 나오지 않는다 — sim.ts manage)
 const overworked = (core: Core) => {
-  if (memoNum(core, PEN_OVER_KEY) < PEN_OVER_GAMES) return [];
+  if (core.campaign.penStyle !== 'swarm' || memoNum(core, PEN_OVER_SUM) < N.armDays) return [];
   const t = userTeam(core);
   const ids = new Set([...t.bullpen, ...(t.closer ? [t.closer] : [])]);
   return t.roster.filter((p) => ids.has(p.id) && !p.farm && (p.tired ?? 0) >= 1 && p.injury === 0).sort((a, b) => (b.tired ?? 0) - (a.tired ?? 0));
@@ -470,7 +475,7 @@ export const CARDS: CardDef[] = [
     id: 'arm',
     prio: 85,
     forced: true,
-    when: (c) => c.campaign.stage >= 3 && overworked(c).length > 0,
+    when: (c) => overworked(c).length > 0,
     make: (c) => {
       const p = overworked(c).sort((a, b) => (b.tired ?? 0) - (a.tired ?? 0) || b.ovr - a.ovr)[0];
       if (!p) return null;
@@ -478,7 +483,7 @@ export const CARDS: CardDef[] = [
         title: '팔은 소모품이 아니다',
         icon: '💪',
         pid: p.id,
-        body: `불펜이 ${PEN_OVER_GAMES}경기째 쉬지 못하고 있습니다. ${p.name}(${posKo(p.pos)}, 오버롤 ${p.ovr})의 팔이 먼저 한계에 왔습니다.`,
+        body: `벌떼 불펜이 이번 시즌 ${memoNum(c, PEN_OVER_SUM)}경기를 쉬지 못한 채 던졌습니다. ${p.name}(${posKo(p.pos)}, 오버롤 ${p.ovr})의 팔이 먼저 한계에 왔습니다.`,
         choices: [
           {
             label: '휴식을 보장한다',
@@ -512,6 +517,7 @@ export const CARDS: CardDef[] = [
     resolve: (c, i, cd, rng) => {
       const p = findUser(c, cd.pid);
       memoSet(c, PEN_OVER_KEY, 0);
+      memoSet(c, PEN_OVER_SUM, 0);
       if (!p) return '없던 일이 되었습니다';
       if (i === 0) {
         addBuff(c, { kind: 'rest', value: 1, until: c.day + N.restGames, label: `${p.name} 휴식 보장`, pid: p.id });
@@ -1018,22 +1024,25 @@ export const CARDS: CardDef[] = [
 ];
 
 const baseId = (id: string) => id.split('|')[0];
-const DEF = new Map(CARDS.map((d) => [d.id, d]));
-const BY_PRIO = CARDS.slice().sort((a, b) => b.prio - a.prio);
+// 스캔들 카드(scandal.ts)까지 합친 목록. 모듈 순환을 피하려고 처음 쓸 때 만든다
+let ALL: { def: Map<string, CardDef>; prio: CardDef[] } | null = null;
+const all = () => (ALL ??= ((cs: CardDef[]) => ({ def: new Map(cs.map((d) => [d.id, d])), prio: cs.slice().sort((a, b) => b.prio - a.prio) }))([...CARDS, ...SCANDAL_CARDS]));
 
 /** 매 경기 후: 조건이 맞는 카드 중 우선순위가 가장 높은 1장을 campaign.event 에 둔다. 해당 없으면 원본 반환. */
 export function maybeDrawEvent(core0: Core, rng: Rng): Core {
   if (core0.phase !== 'season' || core0.campaign.event || core0.day >= core0.schedule.length) return core0;
   const seen = new Set(seenCards(core0));
+  const DEF = all().def;
   const normalSeen = [...seen].filter((id) => DEF.has(id) && !DEF.get(id)!.forced).length;
   const normalOk = core0.day - memoNum(core0, 'evDay', -99) >= EVENT_GAP && normalSeen < EVENT_MAX;
-  for (const d of BY_PRIO) {
-    if (seen.has(d.id) || (!d.forced && !normalOk) || !d.when(core0)) continue;
+  for (const d of all().prio) {
+    if (seen.has(d.id) || (!d.forced && (!normalOk || !cardRested(core0, d.id))) || !d.when(core0)) continue;
     const core = structuredClone(core0);
     const cd = d.make(core, rng);
     if (!cd) continue;
     core.campaign.event = cd;
     core.campaign.eventsSeen.push(d.id);
+    if (!d.forced) markCardMut(core, d.id);
     memoSet(core, 'evDay', core.day);
     const who = cd.who && cd.who !== 'player' ? `${CHARACTERS[cd.who].name} ${CHARACTERS[cd.who].title} — ` : '';
     addNews(core, `${cd.icon} ${who}${cd.title}`, 'info');
@@ -1049,7 +1058,7 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   const ch = card0.choices[choiceIdx];
   if (!ch) return { core: core0, error: '잘못된 선택입니다', result: '' };
   if (ch.disabled) return { core: core0, error: ch.disabled, result: '' };
-  const def = DEF.get(baseId(card0.id)) ?? farmCardDef(baseId(card0.id));
+  const def = all().def.get(baseId(card0.id)) ?? farmCardDef(baseId(card0.id));
   const core = structuredClone(core0);
   const cd = core.campaign.event!;
   core.campaign.event = null;

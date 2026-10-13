@@ -11,6 +11,7 @@ import { autoBatting, autoPitching, slotValue } from '../src/game/lineup';
 import { bullpenLoad } from '../src/game/fixes';
 import { shuttleArms } from '../src/game/farm';
 import { autoPenStyle } from '../src/game/sim';
+import { buyEthics, ethicsCost, scandalOpen } from '../src/game/scandal';
 
 // ───────── 동사 ─────────
 
@@ -22,7 +23,7 @@ const themeOf = (c: Core) => THEME[Math.min(c.campaign.stage, THEME.length - 1)]
 
 const ok = (r: { core: Core; error?: string }, c: Core) => (r.error ? c : r.core);
 const enabled = (card: EventCard, i: number) => !!card.choices[i] && !card.choices[i].disabled;
-const firstEnabled = (card: EventCard, pref: number[]) => pref.find((i) => enabled(card, i)) ?? card.choices.map((_, i) => i).reverse().find((i) => enabled(card, i)) ?? 0;
+export const firstEnabled = (card: EventCard, pref: number[]) => pref.find((i) => enabled(card, i)) ?? card.choices.map((_, i) => i).reverse().find((i) => enabled(card, i)) ?? 0;
 const SCOUT_V: Record<string, number> = { A: 84, B: 74, C: 65, D: 57 };
 export const baseId = (card: EventCard) => card.id.split('|')[0];
 const foreignN = (c: Core) => userTeam(c).roster.filter((p) => p.foreign).length;
@@ -315,7 +316,7 @@ export const passive: Bot = {
   preseason: (c) => c,
   daily: (c) => c,
   // 감독·팀장이 하자는 대로(첫 선택지), 그 외에는 아무것도 하지 않는 쪽(마지막)
-  event: (_c, card) => (isFarmCard(card) ? farmFirst(card) : firstEnabled(card, baseId(card) === 'veteran' ? [0] : [card.choices.length - 1])),
+  event: (_c, card) => (isFarmCard(card) ? farmFirst(card) : firstEnabled(card, ['veteran', 'dope', 'fix'].includes(baseId(card)) ? [0] : [card.choices.length - 1])),
   beforeDraft: (c) => c,
   draft: () => null,
 };
@@ -325,6 +326,7 @@ const PLEDGE_TRUST = 70; // 이 지지 이상일 때만 중간 점검에서 목�
 const USE: Record<string, number[]> = {
   midcheck: [0],
   dome: [0], veteran: [1], oldeye: [1], notyet: [0], arm: [0], typhoon: [1],
+  dope: [0, 2, 1], fix: [0, 2, 1], // 스캔들: 자진 신고 · 전면 협조
   meeting: [0], scalper: [0, 2], early: [1], goods: [0, 1], trade: [0], tourist: [0], tour: [0, 1], raise: [0],
 };
 // 그 동사를 쓰지 않을 때의 선택
@@ -349,6 +351,8 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
     if (name === 'sensible' && !pre) c = relievePen(c);
     if (!weekly && day !== 13) return c;
     if (pre) while (c.finance.debt > 0 && c.finance.cash > RESERVE * 3) c = ok(repay(c), c);
+    // sensible: 스캔들이 생길 수 있는 구단이 되면, 현금 여유가 있을 때 선수단 윤리 교육을 산다
+    if (name === 'sensible' && pre && scandalOpen(c) && c.finance.cash > RESERVE * 2 + ethicsCost(c)) c = ok(buyEthics(c), c);
     if (pre && v.has('sign')) c = shedPayroll(c);
     if (v.has('gate') && (pre || day % 12 === 0)) c = doGate(c);
     if (v.has('youth') && (pre || day % 12 === 0)) c = doTraining(c);
@@ -426,7 +430,8 @@ export const greedy: Bot = {
     return doLineup(c, true);
   },
   daily: (c) => (c.day === 42 ? doLineup(greedySign(c), true) : c.day % 12 === 0 ? doLineup(c, true) : c),
-  event: (_c, card) => (isFarmCard(card) ? farmFirst(card, true) : firstEnabled(card, [0])),
+  // 스캔들은 덮는다 · 선수 말을 믿는다
+  event: (_c, card) => (isFarmCard(card) ? farmFirst(card, true) : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : [0])),
   beforeDraft: (c) => trimRoster(c, 25),
   draft: (c) => bestProspect(c, (p) => p.ovr),
 };

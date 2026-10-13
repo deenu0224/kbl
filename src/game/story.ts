@@ -59,6 +59,17 @@ export const NEWS = {
   fixture: (label: string, a: string, b: string) => `잔여 일정 확정 — 「${label}」 상대는 ${a}, ${b}`,
 };
 
+/** 스캔들(scandal.ts)의 뉴스와 조합장의 한 줄. 건조하게 사실만 */
+export const SCANDAL_NEWS = {
+  dopeSign: (name: string, age: number) => `${name}, ${age >= 30 ? '서른에' : '뒤늦게'} 찾아온 전성기`,
+  fixSignP: (name: string) => `1회 볼넷 3개 — ${name}의 이상한 하루`,
+  fixSignB: (name: string) => `평범한 뜬공을 두 번 놓쳤다 — ${name}의 이상한 하루`,
+  exposed: (what: string, name: string, season: number) => `리그 사무국 발표: ${season}번째 시즌 ${name}의 ${what}, 구단은 알고도 덮었다`,
+  chairReport: '부끄러운 일이지만, 숨기지 않은 건 잘한 걸세.',
+  chairExposed: '우리가 부끄러운 건 진 게 아니라 숨긴 걸세.',
+  tainted: '그해의 우승에는 뒷말이 남았다',
+};
+
 // ───────── 장별 대사 (6절). 인물은 방법을 말하지 않고 자기 사정을 말한다 ─────────
 
 export interface Line {

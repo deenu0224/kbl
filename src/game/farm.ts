@@ -7,10 +7,10 @@ import type { BatPos, Buff, CharId, Core, EventCard, Player, Team } from './type
 import { clamp, pick, type Rng } from './rng';
 import { calcOvr } from './ratings';
 import { fixLineup, slotValue } from './lineup';
-import { PEN_OVER_KEY, bullpenLoad } from './fixes';
+import { PEN_OVER_KEY, PEN_OVER_SUM, bullpenLoad } from './fixes';
 import { FARM_CAP, FARM_LOCK, FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmGrow, farmRoster, userTeam } from './economy';
 import { fmtAvg, fmtEra, fmtMoney } from './format';
-import { memoAdd, memoGet, memoNum, memoSet } from './memo';
+import { cardRested, markCardMut, memoAdd, memoGet, memoNum, memoSet } from './memo';
 import { CARD_LINES, CHARACTERS, FARM_COACH_LINE } from './story';
 import { POS_NAME } from './script';
 import { addNews, marketSalary } from './season';
@@ -338,7 +338,10 @@ export function farmDailyMut(core: Core, notes: string[]): void {
   }
   // 불펜 과부하가 이어진 경기 수 (하루 쉬면 하나 줄어든다 — 'arm' 사건과 브리핑이 읽는다)
   const load = bullpenLoad(t);
-  if (load.label === '과부하') memoAdd(core, PEN_OVER_KEY);
+  if (load.label === '과부하') {
+    memoAdd(core, PEN_OVER_KEY);
+    memoAdd(core, PEN_OVER_SUM);
+  }
   else if (memoNum(core, PEN_OVER_KEY) > 0) memoAdd(core, PEN_OVER_KEY, -1);
   if (!farmAutoOn(core)) return;
   shuttleMut(core, notes);
@@ -524,7 +527,8 @@ export function painCase(core: Core): { p: Player; alt: Player | null; text: str
   return null;
 }
 
-const coachCase = (core: Core) => (core.day < F.coachDay ? (core.campaign.retired ?? []).filter((r) => r.season === core.season - 1).slice(-1)[0] ?? null : null);
+// 인스트럭터 후보: 지난겨울 유니폼을 벗은 영구결번 또는 스타성 60+ 은퇴 선수 (campaign.alumni)
+const coachCase = (core: Core) => (core.day < F.coachDay ? [...(core.campaign.alumni ?? []), ...(core.campaign.retired ?? [])].filter((r) => r.season === core.season - 1).slice(-1)[0] ?? null : null);
 
 /** 올리는 선택지의 공통 처리: (가득이면 한 명 내리고) k 를 cur 자리에 */
 function swapUpMut(core: Core, k: Player, cur: Player | undefined, downId: string | undefined): void {
@@ -710,7 +714,6 @@ export const FARM_CARDS: FarmCardDef[] = [
   {
     id: 'f-ready',
     prio: 60,
-    max: 2,
     when: (c) => farmAutoOn(c) && !!readyCase(c),
     make: (c) => {
       const x = readyCase(c);
@@ -943,13 +946,14 @@ export function drawFarmEvent(core0: Core, rng: Rng): Core {
   if (core0.phase !== 'season' || core0.campaign.event || core0.day >= core0.schedule.length) return core0;
   if (!farmBudgetOk(core0) || memoNum(core0, 'evDay', -99) === core0.day) return core0;
   for (const d of FARM_BY_PRIO()) {
-    if (memoNum(core0, `fc-${d.id}`) >= (d.max ?? 1) || !d.when(core0)) continue;
+    if (memoNum(core0, `fc-${d.id}`) >= (d.max ?? 1) || !cardRested(core0, d.id) || !d.when(core0)) continue;
     const core = structuredClone(core0);
     const cd = d.make(core, rng);
     if (!cd) continue;
     core.campaign.event = cd;
     memoAdd(core, 'fevN');
     memoAdd(core, `fc-${d.id}`);
+    markCardMut(core, d.id);
     memoSet(core, 'fevDay', core.day);
     const who = cd.who && cd.who !== 'player' ? `${CHARACTERS[cd.who].name} ${CHARACTERS[cd.who].title} — ` : '';
     addNews(core, `${cd.icon} ${who}${cd.title}`, 'info');

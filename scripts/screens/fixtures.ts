@@ -17,6 +17,7 @@ import { drawResign } from '../../src/game/contract';
 import { postMatch } from '../../src/game/postseason';
 import { runway, RUNWAY_DANGER } from '../../src/game/runway';
 import { bullpenLoad } from '../../src/game/fixes';
+import { todoList } from '../../src/game/todo';
 import { emptyHof, recordClub, HOF_KEY, SAVE_VERSION } from '../../src/game/hof';
 import { greedy, passive, sensible, type Bot } from '../bots';
 
@@ -67,7 +68,8 @@ const WANT: Record<string, Pred> = {
   },
   soldout: (c) => inSeason(c) && quiet(c) && lastWasHome(c) && nextIsHome(c) && (c.crowd?.turnedAway ?? 0) > 0,
   farm: (c) => inSeason(c) && quiet(c) && c.day >= 10 && nextIsHome(c) && farmRoster(userTeam(c)).length >= 5,
-  post: (c) => c.phase === 'post' && quiet(c) && !!c.post && !!postMatch(c),
+  // 할 일에 "매진 —" 줄이 있는 포스트시즌 (todo-action 화면이 그 줄을 누른다)
+  post: (c) => c.phase === 'post' && quiet(c) && !!c.post && !!postMatch(c) && todoList(c).some((t) => t.text.startsWith('매진 —')),
   ended: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.cleared && !endingNow(c),
   endedFail: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict && !c.campaign.verdict.cleared,
   resign: (c) => c.phase === 'ended' && !!c.campaign.event && c.campaign.event.id.startsWith('resign'),
@@ -76,6 +78,9 @@ const WANT: Record<string, Pred> = {
   season3: (c) => inSeason(c) && c.season === 3 && c.day >= 40 && quiet(c) && nextIsHome(c) && c.facilities.seats + c.facilities.food + c.facilities.training >= 2,
   over: (c) => c.phase === 'over',
   ending: (c) => c.phase === 'ended' && !c.campaign.event && endingNow(c),
+  // 후반 스캔들: 약물 카드 대기 · 덮은 일이 드러난 결산
+  dope: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('dope'),
+  exposed: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.exposures?.length && !endingNow(c),
   dynasty: (c) => inSeason(c) && stageName(c) === '왕조' && c.day >= 20 && quiet(c) && nextIsHome(c),
 };
 

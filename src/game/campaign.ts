@@ -8,6 +8,7 @@ import { addNews, rankOf, seasonAwards } from './season';
 import { memoGet, memoNum, memoSet } from './memo';
 import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine, withTeam } from './story';
 import { beatById, startSeasonScriptMut, userHomeDays } from './script';
+import { exposeMut } from './scandal';
 
 // ───────── 튜닝 테이블 ─────────
 
@@ -735,6 +736,10 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
   }
   if (finish === 'champion') c.titles++;
 
+  // 덮은 일의 적발 판정: 선수 징계·승수 몰수·벌금은 여기서, 지지와 별은 아래에서
+  const exposures = exposeMut(core, rng, finish === 'champion');
+  for (const ex of exposures) trust += ex.trust;
+
   // 깃발
   refreshProgressMut(core);
   const main = c.objectives.find((o) => o.main);
@@ -752,8 +757,14 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     }
     const ev = STAR_EVAL[o.id];
     const ok = objMet(o.kind, o.target, o.progress) && (!ev?.needFlag || cleared) && (!ev?.needPost || postLevel(core) >= 1);
-    o.state = ok ? 'done' : 'failed';
+    o.state = ok && !exposures.length ? 'done' : 'failed';
     if (!ok) continue;
+    if (exposures.length) {
+      // 덮은 일이 드러난 시즌의 별은 인정되지 않는다 (다음에 다시 딸 수 있다)
+      exposures[0].stars++;
+      addNews(core, `별 박탈: ${o.text}`, 'bad');
+      continue;
+    }
     c.achievements.push(o.id);
     newStars.push(o.id);
     cashReward += o.reward.cash;
@@ -817,6 +828,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     avgAtt: avgAtt(core),
     grade: seasonAwards(core).grade,
     cleared,
+    ...(exposures.some((ex) => ex.tainted && ex.season === core.season) ? { tainted: true } : {}),
   };
   rec.name = nameSeason(rec, {
     results: (memoGet(core, 'wl') ?? '').split('').map((ch) => (ch === 'W' ? 1 : ch === 'L' ? 0 : 0.5)),
@@ -840,6 +852,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     seasonName: rec.name,
     newAchievements: newStars,
     fired,
+    ...(exposures.length ? { exposures } : {}),
   };
   c.verdict = verdict;
   const st = STAGES[stageBefore];
