@@ -47,7 +47,7 @@ function save(key: string, value: string): void {
 }
 const savedVolume = read('kbl-bgm-volume');
 const parsedVolume = savedVolume === null || savedVolume.trim() === '' ? NaN : Number(savedVolume);
-let volume = Number.isFinite(parsedVolume) ? Math.max(0, Math.min(1, parsedVolume)) : 0.35;
+let volume = Number.isFinite(parsedVolume) ? Math.max(0, Math.min(1, parsedVolume)) : 0.6;
 let muted = read('kbl-bgm-muted') === 'true';
 let mood: BgmMood = 'calm';
 let activeMood: BgmMood = mood;
@@ -264,6 +264,10 @@ export function startBgm(): void {
   source.connect(silence); silence.connect(audio.master);
   source.onended = () => { source.disconnect(); silence.disconnect(); };
   source.start(audio.context.currentTime, 0, 1 / audio.context.sampleRate);
+}
+/** 실제로 소리가 나갈 수 있는 상태인가 (iOS 는 터치가 끝나는 시점의 입력에서만 풀린다) */
+export function isBgmRunning(): boolean {
+  return playing && engine?.context.state === 'running';
 }
 export function stopBgm(): void {
   playing = false;
