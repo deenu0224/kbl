@@ -18,6 +18,7 @@ import MobileNav, { TAB_TODO } from './MobileNav';
 import Sheet from './Sheet';
 import { tripInfo } from './away';
 import { useUi, type ClubSub } from './uiStore';
+import { useAchv } from '../achvStore';
 
 const CLUB_SUBS: { id: ClubSub; label: string }[] = [
   { id: 'finance', label: '재무' },
@@ -91,6 +92,16 @@ function ThinMenu() {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="px-panel absolute top-full right-0 z-[31] mt-[4px] flex flex-col gap-1.5 p-2">
+            <button
+              className="px-btn min-h-10 whitespace-nowrap"
+              data-testid="menu-achv"
+              onClick={() => {
+                setOpen(false);
+                useAchv.getState().setOpen(true);
+              }}
+            >
+              도전과제
+            </button>
             <button
               className="px-btn min-h-10 whitespace-nowrap"
               data-testid="menu-settings"

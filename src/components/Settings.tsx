@@ -7,6 +7,7 @@ import Dialog from './layout/Dialog';
 import Help from './Help';
 import { SAVE_KEY, useUi } from './layout/uiStore';
 import { clearHof } from './hofStore';
+import { clearAchv } from './achvStore';
 import { FEEDBACK_URL, setStatsOn, statsAvailable, statsOn, track } from '../analytics';
 import { UI_SIZES, setUiSize, useUiSize } from './layout/uiScale';
 
@@ -74,6 +75,7 @@ export default function Settings() {
   const [armImport, setArmImport] = useState(false);
   const [armWipe, setArmWipe] = useState(false);
   const [wipeHof, setWipeHof] = useState(false);
+  const [wipeAchv, setWipeAchv] = useState(false);
   if (!open) return null;
 
   const close = () => {
@@ -111,9 +113,12 @@ export default function Settings() {
       /* 무시 */
     }
     if (wipeHof) clearHof();
+    if (wipeAchv) clearAchv();
     useUi.setState({ hasSave: false, screen: 'title' });
     setOut('');
-    setMsg({ text: wipeHof ? '세이브와 명예의 전당을 지웠습니다' : '세이브를 지웠습니다 (명예의 전당은 남습니다)', ok: true });
+    const kept = [wipeHof ? '' : '명예의 전당', wipeAchv ? '' : '도전과제'].filter(Boolean);
+    const gone = ['세이브', wipeHof ? '명예의 전당' : '', wipeAchv ? '도전과제' : ''].filter(Boolean);
+    setMsg({ text: `${gone.join('·')}${gone[gone.length - 1] === '명예의 전당' ? '을' : '를'} 지웠습니다${kept.length ? ` (${kept.join('·')}${kept[kept.length - 1] === '명예의 전당' ? '은' : '는'} 남습니다)` : ''}`, ok: true });
   };
 
   return (
@@ -239,6 +244,10 @@ export default function Settings() {
           <label className="flex min-h-10 flex-1 cursor-pointer items-center gap-2 text-[13px]">
             <input type="checkbox" className="h-5 w-5 accent-[#ffd84a]" checked={wipeHof} data-testid="wipe-hof" onChange={(e) => setWipeHof(e.target.checked)} />
             명예의 전당도 함께
+          </label>
+          <label className="flex min-h-10 flex-1 cursor-pointer items-center gap-2 text-[13px]">
+            <input type="checkbox" className="h-5 w-5 accent-[#ffd84a]" checked={wipeAchv} data-testid="wipe-achv" onChange={(e) => setWipeAchv(e.target.checked)} />
+            도전과제도 지우기
           </label>
           <button className={`px-btn min-h-10 text-[13px] ${armWipe ? 'primary' : ''}`} data-testid="wipe" disabled={playback} onClick={doWipe}>
             {armWipe ? '정말 지우기 (되돌릴 수 없음)' : '지우기'}

@@ -8,6 +8,7 @@ import { runway, runwayAlert } from '../game/runway';
 import { CampaignChip } from './Campaign';
 import SoundButton from './SoundButton';
 import { useUi } from './layout/uiStore';
+import { useAchv } from './achvStore';
 import { Bar, ratingColor, recText, TeamDot } from './ui';
 
 function Cell({ label, children, title }: { label: string; children: ReactNode; title?: string }) {
@@ -93,6 +94,9 @@ export default function TopBar() {
       )}
       <div className="ml-auto flex items-center gap-1">
         <SoundButton />
+        <button className="px-btn !px-2" data-testid="open-achv-top" title="도전과제" aria-label="도전과제" onClick={() => useAchv.getState().setOpen(true)}>
+          🏆
+        </button>
         <button className="px-btn !px-2" data-testid="menu" title="설정" aria-label="메뉴: 설정" onClick={() => useUi.getState().setSettingsOpen(true)}>
           ≡
         </button>
@@ -195,6 +199,16 @@ export function MobileTopBar() {
               <SoundButton inline />
             </div>
             <div className="mt-2 flex items-center justify-end gap-2">
+              <button
+                className="px-btn"
+                data-testid="menu-achv"
+                onClick={() => {
+                  setOpen(false);
+                  useAchv.getState().setOpen(true);
+                }}
+              >
+                도전과제
+              </button>
               <button
                 className="px-btn"
                 data-testid="menu-settings"
