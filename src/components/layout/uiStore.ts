@@ -75,6 +75,9 @@ interface UiState {
   dailyOpen: boolean; // "오늘의 오더" (승리 확률 숫자를 탭해 연다)
   chances: Record<string, number>; // 경기 전 승리 확률(%) — 키는 chanceKey(). 경기 요약의 "경기 전 44% → 승리"
   tips: Partial<Record<TipId, boolean>>; // 닫은 탭별 첫 만남 한 문장 (localStorage 유지)
+  stadiumZoom: boolean; // 홈 구장: 확대(높이 맞춤) / 전체(폭 맞춤). 구장이 다시 마운트돼도 유지한다
+  stadiumPan: number; // 확대했을 때의 가로 위치 0~1 (0.5 = 가운데)
+  setStadiumView(v: { zoom?: boolean; pan?: number }): void;
   setDailyOpen(v: boolean): void;
   setChance(key: string, pct: number): void;
   closeTip(id: TipId): void;
@@ -133,6 +136,9 @@ export const useUi = create<UiState>()((set) => ({
       }
       return { dismissed };
     }),
+  stadiumZoom: true,
+  stadiumPan: 0.5,
+  setStadiumView: (v) => set((s) => ({ stadiumZoom: v.zoom ?? s.stadiumZoom, stadiumPan: v.pan ?? s.stadiumPan })),
   setDailyOpen: (dailyOpen) => set({ dailyOpen }),
   setChance: (key, pct) =>
     set((s) => {

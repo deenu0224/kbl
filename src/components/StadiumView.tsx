@@ -53,30 +53,58 @@ export function usePlaybackDriver(): void {
 
 /**
  * 세로 폰의 큰 구장: 높이에 맞춰 확대하고 좌우는 끌어서 본다. 두 번 탭하면 전체 보기(폭 맞춤) ↔ 확대.
- * 오버레이는 children 안에 있어 캔버스와 같이 움직인다.
+ * 확대 여부와 가로 위치(0~1)는 uiStore 에 둔다: 탭을 옮기거나 경기가 시작·종료돼 구장이 다시 그려져도 그대로다.
+ * 오버레이는 children 안에 있어 캔버스와 같이 움직이고, fixed 는 구장 영역의 화면 고정 자리에 놓인다.
  */
-function PanZoom({ children }: { children: (style: CSSProperties) => ReactNode }) {
-  const [zoomed, setZoomed] = useState(true);
+function PanZoom({ children, fixed, onTagsOff }: { children: (style: CSSProperties) => ReactNode; fixed?: ReactNode; onTagsOff(off: boolean): void }) {
+  const zoomed = useUi((s) => s.stadiumZoom);
+  const setView = useUi((s) => s.setStadiumView);
   const ref = useRef<HTMLDivElement | null>(null);
   const lastTap = useRef(0);
   const drag = useRef<{ x: number; left: number } | null>(null);
-  // 확대하면 내야·관중석이 가운데 오도록
+  const dims = useRef(''); // 마지막으로 위치를 맞춘 때의 크기 (크기가 바뀌며 생긴 스크롤은 저장하지 않는다)
+  const check = (el: HTMLDivElement) => {
+    const off = KINDS.some((k) => {
+      const x = ((HOTSPOTS[k].x + HOTSPOTS[k].w / 2) / STADIUM_W) * el.scrollWidth - el.scrollLeft;
+      return x < 28 || x > el.clientWidth - 28;
+    });
+    onTagsOff(off && useUi.getState().stadiumZoom); // 시설 태그 중 하나라도 화면 밖
+  };
+  // 저장해 둔 위치로 (마운트·확대 전환·영역 크기 변화 때마다)
   useLayoutEffect(() => {
     const el = ref.current;
-    if (el) el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    if (!el) return;
+    const apply = () => {
+      const range = el.scrollWidth - el.clientWidth;
+      dims.current = `${el.scrollWidth}/${el.clientWidth}`;
+      el.scrollLeft = range * useUi.getState().stadiumPan;
+      check(el);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
   }, [zoomed]);
   return (
-    <div className="h-full w-full" style={{ containerType: 'size' }} data-testid="stadium-pan" data-zoomed={zoomed ? '1' : '0'}>
+    <div className="relative h-full w-full" style={{ containerType: 'size' }} data-testid="stadium-pan" data-zoomed={zoomed ? '1' : '0'}>
       <div
         ref={ref}
         className="no-scrollbar flex h-full w-full items-center overflow-x-auto overflow-y-hidden"
         style={{ overscrollBehavior: 'contain', background: '#0f1420' }}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const range = el.scrollWidth - el.clientWidth;
+          if (dims.current !== `${el.scrollWidth}/${el.clientWidth}`) return;
+          if (range > 0) setView({ pan: el.scrollLeft / range });
+          check(el);
+        }}
         onClick={(e) => {
           if ((e.target as Element).closest('button')) return;
           const now = performance.now();
           if (now - lastTap.current < 320) {
             lastTap.current = 0;
-            setZoomed((z) => !z);
+            setView({ zoom: !zoomed });
           } else lastTap.current = now;
         }}
         onPointerDown={(e) => {
@@ -90,9 +118,12 @@ function PanZoom({ children }: { children: (style: CSSProperties) => ReactNode }
       >
         {children({ width: zoomed ? `max(100cqw, calc(100cqh * ${STADIUM_W} / ${STADIUM_H}))` : '100cqw', flexShrink: 0 })}
       </div>
+      {fixed}
     </div>
   );
 }
+
+const FAC_ICON: Record<FacilityKind, string> = { seats: '🏟', food: '🍢', training: '💪' };
 
 export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const core = useCore();
@@ -115,6 +146,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const setTab = useStore((s) => s.setTab);
   const user = useUserTeam();
   const mobile = useIsMobile();
+  const [tagsOff, setTagsOff] = useState(false); // 확대해서 시설 태그가 화면 밖 (세로 폰): 하단 고정 버튼으로 대신한다
   const chipM: CSSProperties = mobile ? { ...chip, fontSize: fz(true, 1.9, 13), padding: '4px 7px', color: '#fff' } : chip;
 
   const report = playback?.report ?? null;
@@ -125,10 +157,11 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
     () => (phase === 'season' || phase === 'post' ? userMatch({ schedule, userId, phase, post }, day) : null),
     [schedule, userId, day, phase, post],
   );
-  // 원정 경기의 재생 중과 그 요약 동안만 상대 구장을 보여 준다 (경기 사이엔 항상 우리 구장)
-  const awayRep = report ? (report.isHome ? null : report) : summaryOpen && lastReport && !lastReport.isHome ? lastReport : null;
-  const away = !!awayRep;
-  const oppId = report ? report.oppId : (awayRep?.oppId ?? next?.oppId);
+  // 원정이면 상대 구장: 재생 중·요약 중엔 그 경기, 경기 사이엔 다음 유저 경기가 원정인 동안 계속
+  const shownRep = report ?? (summaryOpen ? lastReport : null);
+  const away = shownRep ? !shownRep.isHome : !!next && !next.isHome;
+  const awayRep = shownRep && !shownRep.isHome ? shownRep : null;
+  const oppId = shownRep ? shownRep.oppId : next?.oppId;
   const opp = teams.find((t) => t.id === oppId);
   const cap = SEAT_LV[facilities.seats]?.cap ?? crowd?.capacity ?? 1;
   const idleFill = crowd ? Math.min(1, crowd.attendance / Math.max(1, cap)) : 0;
@@ -215,6 +248,59 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const band = scoreEv ? `max(1.2cqw, 6px) solid ${mineEv ? '#6ee07a' : '#ff6b6b'}` : undefined;
   const tagged = !!ev && ev.type !== 'start' && ev.type !== 'final';
 
+  // 관중 칩: 세로 폰(pan)에서는 캔버스가 아니라 구장 영역의 좌상단에 고정한다 (확대해도 잘리지 않게)
+  const crowdChip = (
+        <button
+          className={`absolute z-[2] flex items-center overflow-hidden whitespace-nowrap text-left ${mobile && !away ? 'cursor-pointer' : 'pointer-events-none'}`}
+          data-testid="crowd-chip"
+          data-sfx="tab"
+          style={pan ? { ...chipM, left: 6, top: 6, gap: 6, maxWidth: 'calc(100% - 12px)' } : { ...chipM, left: '1.2cqw', top: '1.2cqw', gap: '1.2cqw' }}
+          onClick={() => setFacSheet('ticket')}
+        >
+          <span title={WEATHER_KO[weather]}>{WEATHER_ICON[weather]}</span>
+          {away ? (
+            <span className="text-white/80">원정 · {opp?.city} 구장</span>
+          ) : shownCrowd ? (
+            <>
+              <span>
+                관중 <span className="text-hi">{fmtInt(shownCrowd.attendance)}</span>
+                <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>
+              </span>
+              {shownCrowd.soldOut && (
+                <span className="anim-blink font-pixel-lg shrink-0" style={{ color: '#ff6b6b' }}>
+                  매진!
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-white/70">좌석 {fmtInt(cap)}석 · 개막 대기</span>
+          )}
+          {report?.night && <span className="text-sky">야간</span>}
+          {report?.post && <span className="text-hi">{report.post.name}</span>}
+          {mobile && !away && <span className="text-hi">티켓 ▸</span>}
+        </button>
+  );
+  // 확대해서 시설 태그가 화면 밖이면: 구장 하단의 작은 고정 버튼 3개
+  const facButtons =
+    pan && tagsOff && !away && !report ? (
+      <div className="absolute bottom-1.5 left-1/2 z-[2] flex -translate-x-1/2 gap-1.5" data-testid="fac-fixed">
+        {KINDS.map((kd) => (
+          <button
+            key={kd}
+            className="flex h-9 min-w-11 cursor-pointer items-center justify-center gap-1 px-1.5 text-[13px] text-white"
+            style={{ background: 'rgba(27,34,51,.9)', boxShadow: '0 0 0 2px #0f1420' }}
+            aria-label={`${FAC_KO[kd]} Lv${facilities[kd] + 1}`}
+            data-testid={`fac-fixed-${kd}`}
+            data-sfx="tab"
+            onClick={() => setFacSheet(kd)}
+          >
+            <span aria-hidden>{FAC_ICON[kd]}</span>
+            <span className="text-hi">{facilities[kd] + 1}</span>
+          </button>
+        ))}
+      </div>
+    ) : null;
+
   // 모바일은 오버레이 글자를 한 단계 키운다 (확대한 구장에서 읽히게)
   const k = mobile ? 1.3 : 1;
   const body = (size: CSSProperties) => (
@@ -286,7 +372,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
               onClick={() => (mobile ? setFacSheet(k) : setTab('right', 'stadium'))}
             >
               <span className="absolute inset-0 opacity-0 group-hover:opacity-100" style={{ boxShadow: 'inset 0 0 0 0.3cqw #ffd84a', background: 'rgba(255,216,74,.12)' }} />
-              {mobile ? (
+              {pan && tagsOff ? null : mobile ? (
                 // 터치에는 hover 가 없으므로 항상 작은 태그로 보인다
                 <span
                   className="absolute bottom-[4%] left-1/2 -translate-x-1/2 whitespace-nowrap text-center"
@@ -317,36 +403,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           );
         })}
 
-        {/* 관중 칩 */}
-        <button
-          className={`absolute flex items-center whitespace-nowrap text-left ${mobile && !away ? 'cursor-pointer' : 'pointer-events-none'}`}
-          data-testid="crowd-chip"
-          data-sfx="tab"
-          style={{ ...chipM, left: '1.2cqw', top: '1.2cqw', gap: '1.2cqw' }}
-          onClick={() => setFacSheet('ticket')}
-        >
-          <span title={WEATHER_KO[weather]}>{WEATHER_ICON[weather]}</span>
-          {away ? (
-            <span className="text-white/80">원정 · {opp?.city} 구장</span>
-          ) : shownCrowd ? (
-            <>
-              <span>
-                관중 <span className="text-hi">{fmtInt(shownCrowd.attendance)}</span>
-                <span className="text-white/50"> / {fmtInt(shownCrowd.capacity)}</span>
-              </span>
-              {shownCrowd.soldOut && (
-                <span className="anim-blink font-pixel-lg shrink-0" style={{ color: '#ff6b6b' }}>
-                  매진!
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-white/70">좌석 {fmtInt(cap)}석 · 개막 대기</span>
-          )}
-          {report?.night && <span className="text-sky">야간</span>}
-          {report?.post && <span className="text-hi">{report.post.name}</span>}
-          {mobile && !away && <span className="text-hi">티켓 ▸</span>}
-        </button>
+        {!pan && crowdChip}
 
         {/* 하이라이트 배너 */}
         {report && ev && (
@@ -406,7 +463,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
       </div>
   );
 
-  if (pan) return <PanZoom>{body}</PanZoom>;
+  if (pan) return <PanZoom fixed={<>{crowdChip}{facButtons}</>} onTagsOff={setTagsOff}>{body}</PanZoom>;
   return (
     <div className="flex h-full w-full items-center justify-center" style={{ containerType: 'size' }}>
       {body({ width: `min(100cqw, calc(100cqh * ${STADIUM_W} / ${STADIUM_H}))` })}
