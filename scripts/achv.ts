@@ -230,6 +230,20 @@ stunt = 'main';
   }
 }
 
+// 봇이 못 하는 것의 사유 (보고서·문서의 "봇은 못 하지만 사람은 가능")
+const WHY: Record<string, string> = {
+  's-brief': '봇은 주간 브리핑을 닫기만 한다. 제안 실행(runOffer)은 briefMemo.done 에 적힌다 — 탐침 확인',
+  'c-cash200': '봇은 남는 돈을 시설·왕조 프로젝트(총 267억)·도민 환원에 쓴다. 쓰면서도 최대 183억을 쥐었으므로 쓰지 않고 모으면 닿는다',
+  'c-cash300': '위와 같다. 시즌 영업 흑자 최대 89억 + 깃발 지원금으로, 프로젝트를 미루면 몇 시즌 안에 닿는다',
+  'c-price2': '봇은 적정가(최대 1.8만원 매진)를 따른다. 5장 이후 2.0만원으로 올려도 매진된다 — 탐침 확인',
+  'q-farm-manual': '봇은 2군 자동 운영을 끄지 않는다. 설정의 토글(campaign.farmAuto = false) — 탐침 확인',
+  't-dealt': '봇은 돔구장의 제안을 거절한다. 둘째 선택지가 campaign.dealt 를 세운다 — 탐침 확인',
+  't-allproj': '봇은 12시즌 안에 프로젝트 넷을 다 사지 못했다(돔 완공·아카데미·기념관은 각각 달성). 전부 현금으로 사는 것이라 왕조 장을 오래 하면 닿는다',
+  'o-cheap-sell': '봇은 티켓값을 0.5만원까지 내리지 않는다 — 탐침 확인',
+  'o-greedy': '봇은 티켓값을 4.0만원까지 올리지 않는다 — 탐침 확인',
+  'o-franchise-out': '봇은 프랜차이즈 스타를 방출하지 않는다. releasePlayer 가 허용한다 — 탐침 확인',
+};
+
 const pctOf = (n: number) => `${Math.round((n / N_SEEDS) * 100)}`.padStart(3) + '%';
 console.log(`\n도전과제 점검: 봇 ${BOTS.length}종 × ${N_SEEDS} 시드 × ${N_SEASONS} 시즌 (${((Date.now() - t0) / 1000).toFixed(0)}초) · 누적은 봇별로 ${N_SEEDS}개 구단을 이어서 한 번 더`);
 console.log(`목록 ${ACHV_LIST.length}개 · 숨김 ${hidden}개`);
@@ -256,6 +270,8 @@ console.log(`봇 4종이 한 번도 달성하지 못한 것 ${never.length}개 (
 for (const id of never) {
   const d = ACHV_LIST.find((x) => x.id === id)!;
   console.log(`  ${probed.includes(id) ? '✓' : ' '} ${id.padEnd(18)} T${d.tier} ${d.title} — ${d.desc}`);
+  console.log(`      봇은 못 하지만 사람은 가능: ${WHY[id] ?? '사유 미기재 — 조건을 다시 확인할 것'}`);
+  if (!WHY[id]) bad.push(`봇 달성 0% 인데 사유가 없다: ${id}`);
 }
 if (process.argv.includes('--md')) {
   // docs/ACHIEVEMENTS.md: 전체 목록 (id · 제목 · 조건) + 봇 달성률
@@ -275,6 +291,9 @@ if (process.argv.includes('--md')) {
     }
     L.push('');
   }
+  L.push(`## 봇이 한 번도 달성하지 못한 것 (${never.length})`, '', '| id | 제목 | 봇은 못 하지만 사람은 가능: 이유 |', '|---|---|---|');
+  for (const id of never) L.push(`| \`${id}\` | ${ACHV_LIST.find((x) => x.id === id)!.title} | ${WHY[id] ?? '—'} |`);
+  L.push('');
   writeFileSync(new URL('../docs/ACHIEVEMENTS.md', import.meta.url), L.join('\n'));
   console.log('docs/ACHIEVEMENTS.md 저장');
 }

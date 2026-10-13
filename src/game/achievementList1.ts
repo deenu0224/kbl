@@ -60,7 +60,7 @@ const START: AchvDef[] = [
   S('s-first-win', '첫 승 신고', '첫 승리를 거둔다', '🙌', 1, 'game', won),
   S('s-first-loss', '졌지만 잘 싸웠다', '첫 패배를 당한다', '🥲', 1, 'game', (x) => !!x.r && x.r.won === false),
   S('s-home-win', '집에서는 이긴다', '홈경기에서 처음 이긴다', '🏠', 1, 'game', (x) => won(x) && x.r!.isHome),
-  S('s-lineup', '저걸 왜 저기서 바꿔', '타순·수비 위치·투수 보직을 직접 한 번 바꾼다', '✏️', 1, 'squad', (x) => x.quiet && !!x.prev && lineupKey(userOf(x.prev)) !== lineupKey(x.t)),
+  S('s-lineup', '저걸 왜 저기서 바꿔', '타순·수비 위치·투수 보직을 직접 한 번 바꾼다', '✏️', 1, 'squad', (x) => x.quiet && !!x.prev && !x.signed.length && !x.released.length && !x.calledUp.length && !x.sentDown.length && lineupKey(userOf(x.prev)) !== lineupKey(x.t)),
   S('s-price', '가격표 고쳐 쓰기', '티켓값을 한 번 바꾼다', '🎟️', 1, 'manage', (x) => x.quiet && !!x.prev && x.prev.finance.ticketPrice !== x.core.finance.ticketPrice),
   S('s-upgrade', '첫 삽', '시설을 1단계 올린다', '🏗️', 1, 'total', totAtLeast('upgrades', 1).test),
   S('s-sign', '도장 쾅', 'FA 선수 1명을 영입한다', '🖋️', 1, 'total', totAtLeast('signs', 1).test),
