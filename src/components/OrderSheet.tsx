@@ -115,7 +115,7 @@ export default function OrderSheet() {
 
   if (mobile) {
     return (
-      <div className="anim-fade fixed inset-0 z-[35] flex h-[calc(var(--dvh)*100)] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label={title} data-testid="order-sheet">
+      <div className="fixed inset-0 z-[35] flex h-[calc(var(--dvh)*100)] flex-col bg-panel font-pixel text-[12px] select-none" style={safe} role="dialog" aria-label={title} data-testid="order-sheet">
         {sheet}
       </div>
     );

@@ -209,7 +209,12 @@ canvas.pixel {
   }
 }
 .anim-fade {
-  animation: fade-in 0.15s steps(3) both;
+  /* 어두운 배경에만 쓴다. 내용이 있는 창에 쓰면, 일부 인앱 브라우저에서 애니메이션이 중간에 멈춰 창이 반투명으로 남는다 */
+  animation: fade-in 0.15s steps(3) backwards;
+}
+/* 앱이 뒤로 갔다 돌아오면 멈춰 있던 등장 애니메이션을 끊고 제 모습으로 둔다 (main.tsx) */
+:root[data-noanim] [class*='anim-']:not(.anim-blink) {
+  animation: none !important;
 }
 
 /* 결산·엔딩의 차례로 드러나는 연출 */
@@ -220,7 +225,7 @@ canvas.pixel {
   }
 }
 .anim-fade-slow {
-  animation: fade-slow 0.7s steps(7) both;
+  animation: fade-slow 0.7s steps(7) backwards;
 }
 /* 실루엣이 걷힌다: 가림막은 사라지고 이름은 나타난다 */
 @keyframes veil-out {

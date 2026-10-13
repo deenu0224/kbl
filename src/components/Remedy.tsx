@@ -58,7 +58,7 @@ function Modal({
       aria-label={label}
     >
       <div className="anim-fade absolute inset-0 bg-ink/65" onClick={onClose} />
-      <div className="px-panel anim-fade relative max-h-[calc(var(--vh)*80)] w-[420px] overflow-y-auto py-2">
+      <div className="px-panel relative max-h-[calc(var(--vh)*80)] w-[420px] overflow-y-auto py-2">
         {children}
       </div>
     </div>
@@ -139,7 +139,7 @@ export default function RemedySheet({
       )}
       {done ? (
         <div
-          className="anim-fade flex min-h-12 items-center bg-good/20 px-3 py-2 text-[14px] leading-snug text-good"
+          className="flex min-h-12 items-center bg-good/20 px-3 py-2 text-[14px] leading-snug text-good"
           data-testid="remedy-done"
         >
           ✓ {done}

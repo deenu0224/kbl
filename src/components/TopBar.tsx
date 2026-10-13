@@ -159,7 +159,7 @@ export function MobileTopBar() {
       {open && (
         <>
           <div className="fixed inset-0 z-[-1]" onClick={() => setOpen(false)} />
-          <div className="px-panel anim-fade absolute inset-x-0 top-full mt-[4px] p-2">
+          <div className="px-panel absolute inset-x-0 top-full mt-[4px] p-2">
             <div className="mb-1.5 flex items-center gap-2 text-[11px] text-white/55">
               <span className="shrink-0">
                 {team.city} {team.name} · {season}시즌 {Math.min(day, total)}/{total}

@@ -90,7 +90,7 @@ function ThinMenu() {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="px-panel anim-fade absolute top-full right-0 z-[31] mt-[4px] flex flex-col gap-1.5 p-2">
+          <div className="px-panel absolute top-full right-0 z-[31] mt-[4px] flex flex-col gap-1.5 p-2">
             <button
               className="px-btn min-h-10 whitespace-nowrap"
               data-testid="menu-settings"
