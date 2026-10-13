@@ -9,6 +9,7 @@ import { PAST_RANKS } from '../game/story';
 import { SHARE_HOST } from './config';
 import { cardItems, codeInfo, endingLine, serialOf, shareFromCore, SHARE_CITY, SHARE_TITLE, type CodeInfo, type ShareData, type ShareKind } from './shareData';
 import { askOf } from './story';
+import { BENCH, relocatedPct } from './bench';
 
 /** 기록 카드: 정사각 1080×1080 증명서. 종이색 바탕에 구단 색(주황·초록), 픽셀 글자 */
 export const CARD_W = 1080;
@@ -210,7 +211,7 @@ const toBlob = (c: HTMLCanvasElement): Promise<Blob> => new Promise<Blob>((ok, n
 export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blob> {
   const r = d.rec;
   const items = cardItems(r);
-  await loadFonts(`${SHARE_TITLE}${r.nick}${items.map((s) => s.label + s.value).join('')}단장 기록 시즌 지도 상위 시뮬레이션 대비 너라면 몇 만에 지킬 수 있을까 진행 중 우승 연고 이전 임기 마침 꿈 이룸 걸린 버틴 기준 시점의 진행도 부임 전`);
+  await loadFonts(`${SHARE_TITLE}${r.nick}${items.map((s) => s.label + s.value).join('')}단장 기록 시즌 지도 상위 시뮬레이션 대비 너라면 몇 만에 지킬 수 있을까 진행 중 우승 연고 이전 임기 마침 꿈 이룸 걸린 버틴 기준 시점의 진행도 부임 전 을 버텼습니다 명 중 가 같은 결말 돔구장 돔 공사 중 석`);
   const c = canvas(CARD_W, CARD_H);
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
@@ -271,12 +272,22 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
   const pw = CARD_W - PAD - px;
   ctx.fillStyle = RULE;
   ctx.fillRect(px - 24, by, 4, 224);
-  line(ctx, '상위', 'Galmuri11', [33], px, by - 4, MUTE, pw);
-  const pct = `${d.pct.pct}%`;
-  line(ctx, pct, 'Galmuri14', [112], px, by + 46, accent, pw);
-  line(ctx, pct, 'Galmuri14', [112], px + 8, by + 46, accent, pw); // 한 픽셀 옆에 한 번 더 찍어 굵게
-  line(ctx, `시뮬레이션 단장 ${d.pct.n}명 대비`, 'Galmuri11', [22], px, by + 172, INK, pw);
-  line(ctx, d.pct.basis, 'Galmuri11', [22], px, by + 202, MUTE, pw);
+  if (gone) {
+    // 연고 이전: 큰 숫자 = 버틴 시즌 수
+    const big = `${r.seasons}시즌`;
+    line(ctx, big, 'Galmuri14', [112, 84], px, by + 2, accent, pw - 8);
+    line(ctx, big, 'Galmuri14', [112, 84], px + 8, by + 2, accent, pw - 8); // 한 픽셀 옆에 한 번 더 찍어 굵게
+    line(ctx, '을 버텼습니다', 'Galmuri14', [33], px, by + 132, INK, pw);
+    const same = relocatedPct();
+    if (same !== null) line(ctx, `시뮬레이션 단장 ${d.pct.n}명 중 ${same}%가 같은 결말`, 'Galmuri11', [22, 18], px, by + 190, MUTE, pw);
+  } else {
+    line(ctx, '상위', 'Galmuri11', [33], px, by - 4, MUTE, pw);
+    const pct = `${d.pct.pct}%`;
+    line(ctx, pct, 'Galmuri14', [112], px, by + 46, accent, pw);
+    line(ctx, pct, 'Galmuri14', [112], px + 8, by + 46, accent, pw); // 한 픽셀 옆에 한 번 더 찍어 굵게
+    line(ctx, `시뮬레이션 단장 ${d.pct.n}명 대비`, 'Galmuri11', [22], px, by + 172, INK, pw);
+    line(ctx, d.pct.basis, 'Galmuri11', [22], px, by + 202, MUTE, pw);
+  }
 
   // 맨 아래: 질문 + 주소
   ctx.fillStyle = INK;
@@ -322,7 +333,7 @@ function typeScene(info: CodeInfo): StadiumScene {
 export async function renderOgFor(code: string): Promise<Blob> {
   const info = codeInfo(code);
   if (!info) throw new Error(`모르는 유형: ${code}`);
-  await loadFonts(`${SHARE_TITLE}${info.title}${info.ask}단장 기록 시즌 지도 빈 칸 부임 전`);
+  await loadFonts(`${SHARE_TITLE}${info.title}${info.ask}단장 기록 시즌 지도 빈 칸 부임 전 을 버텼습니다 시뮬레이션 명 중 가 같은 결말 0123456789%`);
   const c = canvas(OG_W, OG_H);
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
@@ -343,7 +354,10 @@ export async function renderOgFor(code: string): Promise<Blob> {
   const bs = 168;
   line(ctx, info.big, 'Galmuri14', [bs], x - 6, 168, accent, lw);
   line(ctx, info.big, 'Galmuri14', [bs], x - 6 + bs / 14, 168, accent, lw); // 한 픽셀 옆에 한 번 더 찍어 굵게
-  line(ctx, info.tail.replace(/^[,\s]+/, ''), 'Galmuri14', [56, 42], x, 360, INK, lw);
+  // 연고 이전 유형: 큰 숫자 = 버틴 시즌 수, 보조 줄 = 같은 결말을 맞은 가상 단장의 비율
+  const same = gone ? relocatedPct() : null;
+  line(ctx, gone ? '을 버텼습니다' : info.tail.replace(/^[,\s]+/, ''), 'Galmuri14', [56, 42], x, 360, INK, lw);
+  if (same !== null) line(ctx, `시뮬레이션 단장 ${BENCH.n}명 중 ${same}%가 같은 결말`, 'Galmuri11', [22], x, 434, MUTE, lw);
   line(ctx, info.ask, 'Galmuri11', [33], x, 478, GREEN, lw);
   line(ctx, SHARE_HOST, 'Galmuri11', [22], x, 540, MUTE, lw);
 

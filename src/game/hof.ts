@@ -1,6 +1,8 @@
 import type { Core } from './types';
 import type { LeagueAwards } from './leaders';
-import { domePaid, giveTotal } from './projects';
+import { domePaid, domeStage, giveTotal, projectFx } from './projects';
+import { SEAT_LV } from './economy';
+import { isFranchise } from './franchise';
 
 /** 명예의 전당: 세이브와 독립된 기록 (localStorage 키 HOF_KEY). 전부 순수 함수 — 읽기·쓰기는 화면 쪽이 한다. */
 export const HOF_KEY = 'kbl-hof-v1';
@@ -21,6 +23,11 @@ export interface HofClub {
   tainted?: boolean; // 우승 시즌에 덮었던 일이 드러났다
   give?: number; // 도민 환원 누적 (만원)
   dome?: boolean; // 섬에 돔을 세웠다
+  // 구단 종료 시점의 기록 카드 칸 (없으면 카드에 "—")
+  star?: string; // 간판스타
+  retired?: string[]; // 영구결번
+  seats?: string; // 구장 ("24,000석" · "돔구장 30,000석")
+  trust?: number; // 도민 지지
 }
 export interface HofRecord {
   value: number;
@@ -62,6 +69,20 @@ export const nickOf = (core: Pick<Core, 'teams' | 'userId'>): string => core.tea
 /** 기록할 만큼 진행됐는가: 한 시즌 이상 결산을 마쳤다 */
 export const hofWorthy = (core: Core): boolean => (core.campaign.history?.length ?? 0) >= 1;
 
+const fmtInt = (v: number) => Math.round(v).toLocaleString('en-US');
+/** 기록 카드의 구장 칸: 돔 완공 = "돔구장 30,000석", 착공 뒤 = "돔 공사 중", 그 외 좌석 수 */
+export function seatsLabel(core: Pick<Core, 'facilities' | 'campaign' | 'season'>): string {
+  const cap = SEAT_LV[core.facilities.seats]?.cap ?? 0;
+  const st = domeStage(core);
+  if (st >= 3) return `돔구장 ${fmtInt(cap + projectFx(core).seats)}석`;
+  return domePaid(core) > 0 ? '돔 공사 중' : `${fmtInt(cap)}석`;
+}
+/** 기록 카드의 간판스타 칸: 프랜차이즈 스타, 없으면 스타성이 가장 높은 선수 */
+export function starName(core: Pick<Core, 'teams' | 'userId' | 'season'>): string | null {
+  const roster = [...(core.teams.find((t) => t.id === core.userId)?.roster ?? [])].sort((a, b) => b.star - a.star);
+  return (roster.find((p) => isFranchise(p, core.season)) ?? roster[0])?.name ?? null;
+}
+
 /** 역대 구단 한 줄을 넣거나(같은 seed 면) 갱신한다 */
 export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string): Hof {
   const c = core.campaign;
@@ -78,6 +99,10 @@ export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string): Hof
     ...(c.history.some((h) => h.tainted) ? { tainted: true } : {}),
     ...(giveTotal(core) > 0 ? { give: giveTotal(core) } : {}),
     ...(domePaid(core) >= 3 ? { dome: true } : {}),
+    ...(starName(core) ? { star: starName(core)! } : {}),
+    ...((c.retired ?? []).length ? { retired: (c.retired ?? []).map((r) => r.name) } : {}),
+    seats: seatsLabel(core),
+    trust: Math.round(c.trust),
   };
   const i = hof.clubs.findIndex((x) => x.seed === core.seed);
   const clubs = i >= 0 ? hof.clubs.map((x, j) => (j === i ? row : x)) : [row, ...hof.clubs];

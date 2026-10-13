@@ -1,7 +1,6 @@
 import { ACHIEVEMENTS } from '../game/campaign';
-import { isFranchise } from '../game/franchise';
-import { SEAT_LV } from '../game/economy';
-import { nickOf, type HofClub } from '../game/hof';
+import { nickOf, seatsLabel, starName, type HofClub } from '../game/hof';
+export { seatsLabel, starName };
 import { PAST_RANKS, TRUST_LABEL } from '../game/story';
 import type { Core, PostFinish, SeasonRecord } from '../game/types';
 import { percentile, type Percentile } from './bench';
@@ -164,8 +163,6 @@ export function recordFromCore(core: Core, kind: ShareKind): ShareRecord {
   const h = c.history ?? [];
   const team = core.teams.find((t) => t.id === core.userId);
   const last = h[h.length - 1] ?? { rank: team ? 8 : 8, post: 'none' as PostFinish, cleared: false };
-  const roster = [...(team?.roster ?? [])].sort((a, b) => b.star - a.star);
-  const star = roster.find((p) => isFranchise(p, core.season)) ?? roster[0];
   const champs = h.flatMap((x, i) => (x.post === 'champion' ? [i + 1] : []));
   return {
     kind,
@@ -183,9 +180,9 @@ export function recordFromCore(core: Core, kind: ShareKind): ShareRecord {
     stage: c.stage,
     stars: c.achievements?.length ?? 0,
     trust: Math.round(c.trust),
-    star: star?.name ?? null,
+    star: starName(core),
     retired: (c.retired ?? []).map((r) => r.name),
-    seats: `${int(SEAT_LV[core.facilities.seats]?.cap ?? 0)}석`,
+    seats: seatsLabel(core),
     exposed: c.exposed ?? 0,
   };
 }
@@ -210,10 +207,10 @@ export function recordFromClub(club: HofClub): ShareRecord {
     failStreak: 0,
     stage: club.stage,
     stars: club.stars,
-    trust: null,
-    star: null,
-    retired: [],
-    seats: null,
+    trust: club.trust ?? null,
+    star: club.star ?? null,
+    retired: club.retired ?? [],
+    seats: club.seats ?? null,
     exposed: club.tainted ? 1 : 0,
   };
 }
