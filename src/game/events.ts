@@ -475,10 +475,12 @@ export const CARDS: CardDef[] = [
     id: 'arm',
     prio: 85,
     forced: true,
-    when: (c) => overworked(c).length > 0,
+    // 장의 대본 카드처럼 일반 예산 밖이지만, 한 번 나오면 다음 시즌은 쉰다 (memo.ts CARD_REST_OF)
+    when: (c) => cardRested(c, 'arm') && overworked(c).length > 0,
     make: (c) => {
       const p = overworked(c)[0];
       if (!p) return null;
+      markCardMut(c, 'arm');
       const loss = penWithout(c, p);
       const lossWins = Math.round(loss.wins * N.armRest * 10) / 10;
       const after = { ...p, stf: clamp(p.stf + N.armStf, 20, 99) };

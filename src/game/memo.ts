@@ -41,7 +41,7 @@ export function seenCards(core: Core): string[] {
 
 /** 재등장 간격: 한 번 나온 카드는 다음 CARD_REST 시즌 동안 쉰다 (중간 점검·장의 대본 카드·재계약은 예외) */
 export const CARD_REST = 2;
-export const CARD_REST_OF: Record<string, number> = { 'f-ready': 1, dope: 3, fix: 3 };
+export const CARD_REST_OF: Record<string, number> = { 'f-ready': 1, dope: 3, fix: 3, arm: 1 };
 export function cardRested(core: Core, id: string): boolean {
   const last = core.campaign.cardSeen?.[id];
   return last === undefined || last === core.season || core.season - last > (CARD_REST_OF[id] ?? CARD_REST);
