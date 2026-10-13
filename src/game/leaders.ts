@@ -1,6 +1,7 @@
 // 개인 기록 순위 · 시즌 시상 · 리그 평균 환경. 순수 함수 (Core 를 바꾸지 않는다).
 import type { BatPos, Core, Player, Team } from './types';
 import { fmtAvg, fmtEra, fmtInt, fmtOps, fmtWhip } from './format';
+import { seasonGames } from './league';
 
 export interface LeaderRow {
   pid: string;
@@ -111,7 +112,7 @@ export function pitLeaders(core: Core, cat: PitCat, n = 10): LeaderRow[] {
 }
 
 /** 현재 리그 평균 환경 */
-export function leagueEnv(core: Core): { avg: number; obp: number; slg: number; era: number; rpg: number; hrPerGame: number; sbPerGame: number } {
+export function leagueEnv(core: Core): { avg: number; obp: number; slg: number; era: number; rpg: number; hrPerGame: number; sbPerGame: number; season: number } {
   let pa = 0, ab = 0, h = 0, tb = 0, bb = 0, hr = 0, sb = 0, er = 0, outs = 0, runs = 0, games = 0;
   for (const t of core.teams) {
     runs += t.rec.rs;
@@ -132,6 +133,7 @@ export function leagueEnv(core: Core): { avg: number; obp: number; slg: number; 
     rpg: games ? runs / games : 0,
     hrPerGame: games ? hr / games : 0,
     sbPerGame: games ? sb / games : 0,
+    season: seasonGames(core),
   };
 }
 
@@ -149,7 +151,7 @@ function value(p: Player, env: ReturnType<typeof leagueEnv>): number {
     const b = p.bat;
     if (b.pa === 0) return -Infinity;
     const lgOps = env.obp + env.slg;
-    return b.pa * (ops(p) - lgOps) * 0.3 + b.sb * 0.2 - b.cs * 0.4 + (p.def - 60) * 0.05 * (b.g / 84);
+    return b.pa * (ops(p) - lgOps) * 0.3 + b.sb * 0.2 - b.cs * 0.4 + (p.def - 60) * 0.05 * (b.g / env.season);
   }
   if (p.pit.outs === 0) return -Infinity;
   return ((env.era - era(p)) * p.pit.outs) / 27 + p.pit.sv * 0.3;

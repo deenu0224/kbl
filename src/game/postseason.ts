@@ -1,4 +1,4 @@
-// 포스트시즌 (KBO 사다리식 8구단 축소판). docs/LEVEL_DESIGN.md 3절.
+// 포스트시즌 (KBO 사다리식). 8구단 리그는 4팀, 10구단 리그는 와일드카드 결정전을 더한 5팀. docs/LEVEL_DESIGN.md 3절 · docs/TEN_TEAMS.md
 import type { BatStats, Core, Crowd, DayReport, GameEvent, GameResult, PitStats, PostFinish, PostRound, PostSeries, Postseason, Team } from './types';
 import { clamp, gauss, randInt, type Rng } from './rng';
 import { FOOD_LV, SEAT_LV, TRAIN_LV, loanInterest, MERCH_K, calcDemand, opsCost, rainFood, starPower, userTeam } from './economy';
@@ -6,15 +6,18 @@ import { fmtInt } from './format';
 import { addNews, playGame, rankOf, rollWeather, settleCash, standings } from './season';
 import { activeBuffs, concludeMut, hintMut, refreshProgressMut, tickBuffs } from './campaign';
 import { memoAdd } from './memo';
+import { perGame, postRounds, postTeams } from './league';
 
 // ── 튜닝 상수 ──
-export const POST_TEAMS = 4;
-const ROUNDS: { round: PostRound; name: string; bestOf: number; hiHome: number[] }[] = [
-  { round: 'SPO', name: '준플레이오프', bestOf: 3, hiHome: [0, 2] },
-  { round: 'PO', name: '플레이오프', bestOf: 5, hiHome: [0, 1, 4] },
-  { round: 'KS', name: '한국시리즈', bestOf: 7, hiHome: [0, 1, 5, 6] },
-];
-const DEMAND_MULT: Record<PostRound, number> = { SPO: 1.25, PO: 1.4, KS: 1.6 };
+// 진출 팀 수와 라운드 순서는 구단 수에서 유도한다 (league.ts postTeams·postRounds): 8구단 4팀 [SPO, PO, KS], 10구단 5팀 [WC, SPO, PO, KS]
+// hiHome = 상위 시드가 홈인 경기 번호(0부터). hiLead = 상위 시드가 안고 시작하는 승수. tieHi = 무승부가 있고, 비기면 상위 시드가 통과
+const ROUND_DEF: Record<PostRound, { name: string; bestOf: number; hiHome: number[]; hiLead?: number; tieHi?: boolean }> = {
+  WC: { name: '와일드카드 결정전', bestOf: 3, hiHome: [0, 1], hiLead: 1, tieHi: true }, // 4위 1승 선취 · 최대 2경기 · 전부 4위 홈
+  SPO: { name: '준플레이오프', bestOf: 3, hiHome: [0, 2] },
+  PO: { name: '플레이오프', bestOf: 5, hiHome: [0, 1, 4] },
+  KS: { name: '한국시리즈', bestOf: 7, hiHome: [0, 1, 5, 6] },
+};
+const DEMAND_MULT: Record<PostRound, number> = { WC: 1.2, SPO: 1.25, PO: 1.4, KS: 1.6 };
 const TICKET_MULT = 1.5; // 정산 가격 배율 (표시가와 별개)
 const POST_DOW = 4; // 수요 계산용 요일 (토요일급 열기)
 const NOISE_SD = 0.05;
@@ -34,22 +37,25 @@ const done = (s: PostSeries) => s.winnerId !== null;
 export function startPostMut(core: Core): void {
   // 정규시즌과 포스트시즌 사이의 휴식: 연투 피로는 풀린다
   for (const t of core.teams) for (const p of t.roster) delete p.tired;
+  const n = postTeams(core);
+  const rounds = postRounds(core);
   const seeds = standings(core.teams)
-    .slice(0, POST_TEAMS)
+    .slice(0, n)
     .map((t) => t.id);
-  const series: PostSeries[] = ROUNDS.map((r, i) => ({
-    round: r.round,
-    name: r.name,
-    hiId: seeds[POST_TEAMS - 2 - i] ?? null, // SPO=3위, PO=2위, KS=1위
-    loId: i === 0 ? seeds[3] : null,
-    bestOf: r.bestOf,
-    hiW: 0,
+  const series: PostSeries[] = rounds.map((round, i) => ({
+    round,
+    name: ROUND_DEF[round].name,
+    hiId: seeds[n - 2 - i] ?? null, // 4팀: SPO=3위, PO=2위, KS=1위 · 5팀: WC=4위, SPO=3위, …
+    loId: i === 0 ? (seeds[n - 1] ?? null) : null,
+    bestOf: ROUND_DEF[round].bestOf,
+    hiW: ROUND_DEF[round].hiLead ?? 0,
     loW: 0,
     winnerId: null,
     games: [],
   }));
+  // 유저가 처음 나서는 라운드: 최하위 시드는 첫 라운드의 하위 시드로, 그 밖에는 자기 시드가 상위 시드인 라운드부터
   const ui = seeds.indexOf(core.userId);
-  const userFinish: PostFinish = ui < 0 ? 'none' : ui === 0 ? 'KS' : ui === 1 ? 'PO' : 'SPO';
+  const userFinish: PostFinish = ui < 0 ? 'none' : rounds[Math.max(0, n - 2 - ui)];
   core.post = { seeds, series, cur: 0, championId: null, userFinish };
 }
 
@@ -68,8 +74,8 @@ export function postMatch(core: Core): { oppId: string; isHome: boolean; round: 
   if (core.phase !== 'post' || !core.post) return null;
   const s = core.post.series[core.post.cur];
   if (!s || done(s) || !s.hiId || !s.loId || !userIn(core, s)) return null;
-  const g = s.hiW + s.loW;
-  const hiHome = ROUNDS[core.post.cur].hiHome.includes(g);
+  const g = s.games.length;
+  const hiHome = ROUND_DEF[s.round].hiHome.includes(g);
   const homeId = hiHome ? s.hiId : s.loId;
   const isHome = homeId === core.userId;
   return { oppId: s.hiId === core.userId ? s.loId : s.hiId, isHome, round: s.round, name: s.name, gameNo: g + 1 };
@@ -124,8 +130,9 @@ function breakTie(res: GameResult, home: Team, away: Team, rng: Rng, track: bool
 function playSeriesGame(core: Core, idx: number, rng: Rng, track: boolean): { res: GameResult; homeId: string; awayId: string } {
   const post = core.post!;
   const s = post.series[idx];
-  const g = s.hiW + s.loW;
-  const hiHome = ROUNDS[idx].hiHome.includes(g);
+  const def = ROUND_DEF[s.round];
+  const g = s.games.length;
+  const hiHome = def.hiHome.includes(g);
   const homeId = hiHome ? s.hiId! : s.loId!;
   const awayId = hiHome ? s.loId! : s.hiId!;
   const home = core.teams.find((t) => t.id === homeId)!;
@@ -140,7 +147,7 @@ function playSeriesGame(core: Core, idx: number, rng: Rng, track: boolean): { re
     }
   }
   const res = playGame(core, home, away, rng, track);
-  breakTie(res, home, away, rng, track);
+  if (!def.tieHi) breakTie(res, home, away, rng, track);
   for (const t of [home, away]) {
     for (const p of t.roster) {
       const sn = snap.get(p.id);
@@ -156,10 +163,14 @@ function playSeriesGame(core: Core, idx: number, rng: Rng, track: boolean): { re
   }
 
   s.games.push({ homeId, awayId, home: res.home, away: res.away });
+  const tied = res.home === res.away; // 와일드카드 결정전만: 비기면 상위 시드가 통과한다
   const winId = res.home > res.away ? homeId : awayId;
-  if (winId === s.hiId) s.hiW++;
+  if (tied) s.winnerId = s.hiId;
+  else if (winId === s.hiId) s.hiW++;
   else s.loW++;
-  if (s.hiW >= need(s)) s.winnerId = s.hiId;
+  if (s.winnerId) {
+    // 무승부 통과
+  } else if (s.hiW >= need(s)) s.winnerId = s.hiId;
   else if (s.loW >= need(s)) s.winnerId = s.loId;
   if (s.winnerId) {
     // 시리즈 사이의 휴식일: 연투 피로가 풀린다
@@ -178,7 +189,12 @@ function finishSeries(core: Core, idx: number): void {
   const w = s.winnerId!;
   const loser = w === s.hiId ? s.loId! : s.hiId!;
   const name = (id: string) => core.teams.find((t) => t.id === id)?.name ?? id;
-  const sc = `${Math.max(s.hiW, s.loW)}승 ${Math.min(s.hiW, s.loW)}패`;
+  // 와일드카드 결정전은 안고 시작한 1승을 빼고 실제 치른 경기로 적는다
+  const lead = ROUND_DEF[s.round].hiLead ?? 0;
+  const wonG = w === s.hiId ? s.hiW - lead : s.loW;
+  const lostG = w === s.hiId ? s.loW : s.hiW - lead;
+  const tieG = s.games.length - wonG - lostG;
+  const sc = lead ? `${wonG}승 ${lostG}패${tieG ? ` ${tieG}무` : ''}` : `${Math.max(s.hiW, s.loW)}승 ${Math.min(s.hiW, s.loW)}패`;
   if (idx + 1 < post.series.length) {
     post.series[idx + 1].loId = w;
     if (w === core.userId) {
@@ -284,6 +300,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
   const myRuns = m.isHome ? res.home : res.away;
   const oppRuns = m.isHome ? res.away : res.home;
   const won = myRuns > oppRuns;
+  const tie = myRuns === oppRuns; // 와일드카드 결정전만 (비기면 4위 통과)
   // 연투 패전: 전날 던진 투수가 오늘 패전투수가 됐다
   if (!won && res.lossP && (tiredBefore.get(res.lossP) ?? 0) >= 1) {
     memoAdd(core, 'b2bLoss');
@@ -306,8 +323,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (m.isHome ? 1.4 : 0.6) * fx.merch);
   const upkeep =
     (m.isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
-    TRAIN_LV[core.facilities.training].upkeep +
-    opsCost(core);
+    Math.round(perGame(core, TRAIN_LV[core.facilities.training].upkeep + opsCost(core)));
   const interest = Math.round(loanInterest(core, f.debt) / core.schedule.length);
   const net = ticket + food + merch - upkeep - interest;
   f.cash += net;
@@ -316,7 +332,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
   f.ledger.merch += merch;
   f.ledger.upkeep += upkeep;
   f.ledger.interest += interest;
-  core.fans = Math.max(1000, core.fans + (won ? FAN_POST_WIN : FAN_POST_LOSS));
+  core.fans = Math.max(1000, core.fans + (won ? FAN_POST_WIN : tie ? 0 : FAN_POST_LOSS));
   if (crowd) {
     core.crowd = crowd;
     if (crowd.soldOut) notes.push(`매진! ${fmtInt(crowd.attendance)}명이 가을야구를 함께했습니다`);
@@ -325,7 +341,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
 
   const myW = s.hiId === core.userId ? s.hiW : s.loW;
   const oppW = s.hiId === core.userId ? s.loW : s.hiW;
-  addNews(core, `${s.name} ${m.gameNo}차전 ${opp.name}전 ${myRuns}:${oppRuns} ${won ? '승리' : '패배'} (시리즈 ${myW}-${oppW})`, won ? 'good' : 'bad');
+  addNews(core, `${s.name} ${m.gameNo}차전 ${opp.name}전 ${myRuns}:${oppRuns} ${won ? '승리' : tie ? '무승부' : '패배'} (시리즈 ${myW}-${oppW})`, won ? 'good' : tie ? 'info' : 'bad');
   notes.push(`${s.name} 시리즈 ${myW}승 ${oppW}패`);
 
   settleCash(core, notes);

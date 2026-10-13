@@ -13,7 +13,7 @@ import { autoLineup, fixLineup, slotNewcomer } from './lineup';
 import { calcOvr, teamParts, type TeamParts } from './ratings';
 import { POS_LABEL, positionReport, type PosKey } from './analysis';
 import { winDelta } from './briefing';
-import { GAMES } from './schedule';
+import { dayAt, seasonGames } from './league';
 import { addNews, marketSalary } from './season';
 import { memoAdd, memoGet, memoNum, memoSet } from './memo';
 import { rowCash, rowFans, rowInfo, rowPayroll, rowSat, satAfter, type Row } from './eventRows';
@@ -21,8 +21,8 @@ import { CHARACTERS, NEWS } from './story';
 
 // ── 튜닝 상수 ──
 export const TR = {
-  from: 18, // 트레이드 기간: 이 경기 뒤부터
-  to: 54, // 마감일 (economy.ts TRADE_DEADLINE 과 같은 값 — 모듈 순환을 피하려고 따로 둔다)
+  from: 18, // 트레이드 기간: 이 경기 뒤부터 (84경기 기준 — 실제 값은 trFrom(core))
+  to: 54, // 마감일 (84경기 기준 — 실제 값은 trTo(core). economy.ts TRADE_DEADLINE 과 같은 값 — 모듈 순환을 피하려고 따로 둔다)
   warn: 6, // 마감 이 경기 전에 뉴스 한 줄
   max: 2, // AI 가 먼저 거는 제안: 시즌 최대 장수
   gap: 12, // 제안끼리 최소 경기 수
@@ -339,7 +339,7 @@ export function tradePreview(core: Core, of: TradeOffer, cash: number): TradePre
   const pa = teamParts(userTeam(core));
   const pb = teamParts(userTeam(after));
   const inSeason = core.phase === 'season' && core.day < core.schedule.length;
-  const games = inSeason ? core.schedule.length - core.day : core.schedule.length || GAMES;
+  const games = inSeason ? core.schedule.length - core.day : seasonGames(core);
   const r0 = positionReport(core);
   const r1 = positionReport(after);
   const val = (ps: Player[]) => ps.reduce((s, p) => s + tradeValue(p, core.season), 0);
@@ -477,8 +477,11 @@ export function resolveTradeMut(core: Core, idx: number, card: EventCard, rng: R
 // ───────── 뽑기 ─────────
 
 /** 트레이드 기간인가 · 마감까지 남은 경기 */
-export const tradeOpen = (core: Pick<Core, 'phase' | 'day'>): boolean => core.phase === 'season' && core.day >= TR.from && core.day < TR.to;
-export const tradeLeft = (core: Pick<Core, 'day'>): number => Math.max(0, TR.to - core.day);
+/** 이 리그의 트레이드 기간 (시즌 길이 비례: 84경기 18~54, 81경기 17~52) */
+export const trFrom = (core: { schedule: unknown[] }): number => dayAt(core, TR.from);
+export const trTo = (core: { schedule: unknown[] }): number => dayAt(core, TR.to);
+export const tradeOpen = (core: Pick<Core, 'phase' | 'day' | 'schedule'>): boolean => core.phase === 'season' && core.day >= trFrom(core) && core.day < trTo(core);
+export const tradeLeft = (core: { day: number; schedule: unknown[] }): number => Math.max(0, trTo(core) - core.day);
 
 function put(core0: Core, of: TradeOffer): Core | null {
   const core = structuredClone(core0);
@@ -520,7 +523,7 @@ export function drawTrade(core0: Core, rng: Rng): Core {
   let core = core0;
   if (plan === undefined) {
     core = structuredClone(core0);
-    const d1 = randInt(rng, TR.from, TR.from + 12);
+    const d1 = randInt(rng, trFrom(core), trFrom(core) + 12);
     const d2 = rng() < TR.second ? d1 + randInt(rng, TR.gap, TR.gap + 8) : 999;
     plan = `${d1},${d2}`;
     memoSet(core, 'trPlan', plan);
@@ -557,8 +560,8 @@ export function drawStoveTrade(core0: Core, rng: Rng): Core {
 /** 매 경기 후 (mutate): 마감 임박 · 마감 뉴스 */
 export function tradeTickMut(core: Core): void {
   if (core.phase !== 'season') return;
-  if (core.day === TR.to - TR.warn) addNews(core, `트레이드 마감 임박 — ${TR.warn}경기 남았습니다`, 'info');
-  if (core.day === TR.to) addNews(core, '트레이드 마감 — 다음 창은 스토브리그에 열립니다', 'info');
+  if (core.day === trTo(core) - TR.warn) addNews(core, `트레이드 마감 임박 — ${TR.warn}경기 남았습니다`, 'info');
+  if (core.day === trTo(core)) addNews(core, '트레이드 마감 — 다음 창은 스토브리그에 열립니다', 'info');
 }
 
 /** 이적 창구의 [트레이드 시장에] 토글 */

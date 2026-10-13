@@ -2,6 +2,7 @@ import type { BatPos, Core, Player } from './types';
 import { gameView, lineupKey, userOf, type AchvCat, type AchvCtx, type AchvDef, type AchvOn } from './achievements';
 import { leagueAwards } from './leaders';
 import { memoGet } from './memo';
+import { inPost, isLast, postTeams, seasonGames } from './league';
 
 // 도전과제 목록 1: 첫걸음 · 경기 · 시즌. 조건은 전부 DayReport 와 상태에서 읽는다 (게임 수치를 바꾸지 않는다)
 
@@ -52,7 +53,7 @@ const pct = (r: { w: number; l: number }): number => (r.w + r.l ? r.w / (r.w + r
 const g = (x: AchvCtx) => gameView(x.r!);
 const won = (x: AchvCtx): boolean => !!x.r && x.r.won === true;
 const some = (x: AchvCtx, f: (p: Player) => boolean): boolean => x.t.roster.some(f);
-const postRank: Record<string, number> = { none: 0, SPO: 1, PO: 2, KS: 3, champion: 4 };
+const postRank: Record<string, number> = { none: 0, WC: 1, SPO: 1, PO: 2, KS: 3, champion: 4 };
 
 const S = mk('start');
 const START: AchvDef[] = [
@@ -109,9 +110,9 @@ const GAME: AchvDef[] = [
 
 const E = mk('season');
 const SEASON: AchvDef[] = [
-  E('se-rank7', '탈꼴찌', '정규시즌 7위 이내로 마친다', '🥾', 1, 'season', (x) => x.rec!.rank <= 7),
-  E('se-rank5', '희망 고문', '정규시즌 5위로 마친다 (한 칸 차이로 가을야구 탈락)', '😮‍💨', 2, 'season', (x) => x.rec!.rank === 5),
-  E('se-rank4', '가을 냄새', '정규시즌 4위 이내로 마친다', '🍂', 2, 'season', (x) => x.rec!.rank <= 4),
+  E('se-rank7', '탈꼴찌', '정규시즌 7위 이내로 마친다', '🥾', 1, 'season', (x) => !isLast(x.core, x.rec!.rank)),
+  E('se-rank5', '희망 고문', '정규시즌 5위로 마친다 (한 칸 차이로 가을야구 탈락)', '😮‍💨', 2, 'season', (x) => x.rec!.rank === postTeams(x.core) + 1),
+  E('se-rank4', '가을 냄새', '정규시즌 4위 이내로 마친다', '🍂', 2, 'season', (x) => inPost(x.core, x.rec!.rank)),
   E('se-rank1', '정규시즌 우승', '정규시즌 1위로 마친다', '🥇', 3, 'season', (x) => x.rec!.rank === 1),
   E('se-500', '5할 본능', '정규시즌 승률 .500 이상', '⚖️', 1, 'season', (x) => pct(x.rec!) >= 0.5),
   E('se-600', '올해는 다르다(진짜로)', '정규시즌 승률 .600 이상', '📣', 3, 'season', (x) => pct(x.rec!) >= 0.6),
@@ -119,12 +120,12 @@ const SEASON: AchvDef[] = [
   E('se-w5', '분위기 탔다', '정규시즌 5연승', '🌊', 1, 'game', (x) => streaks(x.core).w >= 5, { progress: (x) => [streaks(x.core).w, 5] }),
   E('se-w8', '질 것 같지가 않다', '정규시즌 8연승', '🚄', 2, 'game', (x) => streaks(x.core).w >= 8, { progress: (x) => [streaks(x.core).w, 8] }),
   E('se-w12', '지는 법을 잊었다', '정규시즌 12연승', '🛸', 4, 'game', (x) => streaks(x.core).w >= 12, { progress: (x) => [streaks(x.core).w, 12] }),
-  E('se-nol3', '연패는 남의 일', '한 시즌 내내 3연패 없이 정규시즌을 마친다', '🧘', 4, 'season', (x) => streaks(x.core).n >= 84 && streaks(x.core).l <= 2),
+  E('se-nol3', '연패는 남의 일', '한 시즌 내내 3연패 없이 정규시즌을 마친다', '🧘', 4, 'season', (x) => streaks(x.core).n >= seasonGames(x.core) && streaks(x.core).l <= 2),
   E('se-post-win', '가을에 이겼다', '포스트시즌 경기에서 1승', '🍁', 2, 'game', (x) => won(x) && !!x.r!.post),
   E('se-sweep', '빗자루 들고 왔다', '포스트시즌 시리즈를 무패로 통과', '🧹', 3, 'game', (x) => won(x) && !!x.r!.post && x.r!.post.oppW === 0 && x.r!.post.myW * 2 > x.r!.post.bestOf),
   E('se-ks-win', '한국시리즈 1승', '한국시리즈 경기에서 1승', '🏟️', 3, 'game', (x) => won(x) && x.r!.post?.round === 'KS'),
   E('se-game7', '끝장 승부', '한국시리즈 7차전에서 승리', '7️⃣', 4, 'game', (x) => won(x) && x.r!.post?.round === 'KS' && x.r!.post.gameNo === 7),
-  E('se-upset', '도장 깨기', '정규시즌 4위로 한국시리즈까지 진출', '🥋', 4, 'season', (x) => x.rec!.rank === 4 && postRank[x.rec!.post] >= 3),
+  E('se-upset', '도장 깨기', '정규시즌 4위로 한국시리즈까지 진출', '🥋', 4, 'season', (x) => x.rec!.rank === postTeams(x.core) && postRank[x.rec!.post] >= 3),
   E('se-hrking', '홈런왕 배출', '우리 선수가 리그 홈런왕', '💣', 2, 'season', (x) => hasTitle(x, 'hr')),
   E('se-batking', '타격왕 배출', '우리 선수가 리그 타격왕', '🏏', 2, 'season', (x) => hasTitle(x, 'avg')),
   E('se-winking', '다승왕 배출', '우리 선수가 리그 다승왕', '🔟', 2, 'season', (x) => hasTitle(x, 'w')),

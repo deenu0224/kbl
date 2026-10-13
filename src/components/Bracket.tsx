@@ -5,7 +5,7 @@ import { standings } from '../game/season';
 import { TeamDot } from './ui';
 
 const FORMAT: Record<number, string> = { 3: '3전 2선승', 5: '5전 3선승', 7: '7전 4선승' };
-const SHORT: Record<string, string> = { SPO: '준PO', PO: 'PO', KS: 'KS' };
+const SHORT: Record<string, string> = { WC: 'WC', SPO: '준PO', PO: 'PO', KS: 'KS' };
 
 /** 포스트시즌 다음 경기 한 줄 정보 ("한국시리즈 3차전 · 2승 1패"). 포스트시즌이 아니면 null */
 export function usePostLine(): { name: string; gameNo: number; myW: number; oppW: number; text: string } | null {

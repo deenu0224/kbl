@@ -17,7 +17,7 @@ export const stageLabel = (i: number): string => `${i + 1}장 · ${stageName(i)}
 /** 아직 닿지 않은 장의 이름은 실루엣으로만 */
 export const silhouette = (i: number): string => '█'.repeat(Math.max(3, Math.min(8, [...stageName(i)].filter((c) => c !== ' ').length)));
 
-export const POST_KO: Record<SeasonRecord['post'], string> = { none: '', SPO: '준플레이오프', PO: '플레이오프', KS: '준우승', champion: '우승' };
+export const POST_KO: Record<SeasonRecord['post'], string> = { none: '', WC: '와일드카드', SPO: '준플레이오프', PO: '플레이오프', KS: '준우승', champion: '우승' };
 
 const trustColor = (v: number) => (v >= 50 ? '#6ee07a' : v >= 25 ? '#ffd84a' : '#ff6b6b');
 

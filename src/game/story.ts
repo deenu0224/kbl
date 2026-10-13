@@ -214,7 +214,13 @@ export interface SeasonCtx {
   prev: SeasonRecord[]; // 이전 시즌 기록
   dealt: boolean;
   titlesBefore: number; // 이 시즌 전까지의 우승 횟수
+  teams?: number; // 구단 수 (없으면 8 — 옛 호출)
+  games?: number; // 시즌 경기 수 (없으면 84)
+  postTeams?: number; // 포스트시즌 진출 팀 수 (없으면 4)
 }
+const nT = (x: SeasonCtx) => x.teams ?? 8;
+const nPost = (x: SeasonCtx) => x.postTeams ?? 4;
+const gAt = (x: SeasonCtx, d84: number) => Math.round((d84 * (x.games ?? 84)) / 84); // 84경기 기준 경기 수를 이 시즌 길이로
 
 const pctOf = (xs: number[]) => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0.5);
 function longest(xs: number[], v: number): number {
@@ -240,27 +246,27 @@ export const SEASON_NAME_RULES: NameRule[] = [
   { name: '한 걸음이 모자랐던 가을', test: (r) => r.post === 'KS' },
   { name: '처음 맞은 가을', test: (r, x) => r.post !== 'none' && x.prev.every((p) => p.post === 'none') },
   { name: '9월의 기적', test: (_r, x) => x.results.length >= 24 && x.results.slice(-12).filter((v) => v === 1).length >= 9 },
-  { name: '봄에만 강했던 해', test: (_r, x) => x.results.length >= 60 && pctOf(x.results.slice(0, 42)) - pctOf(x.results.slice(42)) >= 0.15 },
-  { name: '여름에 깨어난 해', test: (_r, x) => x.results.length >= 60 && pctOf(x.results.slice(42)) - pctOf(x.results.slice(0, 42)) >= 0.15 },
+  { name: '봄에만 강했던 해', test: (_r, x) => x.results.length >= gAt(x, 60) && pctOf(x.results.slice(0, gAt(x, 42))) - pctOf(x.results.slice(gAt(x, 42))) >= 0.15 },
+  { name: '여름에 깨어난 해', test: (_r, x) => x.results.length >= gAt(x, 60) && pctOf(x.results.slice(gAt(x, 42))) - pctOf(x.results.slice(0, gAt(x, 42))) >= 0.15 },
   { name: '장마에 무너진 해', test: (r, x) => x.rainyAtt !== null && r.avgAtt > 0 && x.rainyAtt < r.avgAtt * 0.75 },
-  { name: '가을 문턱에서 멈춘 해', test: (r, x) => r.rank >= 5 && r.rank <= 6 && x.results.slice(-12).filter((v) => v === 1).length <= 3 },
-  { name: '가을 냄새를 맡은 해', test: (r) => r.post === 'SPO' || r.post === 'PO' },
-  { name: '끝이 안 보이던 해', test: (r, x) => r.rank === 8 && x.prev.slice(-2).length === 2 && x.prev.slice(-2).every((p) => p.rank === 8) },
+  { name: '가을 문턱에서 멈춘 해', test: (r, x) => r.rank >= nPost(x) + 1 && r.rank <= nPost(x) + 2 && x.results.slice(-12).filter((v) => v === 1).length <= 3 },
+  { name: '가을 냄새를 맡은 해', test: (r) => r.post === 'WC' || r.post === 'SPO' || r.post === 'PO' },
+  { name: '끝이 안 보이던 해', test: (r, x) => r.rank >= nT(x) && x.prev.slice(-2).length === 2 && x.prev.slice(-2).every((p) => p.rank >= nT(x)) },
   { name: '달라진 팀의 해', test: (r, x) => x.prev.length > 0 && x.prev[x.prev.length - 1].rank - r.rank >= 3 },
-  { name: '꼴찌를 벗어난 해', test: (r, x) => r.rank <= 7 && (x.prev.length ? x.prev[x.prev.length - 1].rank === 8 : r.rank <= 6) },
+  { name: '꼴찌를 벗어난 해', test: (r, x) => r.rank < nT(x) && (x.prev.length ? x.prev[x.prev.length - 1].rank >= nT(x) : r.rank <= nT(x) - 2) },
   { name: '주황 물결의 해', test: (_r, x) => x.sellouts >= 25 },
   { name: '긴 연패의 해', test: (_r, x) => longest(x.results, 0) >= 9 },
   { name: '연승 바람이 분 해', test: (_r, x) => longest(x.results, 1) >= 8 },
-  { name: '한 끗이 모자랐던 해', test: (r) => r.rank === 5 },
+  { name: '한 끗이 모자랐던 해', test: (r, x) => r.rank === nPost(x) + 1 },
   { name: '허리띠를 졸라맨 해', test: (r) => r.profit < 0 },
   { name: '부임 첫해', test: (_r, x) => x.prev.length === 0 },
-  { name: '바닥을 친 해', test: (r) => r.rank === 8 },
+  { name: '바닥을 친 해', test: (r, x) => r.rank >= nT(x) },
 ];
 
 /** 시즌 결과에 이름을 붙인다 (결산 때 호출) */
 export function nameSeason(r: SeasonRecord, x: SeasonCtx): string {
   for (const rule of SEASON_NAME_RULES) if (rule.test(r, x)) return rule.name;
-  return r.rank <= 4 ? '위를 보던 해' : '버틴 해';
+  return r.rank <= nPost(x) ? '위를 보던 해' : '버틴 해';
 }
 
 /** 구단사 순위열 "8-8-7-5-3-1" (부임 전 순위 포함 여부 선택) */

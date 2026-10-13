@@ -16,7 +16,8 @@ import { rowAdd, rowCash, rowFans, rowInfo, rowMult, rowNone, rowOvr, rowPayroll
 import { SIM, tiredPenalty } from './sim';
 import { teamParts } from './ratings';
 import { winDelta } from './briefing';
-import { beatOn, MID_DAY, POS_NAME } from './script';
+import { beatOn, midDay, POS_NAME } from './script';
+import { dayAt } from './league';
 import { cardRested, markCardMut, memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
 import { batLeaders, era, ops, pitLeaders } from './leaders';
@@ -274,7 +275,7 @@ export const CARDS: CardDef[] = [
     id: 'midcheck',
     prio: 100,
     forced: true,
-    when: (c) => c.day >= MID_DAY && c.day < MID_DAY + 6,
+    when: (c) => c.day >= midDay(c) && c.day < midDay(c) + 6,
     make: (c) => {
       const ahead = flagOnTrack(c);
       const st = stageOf(c);
@@ -594,7 +595,7 @@ export const CARDS: CardDef[] = [
     id: 'oldeye',
     prio: 75,
     forced: true,
-    when: (c) => c.campaign.stage === 0 && c.day >= 24 && c.day < MID_DAY && !!scoutPickCase(c),
+    when: (c) => c.campaign.stage === 0 && c.day >= dayAt(c, 24) && c.day < midDay(c) && !!scoutPickCase(c),
     make: (c) => {
       const s = scoutPickCase(c);
       if (!s) return null;
@@ -928,7 +929,7 @@ export const CARDS: CardDef[] = [
   {
     id: 'raise',
     prio: 25,
-    when: (c) => c.day >= 30 && !!titleRace(c),
+    when: (c) => c.day >= dayAt(c, 30) && !!titleRace(c),
     make: (c) => {
       const p = titleRace(c);
       if (!p) return null;

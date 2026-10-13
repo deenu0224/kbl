@@ -276,8 +276,9 @@ export interface Core {
 // over = 구단주 신임 0 으로 해임 (게임 오버)
 export type Phase = 'season' | 'post' | 'ended' | 'draft' | 'over';
 
-export type PostRound = 'SPO' | 'PO' | 'KS'; // 준플레이오프(3전2선승) / 플레이오프(5전3선승) / 한국시리즈(7전4선승)
-export type PostFinish = 'none' | 'SPO' | 'PO' | 'KS' | 'champion'; // 유저의 최종 도달 지점 (KS = 준우승)
+// WC = 와일드카드 결정전 (10구단 리그만: 4위 vs 5위, 전부 4위 홈, 4위가 1승을 안고 시작 — 4위는 1승 또는 1무, 5위는 2연승)
+export type PostRound = 'WC' | 'SPO' | 'PO' | 'KS'; // 준플레이오프(3전2선승) / 플레이오프(5전3선승) / 한국시리즈(7전4선승)
+export type PostFinish = 'none' | 'WC' | 'SPO' | 'PO' | 'KS' | 'champion'; // 유저의 최종 도달 지점 (KS = 준우승)
 
 export interface PostSeries {
   round: PostRound;
@@ -292,9 +293,9 @@ export interface PostSeries {
 }
 
 export interface Postseason {
-  seeds: string[]; // 정규시즌 1~4위 teamId
-  series: PostSeries[]; // [SPO, PO, KS]
-  cur: number; // 진행 중인 시리즈 인덱스 (3 = 전부 종료)
+  seeds: string[]; // 정규시즌 1~4위 teamId (10구단 리그는 1~5위)
+  series: PostSeries[]; // [SPO, PO, KS] (10구단 리그는 [WC, SPO, PO, KS])
+  cur: number; // 진행 중인 시리즈 인덱스 (series.length = 전부 종료)
   championId: string | null;
   userFinish: PostFinish;
 }

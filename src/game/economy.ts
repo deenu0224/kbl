@@ -1,6 +1,6 @@
 import type { Core, Facilities, FacilityKind, Ledger, Player, Team, Weather } from './types';
 import { clamp } from './rng';
-import { GAMES } from './schedule';
+import { dayAt, seasonGames } from './league';
 import { activeBuffs } from './campaign';
 import { isFranchise } from './franchise';
 import { projectFx } from './projects';
@@ -32,25 +32,31 @@ export const TRAIN_LV: { grow: number; inj: number; cost: number; upkeep: number
 
 export * from './loan';
 export const ROSTER_MAX = 28; // 1군 등록 정원
+// 아래 두 마감은 84경기 기준값이다. 실제 마감일은 tradeDeadline(core)·regDeadline(core) — 시즌 길이에 비례한다 (league.ts dayAt)
 export const TRADE_DEADLINE = 54; // 트레이드 마감: 이 경기 수를 치른 뒤에는 트레이드 제안·시장 등록 불가 (스토브리그에 다시 열린다)
 export const DEADLINE_WARN = 6; // 마감 이 경기 전부터 일정표 예보·할 일에 올린다
 export const REG_DEADLINE = 72; // 선수 등록 마감: 이 경기 수를 치른 뒤와 포스트시즌에는 외부 영입 불가 (1군·2군 이동은 가능)
 
+type Cal = Pick<Core, 'phase' | 'day' | 'schedule'>;
+/** 이 리그의 트레이드 마감일 (84경기 리그 54, 81경기 리그 52) */
+export const tradeDeadline = (core: { schedule: unknown[] }): number => dayAt(core, TRADE_DEADLINE);
+/** 이 리그의 선수 등록 마감일 (84경기 리그 72, 81경기 리그 69) */
+export const regDeadline = (core: { schedule: unknown[] }): number => dayAt(core, REG_DEADLINE);
 /** 지금 외부 영입(FA·트레이드)이 가능한가. 스토브리그(결산~드래프트)에는 다시 열린다 */
-export function signingOpen(core: Pick<Core, 'phase' | 'day'>): boolean {
+export function signingOpen(core: Cal): boolean {
   if (core.phase === 'post') return false;
-  if (core.phase === 'season') return core.day < REG_DEADLINE;
+  if (core.phase === 'season') return core.day < regDeadline(core);
   return true;
 }
 /** 외부 영입이 닫힌 사유 (열려 있으면 null) */
-export function signingClosedWhy(core: Pick<Core, 'phase' | 'day'>): string | null {
+export function signingClosedWhy(core: Cal): string | null {
   if (signingOpen(core)) return null;
-  return core.phase === 'post' ? '포스트시즌 — 선수 등록 마감 (스토브리그에 다시 열립니다)' : `선수 등록 마감 (${REG_DEADLINE}경기) — 스토브리그에 다시 열립니다`;
+  return core.phase === 'post' ? '포스트시즌 — 선수 등록 마감 (스토브리그에 다시 열립니다)' : `선수 등록 마감 (${regDeadline(core)}경기) — 스토브리그에 다시 열립니다`;
 }
 /** 트레이드 시장에 선수를 내놓을 수 없는 사유 (열려 있으면 null). 마감 전과 스토브리그에는 열려 있다 */
-export function blockClosedWhy(core: Pick<Core, 'phase' | 'day'>): string | null {
+export function blockClosedWhy(core: Cal): string | null {
   if (core.phase === 'post') return '포스트시즌 — 트레이드 마감 (스토브리그에 다시 열립니다)';
-  if (core.phase === 'season' && core.day >= TRADE_DEADLINE) return `트레이드 마감 (${TRADE_DEADLINE}경기) — 스토브리그에 다시 열립니다`;
+  if (core.phase === 'season' && core.day >= tradeDeadline(core)) return `트레이드 마감 (${tradeDeadline(core)}경기) — 스토브리그에 다시 열립니다`;
   return null;
 }
 export interface Deadline {
@@ -61,11 +67,11 @@ export interface Deadline {
   icon: string;
 }
 /** 다가온 마감 (정규시즌, 마감 DEADLINE_WARN 경기 전부터 마감 전까지). 일정표 예보와 할 일이 같이 쓴다 */
-export function deadlinesSoon(core: Pick<Core, 'phase' | 'day'>): Deadline[] {
+export function deadlinesSoon(core: Cal): Deadline[] {
   if (core.phase !== 'season') return [];
   const all: Deadline[] = [
-    { id: 'trade', day: TRADE_DEADLINE, left: TRADE_DEADLINE - core.day, label: '트레이드 마감', icon: '🔄' },
-    { id: 'reg', day: REG_DEADLINE, left: REG_DEADLINE - core.day, label: '선수 등록 마감', icon: '📋' },
+    { id: 'trade', day: tradeDeadline(core), left: tradeDeadline(core) - core.day, label: '트레이드 마감', icon: '🔄' },
+    { id: 'reg', day: regDeadline(core), left: regDeadline(core) - core.day, label: '선수 등록 마감', icon: '📋' },
   ];
   return all.filter((d) => d.left > 0 && d.left <= DEADLINE_WARN);
 }
@@ -129,7 +135,7 @@ export const OPS_FAN_CAP = 24000; // 운영비가 따라 커지는 팬 규모의
 export const SALARY_INFLATION = 0.07; // 리그 연봉 인플레 (시즌당, 스타급일수록 크게 — season.ts develop)
 export const SALARY_INFLATION_MAX = 0.8;
 // 재계약 프리미엄: 가을야구를 한 팀의 선수는 비싸진다. 최근 RENEW_SEASONS 시즌의 성적별 가산을 더한다 (유저 구단 연봉에만)
-export const RENEW_PREMIUM: Record<string, number> = { none: 0, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.1 };
+export const RENEW_PREMIUM: Record<string, number> = { none: 0, WC: 0.02, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.1 };
 export const RENEW_SEASONS = 2; // 3시즌 합산(최대 +36%)은 왕조 팀의 연봉을 시즌마다 40억씩 올렸다 — 2시즌(최대 +20%)
 export const LEAGUE_BASE = 2400; // 리그 분배금·스폰서 기본 (만원/경기)
 export const LEAGUE_PER_FAN = 0.04;
@@ -185,7 +191,7 @@ export function signingBonus(p: Player): number {
 }
 
 export function releaseCost(p: Player, core: Core): number {
-  const total = core.schedule.length || GAMES;
+  const total = seasonGames(core);
   const remain = clamp((total - core.day) / total, 0, 1);
   return Math.round(p.salary * remain * RELEASE_RATE);
 }

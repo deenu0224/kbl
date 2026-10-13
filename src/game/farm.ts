@@ -16,6 +16,7 @@ import { CARD_LINES, CHARACTERS, FARM_COACH_LINE } from './story';
 import { POS_NAME } from './script';
 import { addNews, marketSalary } from './season';
 import { hintMut } from './campaign';
+import { dayAt } from './league';
 import { svcSalary, svcYearAt } from './contract';
 import { batZero, pitZero } from './generate';
 import { rowCash, rowInfo, rowOvr, rowPayroll, rowSat, type Row } from './eventRows';
@@ -485,7 +486,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
       say(core, notes, `${p.name}, ${posKo(p.pos)} 수비가 몸에 붙었습니다 (오버롤 ${p.ovr})`, 'good');
     }
   }
-  if (core.day >= F.armyDay) {
+  if (core.day >= dayAt(core, F.armyDay)) {
     for (const p of t.roster.filter((x) => x.armyDue !== undefined && x.armyDue <= core.season)) enlistMut(core, p, notes);
   }
   // 불펜 과부하가 이어진 경기 수 (하루 쉬면 하나 줄어든다 — 'arm' 사건과 브리핑이 읽는다)
@@ -715,7 +716,7 @@ function subCase(core: Core): { sub: Player; orig: Player } | null {
 
 /** B4: 입대 통지 대상 (시즌당 1명) 과 그가 주전일 때의 전력 손실(OVR) */
 export function armyCase(core: Core): { p: Player; loss: number; alt: Player | null } | null {
-  if (core.day < F.armyDay || memoGet(core, 'army') || (core.campaign.away?.length ?? 0) >= F.armyAwayMax) return null;
+  if (core.day < dayAt(core, F.armyDay) || memoGet(core, 'army') || (core.campaign.away?.length ?? 0) >= F.armyAwayMax) return null;
   const t = userTeam(core);
   const p = t.roster
     .filter((x) => !x.foreign && x.age >= F.armyMin && x.age <= F.armyMax && !x.served && x.armyDue === undefined && x.injury === 0 && !x.subFor)
@@ -763,7 +764,7 @@ export function painCase(core: Core): { p: Player; alt: Player | null; text: str
 }
 
 // 인스트럭터 후보: 지난겨울 유니폼을 벗은 영구결번 또는 스타성 50+ 은퇴 선수 (campaign.alumni)
-const coachCase = (core: Core) => (core.day < F.coachDay ? [...(core.campaign.alumni ?? []), ...(core.campaign.retired ?? [])].filter((r) => r.season === core.season - 1).slice(-1)[0] ?? null : null);
+const coachCase = (core: Core) => (core.day < dayAt(core, F.coachDay) ? [...(core.campaign.alumni ?? []), ...(core.campaign.retired ?? [])].filter((r) => r.season === core.season - 1).slice(-1)[0] ?? null : null);
 
 /** 올리는 선택지의 공통 처리: (가득이면 한 명 내리고) k 를 cur 자리에 */
 function swapUpMut(core: Core, k: Player, cur: Player | undefined, downId: string | undefined): void {
@@ -1138,10 +1139,10 @@ export const FARM_CARDS: FarmCardDef[] = [
           },
           {
             label: '한 시즌 미룬다',
-            desc: `올해는 그대로 · 내년 ${F.armyDay}경기 뒤 입대`,
+            desc: `올해는 그대로 · 내년 ${dayAt(c, F.armyDay)}경기 뒤 입대`,
             detail: {
               rows: [
-                rowInfo('이탈', `내년 ${F.armyDay}경기 뒤 (미룰 수 없음)`, undefined, 'bad'),
+                rowInfo('이탈', `내년 ${dayAt(c, F.armyDay)}경기 뒤 (미룰 수 없음)`, undefined, 'bad'),
                 rowInfo('복귀', `${back + 1}시즌 개막 (${p.age + 1 + F.armySeasons}세)`),
                 rowPayroll(c, 0),
                 rowInfo('올해 1군 전력', '변화 없음'),
