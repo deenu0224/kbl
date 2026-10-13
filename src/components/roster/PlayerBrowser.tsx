@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { PenLoadLine } from './PenStyle';
 import type { Player } from '../../game/types';
 import { PITCH_KEYS, fitsKey, type PosKey, type PosRow } from '../../game/analysis';
 import { fmtMoney } from '../../game/format';
@@ -107,6 +108,7 @@ export default function PlayerBrowser({
         </div>
         {toggle}
       </div>
+      {mode === 'roster' && kind === 'P' && <PenLoadLine className="shrink-0 px-2 pb-1.5" />}
       <div className="px-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5" data-testid="player-list">
         {list.map((p) => {
           const bd = band?.(p);

@@ -7,6 +7,7 @@ import { useCore, useStore, useUserTeam } from '../../store';
 import { TeamBar } from '../LeftPanel';
 import { useWinChance } from '../useWinChance';
 import { OvrBadge, POS_KO } from '../ui';
+import PenStyleBar from './PenStyle';
 import { planEdit, recommend, sameSnap, snapOf, type EditorView, type LineupSnap, type Plan, type PlanResult } from './editorOps';
 
 const HOLD_MS = 150; // 이만큼 누르고 있으면 끌기 시작
@@ -415,6 +416,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
   };
   const armsView = (
     <div className="p-1" data-testid="editor-arms">
+      <PenStyleBar />
       <div className="pb-1 text-[13px] text-white/60">선발</div>
       <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3" data-testid="editor-rotation">
         {team.rotation.map((pid, i) => arm(pid, `${i + 1}선발`, (p) => p.pos !== 'SP'))}
