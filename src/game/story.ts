@@ -37,15 +37,15 @@ export const OVER_LABEL = '연고 이전';
 export const PREMISE_NEWS: string[] = [
   `감귤 조합, ${TITLE_YEARS_AGO}년 전 우승 멤버를 새 단장으로 선임 — "귤밭에서 다시 야구장으로"`,
   `리그, 관중·성적 미달 구단 연고 이전 심사 착수… 육지의 한 도시가 신축 돔구장을 내걸었다`,
-  `도민 구단 제주 탠저린즈, 지난 다섯 시즌 ${PAST_RANKS.join('-')}위. 낡은 구장엔 바랜 우승 깃발 하나`,
+  `도민 구단 제주 {team}, 지난 다섯 시즌 ${PAST_RANKS.join('-')}위. 낡은 구장엔 바랜 우승 깃발 하나`,
 ];
 
 export const NEWS = {
   seasonOpen: (season: number) => `시즌 ${season} 개막 — 연봉이 재산정되고 새 FA 시장이 열렸습니다`,
   brokenLineup: '부성택 감독이 개막 타순을 전임 체제 방식 그대로 적어 냈습니다',
   managerYield: '부성택 감독, "편성은 단장 뜻대로" — 이제 [자동 편성]이 최적 편성으로 바뀝니다',
-  over: '도민 지지가 바닥났습니다. 리그 이사회가 제주 탠저린즈의 연고 이전을 승인했습니다',
-  overDealt: '협상 테이블은 이미 차려져 있었습니다. 탠저린즈는 다음 시즌부터 육지의 돔구장에서 뜁니다',
+  over: '도민 지지가 바닥났습니다. 리그 이사회가 제주 {team}의 연고 이전을 승인했습니다',
+  overDealt: '협상 테이블은 이미 차려져 있었습니다. {team}은(는) 다음 시즌부터 육지의 돔구장에서 뜁니다',
   fanLine: (n: number) => `외야석의 오랜 팬은 오늘도 같은 자리에 앉았습니다 (${n}번째 시즌)`,
   retiredNumber: (name: string) => `${name}의 등번호가 구장에 걸립니다 — 영구결번`,
   franchiseGone: (name: string) => `간판 ${name}이(가) 팀을 떠났습니다 — 팬들이 등을 돌립니다`,
@@ -254,4 +254,9 @@ export function nameSeason(r: SeasonRecord, x: SeasonCtx): string {
 /** 구단사 순위열 "8-8-7-5-3-1" (부임 전 순위 포함 여부 선택) */
 export function rankLine(history: SeasonRecord[], withPast = false): string {
   return [...(withPast ? PAST_RANKS : []), ...history.map((h) => h.rank)].join('-');
+}
+
+/** 문구의 {team} 자리에 유저가 정한 별칭을 넣는다 */
+export function withTeam(text: string, team: string): string {
+  return text.split('{team}').join(team);
 }

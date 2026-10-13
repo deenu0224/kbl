@@ -58,7 +58,7 @@ export default function Settings() {
   const fast = useUi((s) => s.fast);
   const setFast = useUi((s) => s.setFast);
   const hasSave = useUi((s) => s.hasSave);
-  const farmAuto = useStore((s) => (s.campaign as { farmAuto?: boolean }).farmAuto !== false);
+  const farmAuto = useStore((s) => s.campaign.farmAuto !== false);
   const setFarmAuto = useStore((s) => s.setFarmAuto);
   const playback = useStore((s) => !!s.playback);
   const [out, setOut] = useState('');

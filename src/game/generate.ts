@@ -3,7 +3,7 @@ import { clamp, gauss, mulberry32, pick, randInt, shuffle, type Rng } from './rn
 import { calcOvr, calcSalary } from './ratings';
 import { autoLineup } from './lineup';
 import { buildSchedule } from './schedule';
-import { PREMISE_NEWS } from './story';
+import { PREMISE_NEWS, withTeam } from './story';
 
 // ── 밸런스 상수 ──
 const ABIL_SD = 7.5; // 능력치 편차
@@ -422,7 +422,7 @@ export function newCore(seed: number, nickname?: string): Core {
     attHistory: [],
     cashHistory: [START_CASH],
     // 첫 뉴스: 부임 기사 + 지난 다섯 시즌 순위 (story.ts)
-    news: PREMISE_NEWS.map((text, i) => ({ id: PREMISE_NEWS.length - 1 - i, season: 1, day: 0, text, tone: 'info' as const })),
+    news: PREMISE_NEWS.map((text, i) => ({ id: PREMISE_NEWS.length - 1 - i, season: 1, day: 0, text: withTeam(text, teams.find((t) => t.id === USER_ID)?.name ?? ''), tone: 'info' as const })),
     newsSeq: PREMISE_NEWS.length,
     campaign: campaignZero(),
     post: null,

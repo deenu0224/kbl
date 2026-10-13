@@ -6,7 +6,7 @@ import { opProfit, payroll, userTeam } from './economy';
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
 import { memoGet, memoNum, memoSet } from './memo';
-import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine } from './story';
+import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine, withTeam } from './story';
 import { beatById, startSeasonScriptMut, userHomeDays } from './script';
 
 // ───────── 튜닝 테이블 ─────────
@@ -853,7 +853,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
   );
   if (fired) {
     core.phase = 'over';
-    addNews(core, c.dealt ? NEWS.overDealt : NEWS.over, 'bad');
+    addNews(core, withTeam(c.dealt ? NEWS.overDealt : NEWS.over, userTeam(core).name), 'bad');
   }
   return verdict;
 }
