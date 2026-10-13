@@ -145,6 +145,15 @@ export const SCREENS = [
   S('club-finance-cashlow', 'cashlow', game(...CLUB, '재무')),
   S('club-stadium', 'season3', game(...CLUB, '구장')),
   S('club-news', 'season3', game(...CLUB, '뉴스')),
+  // ── 왕조 프로젝트 (첫 우승 뒤)
+  S('club-projects-new', 'projects', game(...CLUB, '구장', { scroll: 'bottom' })),
+  S('club-projects', 'dome2', game(...CLUB, '구장', { scroll: 'bottom' })),
+  S('club-project-detail', 'dome2', game(...CLUB, '구장', { scroll: 'bottom' }, c('우리 돔구장 상세'))),
+  S('club-project-give', 'dome3', game(...CLUB, '구장', { scroll: 'bottom' }, c('도민 환원 상세'))),
+  S('home-dome1', 'dome1', game()),
+  S('home-dome2', 'dome2', game()),
+  S('home-dome3', 'dome3', game()),
+  S('title-hof-give', 'dome3', st(['open-hof'])),
   // 선수단 윤리 교육 줄 (스캔들이 생길 수 있는 구단부터 보인다)
   S('club-ethics', 'dynasty', game(...CLUB, '재무', { scroll: 'bottom' })),
 

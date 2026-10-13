@@ -121,7 +121,7 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
       const seatsNow = 24000;
       const rows =
         paid === 0
-          ? [`도민 지지 +${DOME_DESIGN_TRUST}`, '구장 옆에 조감도 간판이 선다', `남은 단계: 착공 ${fmtMoney(DOME_COST[1])} · 완공 ${fmtMoney(DOME_COST[2])}`]
+          ? ['육지가 내밀던 그 돔을 섬에 — 3단계 중 첫 단계', `도민 지지 +${DOME_DESIGN_TRUST}`, '구장 옆에 조감도 간판이 선다', `남은 단계: 착공 ${fmtMoney(DOME_COST[1])} · 완공 ${fmtMoney(DOME_COST[2])}`]
           : paid === 1
             ? [`공사 중 한 시즌: 수용 −10% (${fmtInt(seatsNow)}석 → ${fmtInt(seatsNow * DOME_BUILD_CAP)}석)`, '구장에 크레인과 비계가 선다', `남은 단계: 완공 ${fmtMoney(DOME_COST[2])}`]
             : [
@@ -131,7 +131,7 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
               ];
       pv = {
         ...base, name: '우리 돔구장', icon: '🏟', done, cost, step: done ? undefined : DOME_STEP[paid],
-        line: '비가 와도 관중이 줄지 않는 30,000석 — 육지가 내밀던 그 돔을 섬에',
+        line: '비가 와도 꽉 차는 30,000석',
         rows: done ? ['날씨의 관중 영향 없음', `수용 +${fmtInt(DOME_SEATS)}석`, `유지비 +홈경기당 ${fmtMoney(DOME_UPKEEP)}`] : rows,
         status: done ? (domeStage(core) >= 3 ? '완공 — 섬에 돔이 섰다' : '완공 대금 납부 — 다음 시즌 개막에 문을 연다') : paid === 0 ? `3단계 · 총 ${fmtMoney(DOME_COST.reduce((a, b) => a + b, 0))}` : `${DOME_STEP[paid - 1]} 완료 (${paid}/3)`,
       };
@@ -144,7 +144,7 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
     case 'academy':
       pv = {
         ...base, name: '육성 아카데미', icon: '🎓', done: !!s.academy, cost: s.academy ? 0 : ACADEMY_COST,
-        line: `2군 성장 +${Math.round(ACADEMY_FARM_GROW * 100)}%p · 스카우트 등급 오차 절반`,
+        line: `2군 성장 +${Math.round(ACADEMY_FARM_GROW * 100)}%p · 스카우트 오차 ½`,
         rows: [`2군 주간 성장 확률 +${Math.round(ACADEMY_FARM_GROW * 100)}%p`, '드래프트 스카우트 등급 오차 ×0.5'],
         status: s.academy ? '운영 중' : '1회',
       };
@@ -153,7 +153,7 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
       const names = (core.campaign.retired ?? []).map((r) => r.name);
       pv = {
         ...base, name: '구단 기념관', icon: '🏛', done: !!s.museum, cost: s.museum ? 0 : MUSEUM_COST,
-        line: names.length ? `전시: ${names.join(' · ')}` : '영구결번 선수의 이름을 건다',
+        line: names.length ? `전시: ${names[0]}${names.length > 1 ? ` 외 ${names.length - 1}명` : ''}` : '영구결번의 이름을 건다',
         rows: [`팬 만족 +${MUSEUM_SAT}`, `관광객·원정 응원단: 관중 수요 +${Math.round((MUSEUM_DEMAND - 1) * 100)}%`, names.length ? `전시: ${names.join(' · ')}` : '전시할 영구결번이 아직 없습니다'],
         status: s.museum ? '개관' : '1회 · 영구결번 1개 이상',
       };
@@ -165,7 +165,7 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
       const done = n >= YOUTH_MAX;
       pv = {
         ...base, name: '유소년 구장 기부', icon: '🌱', done, cost: done ? 0 : YOUTH_COST, step: `${n}/${YOUTH_MAX}`,
-        line: `드래프트마다 "${YOUTH_TAG}" 유망주 1명 추가`,
+        line: `드래프트에 ${YOUTH_TAG} 유망주 +1`,
         rows: done
           ? [`매 드래프트: ${YOUTH_TAG} 유망주 1명 (잠재력 기대 ${YOUTH_POT[YOUTH_MAX - 1]})`]
           : [`다음 드래프트부터 ${YOUTH_TAG} 유망주 1명 (잠재력 기대 ${n > 0 ? `${YOUTH_POT[n - 1]} → ` : ''}${YOUTH_POT[n]})`, '그 선수는 프랜차이즈 스타 판정 5시즌 → 4시즌'],
@@ -178,7 +178,7 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
       const bought = s.camp === target;
       pv = {
         ...base, name: '해외 전지훈련', icon: '✈', done: false, cost: CAMP_COST,
-        line: `다음 시즌 한정: 1군 성장 +${Math.round(CAMP_GROW * 100)}%p · 부상 −${Math.round((1 - CAMP_INJ) * 100)}%`,
+        line: `1군 성장 +${Math.round(CAMP_GROW * 100)}%p · 부상 −${Math.round((1 - CAMP_INJ) * 100)}%`,
         rows: [`다음 시즌 1군 주간 성장 확률 +${Math.round(CAMP_GROW * 100)}%p`, `다음 시즌 부상 확률 −${Math.round((1 - CAMP_INJ) * 100)}%`, '시즌이 끝나면 효과도 끝난다'],
         status: campOn(core) && !stove ? '이번 시즌 적용 중' : bought ? '다음 시즌 예약됨' : '스토브리그에만 · 시즌당',
       };
@@ -191,8 +191,8 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
       const fx = n < GIVE_FX_MAX;
       pv = {
         ...base, name: '도민 환원', icon: '🍊', done: false, cost: GIVE_COST, step: `누적 ${fmtMoney(n * GIVE_COST)}`,
-        line: '감귤 조합원 배당·지역 기부 — 명예의 전당에 남는다',
-        rows: [fx ? `도민 지지 +1 · 팬 만족 +1 (효과는 누적 ${GIVE_FX_MAX}회까지 · 지금 ${n}회)` : `지지·만족 효과는 다 받았습니다 (${GIVE_FX_MAX}회) — 기록만 쌓입니다`, `명예의 전당: 도민 환원 누적 ${fmtMoney(n * GIVE_COST)} → ${fmtMoney((n + 1) * GIVE_COST)}`, `왕조 장의 별: 누적 ${fmtMoney(GIVE_STAR)}`],
+        line: '조합원 배당 · 전당에 기록',
+        rows: ['감귤 조합원 배당·지역 기부', fx ? `도민 지지 +1 · 팬 만족 +1 (효과는 누적 ${GIVE_FX_MAX}회까지 · 지금 ${n}회)` : `지지·만족 효과는 다 받았습니다 (${GIVE_FX_MAX}회) — 기록만 쌓입니다`, `명예의 전당: 도민 환원 누적 ${fmtMoney(n * GIVE_COST)} → ${fmtMoney((n + 1) * GIVE_COST)}`, `왕조 장의 별: 누적 ${fmtMoney(GIVE_STAR)}`],
         status: `누적 ${fmtMoney(n * GIVE_COST)}`,
       };
       break;

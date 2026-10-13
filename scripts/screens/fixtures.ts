@@ -182,6 +182,23 @@ outer: for (let seed = 1; seed <= SEED_MAX; seed++) {
   }
 }
 
+// 왕조 프로젝트: 왕조 장 픽스처에서 돔 단계만 바꿔 만든다 (봇이 12시즌 안에 돔까지 가지 못한다)
+const hofOf: Record<string, string> = {};
+if (found.dynasty) {
+  for (const n of [0, 1, 2, 3]) {
+    const core = structuredClone(found.dynasty.core);
+    core.facilities.seats = 4;
+    core.finance.cash = Math.max(core.finance.cash, 1500000);
+    core.finance.debt = 0;
+    core.campaign.ending = true;
+    core.campaign.retired = core.campaign.retired?.length ? core.campaign.retired : [{ name: '고영수', season: 4, pos: 'SS' }];
+    core.campaign.projects = n === 0 ? { open: core.season - 1 } : { open: core.season - 2, dome: n, domeAt: core.season - 1, academy: 1, youth: 2, give: 6 };
+    const name = n === 0 ? 'projects' : `dome${n}`;
+    found[name] = { ...found.dynasty, core };
+    if (n === 3) hofOf[name] = JSON.stringify(recordClub(emptyHof(), core, 'champion', '2026-10-13'));
+  }
+}
+
 mkdirSync(OUT, { recursive: true });
 // 명예의 전당: 연고 이전(없으면 결산) 세이브를 한 줄 올려 둔다
 const hofSrc = found.over?.core ?? found.ended?.core ?? found.endedFail?.core;
@@ -190,7 +207,7 @@ const hof = hofSrc ? JSON.stringify(recordClub(emptyHof(), hofSrc, found.over ? 
 const index: Record<string, { seed: number; bot: string; season: number; day: number; phase: string; stage: number }> = {};
 for (const [name, f] of Object.entries(found)) {
   const ui: Record<string, string> = { ...UI_DEFAULT };
-  if (hof) ui[UI_KEYS.hof] = hof;
+  if (hofOf[name] ?? hof) ui[UI_KEYS.hof] = (hofOf[name] ?? hof)!;
   writeFileSync(resolve(OUT, `${name}.json`), JSON.stringify({ save: { state: f.core, version: SAVE_VERSION }, ui }));
   index[name] = { seed: f.seed, bot: f.bot, season: f.core.season, day: f.core.day, phase: f.core.phase, stage: f.core.campaign.stage };
 }

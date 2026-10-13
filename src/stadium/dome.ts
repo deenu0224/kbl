@@ -9,7 +9,7 @@ const CX = 320;
 const CY = 248;
 const RX = 252;
 const RY = 164;
-const H = 150;
+const H = 104;
 const CROWN = 1.36; // 정수리 고리의 고도(rad)
 const N_RIB = 16;
 
