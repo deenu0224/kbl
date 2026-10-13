@@ -1,5 +1,5 @@
 import { SCANDAL_NEWS } from '../game/story';
-import { FEEDBACK_URL, track } from '../analytics';
+import { DONATE_URL, FEEDBACK_URL, track } from '../analytics';
 import { useMemo, useState, type CSSProperties } from 'react';
 import type { StadiumScene } from '../game/types';
 import { HOF_END_KO, HOF_RECORD_KO, hofWorthy, type HofRecordKey } from '../game/hof';
@@ -316,6 +316,11 @@ export default function TitleScreen() {
               {FEEDBACK_URL && (
                 <a className="mt-1 flex min-h-10 items-center justify-center text-[13px] text-sky underline" href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" data-testid="feedback" onClick={() => track('feedback')}>
                   의견 보내기 — 불편한 점을 알려 주세요
+                </a>
+              )}
+              {DONATE_URL && (
+                <a className="flex min-h-10 items-center justify-center text-[13px] text-hi underline" href={DONATE_URL} target="_blank" rel="noopener noreferrer" data-testid="donate" onClick={() => track('donate')}>
+                  ☕ 재미있었다면 — 개발자에게 커피 한 잔
                 </a>
               )}
             </div>
