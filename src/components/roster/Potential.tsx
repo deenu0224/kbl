@@ -103,7 +103,7 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
             </span>
           </div>
         )}
-        <button className="flex cursor-pointer gap-1 text-left leading-snug" onClick={() => setOpen((v) => !v)} data-testid="pot-toggle">
+        <button className="flex w-full cursor-pointer gap-1 text-left leading-snug mob:min-h-10 mob:items-center" onClick={() => setOpen((v) => !v)} data-testid="pot-toggle">
           <span className={key}>시즌 교체</span>
           <span>
             {prospect && <span className="text-white/70">지명한 해는 변화 없이 데뷔 · 그다음 </span>}
