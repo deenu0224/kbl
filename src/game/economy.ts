@@ -215,8 +215,53 @@ export function payroll(t: Team): number {
   return t.roster.reduce((s, p) => s + p.salary, 0);
 }
 
+/** 기본 계약금 (배율을 걸기 전). 실제로 낼 돈은 signingBonusFor */
 export function signingBonus(p: Player): number {
   return Math.round(p.salary * SIGN_BONUS_RATE);
+}
+
+// FA 계약금 누진 (10구단 리그 · docs/TEN_TEAMS.md 6단계): 같은 시즌에 FA 를 영입할수록 계약금이 오른다.
+// mult[n] = 이번 시즌에 이미 n명을 영입한 뒤의 배율. 표를 넘어가면 한 명마다 step 씩 더 오른다.
+// 한 시즌 = 결산 뒤(스토브리그)부터 다음 결산까지 — 스토브리그의 영입은 다음 시즌 몫이다.
+// pay 는 측정용 대안(영입 선수의 연봉에도 n × pay 를 건다). 게임에서는 0
+export const FA_HEAT = { on: true, mult: [1, 1.25, 1.6, 2.2, 3], step: 1, pay: 0 };
+type HeatCore = Pick<Core, 'teams'> & Partial<Pick<Core, 'campaign' | 'season' | 'phase'>>;
+/** 이 리그에 계약금 누진이 있는가 (8구단 옛 세이브에는 없다) */
+export function faHeatOn(core: Pick<Core, 'teams'>): boolean {
+  return FA_HEAT.on && leagueSize(core) > BASE_TEAMS;
+}
+/** 지금의 영입이 속하는 시즌 (결산 뒤 스토브리그·드래프트 중이면 다음 시즌) */
+export function faSeason(core: Partial<Pick<Core, 'season' | 'phase'>>): number {
+  return (core.season ?? 1) + (core.phase === 'ended' || core.phase === 'draft' ? 1 : 0);
+}
+/** 이번 시즌에 이미 영입한 FA 수 (누진이 없는 리그는 0) */
+export function faSigned(core: HeatCore): number {
+  const fa = core.campaign?.fa;
+  return faHeatOn(core) && fa && fa.season === faSeason(core) ? fa.n : 0;
+}
+/** 이미 n명을 영입한 뒤의 계약금 배율 */
+export function faHeatMult(n: number): number {
+  const m = FA_HEAT.mult;
+  return n < m.length ? m[Math.max(0, n)] : m[m.length - 1] + (n - m.length + 1) * FA_HEAT.step;
+}
+/** 실제로 낼 계약금. ahead = 이 선수보다 먼저 영입할(바구니에 먼저 담은) FA 수 */
+export function signingBonusFor(core: HeatCore, p: Player, ahead = 0): number {
+  return faHeatOn(core) ? Math.round(p.salary * SIGN_BONUS_RATE * faHeatMult(faSigned(core) + ahead)) : signingBonus(p);
+}
+/** 계약금 옆에 적는 이유 ("이번 시즌 3번째 영입 · +60%"). 배율이 안 걸렸으면 '' */
+export function faHeatWhy(core: HeatCore, ahead = 0): string {
+  if (!faHeatOn(core)) return '';
+  const n = faSigned(core) + ahead;
+  const up = Math.round((faHeatMult(n) - 1) * 100);
+  return up > 0 ? `이번 시즌 ${n + 1}번째 영입 · +${up}%` : '';
+}
+/** 영입 시장 맨 위의 한 줄 (누진이 없는 리그는 null) */
+export function faHeatLine(core: HeatCore, ahead = 0): string | null {
+  if (!faHeatOn(core)) return null;
+  const n = faSigned(core) + ahead;
+  const up = Math.round((faHeatMult(n) - 1) * 100);
+  const nextUp = Math.round((faHeatMult(n + 1) - 1) * 100);
+  return n === 0 ? `이번 시즌 첫 FA 영입 — 두 번째부터 계약금이 오릅니다 (+${nextUp}%)` : `이번 시즌 FA 영입 ${n}명 · 다음 영입 계약금 +${up}%`;
 }
 
 export function releaseCost(p: Player, core: Core): number {
