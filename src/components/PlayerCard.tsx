@@ -1,9 +1,13 @@
 import type { ReactNode } from 'react';
 import type { Player, Team } from '../game/types';
-import { fmtAvg, fmtEra, fmtIp, fmtMoney, fmtOps, fmtSb, fmtWhip } from '../game/format';
-import { ops } from '../game/leaders';
+import { fmtAvg, fmtEra, fmtMoney } from '../game/format';
+import { VALUE_FAIR, valueGap } from '../game/analysis';
+import { svcLeft } from '../game/contract';
+import { useStore } from '../store';
+import Help from './Help';
+import type { HelpTopic } from './helpTopics';
 import PixelFace from './PixelFace';
-import { OvrBadge, POS_KO, Stars, StatBar } from './ui';
+import { OvrBadge, POS_KO, StatBar } from './ui';
 import Potential from './roster/Potential';
 
 const SCOUT_COLOR: Record<string, string> = { A: '#ffd84a', B: '#6ee07a', C: '#7fd3ff', D: '#9aa5c4' };
@@ -20,12 +24,13 @@ export function ScoutBadge({ grade, size = 18 }: { grade: Player['scout']; size?
   );
 }
 
-function StatCell({ label, value }: { label: string; value: string | number }) {
+/** 해당될 때만 붙는 작은 태그 (설명은 ? 뒤에) */
+function Tag({ text, tone, help }: { text: string; tone: string; help?: HelpTopic }) {
   return (
-    <div className="flex flex-col items-center bg-ink/70 px-1 py-0.5">
-      <span className="text-[9px] text-white/50">{label}</span>
-      <span className="text-[12px] leading-tight">{value}</span>
-    </div>
+    <span className="inline-flex items-center gap-1 whitespace-nowrap bg-ink/70 py-0.5 pl-1.5 pr-1 text-[11px] mob:text-[13px]" data-testid="card-tag">
+      <span className={tone}>{text}</span>
+      {help && <Help topic={help} />}
+    </span>
   );
 }
 
@@ -49,7 +54,11 @@ export default function PlayerCard({
   const color2 = team?.color2 ?? '#dfe5f5';
   const b = p.bat;
   const t = p.pit;
-  const growth = Math.max(0, p.pot - p.ovr);
+  const season = useStore((s) => s.season);
+  const phase = useStore((s) => s.phase);
+  const mine = !!team && !prospect;
+  const left = mine ? svcLeft({ season, phase }, p) : null;
+  const gap = mine ? valueGap(p, season) : 0;
 
   return (
     <div
@@ -65,19 +74,14 @@ export default function PlayerCard({
       </div>
 
       <div className="flex gap-2">
-        <div className="flex flex-col items-center gap-1">
-          <div style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${color2}` }}>
-            <PixelFace id={p.id} color={color} color2={color2} foreign={p.foreign} size={64} />
-          </div>
-          <Stars star={p.star} className="text-[11px]" />
+        <div className="shrink-0 self-start" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${color2}` }}>
+          <PixelFace id={p.id} color={color} color2={color2} foreign={p.foreign} size={64} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <OvrBadge ovr={p.ovr} size={26} />
-            <div className="min-w-0">
-              <div className="truncate font-pixel-lg text-[15px] leading-tight text-white">{p.name}</div>
-              <div className="truncate text-[10px] text-hi">{p.tag ?? (!prospect && growth >= 6 && p.age <= 25 ? '성장 기대주' : POS_KO[p.pos])}</div>
-            </div>
+            <div className="min-w-0 flex-1 truncate font-pixel-lg text-[15px] leading-tight text-white">{p.name}</div>
+            <Help topic="ovr" />
           </div>
           <div className="mt-1.5 flex flex-col gap-[3px]">
             {p.kind === 'B' ? (
@@ -95,64 +99,42 @@ export default function PlayerCard({
                 <StatBar label="체력" value={p.sta} />
               </>
             )}
-            {prospect && (
-              <div className="flex items-center gap-1.5 text-[11px] leading-none">
-                <span className="shrink-0 text-white/60">스카우트 평가</span>
-                <ScoutBadge grade={p.scout} />
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* 시즌 기록 */}
-      <div className={`mt-1.5 grid grid-cols-5 gap-[2px] ${prospect ? 'hidden' : ''}`}>
-        {p.kind === 'B' ? (
-          <>
-            <StatCell label="경기" value={b.g} />
-            <StatCell label="타율" value={fmtAvg(b.h, b.ab)} />
-            <StatCell label="홈런" value={b.hr} />
-            <StatCell label="타점" value={b.rbi} />
-            <StatCell label="득점" value={b.r} />
-            <StatCell label="OPS" value={b.pa > 0 ? fmtOps(ops(p)) : '.---'} />
-            <StatCell label="도루/실패" value={fmtSb(b.sb ?? 0, b.cs ?? 0)} />
-            <StatCell label="3루타" value={b.d3 ?? 0} />
-            <StatCell label="2루타" value={b.d2} />
-            <StatCell label="볼넷" value={b.bb} />
-          </>
-        ) : (
-          <>
-            <StatCell label="경기" value={t.g} />
-            <StatCell label="ERA" value={fmtEra(t.er, t.outs)} />
-            <StatCell label="승-패" value={`${t.w}-${t.l}`} />
-            <StatCell label={p.pos === 'SP' ? '이닝' : '세이브'} value={p.pos === 'SP' ? fmtIp(t.outs) : t.sv} />
-            <StatCell label="탈삼진" value={t.so} />
-            <StatCell label="WHIP" value={fmtWhip(t.h + t.bb, t.outs)} />
-            <StatCell label={p.pos === 'SP' ? '세이브' : '이닝'} value={p.pos === 'SP' ? t.sv : fmtIp(t.outs)} />
-            <StatCell label="볼넷" value={t.bb} />
-            <StatCell label="피안타" value={t.h} />
-            <StatCell label="피홈런" value={t.hr} />
-          </>
-        )}
-      </div>
-
-      <Potential player={p} prospect={prospect} />
-
-      <div className="mt-1.5 flex items-center justify-between text-[11px]">
-        <span className="text-white/60">
-          연봉 <span className="text-white">{fmtMoney(p.salary)}</span>
-        </span>
-        {p.injury > 0 ? (
-          <span className="anim-blink text-bad">✚ 부상 {p.injury}경기</span>
-        ) : (p.tired ?? 0) > 0 ? (
-          <span className="text-[#f0a35a]">연투 {p.tired}일째</span>
-        ) : prospect ? (
-          <span className="text-white/40">{p.age <= 20 ? '고졸' : '대졸'}</span>
-        ) : growth > 0 && p.age <= 28 ? (
-          <span className="text-good">성장 여력 +{growth}</span>
-        ) : (
-          <span className="text-white/40">건강</span>
-        )}
+      <div className="mt-1.5 flex flex-col gap-1 text-[11px] mob:text-[13px]">
+        <div className="flex items-center justify-between gap-2" data-testid="potential">
+          {prospect ? (
+            <span className="flex items-center gap-1.5 text-white/60">
+              스카우트 평가 <ScoutBadge grade={p.scout} />
+            </span>
+          ) : (
+            <span className="text-white/60">
+              잠재력 <span className="text-good">{p.pot}</span>
+            </span>
+          )}
+          <Help topic="potential">
+            <Potential player={p} prospect={prospect} />
+          </Help>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-white/60">
+            연봉 <span className="text-white">{fmtMoney(p.salary)}</span>
+          </span>
+          {!prospect && (
+            <span className="truncate text-white/80" data-testid="card-stat">
+              {p.kind === 'B' ? `${fmtAvg(b.h, b.ab)} · ${b.hr}홈런 · ${b.rbi}타점` : `ERA ${fmtEra(t.er, t.outs)} · ${t.w}승 ${t.l}패${t.sv ? ` ${t.sv}세` : ''}`}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1 empty:hidden">
+          {p.injury > 0 && <Tag text={`부상 ${p.injury}경기`} tone="text-bad" />}
+          {(p.tired ?? 0) > 0 && <Tag text={`연투 ${p.tired}일째`} tone="text-[#f0a35a]" help="fatigue" />}
+          {p.posShift && <Tag text={`전향 중 수비 −${p.posShift.pen}`} tone="text-bad" />}
+          {left !== null && <Tag text={left > 0 ? `보유 ${left}시즌 남음` : 'FA 자격'} tone="text-sky" help="service" />}
+          {Math.abs(gap) >= VALUE_FAIR && <Tag text={`가성비 ${gap > 0 ? '+' : '−'}${fmtMoney(Math.abs(gap))}`} tone={gap > 0 ? 'text-good' : 'text-bad'} help="value" />}
+        </div>
       </div>
       {extra}
       {children && <div className="mt-1.5 flex flex-wrap items-center gap-2">{children}</div>}
