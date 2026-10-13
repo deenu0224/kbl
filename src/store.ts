@@ -24,6 +24,7 @@ import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draf
 import { postMatch } from './game/postseason';
 import { memoGet, memoSet } from './game/memo';
 import { RUNWAY_STOP, runway } from './game/runway';
+import { applyTransfer, basketCount, type Basket } from './game/transfer';
 import { useUi } from './components/layout/uiStore';
 
 export type LeftTab = 'lineup' | 'pitchers' | 'farm' | 'market';
@@ -48,6 +49,7 @@ export interface Store extends Core {
   release(pid: string): void;
   sendDown(pid: string): void;
   callUp(pid: string): void;
+  transfer(basket: Basket): boolean; // 이적 창구: 바구니를 한 번에 실행 (하나라도 막히면 전체 취소)
   upgrade(kind: FacilityKind): void;
   setPrice(v: number): void;
   borrow(): void;
@@ -272,6 +274,12 @@ export const useStore = create<Store>()(
           const s = get();
           const p = findPlayer(s, pid);
           if (applyResult(callUp(pickCore(s), pid), p ? `${p.name} 1군 등록!` : '콜업 완료!')) set({ flash: { pid, at: Date.now() } });
+        },
+        transfer(basket) {
+          if (locked() || !basketCount(basket)) return false;
+          const r = applyTransfer(pickCore(get()), basket);
+          // 열려 있는 주간 브리핑의 제안은 바뀐 선수단에 맞춰 다시 만든다
+          return applyResult(r.error ? r : { core: refreshBriefing(r.core) });
         },
         upgrade(kind) {
           if (locked()) return;
