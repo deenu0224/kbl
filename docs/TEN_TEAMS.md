@@ -81,8 +81,8 @@
 | 8구단 동작 불변 (임시 지문 스크립트: 봇 4종 × 시드 3 × 4시즌, 20경기마다 코어 해시) | 수정 전과 전부 일치 (`TEAMS=8`) |
 | `npx tsx scripts/schedcheck.ts` (10·8구단 × 시드 50 × 생성 직후·대본 배치 뒤·재생성) | 위반 0건. 10구단: 유저 홈 42 × 150, 그 외 홈 42 × 600 · 홈 39 × 750. 8구단: 전부 42 |
 | 와일드카드 강제 점검 (임시 스크립트, 10·8구단 × 유저 1·4·5위 × 시드 60) | 크래시 0. 유저 4위: WC 통과 16 / 탈락 44, 유저 5위: 통과 1 / 탈락 59. WC 최대 2경기, 무승부가 낀 WC 4건(전부 4위 통과), 4위 홈이 아닌 경기 0. 8구단 5위는 포스트시즌 없이 결산 |
-| `npx tsx scripts/farmcheck.ts 8 4` (10구단) / `TEAMS=8` | FARMCHECK_RESULT |
-| `npx tsx scripts/campaign.ts 6 8 0 0` (10구단) | CAMPAIGN_RESULT |
+| `npx tsx scripts/farmcheck.ts 8 4` (10구단) / `TEAMS=8` | 위반 0건 / 위반 0건 |
+| `npx tsx scripts/campaign.ts 6 8 0 0` (10구단) | 크래시 0 (봇 4종 × 6시드 × 8시즌). 와일드카드를 유저가 겪었는지는 이 스크립트 로그에 남지 않아 위의 강제 점검으로 확인. **0장 깃발 달성률: sensible 28% (5/18시즌, 통과까지 평균 2.6시즌) · greedy 75% · off-verb 8% · passive 0%(전 런 연고 이전)** — 난이도 재조정 필요 |
 | `npm run screens -- --only=home,league,post,ended --jobs=3` | SCREENS_RESULT |
 
 ### 8구단 대비 리그 통계 (`npm run balance`, 16시드, 무개입 첫 시즌)
