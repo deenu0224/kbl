@@ -108,14 +108,14 @@ export default function VsStarter({ team, player: p }: { team: Team; player: Pla
         {r.note}
       </div>
       {/* 비교 상대 고르기: 처음에는 자리를 내줄 선수, 누르면 그 선수와 비교한다 */}
-      <div className="no-scrollbar -mx-0.5 flex gap-1 overflow-x-auto px-0.5 pb-1.5" data-testid="vs-list">
+      <div className="flex flex-wrap gap-1 p-0.5 pb-1.5" data-testid="vs-list">
         {list.map((x) => {
           const on = x.p.id === o.id;
           return (
             <button
               key={x.p.id}
               type="button"
-              className={`flex min-h-10 shrink-0 cursor-pointer items-center gap-1 px-1.5 text-left leading-tight ${on ? 'bg-hi/20' : 'bg-panel-2'}`}
+              className={`flex min-h-10 cursor-pointer items-center gap-1 px-1.5 text-left leading-tight ${on ? 'bg-hi/20' : 'bg-panel-2'}`}
               style={{ boxShadow: on ? '0 0 0 2px #ffd84a' : '0 0 0 1px #0f1420' }}
               data-testid="vs-pick"
               onClick={() => setPick(x.p.id)}
