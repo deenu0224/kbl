@@ -6,7 +6,7 @@ import { useStore } from './store';
 /** GoatCounter 사이트 코드 (https://{코드}.goatcounter.com). 가입 뒤 여기에 적는다 */
 export const STATS_CODE: string = 'deenu0224';
 /** 의견 보내기 링크 (구글 폼). 비어 있으면 버튼이 뜨지 않는다 */
-export const FEEDBACK_URL: string = '';
+export const FEEDBACK_URL: string = 'https://docs.google.com/forms/d/e/1FAIpQLSdF2ceTEtSme1Ph4mGg-h8k5n8e8W8hLTY94MMJKtnU-usYBw/viewform';
 
 const OFF_KEY = 'kbl-no-stats';
 const local = () => /^(localhost|127\.|\[::1\]|192\.168\.|10\.)/.test(location.hostname) || location.hostname.endsWith('.local');
