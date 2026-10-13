@@ -10,7 +10,7 @@ import { postTeamsFor } from '../game/league';
 import { SHARE_HOST } from './config';
 import { cardItems, codeInfo, endingLine, serialOf, shareFromCore, teamsOf, SHARE_CITY, SHARE_TITLE, type CodeInfo, type ShareData, type ShareKind } from './shareData';
 import { askOf } from './story';
-import { BENCH, relocatedPct } from './bench';
+import { BENCH, benchFor, relocatedPct } from './bench';
 
 /** 기록 카드: 정사각 1080×1080 증명서. 종이색 바탕에 구단 색(주황·초록), 픽셀 글자 */
 export const CARD_W = 1080;
@@ -280,7 +280,7 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
     line(ctx, big, 'Galmuri14', [112, 84], px, by + 2, accent, pw - 8);
     line(ctx, big, 'Galmuri14', [112, 84], px + 8, by + 2, accent, pw - 8); // 한 픽셀 옆에 한 번 더 찍어 굵게
     line(ctx, '을 버텼습니다', 'Galmuri14', [33], px, by + 132, INK, pw);
-    const same = relocatedPct();
+    const same = relocatedPct(benchFor(teamsOf(r)));
     if (same !== null) line(ctx, `시뮬레이션 단장 ${d.pct.n}명 중 ${same}%가 같은 결말`, 'Galmuri11', [22, 18], px, by + 190, MUTE, pw);
   } else {
     line(ctx, '상위', 'Galmuri11', [33], px, by - 4, MUTE, pw);
