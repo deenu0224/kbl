@@ -14,6 +14,7 @@ import { ensureObjectives, STAGES } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
 import { drawStoveTrade, tradeOpen } from '../../src/game/trade';
 import { closeBriefing, drawBriefing } from '../../src/game/briefing';
+import { luxTax } from '../../src/game/economy';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../../src/game/draft';
 import { drawResign } from '../../src/game/contract';
 import { postMatch } from '../../src/game/postseason';
@@ -72,6 +73,12 @@ const WANT: Record<string, Pred> = {
   debtOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && c.finance.debt > loanLimit(c), // 개막일(0일)은 개막전 오더 화면이라 하단 탭이 없다
   debtSale: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('debtsale'),
   endedDebt: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.debtOver,
+  // 10구단 5단계: 빚더미 구단(첫 해 경고 / 지지 감소) · 경쟁균형세를 낸 결산 · 조합장의 빚더미 브리핑
+  endedMoodWarn: (c) => c.phase === 'ended' && !c.campaign.event && c.campaign.verdict?.debtMood?.trust === 0,
+  endedMood: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.verdict?.debtMood?.trust ?? 0) < 0,
+  endedLux: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.luxTax,
+  briefMood: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing?.alert?.includes('이대로 마치면'),
+  luxOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && luxTax(c).tax > 0,
   academy: (c) => inSeason(c) && quiet(c) && (c.campaign.projects?.academy ?? 0) > 0 && c.day >= 5,
   domeDone: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.projects?.dome ?? 0) >= 3 && seatsLabel(c).startsWith('돔구장'),
   midcheck: (c) => !!c.campaign.event && c.campaign.event.id.startsWith('midcheck'),

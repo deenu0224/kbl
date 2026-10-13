@@ -245,7 +245,7 @@ function SeasonEndBody() {
         )}
         {v?.luxTax && (
           <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="lux-tax">
-            <span className="text-bad">경쟁균형세 −{fmtMoney(v.luxTax.tax)}</span>
+            <span className="text-bad">경쟁균형세 제재금 −{fmtMoney(v.luxTax.tax)}</span>
             <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} ({luxRule(core)})</span>
           </div>
         )}
@@ -429,6 +429,11 @@ function SeasonEndBody() {
           <div>
             <Title>손익 결산</Title>
             <LedgerBars ledger={core.finance.ledger} />
+            {v?.luxTax && (
+              <div className="mt-1 text-[11px] text-bad mob:text-[13px]" data-testid="ledger-lux">
+                경쟁균형세 제재금 −{fmtMoney(v.luxTax.tax)} (유지비에 포함)
+              </div>
+            )}
             <div className="mt-1 flex justify-between text-[11px] text-white/70">
               <span>
                 보유 현금 <span className="text-hi">{fmtMoney(core.finance.cash)}</span>
