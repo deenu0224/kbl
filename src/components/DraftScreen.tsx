@@ -4,22 +4,15 @@ import { useStore, useUserTeam } from '../store';
 import { DRAFT_BONUS, DRAFT_ROUNDS, draftRound } from '../game/draft';
 import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster } from '../game/economy';
 import { fmtMoney } from '../game/format';
-import PlayerCard, { ScoutBadge } from './PlayerCard';
+import PlayerCard from './PlayerCard';
 import Sheet from './layout/Sheet';
 import { useLayout } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
-import { Chips, OvrBadge, POS_KO, SectionTitle, TeamDot } from './ui';
-import PlayerTable from './roster/PlayerTable';
+import { POS_KO, SectionTitle, TeamDot } from './ui';
+import PlayerBrowser from './roster/PlayerBrowser';
 import { usePosReport } from './roster/rosterUi';
 
-const FILTERS = [
-  ['all', '전체'],
-  ['B', '타자'],
-  ['P', '투수'],
-] as const;
-
 const school = (p: Player) => (p.age <= 20 ? '고졸' : '대졸');
-const keyStat = (p: Player) => (p.kind === 'B' ? `컨택 ${p.con} · 파워 ${p.pow}` : `구위 ${p.stf} · 제구 ${p.ctl}`);
 
 /** 신인 드래프트 전체 화면 (phase 'draft') */
 export default function DraftScreen() {
@@ -35,11 +28,8 @@ export default function DraftScreen() {
   const team = useUserTeam();
   const layout = useLayout();
   const mobile = layout !== 'desktop';
-  const landscape = layout === 'landscape';
   const [sel, setSel] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'B' | 'P'>('all');
   const curRef = useRef<HTMLDivElement | null>(null);
-  const [asTable, setAsTable] = useState(false);
   const rows = usePosReport();
 
   const byId = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
@@ -52,7 +42,6 @@ export default function DraftScreen() {
   const round = draft && !done ? draftRound(draft) : DRAFT_ROUNDS;
   const perRound = Math.max(1, Math.round(order.length / DRAFT_ROUNDS));
   const bonus = DRAFT_BONUS[round - 1] ?? DRAFT_BONUS[DRAFT_BONUS.length - 1];
-  const list = useMemo(() => pool.filter((p) => filter === 'all' || p.kind === filter), [pool, filter]);
   const selP = sel ? pool.find((p) => p.id === sel) : undefined;
   const mine = useMemo(() => new Set(draft?.mine ?? []), [draft?.mine]);
   const nFarm = farmRoster(team).length;
@@ -74,13 +63,6 @@ export default function DraftScreen() {
       </button>
       {reason && <span className="text-[10px] text-bad">{reason}</span>}
     </PlayerCard>
-  );
-
-  const filterRow = (
-    <div className="flex shrink-0 items-center justify-between gap-2">
-      <Chips items={FILTERS} value={filter} onChange={setFilter} />
-      <span className="text-[11px] text-white/50">남은 유망주 {pool.length}명</span>
-    </div>
   );
 
   const logView = (
@@ -159,50 +141,20 @@ export default function DraftScreen() {
         {/* 본문 */}
         <div className="flex min-h-0 flex-1 gap-2 p-2">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {/* 키 작은 가로 화면에선 필터도 목록과 함께 스크롤된다 */}
-            <div className="flex shrink-0 items-center justify-end gap-1 pb-1 text-[11px]">
-              <span className="mr-auto text-white/50">{asTable ? '열 머리를 누르면 정렬 · 줄을 누르면 카드' : ''}</span>
-              {(
-                [
-                  [false, '목록'],
-                  [true, '표로 보기'],
-                ] as const
-              ).map(([v, label]) => (
-                <button key={label} data-testid={v ? 'draft-table' : 'draft-list'} onClick={() => setAsTable(v)} className={`cursor-pointer px-2 py-0.5 mob:min-h-9 mob:px-3 ${asTable === v ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
-                  {label}
+            <div className="shrink-0 px-1.5 text-[11px] text-white/50 mob:text-[13px]">남은 유망주 {pool.length}명</div>
+            <PlayerBrowser
+              mode="draft"
+              players={pool}
+              rows={rows}
+              sel={sel}
+              onPick={(p) => setSel(p.id === sel && !mobile ? null : p.id)}
+              rowAction={(p) => (
+                <button className="px-btn primary !px-2 !py-0.5 text-[11px] mob:min-h-9 mob:text-[13px]" data-sfx="none" data-testid="draft-pick" disabled={!!reason} title={reason ?? undefined} onClick={() => draftPick(p.id)}>
+                  지명
                 </button>
-              ))}
-            </div>
-            {asTable && <PlayerTable mode="draft" players={pool} rows={rows} sel={sel} onPick={(p) => setSel(p.id)} />}
-            {!asTable && !landscape && filterRow}
-            <div className={`px-scroll mt-1 min-h-0 flex-1 overflow-y-auto ${asTable ? 'hidden' : ''}`}>
-              {landscape && <div className="mb-1">{filterRow}</div>}
-              {/* 키 작은 가로 화면: 두 열 + 낮은 줄로 한 화면에 6줄 이상 */}
-              <div className={landscape ? 'grid grid-cols-2 gap-x-1' : ''}>
-              {list.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setSel(p.id === sel && !mobile ? null : p.id)}
-                  className={`mb-[3px] flex w-full cursor-pointer items-center gap-2 px-1.5 text-left ${landscape ? 'min-h-9 py-0.5' : 'py-1 mob:min-h-12'} ${sel === p.id ? 'bg-hi/20' : 'bg-ink/40'}`}
-                  style={sel === p.id ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
-                >
-                  <OvrBadge ovr={p.ovr} size={22} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1 text-[12px] mob:text-[13px]">
-                      <span className="truncate">{p.name}</span>
-                      <span className="shrink-0 text-[10px] text-white/50">
-                        {POS_KO[p.pos]} · {p.age}세 · {school(p)}
-                      </span>
-                    </span>
-                    <span className="block text-[10px] text-white/55">{keyStat(p)}</span>
-                  </span>
-                  <ScoutBadge grade={p.scout} size={20} />
-                </button>
-              ))}
-              </div>
-              {!list.length && <div className="p-2 text-center text-[11px] text-white/40">남은 선수가 없습니다</div>}
-              {mobile && <div className="mt-2">{logView}</div>}
-            </div>
+              )}
+            />
+            {mobile && <div className="px-scroll max-h-[18dvh] shrink-0 overflow-y-auto land:hidden">{logView}</div>}
           </div>
           {!mobile && (
             <div className="px-scroll flex min-h-0 w-[320px] shrink-0 flex-col overflow-y-auto">

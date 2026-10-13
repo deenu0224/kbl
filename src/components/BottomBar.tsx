@@ -1,4 +1,4 @@
-import { useStore, userMatch, useUserTeam } from '../store';
+import { useStore, userMatch } from '../store';
 import { usePostLine } from './Bracket';
 import { EventReopen } from './EventCardModal';
 import { chanceKey, useUi } from './layout/uiStore';

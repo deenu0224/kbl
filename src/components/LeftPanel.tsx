@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Player, Team } from '../game/types';
 import { useCore, useStore, useUserTeam, type LeftTab } from '../store';
 import { fmtMoney } from '../game/format';
-import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, releaseCost, signingBonus } from '../game/economy';
+import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, releaseCost } from '../game/economy';
 import { basketCount } from '../game/transfer';
 import { betterArms, betterBats, homeSwap, offPos, orderIssues, todayIssues } from '../game/fixes';
 import { teamParts, type TeamParts } from '../game/ratings';
@@ -13,12 +13,14 @@ import { FirstTip } from './Briefing';
 import { useHintTabs } from './RightPanel';
 import Sheet from './layout/Sheet';
 import { useIsMobile } from './layout/useLayout';
-import { OvrBadge, POS_KO, SectionTitle, Stars, TabBar } from './ui';
+import { OvrBadge, POS_KO, SectionTitle, TabBar } from './ui';
 import { MiniDiamond } from './roster/Diamond';
-import FrontOffice from './roster/FrontOffice';
+import FrontOffice, { CardPop } from './roster/FrontOffice';
+import PlayerBrowser from './roster/PlayerBrowser';
+import { AddChip } from './roster/TransferDesk';
 import { openDesk, useTransferUi } from './roster/transferUi';
 import { usePosReport, useRosterUi } from './roster/rosterUi';
-import { callUpPreview, fitsKey, sendDownPreview } from '../game/analysis';
+import { callUpPreview, sendDownPreview } from '../game/analysis';
 
 // ───────── 공용 행 ─────────
 
@@ -376,89 +378,48 @@ export function MarketTab() {
   const cash = useStore((s) => s.finance.cash);
   const basket = useTransferUi((s) => s.basket);
   const rows = usePosReport();
-  const weakKeys = useMemo(() => rows.filter((r) => r.weak).map((r) => r.key), [rows]);
-  const [weakOnly, setWeakOnly] = useState(false);
+  const [card, setCard] = useState<string | null>(null);
 
   // 스카우트 팀장의 명단은 맨 위에 따로 올린다 (맨 앞이 그가 고른 선수)
   const scoutIds = useStore((s) => s.campaign.eventsSeen.find((x) => x.startsWith('~scoutList='))?.slice(11) ?? '');
-  const list = useMemo(() => {
-    const ids = scoutIds ? scoutIds.split(',') : [];
-    const rank = (p: Player) => (ids.includes(p.id) ? ids.indexOf(p.id) - 9 : 0);
-    return freeAgents.filter((p) => !weakOnly || weakKeys.some((k) => fitsKey(p, k))).sort((a, b) => rank(a) - rank(b) || b.ovr - a.ovr);
-  }, [freeAgents, scoutIds, weakOnly, weakKeys]);
-  const scoutPick = scoutIds.split(',')[0];
+  const pinned = useMemo(() => (scoutIds ? scoutIds.split(',') : []), [scoutIds]);
   const nAct = activeRoster(team).length;
   const nFarm = farmRoster(team).length;
   const n = basketCount(basket);
+  const cardP = card ? freeAgents.find((p) => p.id === card) : undefined;
 
   return (
     <>
       <FirstTip id="market" />
       <div className="flex shrink-0 flex-col gap-1 px-1.5 pt-1.5">
-        <button className="px-btn primary min-h-9 text-[13px] mob:min-h-11 mob:text-[15px]" data-testid="open-desk" onClick={() => openDesk()}>
-          이적 창구 열기 ⤢{n > 0 && ` (담은 ${n}건)`}
-        </button>
-        <div className="text-[10px] leading-snug text-white/60 mob:text-[11px]" data-testid="desk-head">
-          영입·방출·2군 이동을 한 화면에서 담고, 합산 결과를 본 뒤 한 번에 확정
-          <br />
-          현금 <span className="text-hi">{fmtMoney(cash)}</span> · 1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className="text-white">{nFarm}/{FARM_MAX}</span> · FA {freeAgents.length}명
-        </div>
-        <div className="flex items-center gap-1 text-[10px]">
-          <button onClick={() => openDesk({ side: 'squad' })} className="cursor-pointer whitespace-nowrap bg-ink px-1.5 py-0.5 text-white/70 mob:min-h-9 mob:px-2" data-testid="open-desk-squad">
-            우리 선수단에서 담기 ⤢
+        <div className="flex gap-1">
+          <button className="px-btn primary min-h-9 flex-[2] text-[13px] mob:min-h-11 mob:text-[15px]" data-testid="open-desk" onClick={() => openDesk()}>
+            이적 창구{n > 0 ? ` · 담은 ${n}건 확인` : ' 열기'} ⤢
           </button>
-          <button
-            data-testid="weak-only"
-            onClick={() => setWeakOnly((v) => !v)}
-            className={`cursor-pointer whitespace-nowrap px-1.5 py-0.5 mob:min-h-9 mob:px-2 ${weakOnly ? 'bg-bad text-ink' : 'bg-ink text-bad'}`}
-          >
-            우리 약점만{weakKeys.length > 0 && ` (${weakKeys.map((k) => POS_KO[k]).join('·')})`}
+          <button className="px-btn min-h-9 flex-1 whitespace-nowrap text-[12px] mob:min-h-11 mob:text-[13px]" data-testid="open-desk-squad" onClick={() => openDesk({ side: 'squad' })}>
+            방출·2군
           </button>
         </div>
+        <div className="truncate text-[10px] text-white/60 mob:text-[13px]" data-testid="desk-head">
+          현금 <span className="text-hi">{fmtMoney(cash)}</span> · 1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className="text-white">{nFarm}/{FARM_MAX}</span>
+        </div>
       </div>
-      <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5" data-testid="market-list">
-        {list.map((p) => {
-          const b = signingBonus(p);
-          const on = basket.sign.includes(p.id);
-          return (
-            <button
-              key={p.id}
-              data-pid={p.id}
-              onClick={() => openDesk({ add: [['sign', p.id]] })}
-              title="담은 채로 이적 창구를 연다"
-              className={`mb-[3px] flex w-full cursor-pointer items-center gap-1.5 px-1 py-1 text-left mob:min-h-12 mob:gap-2 mob:px-1.5 ${on ? 'bg-good/20' : 'bg-ink/40 hover:bg-white/8'}`}
-              style={on ? { boxShadow: 'inset 3px 0 0 #6ee07a' } : undefined}
-            >
-              <OvrBadge ovr={p.ovr} size={22} />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1 text-[12px] mob:text-[13px]">
-                  <span className="truncate">{p.name}</span>
-                  <span className="shrink-0 text-[10px] text-white/50">
-                    {POS_KO[p.pos]} · {p.age}세
-                  </span>
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px]">
-                  <Stars star={p.star} />
-                  {weakKeys.includes(p.pos as (typeof weakKeys)[number]) && <span className="shrink-0 bg-bad px-1 text-ink">약점 보강</span>}
-                  {p.pot - p.ovr >= 6 && <span className="text-good">잠재 {p.pot}</span>}
-                  {scoutIds.includes(p.id) && (
-                    <span className={`truncate ${p.id === scoutPick ? 'text-hi' : 'text-sky'}`}>
-                      📋 {p.id === scoutPick ? '팀장 추천 · ' : ''}
-                      {(p.tag ?? '스카우트 명단').replace('스카우트 명단 · ', '')}
-                    </span>
-                  )}
-                </span>
-              </span>
-              <span className="shrink-0 text-right text-[10px] leading-tight">
-                <span className="block text-white/80">연 {fmtMoney(p.salary)}</span>
-                <span className={`block ${cash >= b ? 'text-hi' : 'text-bad'}`}>계약금 {fmtMoney(b)}</span>
-              </span>
-              <span className={`shrink-0 text-[10px] mob:text-[11px] ${on ? 'text-good' : 'text-white/45'}`}>{on ? '✓ 담음' : '담기 ⤢'}</span>
-            </button>
-          );
-        })}
-        {!list.length && <div className="p-2 text-center text-[11px] text-white/40">시장에 남은 선수가 없습니다</div>}
-      </div>
+      <PlayerBrowser
+        mode="market"
+        players={freeAgents}
+        rows={rows}
+        sel={card}
+        onPick={(p) => setCard(p.id)}
+        pinned={pinned}
+        note={(p) => (pinned.includes(p.id) ? <span className="ml-1 text-hi" title="스카우트 팀장 추천">★</span> : null)}
+        band={(p) => (basket.sign.includes(p.id) ? { color: '#6ee07a', bg: '#27452f' } : undefined)}
+        rowAction={(p) => <AddChip kind="sign" pid={p.id} />}
+      />
+      {cardP && (
+        <CardPop player={cardP} onClose={() => setCard(null)}>
+          <AddChip kind="sign" pid={cardP.id} big />
+        </CardPop>
+      )}
     </>
   );
 }

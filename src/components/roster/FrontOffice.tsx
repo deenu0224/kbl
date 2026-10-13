@@ -11,7 +11,7 @@ import Dialog from '../layout/Dialog';
 import Help from '../Help';
 import { Bar, OvrBadge, POS_KO, TabBar } from '../ui';
 import Diamond, { RankText, diagSummary, rankTone } from './Diamond';
-import PlayerTable from './PlayerTable';
+import PlayerBrowser from './PlayerBrowser';
 import { usePosReport, useRosterUi, type OfficeView } from './rosterUi';
 import { openDesk } from './transferUi';
 
@@ -254,7 +254,7 @@ function SalaryView({ onCard }: { onCard: (p: Player) => void }) {
 
 const VIEWS: { id: OfficeView; label: string }[] = [
   { id: 'diag', label: '진단' },
-  { id: 'table', label: '표' },
+  { id: 'table', label: '명단' },
   { id: 'depth', label: '뎁스' },
   { id: 'salary', label: '연봉' },
 ];
@@ -291,7 +291,7 @@ function Office({ view, onClose }: { view: OfficeView; onClose: () => void }) {
           ))}
         </div>
       )}
-      {view === 'table' && <PlayerTable mode="roster" players={shown} rows={rows} sel={card} onPick={pick} />}
+      {view === 'table' && <PlayerBrowser mode="roster" players={shown} rows={rows} sel={card} onPick={pick} />}
       {view === 'depth' && <DepthView rows={rows} onCard={pick} />}
       {view === 'salary' && <SalaryView onCard={pick} />}
       {cardP && (
