@@ -259,7 +259,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
   const bench = useMemo(() => team.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => b.ovr - a.ovr), [team.roster, inLineup]);
   const assigned = useMemo(() => new Set([...team.rotation, ...team.bullpen, ...(team.closer ? [team.closer] : [])]), [team.rotation, team.bullpen, team.closer]);
   const spare = useMemo(() => team.roster.filter((p) => p.kind === 'P' && !p.farm && !assigned.has(p.id)), [team.roster, assigned]);
-  const farm = useMemo(() => team.roster.filter((p) => p.farm && p.kind === (view === 'arms' ? 'P' : 'B')).sort((a, b) => Number(!!a.il) - Number(!!b.il) || b.ovr - a.ovr), [team.roster, view]);
+  const farm = useMemo(() => team.roster.filter((p) => p.farm && p.kind === (view === 'arms' ? 'P' : 'B')).sort((a, b) => Number(!!b.il) - Number(!!a.il) || b.ovr - a.ovr), [team.roster, view]);
   const nFarm = team.roster.filter((p) => p.farm && !p.il).length;
   const nRehab = team.roster.filter((p) => p.farm && p.il).length;
   const recs = useMemo(() => recommend(team), [team]);
