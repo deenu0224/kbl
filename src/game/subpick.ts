@@ -241,7 +241,9 @@ export function resolveSubCard(core: Core, idx: number, card: EventCard): string
     return '없던 일이 되었습니다';
   }
   const role = subRole(t, inj);
-  const pl = role ? subPlans(core, inj, role)[idx] : undefined;
+  // 카드를 접어 둔 사이 선수단이 바뀌었을 수 있다: 순번이 아니라 카드에 적힌 그 안을 다시 찾는다 (없어졌으면 감독에게 맡긴다)
+  const want = idx < card.choices.length - 1 ? card.choices[idx]?.label : undefined;
+  const pl = role && want ? subPlans(core, inj, role).find((x) => planLabel(role, x, x.mover ? (t.lineup.find((s) => s.pid === x.mover!.id)?.pos ?? x.mover.pos) : undefined) === want) : undefined;
   memoSet(core, `subdone-${inj.id}`, core.day + inj.injury); // 이 부상은 할 일에 올리지 않는다 (todo.ts)
   hintMut(core, inj.kind === 'B' ? 'lineup' : 'pitchers');
   if (!role || !pl) {
