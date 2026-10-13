@@ -74,10 +74,10 @@ export const SIM = {
   FAT_CTL: 2.0,
   SP_HOOK_RUNS: 6, // 선발 즉시 강판 실점
   RP_HOOK_RUNS: 3,
-  TIRED_1: 10, // 연투 피로: 전날 던진 불펜 구위 하락
-  TIRED_2: 20, // 2일 연속 던진 뒤 (3연투째)
-  TIRED_CTL_1: 5, // 연투 피로의 제구 하락
-  TIRED_CTL_2: 10,
+  TIRED_1: 13, // 연투 피로: 전날 던진 불펜 구위 하락
+  TIRED_2: 26, // 2일 연속 던진 뒤 (3연투째)
+  TIRED_CTL_1: 6, // 연투 피로의 제구 하락
+  TIRED_CTL_2: 12,
   TIRED_INJ_1: 1.6, // 연투 상태로 등판한 경기의 부상 확률 배율
   TIRED_INJ_2: 2.5,
   SHORT_BF: 4, // 구원이 한 경기에서 상대한 타자가 이 수 이하인 동안은 전력 투구
@@ -92,7 +92,7 @@ export const SIM = {
   SWARM_BF: 6, // 벌떼: 구원 1인당 최대 타자 수
   SWARM_BF_TIGHT: 5, // 벌떼: 7회 이후 접전(SWARM_TIGHT 점 차 이내)에서는 이 타자 수에서 이닝 중에도 바꾼다
   SWARM_TIGHT: 2,
-  SWARM_STF: 4, // 벌떼: 타순에 맞춰 끊어 넣는 구원의 전력 투구 가산 (SHORT_STF 에 더한다)
+  SWARM_STF: 6, // 벌떼: 타순에 맞춰 끊어 넣는 구원의 전력 투구 가산 (SHORT_STF 에 더한다)
   AI_STYLE_GAP: 4, // AI 구단: 선발 평균 OVR − 불펜 평균 OVR 이 이만큼 높으면 믿음, 낮으면(구원 AI_SWARM_ARMS 명 이상) 벌떼
   AI_SWARM_ARMS: 7,
   CLOSER_MAX_TIRED: 1, // 마무리도 3연투는 하지 않는다: 이틀 연속 던졌으면 쉰 불펜이 9회를 맡는다 (쉰 팔이 없을 때만 나선다)
