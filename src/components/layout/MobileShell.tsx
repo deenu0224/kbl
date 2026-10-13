@@ -33,7 +33,7 @@ const CLUB_SUBS: { id: ClubSub; label: string }[] = [
 function TodayCards() {
   const { next, opp, inPost, when, idle } = useMatchActions();
   return (
-    <div className="px-scroll flex min-h-0 flex-1 flex-col gap-[4px] overflow-y-auto" data-testid="today">
+    <div className="flex shrink-0 flex-col gap-[4px] land:min-h-0 land:flex-1 land:overflow-y-auto" data-testid="today">
       <div className="px-panel flex min-h-12 shrink-0 items-center gap-2 px-2 py-1.5">
         {next && opp ? (
           <>
@@ -230,7 +230,8 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
       {home && (
         <>
           {!playback && <TripLine />}
-          <div className="relative w-full shrink-0" style={{ height: playback ? '65dvh' : '57dvh' }} data-testid="stadium-box">
+          {/* 구장이 남는 높이를 채운다: 다음 경기·할 일 카드는 제 높이만큼만 */}
+          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[34dvh] flex-1'}`} style={playback ? { height: '65dvh' } : undefined} data-testid="stadium-box">
             <div className="absolute inset-0">
               <StadiumView pan />
             </div>
