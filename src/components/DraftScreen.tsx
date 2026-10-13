@@ -112,14 +112,14 @@ export default function DraftScreen() {
     >
       <div className="px-panel flex min-h-0 w-full max-w-[1000px] flex-col">
         {/* 머리 */}
-        <div className="flex shrink-0 items-center gap-2 px-3 pt-2 land:pt-1">
-          <div className="min-w-0 flex-1">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 pt-2 land:pt-1">
+          <div className="flex-1 whitespace-nowrap">
             <div className="text-[11px] text-sky">{season}시즌 스토브리그</div>
             <div className="font-pixel-lg text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
               신인 드래프트 <span className="text-[13px] text-white/70">{done ? '종료' : `${round}라운드`}</span>
             </div>
           </div>
-          <div className="shrink-0 text-right text-[11px] leading-tight text-white/65">
+          <div className="order-last w-full text-[11px] leading-tight text-white/65 lg:order-none lg:w-auto lg:shrink-0 lg:text-right">
             <div>
               현금 <span className="text-hi">{fmtMoney(cash)}</span>
             </div>
