@@ -54,6 +54,7 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] }> = {
       `믿음: 선발을 타자 ${SIM.TRUST_SP_LIMIT}명 더 끌고, 승부처는 필승조 ${SIM.TRUST_CORE}명과 마무리가 맡습니다.`,
       '균형: 선발은 한계 타자 수에서 내리고, 상황에 따라 필승조와 추격조를 씁니다.',
       `벌떼: 선발을 타자 ${-SIM.SWARM_SP_LIMIT}명 일찍 내리고, 구원은 타자 ${SIM.SWARM_BF_TIGHT}~${SIM.SWARM_BF}명씩 끊어 던집니다.`,
+      `타순을 여러 번 만나면 선발이 맞기 시작합니다. 세 바퀴째에 구위가 ${SIM.TTO_STF[2]} 안팎 떨어지고, 구위가 낮은 선발일수록 더 크게 떨어집니다.`,
       `구원은 타자 ${SIM.SHORT_BF}명까지 구위가 ${SIM.SHORT_STF} 오릅니다.`,
       `연투하면 구위가 ${SIM.TIRED_1}, 이틀 연투하면 ${SIM.TIRED_2} 떨어지고 다치기 쉽습니다.`,
     ],
