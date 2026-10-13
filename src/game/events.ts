@@ -1,3 +1,4 @@
+import { josa } from './format';
 // 사건은 생긴다 (docs/LEVEL_DESIGN.md 5절). 카드는 무작위 덱이 아니라 지금 상태의 결과다.
 // 카드마다 when(core)·우선순위·인물이 있고, 매 경기 후 검사해 1장을 낸다.
 // 카드 id 는 "기본id" 또는 "기본id|payload…" 형태 (eventsSeen 에는 기본id 만 기록).
@@ -473,7 +474,7 @@ export const CARDS: CardDef[] = [
       const alt = slot ? benchFor(c, slot.pos) : null;
       if (slot && alt) slot.pid = alt.id;
       sat(c, N.benchSat);
-      return `${p.name}을(를) 벤치로 내렸습니다`;
+      return `${josa(p.name, '을', '를')} 벤치로 내렸습니다`;
     },
   },
   {
@@ -545,7 +546,7 @@ export const CARDS: CardDef[] = [
       p.ovr = calcOvr(p);
       addBuff(c, { kind: 'armRisk', value: N.armRisk, until: c.day + N.armRiskGames, label: `${p.name} 혹사 (부상 확률 ×${N.armRisk})`, pid: p.id });
       hintMut(c, 'pitchers');
-      return `${p.name}은(는) 오늘도 불펜에서 몸을 풉니다 — 구위 ${p.stf}`;
+      return `${josa(p.name, '은', '는')} 오늘도 불펜에서 몸을 풉니다 — 구위 ${p.stf}`;
     },
   },
   {
@@ -912,7 +913,7 @@ export const CARDS: CardDef[] = [
       if (i === 2) {
         spend(c, stayCost(p));
         sat(c, N.staySat);
-        return `${p.name}이(가) 한 해 더 뛰기로 했습니다`;
+        return `${josa(p.name, '이', '가')} 한 해 더 뛰기로 했습니다`;
       }
       memoSet(c, 'retire', p.id);
       if (i === 0) {
@@ -921,7 +922,7 @@ export const CARDS: CardDef[] = [
         return `${p.name} 은퇴 투어 시작 — 마지막을 보러 팬들이 모입니다`;
       }
       sat(c, N.quietSat);
-      return `${p.name}은(는) 인사 없이 마지막 시즌을 보냅니다`;
+      return `${josa(p.name, '은', '는')} 인사 없이 마지막 시즌을 보냅니다`;
     },
   },
   {

@@ -1,3 +1,4 @@
+import { josa } from './format';
 // 스토리 데이터: 전제·인물·대사·시즌 이름. 규칙은 docs/LEVEL_CONCEPT.md 7절, docs/LEVEL_DESIGN.md 0·6·7절.
 // 대사 규칙: 한 번에 2문장 이하, 방법 지시 금지, 숫자 금지. 실존 구단·인물명 금지.
 import type { Campaign, CharId, SeasonRecord } from './types';
@@ -48,7 +49,7 @@ export const NEWS = {
   overDealt: '협상 테이블은 이미 차려져 있었습니다. {team}은(는) 다음 시즌부터 육지의 돔구장에서 뜁니다',
   fanLine: (n: number) => `외야석의 오랜 팬은 오늘도 같은 자리에 앉았습니다 (${n}번째 시즌)`,
   retiredNumber: (name: string) => `${name}의 등번호가 구장에 걸립니다 — 영구결번`,
-  franchiseGone: (name: string) => `간판 ${name}이(가) 팀을 떠났습니다 — 팬들이 등을 돌립니다`,
+  franchiseGone: (name: string) => `간판 ${josa(name, '이', '가')} 팀을 떠났습니다 — 팬들이 등을 돌립니다`,
   jetLag: '긴 원정에서 돌아온 첫 홈경기 — 선수단 몸이 무겁습니다',
   faDrought: '올겨울 FA 시장이 말랐습니다 — 대어는 없고 준척의 몸값이 뛰었습니다',
   rainStart: '장마 전선이 제주에 걸쳤습니다',
@@ -269,5 +270,5 @@ export function rankLine(history: SeasonRecord[], withPast = false): string {
 
 /** 문구의 {team} 자리에 유저가 정한 별칭을 넣는다 */
 export function withTeam(text: string, team: string): string {
-  return text.split('{team}').join(team);
+  return text.split('{team}은(는)').join(josa(team, '은', '는')).split('{team}').join(team);
 }

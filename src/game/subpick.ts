@@ -1,3 +1,4 @@
+import { josa } from './format';
 // 부상 대체 선택 카드: 주전이 다치면 그 자리를 누가 메울지 유저가 고른다.
 // 일반 카드 예산·간격과 무관하게 그 경기 직후 한 명씩 뜬다 (대기열: farm.ts subQueue).
 // "감독에게 맡긴다"는 자동 처리(farm.ts ilAutoMut · subGapMut)를 그대로 돌린 결과다.
@@ -170,7 +171,7 @@ export function makeSubCard(core: Core, inj: Player): EventCard | null {
     icon: '🩹',
     pid: inj.id,
     who: inj.kind === 'B' ? 'manager' : 'pitching',
-    line: `${inj.name}이(가) 빠집니다. 누구를 넣을까요.`,
+    line: `${josa(inj.name, '이', '가')} 빠집니다. 누구를 넣을까요.`,
     body: `${inj.name}(${roleKo(role)}) 부상 — ${inj.injury}경기 결장${il ? ' · 부상자 명단으로 옮깁니다 · 1군 자리 +1' : ''}`,
     choices,
   };
@@ -238,7 +239,7 @@ export function resolveSubCard(core: Core, idx: number, card: EventCard): string
   if (!role || !pl) {
     managerMut(core, inj, notes);
     const sub = t.roster.find((p) => p.subFor === inj.id && !p.farm);
-    return sub ? `감독이 ${sub.name}을(를) 올렸습니다` : '감독이 알아서 메웁니다';
+    return sub ? `감독이 ${josa(sub.name, '을', '를')} 올렸습니다` : '감독이 알아서 메웁니다';
   }
   subQueueSet(core, subQueue(core).filter((id) => id !== inj.id));
   const moverPos = pl.mover ? t.lineup.find((s) => s.pid === pl.mover!.id)?.pos : undefined;
@@ -271,5 +272,5 @@ export function resolveSubCard(core: Core, idx: number, card: EventCard): string
   }
   fixLineup(t);
   if (pl.type === 'callup') addNews(core, `${FARM_COACH}${inj.name} 부상(${inj.injury}경기) 공백에 ${pl.x.name}(${posKo(pl.x.pos)} 오버롤 ${pl.x.ovr}) 콜업`, 'info');
-  return `${pl.x.name}이(가) ${inj.name}의 자리(${roleKo(role)})를 맡습니다${tail}`;
+  return `${josa(pl.x.name, '이', '가')} ${inj.name}의 자리(${roleKo(role)})를 맡습니다${tail}`;
 }

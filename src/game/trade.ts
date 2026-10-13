@@ -1,3 +1,4 @@
+import { josa } from './format';
 // 트레이드: AI 구단의 제안(사건 카드)과 유저가 시장에 내놓은 선수(campaign.block).
 // - makeOffer: 서로의 필요를 맞춘 패키지 한 건 (순수 함수)
 // - tradePreview / applyTradeMut: 표시와 적용이 같은 길을 쓴다 (eventRows 패턴)
@@ -414,10 +415,10 @@ export function tradeCard(core: Core, of: TradeOffer): EventCard | null {
   const wins = `예상 승수 ${sgn1(pv.wins)}`;
   const body =
     of.kind === 'dump'
-      ? `${t.city} ${t.name}이(가) ${gets}의 연봉 ${fmtMoney(x.get[0].salary)}을 넘기려 합니다. 받아 주면 현금 ${fmtMoney(of.cash)}을 얹어 줍니다.`
+      ? `${t.city} ${josa(t.name, '이', '가')} ${gets}의 연봉 ${fmtMoney(x.get[0].salary)}을 넘기려 합니다. 받아 주면 현금 ${fmtMoney(of.cash)}을 얹어 줍니다.`
       : of.kind === 'cash'
-        ? `${t.city} ${t.name}이(가) 시장에 나온 ${gives}을(를) 원합니다. 조건은 ${cashTxt(of.cash)}.`
-        : `${t.city} ${t.name}의 제안: ${gets}을(를) 내주고 ${gives}을(를) 받겠다고 합니다. ${cashTxt(of.cash)}.`;
+        ? `${t.city} ${josa(t.name, '이', '가')} 시장에 나온 ${josa(gives, '을', '를')} 원합니다. 조건은 ${cashTxt(of.cash)}.`
+        : `${t.city} ${t.name}의 제안: ${josa(gets, '을', '를')} 내주고 ${josa(gives, '을', '를')} 받겠다고 합니다. ${cashTxt(of.cash)}.`;
   const none: EventDetail = { rows: [rowInfo('전력', '변화 없음'), rowPayroll(core, 0), rowCash(core, 0)], pids: [...of.get, ...of.give] };
   const same = of.fair === of.cash;
   return {

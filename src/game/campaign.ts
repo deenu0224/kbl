@@ -1,3 +1,4 @@
+import { josa } from './format';
 // 캠페인 「제주의 기적」: 장(스테이지)·깃발·별·결산·버프 해석. docs/LEVEL_DESIGN.md 2·7절.
 // 시즌 대본(일정 배치·구간 효과)은 script.ts, 이벤트 카드는 events.ts, 대사·문구는 story.ts.
 import type { Buff, CharId, Core, DayReport, HintTab, ObjKind, Objective, Player, PostFinish, SeasonRecord, SeasonVerdict, StadiumScene, Team } from './types';
@@ -276,7 +277,7 @@ export function unfixMut(core: Core, pid: string): void {
   const out = t.roster.find((p) => p.id === outId);
   if (!slot || !out || out.farm || out.kind !== 'B' || t.lineup.some((s) => s.pid === outId)) return;
   slot.pid = outId;
-  addNews(core, `고정 출전이 끝나 ${out.name}이(가) 선발 명단에 돌아왔습니다`, 'info');
+  addNews(core, `고정 출전이 끝나 ${josa(out.name, '이', '가')} 선발 명단에 돌아왔습니다`, 'info');
   hintMut(core, 'lineup');
 }
 

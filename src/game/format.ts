@@ -54,3 +54,12 @@ export function fmtWhip(hbb: number, outs: number): string {
 export function fmtSb(sb: number, cs: number): string {
   return `${sb}/${cs}`;
 }
+
+/** 받침에 맞는 조사를 붙인다: josa('강종환', '이', '가') -> "강종환이". 한글이 아니면 받침 없는 쪽. */
+export function josa(word: string, withBatchim: string, without: string): string {
+  const c = word.charCodeAt(word.length - 1);
+  const jong = c >= 0xac00 && c <= 0xd7a3 ? (c - 0xac00) % 28 : /[013678]$/.test(word) ? 1 : 0;
+  // "(으)로"는 ㄹ 받침 뒤에도 "로"
+  const has = withBatchim === '으로' ? jong !== 0 && jong !== 8 : jong !== 0;
+  return word + (has ? withBatchim : without);
+}

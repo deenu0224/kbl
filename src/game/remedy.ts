@@ -1,3 +1,4 @@
+import { josa } from './format';
 // "할 일"의 조치: 항목마다 지금 실제로 가능한 조치를 결과 숫자와 함께 낸다 (순수 함수).
 // 원칙: 조치 버튼이 없는 알림은 띄우지 않는다 — todo.ts 가 remedies() 로 걸러 낸다.
 import type { BatPos, Core, Player, Team } from './types';
@@ -194,7 +195,7 @@ function waitRemedies(core: Core): Remedy[] {
     }
   }
   out.push({ id: 'go', run: { t: 'go', to: 'squad' }, label: '선수단에서 직접 고르기', effect: `1군 ${n}/${ROSTER_MAX} — 내릴 선수를 직접 정한다` });
-  out.push({ id: 'none', run: { t: 'none' }, label: '그대로 둔다', effect: `${p.name}은(는) 재활 명단에서 기다린다` });
+  out.push({ id: 'none', run: { t: 'none' }, label: '그대로 둔다', effect: `${josa(p.name, '은', '는')} 재활 명단에서 기다린다` });
   return out;
 }
 

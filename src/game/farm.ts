@@ -1,3 +1,4 @@
+import { josa } from './format';
 // 2군 자동 운영과 2군 사건 (docs/IDEA_BANK.md B절).
 // 유저 방침: 2군 관리는 웬만하면 자동, 유저는 결정할 만한 순간에만 불려 나온다.
 // - farmDailyMut: 매 경기 후 2군 코치가 하는 일 (부상 대체 콜업·복귀, 벤치에서 썩는 유망주 2군행)
@@ -116,7 +117,7 @@ function subBackMut(core: Core, notes: string[]): void {
     if (!p.farm && orig && (orig.injury > 0 || orig.farm)) continue;
     if (orig && !p.farm) {
       restoreSlotMut(core, t, orig, p);
-      say(core, notes, `${orig.name} 복귀 — ${p.name}은(는) ${p.kind === 'B' ? '벤치' : '불펜'}로`, 'good');
+      say(core, notes, `${orig.name} 복귀 — ${josa(p.name, '은', '는')} ${p.kind === 'B' ? '벤치' : '불펜'}로`, 'good');
     }
     delete p.subFor;
     delete p.subFrom;
@@ -760,7 +761,7 @@ export const FARM_CARDS: FarmCardDef[] = [
         title: '대체 선수의 깜짝 활약',
         icon: '🔥',
         pid: sub.id,
-        body: `${orig.name}(${orig.age}세, 오버롤 ${orig.ovr})의 부상 공백에 올라온 ${sub.name}(${sub.age}세, 오버롤 ${sub.ovr})이 ${stat}. 오늘 ${orig.name}이(가) 돌아왔습니다.`,
+        body: `${orig.name}(${orig.age}세, 오버롤 ${orig.ovr})의 부상 공백에 올라온 ${sub.name}(${sub.age}세, 오버롤 ${sub.ovr})이 ${stat}. 오늘 ${josa(orig.name, '이', '가')} 돌아왔습니다.`,
         choices: [
           {
             label: '신예를 그대로 쓴다',
@@ -803,16 +804,16 @@ export const FARM_CARDS: FarmCardDef[] = [
         grow(sub, rng, F.hotBump);
         promoteMut(c, t, sub, orig);
         hintMut(c, sub.kind === 'B' ? 'lineup' : 'pitchers');
-        return `${sub.name}이(가) 자리를 지켰습니다 — 오버롤 ${sub.ovr}`;
+        return `${josa(sub.name, '이', '가')} 자리를 지켰습니다 — 오버롤 ${sub.ovr}`;
       }
       sat(c, F.hotBackSat);
       if (orig) restoreSlotMut(c, t, orig, sub);
       if (farmRoster(t).length >= farmMax(c)) {
         delete sub.subFor;
-        return `${orig?.name ?? '주전'}이(가) 원래 자리로 — 2군이 가득해 ${sub.name}은(는) 벤치에 남습니다`;
+        return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로 — 2군이 가득해 ${josa(sub.name, '은', '는')} 벤치에 남습니다`;
       }
       demoteMut(c, t, sub, false);
-      return `${orig?.name ?? '주전'}이(가) 원래 자리로, ${sub.name}은(는) 2군으로 돌아갔습니다`;
+      return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로, ${josa(sub.name, '은', '는')} 2군으로 돌아갔습니다`;
     },
   },
   // ───────── B7 은퇴 선수의 인스트럭터 합류 ─────────
@@ -910,7 +911,7 @@ export const FARM_CARDS: FarmCardDef[] = [
       }
       demoteMut(c, userTeam(c), p, true);
       hintMut(c, p.kind === 'B' ? 'lineup' : 'pitchers');
-      return `${p.name}을(를) 2군으로 내렸습니다 — ${FARM_LOCK}경기 뒤 다시 올릴 수 있습니다`;
+      return `${josa(p.name, '을', '를')} 2군으로 내렸습니다 — ${FARM_LOCK}경기 뒤 다시 올릴 수 있습니다`;
     },
   },
   // ───────── B1 콜업 준비 완료 ─────────
@@ -951,7 +952,7 @@ export const FARM_CARDS: FarmCardDef[] = [
       const [, curId, downId] = cd.id.split('|');
       if (i !== 0) {
         memoSet(c, `b1-${k.id}`, c.day + F.readyWait);
-        return `${k.name}은(는) 한 달 더 2군에서 기다립니다`;
+        return `${josa(k.name, '은', '는')} 한 달 더 2군에서 기다립니다`;
       }
       memoSet(c, `b1-${k.id}`, 9999);
       swapUpMut(c, k, find(c, curId), downId);
@@ -1006,7 +1007,7 @@ export const FARM_CARDS: FarmCardDef[] = [
       const k = find(c, cd.pid);
       if (!k) return '없던 일이 되었습니다';
       memoSet(c, `b5-${k.id}`, 1);
-      if (i !== 0) return `${k.name}은(는) 제 포지션에서 기다립니다`;
+      if (i !== 0) return `${josa(k.name, '은', '는')} 제 포지션에서 기다립니다`;
       const to = cd.id.split('|')[1] as BatPos;
       const pen = convPen(k);
       k.posShift = { from: k.pos, pen, until: c.day + F.convGames };
@@ -1056,7 +1057,7 @@ export const FARM_CARDS: FarmCardDef[] = [
       memoSet(c, `b2-${k.id}`, 1);
       if (i !== 0) {
         sat(c, F.hypeWaitSat);
-        return `${k.name}은(는) 2군에서 더 익힙니다 — 게시판은 한동안 시끄럽습니다`;
+        return `${josa(k.name, '은', '는')} 2군에서 더 익힙니다 — 게시판은 한동안 시끄럽습니다`;
       }
       const [, curId, downId] = cd.id.split('|');
       const cur = find(c, curId);
@@ -1128,7 +1129,7 @@ export const FARM_CARDS: FarmCardDef[] = [
         const notes: string[] = [];
         enlistMut(c, p, notes);
         hintMut(c, p.kind === 'B' ? 'lineup' : 'pitchers');
-        return `${p.name}이(가) 머리를 깎았습니다 — ${p.away?.until}시즌에 돌아옵니다`;
+        return `${josa(p.name, '이', '가')} 머리를 깎았습니다 — ${p.away?.until}시즌에 돌아옵니다`;
       }
       p.armyDue = c.season + 1;
       return `${p.name}의 입대를 한 해 미뤘습니다 — 내년에는 미룰 수 없습니다`;

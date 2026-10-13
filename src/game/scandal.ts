@@ -1,3 +1,4 @@
+import { josa } from './format';
 // 후반 스캔들: 약물 · 승부조작 (docs/IDEA_BANK.md E절).
 // 원칙: 사전 징후 → 발각 전 선택 → 오래 따라오는 대가. 예방책(윤리 교육)이 있다.
 // - scandalTickMut: 매 경기 후. 시즌에 최대 1건을 정하고(징후 → 카드), 징후를 낸다
@@ -257,7 +258,7 @@ function removeMut(core: Core, p: Player, toFa: boolean): void {
     if (up) {
       delete up.farm;
       delete up.farmUntil;
-      addNews(core, `${up.name}이(가) 빈자리를 메우러 1군에 올라왔습니다`, 'info');
+      addNews(core, `${josa(up.name, '이', '가')} 빈자리를 메우러 1군에 올라왔습니다`, 'info');
     }
   }
   if (toFa) {
@@ -407,7 +408,7 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
       c.finance.cash -= cost;
       c.finance.ledger.signing += cost;
       removeMut(c, p, true);
-      return `${p.name}을(를) 이유를 밝히지 않고 방출했습니다 (잔여 연봉 ${fmtMoney(cost)})`;
+      return `${josa(p.name, '을', '를')} 이유를 밝히지 않고 방출했습니다 (잔여 연봉 ${fmtMoney(cost)})`;
     },
   },
   // ───────── 승부조작 「사무국의 전화」 ─────────
@@ -508,7 +509,7 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
       delete p.svc; // 보유 기간의 싼 연봉을 끝낸다
       c.campaign.fixClear = [...(c.campaign.fixClear ?? []), p.id];
       if (rng() < SC.hushRate) addSecretMut(c, 'fix', p);
-      return `${p.name}의 연봉을 ${fmtMoney(market)}(으)로 올렸습니다 — 사무국의 전화는 다시 오지 않았습니다`;
+      return `${p.name}의 연봉을 ${josa(fmtMoney(market), '으로', '로')} 올렸습니다 — 사무국의 전화는 다시 오지 않았습니다`;
     },
   },
 ];
