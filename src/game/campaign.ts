@@ -7,7 +7,7 @@ import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, loanLimit, luxTax, opProfit, payroll
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
 import { memoGet, memoNum, memoSet } from './memo';
-import { leagueSize, postTeams, seasonGames } from './league';
+import { BASE_TEAMS, leagueSize, postTeams, seasonGames } from './league';
 import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine, withTeam } from './story';
 import { beatById, startSeasonScriptMut, userHomeDays } from './script';
 import { exposeMut } from './scandal';
@@ -143,6 +143,32 @@ export const STAGES: StageDef[] = [
     midCash: 40000,
   },
 ];
+
+// ───────── 구단 수별 장 목표 (docs/TEN_TEAMS.md 3단계) ─────────
+// STAGES 는 원년 8구단 리그의 값이다. 구단이 더 많은 리그에서 뜻이 달라지는 목표만 여기서 덮어쓴다 (8구단 세이브는 STAGES 그대로).
+
+const ERA_RANK_8 = 2; // 3장 별 "팀 평균자책점 리그 n위 이내"의 8구단 기준
+const stageCache = new Map<number, StageDef[]>();
+
+function stagesFor(teams: number): StageDef[] {
+  if (teams <= BASE_TEAMS) return STAGES;
+  let out = stageCache.get(teams);
+  if (!out) {
+    out = STAGES.map((st) => ({ ...st, main: { ...st.main }, stars: st.stars.map((x) => ({ ...x })) as StageDef['stars'] }));
+    // 0장 깃발 = 탈꼴찌 (10구단 9위 이내)
+    out[0].main.target = teams - 1;
+    // 3장 별: 리그 n위는 구단 수 비율로 (8팀의 2위 ≈ 10팀의 3위)
+    const era = Math.round((ERA_RANK_8 * teams) / BASE_TEAMS);
+    out[3].stars[0] = { ...out[3].stars[0], target: era, text: `팀 평균자책점 리그 ${era}위 이내` };
+    stageCache.set(teams, out);
+  }
+  return out;
+}
+
+/** 이 리그(구단 수)의 장 정의 */
+export function stageFor(core: Pick<Core, 'teams'>, stage: number): StageDef {
+  return stagesFor(leagueSize(core))[clamp(stage, 0, STAGES.length - 1)];
+}
 
 const POST_TEXT = ['', '포스트시즌 진출', '플레이오프 진출', '한국시리즈 진출', '한국시리즈 우승'];
 
@@ -297,7 +323,7 @@ export function unfixMut(core: Core, pid: string): void {
 // ───────── 지표 ─────────
 
 export function stageOf(core: Core): StageDef {
-  return STAGES[clamp(core.campaign.stage, 0, STAGES.length - 1)];
+  return stageFor(core, core.campaign.stage);
 }
 
 export function postLevel(core: Core): number {
@@ -566,7 +592,7 @@ export function fillObjectivesMut(core: Core, rng: Rng): void {
   const c = core.campaign;
   if (!c.objectives.length) {
     const stage = clamp(c.stage, 0, STAGES.length - 1);
-    const st = STAGES[stage];
+    const st = stageFor(core, stage);
     const have = new Set(c.achievements);
     const main: Objective = {
       id: `s${stage}-main`,
@@ -804,7 +830,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     let stage = c.stage;
     let jumps = 0;
     for (;;) {
-      const st = STAGES[stage];
+      const st = stageFor(core, stage);
       cashReward += st.reward.cash * (jumps === 0 && mid === 'up' ? MID_UP_MULT : 1);
       trust += st.reward.trust;
       jumps++;
@@ -820,7 +846,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
       if (stage < STAGES.length - 1) stage++;
       else break;
       if (jumps >= MAX_JUMP || stage >= STAGES.length - 1) break;
-      const nx = STAGES[stage].main;
+      const nx = stageFor(core, stage).main;
       if (!objMet(nx.kind, nx.target, objValue(core, nx.kind))) break;
       addNews(core, `월반! 「${STAGES[stage].name}」의 깃발까지 이미 닿았습니다`, 'good');
     }
