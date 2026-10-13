@@ -4,6 +4,7 @@ import StadiumCanvas, { STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
 import { useCore, useUserTeam } from '../store';
 import { sceneExtras } from '../game/campaign';
 import { SCANDAL_NEWS, endingText } from '../game/story';
+import { ShareButton } from './ShareSheet';
 
 /** 엔딩: 우승 장면이 아니라, 바랜 깃발 옆에 두 번째 깃발이 걸린 빈 구장. 본 뒤에는 계속 플레이. */
 export default function EndingScene({ onDone }: { onDone: () => void }) {
@@ -55,9 +56,12 @@ export default function EndingScene({ onDone }: { onDone: () => void }) {
           </div>
         ))}
       </div>
-      <button className={`px-btn min-h-11 !px-6 text-[14px] ${shown >= lines.length ? '' : 'opacity-40'}`} onClick={onDone}>
-        계속
-      </button>
+      <div className="flex items-center gap-3">
+        <ShareButton kind="champion" />
+        <button className={`px-btn primary min-h-11 !px-8 text-[15px] ${shown >= lines.length ? '' : 'opacity-40'}`} onClick={onDone}>
+          계속
+        </button>
+      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { leagueAwards, type LeaderRow } from '../game/leaders';
 import Bracket from './Bracket';
 import { Flag, POST_KO, StageTrail, silhouette, stageName } from './Campaign';
 import EndingScene from './EndingScene';
+import { ShareButton } from './ShareSheet';
 import EventCardModal from './EventCardModal';
 import { useIsMobile } from './layout/useLayout';
 import PixelFace from './PixelFace';
@@ -433,6 +434,7 @@ function SeasonEndBody() {
           >
             {armNew ? '초기 화면으로 나가기' : '초기 화면'}
           </button>
+          <ShareButton kind="season" className="mob:!px-2.5" />
           {/* 스토브리그: 재계약·트레이드 제안 카드를 먼저 처리하고, 그 뒤에 이적 창구가 열린다 */}
           <button
             className="px-btn min-h-11 whitespace-nowrap !px-4 !py-2 text-[13px] mob:!px-2.5"

@@ -3,6 +3,7 @@
 //   steps:   { click: testid 또는 글 } · { dblclick } · { wait: ms } · { fill: testid, text } · { scroll: 'bottom'|'top' } · { key }
 //            click 에는 nth(같은 것이 여럿일 때) · optional(없어도 넘어감) · when('mobile'|'desktop') 을 붙일 수 있다
 //   only:    'mobile' | 'desktop' — 그 레이아웃에만 있는 화면
+//   query:   주소 뒤에 붙일 쿼리 ('?l=...' — 도전 링크)
 // 클릭 대상을 못 찾으면 그 화면은 missing 으로 기록되고 순회는 계속된다.
 
 /** 검사 허용 목록: { kind?, testid?, testidPrefix?, text?(정규식), selector? } — 의도된 것만 적는다 */
@@ -60,6 +61,19 @@ export const SCREENS = [
   S('title-settings', null, st(['open-settings'])),
   S('title-hof', 'over', st(['open-hof'])),
   S('title-hof-empty', null, st(['open-hof'])),
+  // 도전 링크(?l=시드)로 연 초기 화면: 세이브 없음 · 있음 · [같은 리그로 시작] 뒤
+  S('title-challenge', null, [], { query: '?l=lz3k9f2a' }),
+  S('title-challenge-save', 'opened', [], { query: '?l=lz3k9f2a' }),
+  S('title-challenge-nick', null, st(['challenge-start']), { query: '?l=lz3k9f2a' }),
+  S('title-challenge-overwrite', 'opened', st(['challenge-start']), { query: '?l=lz3k9f2a' }),
+
+  // ── 공유 시트 (결산 · 우승 엔딩 · 연고 이전 · 명예의 전당의 역대 구단 줄)
+  S('share-ended', 'ended', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
+  S('share-ended-fail', 'endedFail', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
+  S('share-ending', 'ending', game('share-open', { wait: 900 })),
+  S('share-over', 'over', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
+  S('share-hof', 'over', st(['open-hof', 'share-club', { wait: 900 }])),
+  S('share-copied', 'ended', game({ scroll: 'bottom' }, 'share-open', { wait: 900 }, 'share-copy')),
 
   // ── 개막전 오더 (선수단 화면 + 감독 대사 + [오더 제출])
   S('order-field', 'fresh', game()),
