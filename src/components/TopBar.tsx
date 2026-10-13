@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useCore, useStore, useUserTeam } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import { payroll } from '../game/economy';
@@ -115,8 +115,11 @@ export default function TopBar() {
       <Cell label="전력">
         <span style={{ color: ratingColor(str) }}>{Math.round(str)}</span>
       </Cell>
-      <div className="ml-auto flex items-center">
+      <div className="ml-auto flex items-center gap-1">
         <SoundButton />
+        <button className="px-btn !px-2" data-testid="menu" title="설정" aria-label="메뉴: 설정" onClick={() => useUi.getState().setSettingsOpen(true)}>
+          ≡
+        </button>
       </div>
     </div>
   );
@@ -145,14 +148,10 @@ export function MobileTopBar() {
   const fans = useStore((s) => s.fans);
   const fanSat = useStore((s) => s.fanSat);
   const playback = useStore((s) => !!s.playback);
-  const newGame = useStore((s) => s.newGame);
   const open = useUi((s) => s.topOpen);
   const setOpen = useUi((s) => s.setTopOpen);
-  const [arm, setArm] = useState(false);
-
-  useEffect(() => {
-    if (!open) setArm(false);
-  }, [open]);
+  const setScreen = useUi((s) => s.setScreen);
+  const setSettingsOpen = useUi((s) => s.setSettingsOpen);
 
   const rank = rankOf(teams, team.id);
   const str = teamStrength(team);
@@ -201,7 +200,7 @@ export function MobileTopBar() {
               <Bar ratio={fanSat / 100} color={satColor} h={5} />
             </span>
           </span>
-          <span className="shrink-0 text-[11px] text-white/45">{open ? '▲' : '▼'}</span>
+          <span className="shrink-0 px-1 text-[16px] text-white/80 mob:!text-[18px]" data-testid="menu">{open ? '▲' : '≡'}</span>
         </div>
       </button>
       {/* 캠페인: 세로는 한 줄, 가로는 옆에 두 줄 */}
@@ -250,18 +249,19 @@ export function MobileTopBar() {
               <SoundButton inline />
             </div>
             <div className="mt-2 flex items-center justify-end gap-2">
-              {playback && <span className="text-[11px] text-white/45">재생 중에는 새 게임을 시작할 수 없습니다</span>}
               <button
-                className={`px-btn ${arm ? 'primary' : ''}`}
-                disabled={playback}
+                className="px-btn"
+                data-testid="menu-settings"
                 onClick={() => {
-                  if (!arm) return setArm(true);
-                  setArm(false);
                   setOpen(false);
-                  newGame();
+                  setSettingsOpen(true);
                 }}
               >
-                {arm ? '정말 새 게임? (저장 삭제)' : '새 게임'}
+                설정
+              </button>
+              {/* 자동 저장되므로 확인 없이 나간다 */}
+              <button className="px-btn" data-testid="menu-title" disabled={playback} onClick={() => setScreen('title')}>
+                초기 화면으로
               </button>
             </div>
           </div>

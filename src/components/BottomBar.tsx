@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useStore, userMatch, useUserTeam } from '../store';
 import { usePostLine } from './Bracket';
 import { EventReopen } from './EventCardModal';
@@ -8,7 +7,7 @@ import { useWinChance } from './useWinChance';
 import { TeamDot, dowOf, isNightDay } from './ui';
 
 /** 하단 진행 버튼들의 공통 상태 (데스크톱 BottomBar · 모바일 액션 바 공용) */
-function useMatchActions() {
+export function useMatchActions() {
   const playback = useStore((s) => !!s.playback);
   const summary = useStore((s) => !!s.summary);
   const phase = useStore((s) => s.phase);
@@ -39,7 +38,7 @@ function useMatchActions() {
 }
 
 /** 경기 전 점검 줄: "오늘 승리 확률 44%" + 고칠 곳이 있으면 칩 (탭하면 "오늘의 오더") */
-function PreGame({ short = false }: { short?: boolean }) {
+export function PreGame({ short = false }: { short?: boolean }) {
   const team = useUserTeam();
   const opener = useStore((s) => s.phase === 'season' && s.day === 0);
   // 오더지가 열려 있는 동안은 오더지가 같은 숫자를 계산한다 (같은 시뮬을 두 번 돌리지 않는다)
@@ -106,14 +105,7 @@ function DraftReturn({ className = '' }: { className?: string }) {
 export default function BottomBar() {
   const { opener, playback, inPost, next, opp, reason, idle, when, off, bulkOff, bulkReason } = useMatchActions();
   const simDays = useStore((s) => s.simDays);
-  const newGame = useStore((s) => s.newGame);
-  const [arm, setArm] = useState(false);
-
-  useEffect(() => {
-    if (!arm) return;
-    const id = window.setTimeout(() => setArm(false), 3000);
-    return () => window.clearTimeout(id);
-  }, [arm]);
+  const setScreen = useUi((s) => s.setScreen);
 
   return (
     <div className="px-panel flex h-12 shrink-0 items-center gap-3 px-3">
@@ -142,13 +134,10 @@ export default function BottomBar() {
       <button
         className="px-btn !px-2 text-[10px]"
         disabled={playback}
-        onClick={() => {
-          if (!arm) return setArm(true);
-          setArm(false);
-          newGame();
-        }}
+        data-testid="to-title"
+        onClick={() => setScreen('title')}
       >
-        {arm ? '정말 새 게임?' : '새 게임'}
+        초기 화면
       </button>
       <PlayButton className="!px-8 !py-1.5 text-[14px]" opener={opener} off={off} />
       {!inPost && (
@@ -191,7 +180,7 @@ function LiveScore() {
  * 모바일 액션 바: [▶ 경기 진행](크게) [1주] + 다음 경기 한 줄.
  * 하이라이트 재생 중엔 엄지 위치에 [건너뛰기].
  */
-export function MobileActionBar() {
+export function MobileActionBar({ bare = false }: { bare?: boolean } = {}) {
   const { opener, playback, inPost, next, opp, reason, idle, whenShort, off, bulkOff, bulkReason } = useMatchActions();
   const simDays = useStore((s) => s.simDays);
   const skipPlayback = useStore((s) => s.skipPlayback);
@@ -237,7 +226,7 @@ export function MobileActionBar() {
 
   return (
     <div className="px-panel flex shrink-0 flex-col gap-1.5 px-2 pt-1 pb-2">
-      <div className="flex h-6 min-w-0 items-center justify-between gap-2">
+      <div className={`flex h-6 min-w-0 items-center justify-between gap-2 ${bare && !playback ? 'hidden' : ''}`}>
         {info}
         {/* title 툴팁 대신 비활성 사유를 화면에 */}
         {reason && !playback && next && <span className="shrink-0 text-[11px] text-white/45">{reason}</span>}

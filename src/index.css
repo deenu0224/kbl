@@ -230,3 +230,34 @@ canvas.pixel {
 .trust-move {
   transition: width 1.1s steps(11) 0.5s;
 }
+
+/* ───────── 모바일 글자·줄 기준 (본문 13px+, 목록 한 줄 48px+, 칩·버튼 40px+) ───────── */
+:root:is([data-layout='portrait'], [data-layout='landscape']) :is(.text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[12px\]):not([class*='mob:text']) {
+  font-size: 13px;
+}
+:root:is([data-layout='portrait'], [data-layout='landscape']) .m-shell {
+  font-size: 13px;
+}
+:root:is([data-layout='portrait'], [data-layout='landscape']) .m-shell tbody tr {
+  height: 48px;
+}
+:root:is([data-layout='portrait'], [data-layout='landscape']) .m-shell :is(th, td) {
+  font-size: 13px;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.title-logo {
+  text-shadow:
+    3px 3px 0 #0f1420,
+    -2px -2px 0 #0f1420,
+    2px -2px 0 #0f1420,
+    -2px 2px 0 #0f1420;
+}
+/* mob:text-[11px] 처럼 직접 지정한 작은 글자도 13px 로 올린다 (구장 오버레이는 인라인 cqw 라 해당 없음) */
+:root:is([data-layout='portrait'], [data-layout='landscape']) :is([class*='text-[9px]'], [class*='text-[10px]'], [class*='text-[11px]'], [class*='text-[12px]']) {
+  font-size: 13px;
+}

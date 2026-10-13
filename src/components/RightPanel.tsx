@@ -264,7 +264,8 @@ function FacilityCard({ kind }: { kind: FacilityKind }) {
   );
 }
 
-export function StadiumTab() {
+/** part 를 주면 그 조각만 (구장에서 연 바텀 시트용): 'ticket' = 티켓 가격 + 관중 추이, 시설 이름 = 그 시설 카드 */
+export function StadiumTab({ part }: { part?: 'ticket' | FacilityKind } = {}) {
   const core = useCore();
   const setPrice = useStore((s) => s.setPrice);
   const price = core.finance.ticketPrice;
@@ -277,21 +278,23 @@ export function StadiumTab() {
   const avg = att.length ? att.reduce((a, b) => a + b, 0) / att.length : 0;
 
   return (
-    <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
-      <div className="-mx-1.5 -mt-1.5 mb-1.5 empty:hidden">
-        <FirstTip id="stadium" />
-      </div>
-      <SectionTitle>티켓 가격</SectionTitle>
-      <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+    <div className={part ? 'p-1' : 'px-scroll min-h-0 flex-1 overflow-y-auto p-1.5'} data-testid={part ? `fac-sheet-${part}` : undefined}>
+      {!part && (
+        <div className="-mx-1.5 -mt-1.5 mb-1.5 empty:hidden">
+          <FirstTip id="stadium" />
+        </div>
+      )}
+      {(!part || part === 'ticket') && <SectionTitle>티켓 가격</SectionTitle>}
+      <div className={`bg-panel-2 p-1.5 ${!part || part === 'ticket' ? '' : 'hidden'}`} style={{ boxShadow: '0 0 0 1px #0f1420' }}>
         <div className="flex items-center gap-1.5">
-          <button className="px-btn mob:min-w-12 mob:text-[20px]" disabled={price <= 0.5} onClick={() => setPrice(price - 0.1)} aria-label="가격 내리기">
+          <button className="px-btn mob:min-h-14 mob:min-w-16 mob:text-[26px]" disabled={price <= 0.5} onClick={() => setPrice(price - 0.1)} aria-label="가격 내리기">
             −
           </button>
           <div className="flex-1 text-center">
-            <span className="font-pixel-lg text-[18px] text-hi">{fmtInt(Math.round(price * 10000))}</span>
+            <span className="font-pixel-lg text-[18px] text-hi mob:text-[26px]">{fmtInt(Math.round(price * 10000))}</span>
             <span className="text-[11px] text-white/60">원</span>
           </div>
-          <button className="px-btn mob:min-w-12 mob:text-[20px]" disabled={price >= 4} onClick={() => setPrice(price + 0.1)} aria-label="가격 올리기">
+          <button className="px-btn mob:min-h-14 mob:min-w-16 mob:text-[26px]" disabled={price >= 4} onClick={() => setPrice(price + 0.1)} aria-label="가격 올리기">
             +
           </button>
         </div>
@@ -318,13 +321,17 @@ export function StadiumTab() {
         </div>
         <Bar ratio={cap ? demand / cap : 0} color={over ? '#ffd84a' : '#7fd3ff'} h={8} className="mt-0.5" />
         {over && <div className="mt-0.5 text-[10px] text-hi">예상 수요가 좌석보다 {fmtInt(Math.round(demand - cap))}명 많습니다</div>}
+        <div className="mt-1 text-[10px] text-white/60">
+          홈경기당 예상 입장 수입 <span className="text-hi">{fmtMoney(Math.round(Math.min(demand, cap) * price))}</span>
+        </div>
       </div>
 
-      <SectionTitle>시설</SectionTitle>
-      {KINDS.map((k) => (
+      {!part && <SectionTitle>시설</SectionTitle>}
+      {KINDS.filter((k) => !part || part === k).map((k) => (
         <FacilityCard key={k} kind={k} />
       ))}
-
+      {part && part !== 'ticket' ? null : (
+        <>
       <SectionTitle right={<span className="text-white/50">평균 {fmtInt(Math.round(avg))}명</span>}>홈 관중 추이</SectionTitle>
       <MiniBars values={recent} max={cap} height={52} color={(v) => (v >= cap ? '#ffd84a' : v >= cap * 0.7 ? '#6ee07a' : '#7fd3ff')} />
       <div className="mt-0.5 flex justify-between text-[9px] text-white/40">
@@ -333,6 +340,8 @@ export function StadiumTab() {
           <span className="text-hi">■</span> 매진 <span className="text-good">■</span> 70%↑
         </span>
       </div>
+        </>
+      )}
     </div>
   );
 }

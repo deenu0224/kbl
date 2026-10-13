@@ -2,9 +2,29 @@ import { create } from 'zustand';
 import type { TeamParts } from '../../game/ratings';
 
 /** 모바일 하단 탭 5개 */
-export type MobileTab = 'roster' | 'market' | 'stadium' | 'league' | 'club';
+export type MobileTab = 'home' | 'roster' | 'market' | 'league' | 'club';
 export type RosterSub = 'lineup' | 'pitchers' | 'farm';
-export type ClubSub = 'finance' | 'news';
+export type ClubSub = 'finance' | 'stadium' | 'news';
+export type Screen = 'title' | 'game';
+/** 구장에서 연 시트: 시설 셋 또는 티켓 가격 */
+export type FacSheet = 'seats' | 'food' | 'training' | 'ticket';
+
+export const SAVE_KEY = 'kbl-save-v1';
+function hadSave(): boolean {
+  try {
+    return !!localStorage.getItem(SAVE_KEY);
+  } catch {
+    return false;
+  }
+}
+const FAST_KEY = 'kbl-fast-v1';
+function loadFast(): boolean {
+  try {
+    return localStorage.getItem(FAST_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 export type LeagueSub = 'table' | 'leaders' | 'bracket';
 
 export type TipId = 'market' | 'stadium' | 'finance';
@@ -20,6 +40,15 @@ function loadTips(): Partial<Record<TipId, boolean>> {
 }
 
 interface UiState {
+  screen: Screen; // 앱을 열면 항상 초기 화면부터
+  hasSave: boolean; // 이어할 세이브가 있는가 (초기 화면의 이어하기)
+  settingsOpen: boolean;
+  facSheet: FacSheet | null;
+  fast: boolean; // 하이라이트 빠르게 (이벤트당 대기 절반)
+  setScreen(s: Screen): void;
+  setSettingsOpen(v: boolean): void;
+  setFacSheet(v: FacSheet | null): void;
+  setFast(v: boolean): void;
   tab: MobileTab;
   rosterSub: RosterSub;
   clubSub: ClubSub;
@@ -50,7 +79,23 @@ interface UiState {
 
 /** 화면 전용 UI 상태 (tips 만 localStorage 에 저장). 게임 상태는 src/store.ts 에. */
 export const useUi = create<UiState>()((set) => ({
-  tab: 'roster',
+  screen: 'title',
+  hasSave: hadSave(),
+  settingsOpen: false,
+  facSheet: null,
+  fast: loadFast(),
+  setScreen: (screen) => set({ screen, topOpen: false, facSheet: null }),
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  setFacSheet: (facSheet) => set({ facSheet }),
+  setFast: (fast) => {
+    try {
+      localStorage.setItem(FAST_KEY, fast ? '1' : '0');
+    } catch {
+      /* 이번 세션만 */
+    }
+    set({ fast });
+  },
+  tab: 'home',
   rosterSub: 'lineup',
   clubSub: 'finance',
   topOpen: false,

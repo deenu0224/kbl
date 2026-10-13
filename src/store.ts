@@ -70,7 +70,9 @@ export interface Store extends Core {
   draftSkip(): void;
   finishDraft(): void; // 드래프트가 끝났으면 다음 시즌 개막 (= startNextSeason)
   clearHint(tab: HintTab): void; // 탭을 열었을 때 배지를 지운다
-  newGame(): void;
+  newGame(nickname?: string): void;
+  loadSave(core: Core, version: number): void; // 가져온 세이브로 덮어쓴다
+  setFarmAuto(v: boolean): void; // 2군 자동 운영 (campaign.farmAuto)
   setTab(side: 'left', tab: LeftTab): void;
   setTab(side: 'right', tab: RightTab): void;
   notify(text: string, tone?: Tone): void;
@@ -103,7 +105,7 @@ export function pickCore(s: Core): Core {
 }
 
 const rng = Math.random;
-const freshCore = (): Core => ensureObjectives(newCore(Date.now()), rng);
+const freshCore = (nickname?: string): Core => ensureObjectives(newCore(Date.now(), nickname), rng);
 /** 경기 진행이 가능한 상태인지 (불가하면 사유) */
 function playBlock(s: Core): string | null {
   if (s.campaign?.event) return '이벤트 카드를 먼저 처리하세요';
@@ -442,9 +444,15 @@ export const useStore = create<Store>()(
         finishDraft() {
           get().startNextSeason();
         },
-        newGame() {
+        loadSave(core, version) {
+          set({ ...pickCore(migrateSave(structuredClone(core), version)), playback: null, summary: null, fx: null, lastReport: null, toast: mkToast('세이브를 불러왔습니다', 'good') });
+        },
+        setFarmAuto(v) {
+          set({ campaign: { ...get().campaign, farmAuto: v } as Core['campaign'] });
+        },
+        newGame(nickname) {
           set({
-            ...freshCore(),
+            ...freshCore(nickname),
             playback: null,
             summary: null,
             fx: null,

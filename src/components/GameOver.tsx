@@ -1,3 +1,4 @@
+import { useUi } from './layout/uiStore';
 import { useMemo, useState } from 'react';
 import type { StadiumScene } from '../game/types';
 import StadiumCanvas, { STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
@@ -11,7 +12,7 @@ export default function GameOver() {
   const core = useCore();
   const { campaign, facilities } = core;
   const season = useStore((s) => s.season);
-  const newGame = useStore((s) => s.newGame);
+  const newGame = () => useUi.getState().setScreen('title');
   const team = useUserTeam();
   const [arm, setArm] = useState(false);
   const history = campaign.history ?? [];
@@ -77,7 +78,7 @@ export default function GameOver() {
               newGame();
             }}
           >
-            {arm ? '처음부터 다시 (저장 삭제)' : '새 게임'}
+            {arm ? '초기 화면으로 나가기' : '초기 화면'}
           </button>
         </div>
       </div>

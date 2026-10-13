@@ -16,6 +16,12 @@ import MobileShell from './components/layout/MobileShell';
 import { useLayout } from './components/layout/useLayout';
 import { useUi } from './components/layout/uiStore';
 import { useSfx } from './components/useSfx';
+import { useBgm } from './components/useBgm';
+import { useHofSync } from './components/hofStore';
+import { usePlaybackDriver } from './components/StadiumView';
+import TransferDesk from './components/roster/TransferDesk';
+import TitleScreen from './components/TitleScreen';
+import Settings from './components/Settings';
 
 /** 시즌 사이의 전체 화면들: 결산 → 드래프트, 또는 연고 이전 */
 function PhaseScreens() {
@@ -33,19 +39,35 @@ function PhaseScreens() {
 export default function App() {
   const layout = useLayout();
   useSfx();
+  useBgm();
+  useHofSync();
+  usePlaybackDriver();
+  const screen = useUi((s) => s.screen);
 
   // CSS 의 mob: 변형과 모바일 글자 하한이 이 속성을 본다
   useLayoutEffect(() => {
     document.documentElement.dataset.layout = layout;
   }, [layout]);
 
+  // 앱을 열면 항상 초기 화면부터 (게임 화면은 그 뒤에)
+  if (screen === 'title') {
+    return (
+      <>
+        <TitleScreen />
+        <Settings />
+      </>
+    );
+  }
+
   if (layout !== 'desktop') {
     return (
       <>
         <MobileShell orientation={layout} />
+        <TransferDesk />
         <BriefingSheet />
         <CampaignSheet />
         <PhaseScreens />
+        <Settings />
         <Toast />
       </>
     );
@@ -70,6 +92,8 @@ export default function App() {
         </div>
       </div>
       <BottomBar />
+      <TransferDesk />
+      <Settings />
       <BriefingSheet />
       <CampaignSheet />
       <PhaseScreens />

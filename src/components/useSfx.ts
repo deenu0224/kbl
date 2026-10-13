@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { play, unlock, type SfxName } from '../audio/sfx';
+import { play as playSfx, unlock, type SfxName } from '../audio/sfx';
+import { duckBgm } from '../audio/bgm';
 import { useStore } from '../store';
 
 /**
@@ -8,6 +9,14 @@ import { useStore } from '../store';
  * - 버튼 클릭은 위임으로 처리: data-sfx="tab" 같은 속성이 있으면 그 소리, "none" 이면 무음
  * - 게임 사건(영입·증축·하이라이트·승패·이벤트 카드·결산)은 스토어 변화를 보고 재생
  */
+// 긴 효과음이 나는 동안은 배경음악을 낮춘다 (초)
+const LONG: Partial<Record<SfxName, number>> = { homerun: 1.6, walkoff: 2.4, win: 1.8, lose: 1.8, champion: 3.6, achievement: 1.6 };
+function play(name: SfxName): void {
+  playSfx(name);
+  const d = LONG[name];
+  if (d) duckBgm(d);
+}
+
 export function useSfx(): void {
   useEffect(() => {
     const onDown = () => unlock();
