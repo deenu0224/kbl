@@ -7,12 +7,14 @@ import { clamp, pick, randInt, type Rng } from './rng';
 import { calcOvr } from './ratings';
 import { fixLineup, slotNewcomer, slotValue } from './lineup';
 import { PEN_OVER_KEY, PEN_OVER_SUM } from './fixes';
-import { ROSTER_MAX, userTeam } from './economy';
+import { ROSTER_MAX, TRAIN_LV, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { addNews } from './season';
 import { flagForecast, flagOnTrack, hintMut, MID_FAIL_TRUST, MID_UP_FAIL_TRUST, MID_UP_MULT, stageOf } from './campaign';
 import { rowAdd, rowCash, rowFans, rowInfo, rowMult, rowNone, rowOvr, rowPayroll, rowSat, rowTrust, satAfter } from './eventRows';
-import { tiredPenalty } from './sim';
+import { SIM, tiredPenalty } from './sim';
+import { teamParts } from './ratings';
+import { winDelta } from './briefing';
 import { beatOn, MID_DAY, POS_NAME } from './script';
 import { cardRested, markCardMut, memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
@@ -70,18 +72,23 @@ const N = {
   refuseFans: -200,
   earlyGames: 8, // 조기 복귀: 이만큼 이상 결장하는 핵심 선수만
   earlyTop: 3, // 타자는 팀 내 오버롤 상위 이 인원, 투수는 1~2선발
-  armDays: 6, // 벌떼 방침에서 불펜 과부하가 누적 이 일수면 '팔은 소모품이 아니다'
+  armApps: 10, // 혹사: 최근 15경기 중 이만큼 이상 구원 등판하면 '팔은 소모품이 아니다'
+  armAppsSwarm: 9, // 벌떼 방침이면 이만큼
+  armRest: 6, // 쉬게 한다: 등판 제외 경기 수
+  armRisk: 3, // 계속 쓴다: 부상 확률 배율
+  armRiskGames: 12,
+  armStf: -3, // 계속 쓴다: 구위 (고를 때마다 누적)
   reinjury: 0.3,
   pushGain: 3,
   pushSlump: -3,
   benchSat: -2,
-  restGames: 3,
-  armInjury: 0.25,
   retireDemand: 1.2,
-  retireAge: 38, // 은퇴를 꺼내는 나이 (KBO 스타들은 대개 38~41세에 은퇴). 40세가 되면 season.ts 가 은퇴시킨다
+  retireAge: 37, // 은퇴를 꺼내는 나이 (KBO 스타들은 대개 38~41세에 은퇴). 40세가 되면 season.ts 가 은퇴시킨다
+  stayAge: 38, // 이 나이까지는 '한 해 더'를 권할 수 있다
+  tourDay: 48,
   stayBonus: 0.2, // '한 해 더' 설득 비용 (연봉 대비)
   staySat: 2,
-  retireStar: 60,
+  retireStar: 50,
   retireCost: 4000, // 기념 경기 행사 비용 (스케일 적용)
   quietSat: -3,
   typhoonTired: 2,
@@ -229,13 +236,25 @@ function promotedYoung(core: Core): Player | null {
   return t.roster.find((p) => ids.has(p.id) && p.age <= 23 && !before.has(p.id)) ?? null;
 }
 
-// 불펜 과부하가 PEN_OVER_GAMES 경기 이어졌을 때의 가장 지친 구원들 (쉰 팔이 있으면 3연투는 나오지 않는다 — sim.ts manage)
+const appsOf = (p: Player) => (p.apps ?? '').split('').filter((ch) => ch === '1').length;
+// 혹사: 방침과 무관하게, 최근 15경기 중 10경기(벌떼는 9경기) 이상 등판한 1군 구원 (이미 쉬는 중이면 제외)
 const overworked = (core: Core) => {
-  if (core.campaign.penStyle !== 'swarm' || memoNum(core, PEN_OVER_SUM) < N.armDays) return [];
   const t = userTeam(core);
   const ids = new Set([...t.bullpen, ...(t.closer ? [t.closer] : [])]);
-  return t.roster.filter((p) => ids.has(p.id) && !p.farm && (p.tired ?? 0) >= 1 && p.injury === 0).sort((a, b) => (b.tired ?? 0) - (a.tired ?? 0));
+  const need = core.campaign.penStyle === 'swarm' ? N.armAppsSwarm : N.armApps;
+  const resting = new Set(core.campaign.buffs.filter((b) => b.kind === 'rest' && b.pid).map((b) => b.pid));
+  return t.roster.filter((p) => ids.has(p.id) && !p.farm && p.injury === 0 && !resting.has(p.id) && appsOf(p) >= need).sort((a, b) => appsOf(b) - appsOf(a) || b.ovr - a.ovr);
 };
+/** 그 투수를 불펜에서 뺐을 때의 불펜 전력과 경기당 승수 변화 (표시용) */
+function penWithout(core: Core, p: Player): { a: number; b: number; wins: number } {
+  const t = userTeam(core);
+  const c = structuredClone(t);
+  c.roster = c.roster.filter((x) => x.id !== p.id);
+  fixLineup(c);
+  const pa = teamParts(t);
+  const pb = teamParts(c);
+  return { a: pa.pen, b: pb.pen, wins: winDelta(pa, pb) };
+}
 const retiree = (core: Core) =>
   userTeam(core)
     .roster.filter((p) => !p.farm && p.age >= N.retireAge && p.star >= N.retireStar)
@@ -458,59 +477,65 @@ export const CARDS: CardDef[] = [
     forced: true,
     when: (c) => overworked(c).length > 0,
     make: (c) => {
-      const p = overworked(c).sort((a, b) => (b.tired ?? 0) - (a.tired ?? 0) || b.ovr - a.ovr)[0];
+      const p = overworked(c)[0];
       if (!p) return null;
+      const loss = penWithout(c, p);
+      const lossWins = Math.round(loss.wins * N.armRest * 10) / 10;
+      const after = { ...p, stf: clamp(p.stf + N.armStf, 20, 99) };
       return card('arm', 'arm', {
         title: '팔은 소모품이 아니다',
         icon: '💪',
         pid: p.id,
-        body: `벌떼 불펜이 이번 시즌 ${memoNum(c, PEN_OVER_SUM)}경기를 쉬지 못한 채 던졌습니다. ${p.name}(${posKo(p.pos)}, 오버롤 ${p.ovr})의 팔이 먼저 한계에 왔습니다.`,
+        body: `${p.name}(${posKo(p.pos)}, 오버롤 ${p.ovr})이 최근 ${(p.apps ?? '').length}경기 중 ${appsOf(p)}경기에 등판했습니다. 불펜 방침은 ${STYLE_KO[c.campaign.penStyle ?? 'balance']}.`,
         choices: [
           {
-            label: '휴식을 보장한다',
-            desc: `${p.name} ${N.restGames}경기 등판 불가 · 연투 피로 해소`,
+            label: '쉬게 한다',
+            desc: `${p.name} ${N.armRest}경기 등판 제외 · 불펜 ${loss.a} → ${loss.b}`,
             detail: {
               rows: [
-                rowInfo('등판 가능 불펜', `${penArms(c).length - 1}명`, `${penArms(c).length}명`, 'bad'),
+                rowInfo('불펜 전력', `${loss.b}`, `${loss.a}`, loss.b < loss.a ? 'bad' : 'info'),
+                rowInfo(`예상 승수 (${N.armRest}경기)`, lossWins ? `−${Math.abs(lossWins).toFixed(1)}` : '±0.0', '±0.0', lossWins ? 'bad' : 'info'),
                 rowInfo(`${p.name} 연투`, '0일 (구위 ±0)', `${p.tired ?? 0}일 (구위 −${tiredPenalty(p.tired)})`, 'good'),
-                rowInfo('불펜 방침', STYLE_KO[c.campaign.penStyle ?? 'balance']),
+                rowInfo('등판 가능 불펜', `${penArms(c).length - 1}명`, `${penArms(c).length}명`, 'bad'),
               ],
               pids: [p.id],
-              lasts: `${N.restGames}경기`,
+              lasts: `${N.armRest}경기`,
             },
           },
           {
-            label: '강행한다',
-            desc: `부상 ${Math.round(N.armInjury * 100)}% · 8~15경기 결장`,
+            label: '계속 쓴다',
+            desc: `부상 확률 ×${N.armRisk} · 구위 ${N.armStf}`,
             detail: {
               rows: [
-                rowInfo('등판 가능 불펜', `${penArms(c).length}명`, `${penArms(c).length}명`),
-                rowInfo(`${p.name} 연투`, `${p.tired ?? 0}일 (구위 −${tiredPenalty(p.tired)})`, `${p.tired ?? 0}일 (구위 −${tiredPenalty(p.tired)})`, 'bad'),
-                rowInfo('불펜 방침', STYLE_KO[c.campaign.penStyle ?? 'balance']),
+                rowInfo('불펜 전력', `${loss.a}`, `${loss.a}`),
+                rowInfo(`${p.name} 구위`, `${after.stf}`, `${p.stf}`, 'bad'),
+                rowInfo(`${p.name} 오버롤`, `${calcOvr(after)}`, `${p.ovr}`, 'bad'),
+                rowInfo('등판 시 부상 확률', `×${N.armRisk}`, '기준', 'bad'),
               ],
               pids: [p.id],
-              risk: `부상 ${Math.round(N.armInjury * 100)}%: 8~15경기 결장`,
+              risk: `부상 확률 ×${N.armRisk} (8~15경기 결장) · 구위 하락은 남습니다`,
+              lasts: `${N.armRiskGames}경기`,
             },
           },
         ],
       });
     },
-    resolve: (c, i, cd, rng) => {
+    resolve: (c, i, cd) => {
       const p = findUser(c, cd.pid);
       memoSet(c, PEN_OVER_KEY, 0);
       memoSet(c, PEN_OVER_SUM, 0);
       if (!p) return '없던 일이 되었습니다';
+      p.apps = '';
       if (i === 0) {
-        addBuff(c, { kind: 'rest', value: 1, until: c.day + N.restGames, label: `${p.name} 휴식 보장`, pid: p.id });
+        addBuff(c, { kind: 'rest', value: 1, until: c.day + N.armRest, label: `${p.name} 휴식 보장`, pid: p.id });
         delete p.tired;
-        return `${p.name}에게 ${N.restGames}경기 휴식을 주었습니다`;
+        return `${p.name}에게 ${N.armRest}경기 휴식을 주었습니다`;
       }
-      if (rng() < N.armInjury) {
-        p.injury = randInt(rng, 8, 15);
-        hintMut(c, 'pitchers');
-        return `${p.name}, 팔꿈치를 잡고 내려왔습니다 — ${p.injury}경기 결장`;
-      }
-      return `${p.name}은(는) 오늘도 불펜에서 몸을 풉니다`;
+      p.stf = clamp(p.stf + N.armStf, 20, 99);
+      p.ovr = calcOvr(p);
+      addBuff(c, { kind: 'armRisk', value: N.armRisk, until: c.day + N.armRiskGames, label: `${p.name} 혹사 (부상 확률 ×${N.armRisk})`, pid: p.id });
+      hintMut(c, 'pitchers');
+      return `${p.name}은(는) 오늘도 불펜에서 몸을 풉니다 — 구위 ${p.stf}`;
     },
   },
   {
@@ -832,7 +857,7 @@ export const CARDS: CardDef[] = [
   {
     id: 'tour',
     prio: 30,
-    when: (c) => c.day >= 60 && !!retiree(c),
+    when: (c) => c.day >= N.tourDay && !!retiree(c),
     make: (c) => {
       const p = retiree(c);
       if (!p) return null;
@@ -858,7 +883,7 @@ export const CARDS: CardDef[] = [
             detail: { rows: [rowCash(c, -cost), rowMult('관중 수요', N.retireDemand), ...fixRow, endRow], ...who2, lasts: `${BUFF_GAMES}홈경기 (그동안 ${p.name} 고정 출전)` },
           },
           { label: '조용히', desc: `비용 없음 · 팬 만족도 ${N.quietSat}`, detail: { rows: [rowCash(c, 0), rowSat(c, N.quietSat), endRow], pids: [p.id] } },
-          ...(p.age <= N.retireAge
+          ...(p.age <= N.stayAge
             ? [
                 {
                   label: '한 해 더',
@@ -979,6 +1004,21 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   addNews(core, `${cd.icon} ${cd.title}: ${result}`, 'info');
   return { core, result };
 }
+
+/** 매 경기 후 (mutate): 혹사를 강행한 투수는 등판한 날 다칠 확률이 N.armRisk 배다 (기본 판정에 더해 나머지 배수만큼 한 번 더 굴린다) */
+export function armTickMut(core: Core, rng: Rng): void {
+  for (const b of core.campaign.buffs) {
+    if (b.kind !== 'armRisk' || !b.pid || core.day > b.until) continue;
+    const p = findUser(core, b.pid);
+    if (!p || p.injury > 0 || !(p.apps ?? '').endsWith('1')) continue;
+    if (rng() >= SIM.INJ_RATE * TRAIN_INJ(core) * (b.value - 1)) continue;
+    p.injury = randInt(rng, 8, 15);
+    fixLineup(userTeam(core));
+    hintMut(core, 'pitchers');
+    addNews(core, `${p.name}, 팔꿈치를 잡고 내려왔습니다 — ${p.injury}경기 결장`, 'bad');
+  }
+}
+const TRAIN_INJ = (core: Core) => TRAIN_LV[core.facilities.training].inj;
 
 /** 표시용: 이벤트 카드 종류 수 */
 /** 굿즈 콜라보: 연승이 끊기면 남은 기간 효과가 절반이 된다 (mutate, 매 경기 후) */

@@ -22,8 +22,8 @@ import { CHARACTERS, SCANDAL_NEWS, TRUST_LABEL } from './story';
 // ── 튜닝 상수 ──
 export const SC = {
   // 발생
-  stage: 3, // 이 장부터, 또는 정규시즌 topRank 위 이내였던 다음 시즌부터
-  topRank: 2,
+  stage: 2, // 이 장(가을야구)부터, 또는 정규시즌 topRank 위 이내였던 다음 시즌부터
+  topRank: 4,
   base: 0.38, // 시즌당 기본 발생 확률 (조건을 채운 시즌. 종류별 재등장 간격 3시즌이 실제 빈도를 더 낮춘다)
   perLow: 0.03, // 저연봉 선수 1명당 가산
   max: 0.6,
@@ -32,7 +32,7 @@ export const SC = {
   cardTo: 68,
   // 윤리 교육
   ethicsMax: 3,
-  ethicsMult: 0.6, // 단계마다 발생 확률 배율
+  ethicsMult: 0.8, // 단계마다 발생 확률 배율 (3단계 0.51배)
   ethicsRate: 0.015, // 비용 = 연봉 총액 × 이 값
   ethicsMin: 5000,
   // 적발
@@ -66,7 +66,14 @@ export const SC = {
   loyal: -0.1, // 무혐의로 끝난 선수의 다음 재계약 요구
   hushRate: 0.3, // 연봉을 올려 주고 넘겼을 때 덮은 일로 남을 확률
   forfeit: 6, // 적발 시 몰수 승수
-  fineRate: 0.05, // 적발 시 벌금 = 연봉 총액 × 이 값
+  // 제재금 = max(최소액, 현금 × 비율). 구단의 돈 규모에 비례한다
+  fine: {
+    dopeReport: [20000, 0.08], // 약물 자진 신고 (관리 책임)
+    fixCoop: [40000, 0.12], // 승부조작 전면 협조
+    dopeExposed: [80000, 0.25], // 약물 적발 (덮었다가)
+    fixExposed: [150000, 0.4], // 승부조작 적발
+  },
+  leagueCut: 0.75, // 승부조작 적발: 다음 시즌 리그 분배금 배율
 };
 
 type Kind = Secret['kind'];
@@ -78,6 +85,18 @@ const find = (core: Core, pid?: string) => (pid ? userTeam(core).roster.find((p)
 const chairSays = (line: string) => `${CHARACTERS.chair.name} ${CHARACTERS.chair.title} — "${line}"`;
 const secretsN = (core: Core) => (core.campaign.secrets ?? []).filter((x) => !x.unknown).length;
 const rowSecret = (core: Core) => rowInfo('말하지 않은 일', `${secretsN(core) + 1}건`, `${secretsN(core)}건`, 'bad');
+type FineKey = keyof typeof SC.fine;
+/** 제재금: 지금 현금 기준. 표시와 적용이 같이 쓴다 */
+export const fineOf = (core: Pick<Core, 'finance'>, key: FineKey): number => Math.max(SC.fine[key][0], Math.round((Math.max(0, core.finance.cash) * SC.fine[key][1]) / 100) * 100);
+const fineRule = (key: FineKey) => `최소 ${fmtMoney(SC.fine[key][0])} · 그때 현금의 ${pctTxt(SC.fine[key][1])}`;
+function payFineMut(core: Core, key: FineKey): number {
+  const v = fineOf(core, key);
+  core.finance.cash -= v; // 모자라면 다음 정산에서 부채로 넘어간다 (season.ts settleCash)
+  core.finance.ledger.upkeep += v;
+  return v;
+}
+/** 이 시즌의 리그 분배금 배율 (승부조작 적발 다음 시즌) */
+export const leagueMult = (core: Pick<Core, 'campaign' | 'season'>): number => (core.campaign.leagueCut?.season === core.season ? core.campaign.leagueCut.mult : 1);
 const DETECT_RISK = `매 시즌 결산에서 드러날 수 있음: 첫 시즌 ${pctTxt(SC.detect0)}, 해마다 +${Math.round(SC.detectStep * 100)}%p (상한 ${pctTxt(SC.detectMax)})`;
 
 // ───────── 윤리 교육 ─────────
@@ -309,12 +328,13 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
         choices: [
           {
             label: '자진 신고한다',
-            desc: `출장 정지 ${SC.reportBan}경기 · ${TRUST_LABEL} ${sgn(SC.reportTrust)}`,
+            desc: `출장 정지 ${SC.reportBan}경기 · 제재금 ${fmtMoney(fineOf(c, 'dopeReport'))}`,
             detail: {
               rows: [
                 rowInfo(`${p.name} 출장 정지`, `${SC.reportBan}경기`, '0경기', 'bad'),
                 rowInfo(`${p.name} 오버롤`, `${back.ovr}`, `${p.ovr}`, 'bad'),
                 rowInfo('스타성', `${clamp(p.star + SC.reportStar, 0, 100)}`, `${p.star}`, 'bad'),
+                rowCash(c, -fineOf(c, 'dopeReport')),
                 rowTrust(c, SC.reportTrust),
                 rowSat(c, SC.reportSat),
               ],
@@ -331,6 +351,7 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
                 rowInfo(`${p.name} 연봉 요구`, `+${pctTxt(SC.coverAsk)}`, '기준', 'bad'),
                 rowSecret(c),
                 rowInfo(`드러나면 ${TRUST_LABEL}`, `${trustAfter(c, SC.trust.dope)}`, `${c.campaign.trust}`, 'bad'),
+                rowInfo('드러나면 제재금', `${fmtMoney(fineOf(c, 'dopeExposed'))} (${fineRule('dopeExposed')})`, undefined, 'bad'),
                 rowInfo('드러나면', `그 시즌 별 박탈 · ${p.name} ${SC.exposeBan}경기 정지`, undefined, 'bad'),
               ],
               pids: [p.id],
@@ -366,8 +387,9 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
         c.campaign.trust = trustAfter(c, SC.reportTrust);
         c.fanSat = satAfter(c, SC.reportSat);
         banMut(c, p, SC.reportBan);
+        const paid = payFineMut(c, 'dopeReport');
         addNews(c, chairSays(SCANDAL_NEWS.chairReport), 'info');
-        return `${p.name}의 금지 약물 사용을 리그에 신고했습니다 — ${SC.reportBan}경기 출장 정지`;
+        return `${p.name}의 금지 약물 사용을 리그에 신고했습니다 — ${SC.reportBan}경기 출장 정지 · 제재금 ${fmtMoney(paid)}`;
       }
       if (i === 1) {
         addSecretMut(c, 'dope', p);
@@ -410,12 +432,13 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
         choices: [
           {
             label: '전면 협조한다',
-            desc: `${p.name} 영구 제명 · ${TRUST_LABEL} ${sgn(SC.coopTrust)}`,
+            desc: `${p.name} 영구 제명 · 제재금 ${fmtMoney(fineOf(c, 'fixCoop'))}`,
             ...(blocked ? { disabled: blocked } : {}),
             detail: {
               rows: [
                 rowInfo(p.name, '영구 제명', `1군 오버롤 ${p.ovr}`, 'bad'),
                 rowPayroll(c, -p.salary),
+                rowCash(c, -fineOf(c, 'fixCoop')),
                 rowTrust(c, SC.coopTrust),
                 rowSat(c, SC.coopSat),
                 rowInfo('승부조작 발생 확률', `×${SC.coopMult}`, '기준', 'good'),
@@ -432,7 +455,8 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
                 rowInfo(`무혐의 ${pctTxt(1 - SC.trueRate)}`, `${p.name} 다음 재계약 요구 −${pctTxt(-SC.loyal)}`, undefined, 'good'),
                 rowInfo(`사실 ${pctTxt(SC.trueRate)}`, '말하지 않은 일 +1 (어느 쪽인지 알 수 없다)', undefined, 'bad'),
                 rowInfo(`드러나면 ${TRUST_LABEL}`, `${trustAfter(c, SC.trust.fix)}`, `${c.campaign.trust}`, 'bad'),
-                rowInfo('드러나면', `${SC.forfeit}승 몰수 · 벌금 ${fmtMoney(fine(c))} · 그 시즌 별 박탈`, undefined, 'bad'),
+                rowInfo('드러나면 제재금', `${fmtMoney(fineOf(c, 'fixExposed'))} (${fineRule('fixExposed')})`, undefined, 'bad'),
+                rowInfo('드러나면', `${SC.forfeit}승 몰수 · 다음 시즌 분배금 −${pctTxt(1 - SC.leagueCut)} · 그 시즌 별 박탈`, undefined, 'bad'),
               ],
               pids: [p.id],
               risk: `사실이면 ${DETECT_RISK}`,
@@ -447,6 +471,7 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
                 rowPayroll(c, market - p.salary),
                 rowInfo('승부조작 대상', '제외', '대상', 'good'),
                 rowInfo(`드러나면 ${TRUST_LABEL}`, `${trustAfter(c, SC.trust.fix)}`, `${c.campaign.trust}`, 'bad'),
+                rowInfo('드러나면 제재금', `${fmtMoney(fineOf(c, 'fixExposed'))} (${fineRule('fixExposed')})`, undefined, 'bad'),
               ],
               pids: [p.id],
               risk: `입막음으로 보여 덮은 일로 남을 확률 ${pctTxt(SC.hushRate)}`,
@@ -464,8 +489,9 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
         c.fanSat = satAfter(c, SC.coopSat);
         c.campaign.fixCoop = c.season + SC.coopSeasons;
         removeMut(c, p, false);
+        const paid = payFineMut(c, 'fixCoop');
         addNews(c, chairSays(SCANDAL_NEWS.chairReport), 'info');
-        return `자체 조사 자료를 사무국에 넘겼습니다 — ${p.name} 영구 제명`;
+        return `자체 조사 자료를 사무국에 넘겼습니다 — ${p.name} 영구 제명 · 제재금 ${fmtMoney(paid)}`;
       }
       if (i === 1) {
         if (rng() < SC.trueRate) addSecretMut(c, 'fix', p, true); // 유저는 사실인지 모른다
@@ -487,7 +513,6 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
 
 // ───────── 적발 (결산) ─────────
 
-const fine = (core: Core) => Math.round((payroll(userTeam(core)) * SC.fineRate) / 100) * 100;
 export const detectChance = (elapsed: number): number => Math.min(SC.detectMax, SC.detect0 + SC.detectStep * Math.max(0, elapsed));
 
 /**
@@ -517,14 +542,14 @@ export function exposeMut(core: Core, rng: Rng, champion: boolean): Exposure[] {
         banMut(core, p, SC.exposeBan);
         ex.ban = SC.exposeBan;
       }
+      ex.fine = payFineMut(core, 'dopeExposed');
     } else {
       if (p) removeMut(core, p, false);
       ex.wins = Math.min(SC.forfeit, t.rec.w);
       t.rec.w -= ex.wins;
       t.rec.l += ex.wins;
-      ex.fine = fine(core);
-      core.finance.cash -= ex.fine;
-      core.finance.ledger.upkeep += ex.fine;
+      ex.fine = payFineMut(core, 'fixExposed');
+      c.leagueCut = { season: core.season + 1, mult: SC.leagueCut };
     }
     c.exposed = (c.exposed ?? 0) + 1;
     addNews(core, SCANDAL_NEWS.exposed(KIND_KO[s.kind], s.name, s.season), 'bad');
@@ -540,7 +565,8 @@ export function exposureLines(ex: Exposure): { what: string; lost: string[] } {
   const lost = [`${TRUST_LABEL} ${ex.trust}`];
   if (ex.stars) lost.push(`이번 시즌 별 ${ex.stars}개 박탈`);
   if (ex.wins) lost.push(`${ex.wins}승 몰수`);
-  if (ex.fine) lost.push(`벌금 ${fmtMoney(ex.fine)}`);
+  if (ex.fine) lost.push(`제재금 ${fmtMoney(ex.fine)}`);
+  if (ex.kind === 'fix') lost.push(`다음 시즌 리그 분배금 −${pctTxt(1 - SC.leagueCut)}`);
   lost.push(ex.kind === 'fix' ? `${ex.name} 영구 제명` : ex.ban ? `${ex.name} ${ex.ban}경기 정지 · 시즌 기록 삭제` : '선수는 이미 팀을 떠났습니다');
   if (ex.tainted) lost.push(SCANDAL_NEWS.tainted);
   return { what: `${ex.season}번째 시즌에 덮은 ${ex.name}의 ${KIND_KO[ex.kind]} 사실이 드러났습니다`, lost };

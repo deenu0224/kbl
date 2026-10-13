@@ -33,12 +33,12 @@ export const FARM_N = {
   readyWait: 24, // "한 달 더": 이 경기 수 뒤 다시 보고
   hypeAvg: 0.34, hypeAb: 60, hypeEra: 2.5, hypeOuts: 90, // 퓨처스 폭격 기준 (타율·타수 / 평균자책·아웃 수)
   hypeGap: 5, hypeSat: 4, hypeWaitSat: -3, hypeGames: 12,
-  hotAvg: 0.35, hotOps: 0.9, hotAb: 10, hotEra: 2.5, hotOuts: 9, // 대체 선수의 맹활약 기준 (콜업 이후)
+  hotAvg: 0.32, hotOps: 0.85, hotAb: 8, hotEra: 3.0, hotOuts: 9, // 대체 선수의 맹활약 기준 (콜업 이후)
   hotStar: 5, hotBump: 2, hotBackSat: -2,
   armyDay: 60, armyMin: 22, armyMax: 26, armySeasons: 2, armyLo: 0.3, armyHi: 0.5, armyAwayMax: 1,
   convPot: 68, convAge: 23, convGap: 5, convHolderAge: 28, convWeak: 8, convPen: 6, convGames: 40,
   painAge: 25, painGames: 12, painAb: 30, painAvg: 0.2, painOuts: 30, painEra: 6.5, painFix: 12, painGrow: 1.5,
-  coachDay: 12, coachCost: 20000, coachGrow: 0.08,
+  coachDay: 30, coachCost: 20000, coachGrow: 0.08,
 };
 const F = FARM_N;
 
@@ -527,7 +527,7 @@ export function painCase(core: Core): { p: Player; alt: Player | null; text: str
   return null;
 }
 
-// 인스트럭터 후보: 지난겨울 유니폼을 벗은 영구결번 또는 스타성 60+ 은퇴 선수 (campaign.alumni)
+// 인스트럭터 후보: 지난겨울 유니폼을 벗은 영구결번 또는 스타성 50+ 은퇴 선수 (campaign.alumni)
 const coachCase = (core: Core) => (core.day < F.coachDay ? [...(core.campaign.alumni ?? []), ...(core.campaign.retired ?? [])].filter((r) => r.season === core.season - 1).slice(-1)[0] ?? null : null);
 
 /** 올리는 선택지의 공통 처리: (가득이면 한 명 내리고) k 를 cur 자리에 */

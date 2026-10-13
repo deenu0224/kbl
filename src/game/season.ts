@@ -19,8 +19,8 @@ import { NEWS, OVER_LABEL } from './story';
 import { isFranchise } from './franchise';
 import { afterRegularSeasonMut, playPostDayMut } from './postseason';
 import { isDraftDone } from './draft';
-import { cutGoodsMut, FOREIGN_MAX } from './events';
-import { scandalTickMut } from './scandal';
+import { armTickMut, cutGoodsMut, FOREIGN_MAX } from './events';
+import { leagueMult, scandalTickMut } from './scandal';
 import { tradeTickMut } from './trade';
 import { svcSalary, svcYearAt } from './contract';
 import { farmDailyMut, growBonus, markUpMut, seasonTurnFarmMut } from './farm';
@@ -37,7 +37,7 @@ const SAT_BASE = 45;
 const SAT_CONVERGE = 0.15;
 const NOISE_SD = 0.06;
 export const WEEK = 6;
-export const ALUMNI_STAR = 60; // 이 스타성 이상으로 35세 넘어 은퇴한 유저 팀 선수는 인스트럭터 후보
+export const ALUMNI_STAR = 50; // 이 스타성 이상으로 35세 넘어 은퇴한 유저 팀 선수는 인스트럭터 후보
 export const ALUMNI_AGE = 35;
 export const TRAIN_MAX_AGE = 28;
 export const DECLINE_AGE = 33;
@@ -399,7 +399,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const ticket = Math.round(att * price * fx.ticket);
   const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather)) : 0;
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
-  const league = Math.round(LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rankNow) * LEAGUE_PER_RANK);
+  const league = Math.round((LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rankNow) * LEAGUE_PER_RANK) * leagueMult(core));
   const salary = Math.round(payroll(user) / core.schedule.length);
   const upkeep =
     (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
@@ -485,6 +485,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   if (core.phase === 'season') scriptTickMut(core, rng);
   if (core.phase === 'season') scandalTickMut(core, rng);
   tradeTickMut(core);
+  if (core.phase === 'season') armTickMut(core, rng);
   if (core.phase === 'season' || core.phase === 'post') refreshProgressMut(core);
   core.cashHistory.push(f.cash);
 
@@ -692,6 +693,7 @@ export function renewPremium(core: Pick<Core, 'campaign'>): number {
 function develop(p: Player, rng: Rng, season: number): void {
   p.age++;
   delete p.tired;
+  delete p.apps;
   const keys = p.kind === 'B' ? BAT_KEYS : PIT_KEYS;
   for (const k of keys) {
     let d: number;

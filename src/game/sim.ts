@@ -20,6 +20,7 @@ const D2_OF_BIP_HITS = KBO_AVG.d2OfHits / (1 - KBO_AVG.hrOfHits);
 const D3_OF_BIP_HITS = KBO_AVG.d3OfHits / (1 - KBO_AVG.hrOfHits);
 
 // ── 밸런스 상수 (능력치 REF = 리그 평균 수준에서 아래 기본 확률이 나온다). 기준값은 KBO 2022~2025 평균 (kbo.ts) ──
+export const APPS_SPAN = 15; // 구원 등판 기록을 남기는 경기 수
 export const SIM = {
   REF: 60, // 리그 평균 능력치
   SKILL: 0.5, // 능력치 차이의 반영 강도
@@ -760,6 +761,8 @@ export function simulateGame(
       if (p.kind !== 'P') continue;
       if (relieved.has(p.id)) p.tired = Math.min(3, (p.tired ?? 0) + 1); // 3일 이상은 구분하지 않는다 (페널티는 2일에서 상한)
       else if (p.tired) delete p.tired;
+      // 최근 15경기의 구원 등판 기록 (유저 구단만. 혹사 판정: events.ts 'arm')
+      if (side.team.id === opts.focusId && !p.farm) p.apps = ((p.apps ?? '') + (relieved.has(p.id) ? '1' : '0')).slice(-APPS_SPAN);
     }
   }
 
