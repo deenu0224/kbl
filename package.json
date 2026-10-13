@@ -15,7 +15,10 @@
     "bullpen": "tsx scripts/bullpen.ts",
     "verify": "tsx scripts/verify.ts",
     "deploy": "sh scripts/deploy.sh",
-    "screens": "node scripts/screens/run.mjs"
+    "screens": "node scripts/screens/run.mjs",
+    "bench": "tsx scripts/share/bench.ts",
+    "share:pages": "node scripts/share/pages.mjs",
+    "share:texts": "tsx scripts/share/texts.ts"
   },
   "dependencies": {
     "galmuri": "^2.40.3",
