@@ -296,7 +296,8 @@ export const SCREENS = [
   S('wc-mid-bracket', 'wcMid', game('리그', '대진표')),
   S('wc-tie-bracket', 'wcTie', game('리그', '대진표')),
   S('wc-out', 'wcOut', game()),
-  S('wc-out-folds', 'wcOut', game('fold-bracket', 'fold-ledger')),
+  S('wc-out-bracket', 'wcOut', game({ wait: 2500 }, 'fold-bracket', { wait: 500 })),
+  S('wc-out-ledger', 'wcOut', game({ wait: 2500 }, 'fold-ledger', { wait: 500 }, { scroll: 'bottom' })),
   // 8구단 세이브(10구단 체제 전의 게임): 홈 · 순위표 · 대진표(4팀) · 포스트시즌
   S('eight-home', 'eight', game()),
   S('eight-table', 'eight', game('리그')),

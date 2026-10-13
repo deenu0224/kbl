@@ -32,7 +32,7 @@ import { RUNWAY_DANGER, runway, runwayPath, runwayPieceOf } from '../game/runway
 import { teamStrength } from '../game/ratings';
 import Bracket from './Bracket';
 import { PostLegend, cutShadow, rankTone } from './ui';
-import { postTeams } from '../game/league';
+import { postTeams, seasonGames } from '../game/league';
 import Leaders from './Leaders';
 import { useUi, type LeagueSub } from './layout/uiStore';
 import { Badge, Bar, Chips, FAC_KO, MiniBars, MoneyBar, SectionTitle, TabBar, TeamDot, TONE_CLASS, dowOf, fmtPct, isNightDay } from './ui';
@@ -505,7 +505,7 @@ export function FinanceTab() {
   const repay = useStore((s) => s.repay);
   const team = useUserTeam();
   const pay = payroll(team);
-  const games = useStore((s) => s.schedule.length) || 84;
+  const games = useStore((s) => seasonGames(s));
 
   const core = useCore();
   const limit = loanLimit(core);
@@ -661,7 +661,7 @@ export function FinanceTab() {
       )}
 
       <SectionTitle>현금 추이</SectionTitle>
-      <MiniBars values={cashHistory.slice(-84)} ghost={inSeason ? ghost : []} height={56} color={(v) => (v < 0 ? '#ff6b6b' : '#ffd84a')} />
+      <MiniBars values={cashHistory.slice(-games)} ghost={inSeason ? ghost : []} height={56} color={(v) => (v < 0 ? '#ff6b6b' : '#ffd84a')} />
       {inSeason && ghost.length > 0 && (
         <div className="mt-0.5 flex justify-between text-[9px] text-white/40 mob:text-[13px]">
           <span>지금까지</span>
