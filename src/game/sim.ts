@@ -661,7 +661,7 @@ export function simulateGame(
     const relieved = new Set(side.used.filter((u) => !u.starter).map((u) => u.p.id));
     for (const p of side.team.roster) {
       if (p.kind !== 'P') continue;
-      if (relieved.has(p.id)) p.tired = (p.tired ?? 0) + 1;
+      if (relieved.has(p.id)) p.tired = Math.min(3, (p.tired ?? 0) + 1); // 3일 이상은 구분하지 않는다 (페널티는 2일에서 상한)
       else if (p.tired) delete p.tired;
     }
   }

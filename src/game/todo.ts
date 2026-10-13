@@ -50,13 +50,7 @@ export function todoList(core: Core): Todo[] {
   if (o.lineup + o.pitchers > 0) {
     out.push({ id: 'fix', tab: 'roster', hint: o.lineup ? 'lineup' : 'pitchers', icon: '▲', tone: 'warn', action: 'order', text: `오더에 고칠 곳 ${o.lineup + o.pitchers}` });
   }
-  // 연투
-  // 불펜·마무리만 (선발은 로테이션대로 쉰다)
-  const pen = new Set([...t.bullpen, ...(t.closer ? [t.closer] : [])]);
-  const tired = activeRoster(t).filter((p) => pen.has(p.id) && (p.tired ?? 0) >= TIRED_TODO);
-  if (tired.length) {
-    out.push({ id: 'tired', tab: 'roster', hint: 'pitchers', icon: '♨', tone: 'warn', action: 'pitchers', text: `연투 ${Math.max(...tired.map((p) => p.tired ?? 0))}일: ${names(tired)} — 쉬게 하세요` });
-  }
+  // 연투: 불펜은 거의 매일 던지므로 할 일로 올리지 않는다 (편집기의 투수 화면에 표시)
   // 1군 정원
   const act = activeRoster(t);
   const nb = act.filter((p) => p.kind === 'B').length;
