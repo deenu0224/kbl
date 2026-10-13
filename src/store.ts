@@ -89,6 +89,7 @@ export interface Store extends Core {
   loadSave(core: Core, version: number): void; // 가져온 세이브로 덮어쓴다
   setPenStyle(style: PenStyle): void; // 불펜 운영 방침 (campaign.penStyle)
   setFarmAuto(v: boolean): void; // 2군 자동 운영 (campaign.farmAuto)
+  setSubAuto(v: boolean): void; // 부상 대체: true = 감독에게 맡기기 (campaign.subAuto)
   remedy(r: Remedy): string | null; // 할 일의 조치 실행. 막히면 사유를 돌려준다 (조치 시트가 결과를 보여 주므로 토스트는 없다)
   setTab(side: 'left', tab: LeftTab): void;
   setTab(side: 'right', tab: RightTab): void;
@@ -523,6 +524,9 @@ export const useStore = create<Store>()(
         },
         setFarmAuto(v) {
           set({ campaign: { ...get().campaign, farmAuto: v } as Core['campaign'] });
+        },
+        setSubAuto(v) {
+          set({ campaign: { ...get().campaign, subAuto: v } as Core['campaign'] });
         },
         remedy(r) {
           if (get().playback) return '경기 중에는 변경할 수 없습니다';

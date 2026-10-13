@@ -172,7 +172,7 @@ export const SCREENS = [
   S('event-debtsale', 'debtSale', game()),
   S('event-debtsale-detail', 'debtSale', game(c('ev-more', { optional: true }))),
   S('ended-debtover', 'endedDebt', game()),
-  S('academy-farm', 'academy', game('squad-farm-toggle')),
+  S('academy-farm', 'academy', game(...SQUAD, 'squad-farm-toggle')),
   S('share-dome', 'domeDone', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
   S('club-stadium', 'season3', game(...CLUB, '구장')),
   S('club-news', 'season3', game(...CLUB, '뉴스')),
@@ -197,6 +197,12 @@ export const SCREENS = [
   // 사건 상세 시트
   S('event-detail', 'event', game(c('ev-more', { optional: true }))),
   S('event-farm-detail', 'eventFarm', game(c('ev-more', { optional: true }))),
+  // 부상 대체 선택 카드: 타자 · 투수 · 상세 시트 · 10경기 이상(부상자 명단 + 콜업 후보) · 설정의 토글
+  S('event-sub-bat', 'eventSubBat', game()),
+  S('event-sub-pit', 'eventSubPit', game()),
+  S('event-sub-detail', 'eventSubBat', game(c('ev-more', { optional: true }))),
+  S('event-sub-il', 'eventSubIl', game()),
+  S('event-sub-il-detail', 'eventSubIl', game(c('ev-more', { optional: true }))),
   S('midcheck', 'midcheck', game()),
   // 후반 스캔들: 「트레이너의 보고」 카드 · 상세 시트
   S('scandal-card', 'dope', game()),

@@ -24,7 +24,7 @@ import { armTickMut, cutGoodsMut, FOREIGN_MAX } from './events';
 import { leagueMult, scandalTickMut } from './scandal';
 import { tradeTickMut } from './trade';
 import { svcSalary, svcYearAt } from './contract';
-import { farmDailyMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
+import { farmDailyMut, subEnqueueMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -467,6 +467,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     refreshProgressMut(core);
     afterRegularSeasonMut(core, rng); // 'post' 또는 (자동 시뮬 후) 'ended' + 결산
   }
+  if (core.phase === 'season') subEnqueueMut(core, res.injuries.filter((j) => j.teamId === core.userId).map((j) => j.pid)); // 주전 부상: 대체 선수는 카드에서 고른다
   if (core.phase === 'season') farmDailyMut(core, notes); // 2군 코치의 하루
   if (core.phase === 'season') scriptTickMut(core, rng);
   if (core.phase === 'season') scandalTickMut(core, rng);
@@ -555,6 +556,7 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   delete p.farmUntil;
   delete p.farmStat;
   delete p.subFor;
+  delete p.subFrom;
   delete p.armyDue;
   delete p.lever;
   if (p.ban) {
@@ -591,6 +593,7 @@ export function sendDown(core0: Core, pid: string): { core: Core; error?: string
   p.farm = true;
   delete p.tired;
   delete p.subFor;
+  delete p.subFrom;
   if (il) {
     p.il = true;
     if (core.phase === 'season') p.farmUntil = core.day + ilLock(p);
@@ -630,6 +633,7 @@ export function callUp(core0: Core, pid: string): { core: Core; error?: string }
   delete p.il;
   delete p.farmUntil;
   delete p.subFor;
+  delete p.subFrom;
   if (!back) markUpMut(core, p);
   const role = slotNewcomer(t, p);
   addNews(core, `${back ? '복귀' : '콜업'}: ${p.name} 1군 등록 (${role})`, 'good');
@@ -787,6 +791,8 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       delete p.farmStat;
       delete p.scout;
       delete p.subFor;
+      delete p.subFrom;
+  delete p.subFrom;
       if (p.posShift) {
         // 포지션 전향의 수비 페널티는 시즌을 넘기지 않는다
         p.def = clamp(p.def + p.posShift.pen, 20, 99);

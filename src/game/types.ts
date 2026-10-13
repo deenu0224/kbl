@@ -71,6 +71,7 @@ export interface Player {
   served?: boolean; // 군 복무를 마쳤거나 입대한 선수 (입대 통지 대상에서 빠진다)
   armyDue?: number; // 입대를 미룬 선수: 이 시즌 60경기 뒤 선택 없이 입대한다
   subFor?: string; // 부상 대체로 자동 콜업된 선수: 대신하는 부상자의 id (복귀하면 2군으로 돌아간다)
+  subFrom?: 'bench'; // 부상 대체 카드에서 고른 1군 벤치·불펜 선수 (복귀하면 2군이 아니라 원래 자리로)
   posShift?: { from: string; pen: number; until: number }; // 포지션 전향 중: 원래 포지션 · 수비 감소분(이미 def 에 반영) · 해소되는 day
   ban?: number; // 징계로 남은 출장 정지 경기 수 (injury 와 같이 줄어든다. 시즌을 넘기면 이월. scandal.ts)
   apps?: string; // 최근 15경기의 구원 등판 기록 ('1' = 등판, '0' = 쉼. 혹사 판정. sim.ts)
@@ -399,6 +400,7 @@ export interface Campaign {
   briefMemo?: BriefMemo; // 주간 브리핑의 기억: 지난주 수치 · 실행한 제안 · 넘긴 제안
   resignQueue?: string[]; // 스토브리그 재계약 대기열: FA 자격을 얻은 선수 id (contract.ts drawResign 이 채우고 카드로 하나씩 처리)
   farmAuto?: boolean; // 2군 자동 운영 (undefined = 켜짐). farm.ts
+  subAuto?: boolean; // 부상 대체: true = 감독에게 맡기기 (undefined = 직접 고르기). subpick.ts
   penStyle?: 'trust' | 'balance' | 'swarm'; // 불펜 운영 방침 (undefined = 균형). sim.ts
   away?: Player[]; // 팀을 떠나 있는 선수 (입대). 각 선수의 away.until 시즌 개막에 돌아온다
   posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)
