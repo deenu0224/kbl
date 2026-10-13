@@ -14,11 +14,11 @@ export const SEAT_LV: { cap: number; cost: number; upkeep: number; name: string;
 ];
 
 export const FOOD_LV: { spend: number; sat: number; cost: number; upkeep: number; name: string; desc: string }[] = [
-  { spend: 0.22, sat: 0, cost: 0, upkeep: 80, name: '포장마차', desc: '객단가 2,200원 · 어묵과 컵라면' },
-  { spend: 0.32, sat: 4, cost: 35000, upkeep: 170, name: '간이 매점', desc: '객단가 3,200원 · 만족도 +4' },
-  { spend: 0.4, sat: 8, cost: 80000, upkeep: 340, name: '차양 매장', desc: '객단가 4,000원 · 만족도 +8' },
-  { spend: 0.48, sat: 12, cost: 160000, upkeep: 600, name: '파라솔 푸드코트', desc: '객단가 4,800원 · 만족도 +12' },
-  { spend: 0.56, sat: 16, cost: 380000, upkeep: 1000, name: '네온 푸드홀', desc: '객단가 5,600원 · 만족도 +16 · 비가 와도 매출 유지' },
+  { spend: 0.22, sat: 0, cost: 0, upkeep: 80, name: '포장마차', desc: '1인당 매점 지출 2,200원 · 어묵과 컵라면' },
+  { spend: 0.32, sat: 4, cost: 35000, upkeep: 170, name: '간이 매점', desc: '1인당 매점 지출 3,200원 · 만족도 +4' },
+  { spend: 0.4, sat: 8, cost: 80000, upkeep: 340, name: '차양 매장', desc: '1인당 매점 지출 4,000원 · 만족도 +8' },
+  { spend: 0.48, sat: 12, cost: 160000, upkeep: 600, name: '파라솔 푸드코트', desc: '1인당 매점 지출 4,800원 · 만족도 +12' },
+  { spend: 0.56, sat: 16, cost: 380000, upkeep: 1000, name: '네온 푸드홀', desc: '1인당 매점 지출 5,600원 · 만족도 +16 · 비가 와도 매출 유지' },
 ];
 
 export const TRAIN_LV: { grow: number; inj: number; cost: number; upkeep: number; name: string; desc: string }[] = [

@@ -53,7 +53,7 @@ export function PreGame({ short = false }: { short?: boolean }) {
   return (
     <button
       type="button"
-      className="shrink-0 cursor-pointer whitespace-nowrap text-[11px] text-white/70 mob:text-[13px]"
+      className="shrink-0 cursor-pointer whitespace-nowrap text-[11px] text-white/70 mob:min-h-10 mob:text-[13px]"
       data-testid="pre-chance"
       data-sfx="tab"
       aria-label="오더 편집기 열기"

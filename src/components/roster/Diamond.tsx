@@ -35,7 +35,7 @@ function Cell({ row, sel, flash, onPick, style, className = '' }: { row: PosRow;
       className={`flex cursor-pointer flex-col px-1 py-0.5 text-left leading-tight transition-colors ${flash ? 'bg-good/40' : sel ? 'bg-panel-2' : 'bg-panel/95'} ${className}`}
       style={{ boxShadow: `0 0 0 ${row.weak || flash ? 3 : sel ? 2 : 1}px ${edge}`, ...style }}
     >
-      <span className="flex items-baseline justify-between gap-1 text-[10px] mob:text-[11px]">
+      <span className="flex items-baseline justify-between gap-1 text-[10px] mob:text-[13px]">
         <span className="text-sky">{row.label}</span>
         <RankText row={row} />
       </span>
@@ -126,10 +126,7 @@ export function MiniDiamond({ rows, onOpen }: { rows: PosRow[]; onOpen: () => vo
         })}
       </span>
       <span className="min-w-0 flex-1" />
-      <span className="shrink-0 self-center bg-panel-2 px-1 py-1 text-center text-[10px] leading-tight text-hi mob:px-1.5 mob:text-[11px]">
-        크게
-        <br className="mob:hidden" /> 보기 ⤢
-      </span>
+      <span className="shrink-0 self-center whitespace-nowrap bg-panel-2 px-1 py-1 text-center text-[10px] leading-tight text-hi mob:px-1.5 mob:text-[13px]">크게 보기 ⤢</span>
     </button>
   );
 }

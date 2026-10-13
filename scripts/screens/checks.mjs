@@ -124,24 +124,46 @@ export function pageChecks({ mobile, allow }) {
     if (mobile && r.height < 36 && onTop(el, r) && el.type !== 'range' && el.type !== 'checkbox') add('touch', el, `${Math.round(r.height)}px ${cut(text)}`, r);
   }
 
-  // 겹침: 같은 부모의 형제 텍스트 박스끼리 20% 이상
+  // 겹침: 같은 부모의 형제 텍스트끼리 20% 이상.
+  // 여러 줄로 흐르는 인라인 글은 줄 상자 단위로 비교하고(전체 상자로 비교하면 정상 줄바꿈이 겹침으로 잡힌다),
+  // 말줄임으로 잘린 글은 보이는 부분(요소 상자 안)만 본다.
+  const lineRects = (el) => {
+    const s = getComputedStyle(el);
+    const cut = s.overflowX === 'hidden' || s.overflowX === 'clip' ? el.getBoundingClientRect() : null;
+    const res = [];
+    for (const n of el.childNodes) {
+      if (n.nodeType !== 3 || !n.nodeValue.trim()) continue;
+      const rg = document.createRange();
+      rg.selectNodeContents(n);
+      for (const q of rg.getClientRects()) {
+        const l = cut ? Math.max(q.left, cut.left) : q.left, r = cut ? Math.min(q.right, cut.right) : q.right;
+        if (r - l > 0 && q.height > 0) res.push({ left: l, right: r, top: q.top, bottom: q.bottom });
+      }
+    }
+    return res;
+  };
   const byParent = new Map();
   for (const t of textEls) {
     const tr = textRect(t.el);
     if (!tr || !t.el.parentElement) continue;
     if (!byParent.has(t.el.parentElement)) byParent.set(t.el.parentElement, []);
-    byParent.get(t.el.parentElement).push({ ...t, tr });
+    byParent.get(t.el.parentElement).push({ ...t, tr, lines: lineRects(t.el) });
   }
   for (const list of byParent.values()) {
     if (list.length < 2 || list.length > 40) continue;
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
-        const a = list[i].tr, b = list[j].tr;
-        const ix = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-        const iy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-        if (ix <= 0 || iy <= 0) continue;
-        const small = Math.min(a.width * a.height, b.width * b.height);
-        if (small > 0 && (ix * iy) / small >= 0.2) add('overlap', list[i].el, `${cut(list[i].text).slice(0, 13)} ⟷ ${cut(list[j].text).slice(0, 13)}`, a);
+        let hit = false;
+        for (const a of list[i].lines) {
+          for (const b of list[j].lines) {
+            const ix = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+            const iy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+            if (ix <= 0 || iy <= 0) continue;
+            const small = Math.min((a.right - a.left) * (a.bottom - a.top), (b.right - b.left) * (b.bottom - b.top));
+            if (small > 0 && (ix * iy) / small >= 0.2) hit = true;
+          }
+        }
+        if (hit) add('overlap', list[i].el, `${cut(list[i].text).slice(0, 13)} ⟷ ${cut(list[j].text).slice(0, 13)}`, list[i].tr);
       }
     }
   }
@@ -165,7 +187,8 @@ export function findTarget({ target, nth }) {
     return !!hit && (el === hit || el.contains(hit) || hit.contains(el));
   };
   const CLICK = 'button,[role="button"],[role="tab"],a,summary,label,[data-testid]';
-  let c = [...document.querySelectorAll(`[data-testid="${CSS.escape(target)}"]`)];
+  // 'css:선택자' 는 그대로 고른다 (목록의 첫 줄처럼 testid 가 없는 것)
+  let c = target.startsWith('css:') ? [...document.querySelectorAll(target.slice(4))] : [...document.querySelectorAll(`[data-testid="${CSS.escape(target)}"]`)];
   if (!c.length) c = [...document.querySelectorAll(CLICK)].filter((el) => norm(el.innerText) === target || el.getAttribute('aria-label') === target);
   if (!c.length) c = [...document.querySelectorAll(CLICK)].filter((el) => norm(el.innerText).includes(target) || (el.getAttribute('aria-label') || '').includes(target)).sort((a, b) => norm(a.innerText).length - norm(b.innerText).length);
   if (!c.length) c = [...document.querySelectorAll('body *')].filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && norm(n.nodeValue) === target));

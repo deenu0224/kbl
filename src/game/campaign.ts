@@ -54,7 +54,7 @@ export const STAGES: StageDef[] = [
     main: { kind: 'rank', target: 7 },
     stars: [
       { kind: 'wins', target: 450, text: '승률 .450 이상' },
-      { kind: 'star', target: 58, text: '주전 타자 9명 전원 OVR 58 이상' },
+      { kind: 'star', target: 58, text: '주전 타자 9명 전원 오버롤 58 이상' },
       { kind: 'debt', target: 50000, text: '연봉 총액 증가 5억 이내로 깃발 달성' },
     ],
     reward: { cash: 80000, trust: 15 },
@@ -98,7 +98,7 @@ export const STAGES: StageDef[] = [
     who: ['pitching'],
     main: { kind: 'post', target: 3 },
     stars: [
-      { kind: 'rank', target: 2, text: '팀 평균자책 리그 2위 이내' },
+      { kind: 'rank', target: 2, text: '팀 평균자책점 리그 2위 이내' },
       { kind: 'sellouts', target: 20, text: '20세이브 마무리' },
       { kind: 'debt', target: 0, text: '포스트시즌 연투 패전 0' },
     ],

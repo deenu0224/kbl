@@ -94,6 +94,35 @@ export function orderIssues(team: Team): { lineup: number; pitchers: number } {
   return { lineup, pitchers: Math.max(pitchers, arms.size) };
 }
 
+/** 추천 한 건: a 를 b 의 자리에 놓는다. bench = ▲벤치, home = ⇄원래 자리로, arm = ▲불펜 */
+export interface RecPair {
+  kind: 'bench' | 'home' | 'arm';
+  a: string;
+  b: string;
+  slot: number; // bench = 들어갈 타순 칸, home = 옮겨 갈 칸, arm = −1
+}
+/** 지금 보이는 추천의 목록. 편집기의 "추천 n건"과 홈 할 일의 "오더 점검 — 추천 n건"이 같이 쓴다 */
+export function recPairs(team: Team): RecPair[] {
+  const byId = new Map(team.roster.map((p) => [p.id, p]));
+  const out: RecPair[] = [];
+  const bats = betterBats(team);
+  const seen = new Set<string>();
+  team.lineup.forEach((l, i) => {
+    const p = byId.get(l.pid);
+    if (!p) return;
+    const cand = bats.get(p.id);
+    if (cand) return void out.push({ kind: 'bench', a: cand.id, b: p.id, slot: i });
+    const j = offPos(p, l.pos) ? homeSwap(team, byId, i) : -1;
+    if (j < 0 || seen.has(p.id)) return;
+    const q = byId.get(team.lineup[j].pid);
+    if (!q) return;
+    seen.add(q.id);
+    out.push({ kind: 'home', a: p.id, b: q.id, slot: j });
+  });
+  for (const [pid, { cand }] of betterArms(team)) out.push({ kind: 'arm', a: cand.id, b: pid, slot: -1 });
+  return out;
+}
+
 // ───────── 한 번에 고치기 (주간 브리핑의 편성 제안 · 봇) ─────────
 
 type PLoc = { k: 'rot'; i: number } | { k: 'pen'; i: number } | { k: 'cl' } | null;

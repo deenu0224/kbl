@@ -25,13 +25,29 @@ export function useTodos(): Todo[] {
   );
 }
 
+/** 이동한 화면에서 그 선수의 줄로 스크롤하고 잠깐 강조한다 (화면이 열릴 때까지 잠시 기다린다) */
+export function spotlight(pid: string): void {
+  let tries = 0;
+  const tick = () => {
+    const els = [...document.querySelectorAll<HTMLElement>(`[data-pid="${pid}"]`)].filter((el) => el.offsetParent !== null);
+    const el = els[els.length - 1];
+    if (!el) return void (++tries < 20 && setTimeout(tick, 100));
+    el.scrollIntoView({ block: "center" });
+    el.classList.add("spot");
+    setTimeout(() => el.classList.remove("spot"), 2600);
+  };
+  setTimeout(tick, 200);
+}
+
 /** 조치 시트의 "화면 열기": 그 대상이 열린 화면으로 */
 export function useGoScreen(): (
   to: RemedyGo,
   sub?: "lineup" | "pitchers",
+  pid?: string,
 ) => void {
   const mobile = useIsMobile();
-  return (to, sub) => {
+  return (to, sub, pid) => {
+    if (pid) spotlight(pid);
     const ui = useUi.getState();
     const st = useStore.getState();
     const left = (sub: "lineup" | "pitchers") => {
@@ -143,7 +159,7 @@ export function TodoCard({
           className={`px-panel flex shrink-0 flex-col gap-[3px] p-1.5 ${className}`}
           data-testid="todo-card"
         >
-          <div className="flex items-center justify-between px-0.5 text-[11px] text-white/55 mob:text-[12px]">
+          <div className="flex items-center justify-between px-0.5 text-[11px] text-white/55 mob:text-[13px]">
             <span>할 일 {todos.length}</span>
             {rest > 0 && <span data-testid="todo-more">+{rest}</span>}
           </div>

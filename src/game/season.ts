@@ -163,7 +163,7 @@ export function farmStatText(p: Player): string {
   const s = p.farmStat;
   if (!s) return '';
   if (p.kind === 'B') return s.ab > 0 ? `${fmtAvg(s.h, s.ab)} ${s.hr}홈런` : '';
-  return s.outs > 0 ? `평균자책 ${fmtEra(s.er, s.outs)} · ${Math.floor(s.outs / 3)}이닝` : '';
+  return s.outs > 0 ? `평균자책점 ${fmtEra(s.er, s.outs)} · ${Math.floor(s.outs / 3)}이닝` : '';
 }
 
 const farmStatZero = (): FarmStat => ({ g: 0, ab: 0, h: 0, hr: 0, outs: 0, er: 0 });
@@ -228,7 +228,7 @@ function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
       }
       p.ovr = calcOvr(p);
       const msg = `${p.farm ? '퓨처스 성과' : '훈련 성과'}: ${p.name} ${ABIL_KO[k]}+${d} · ${ABIL_KO[k2]}+1`;
-      if (p.farm && p.ovr >= FARM_CAP && p.ovr < p.pot) addNews(core, `${p.name}: 2군에서 배울 건 다 배웠습니다 (OVR ${p.ovr})`, 'info');
+      if (p.farm && p.ovr >= FARM_CAP && p.ovr < p.pot) addNews(core, `${p.name}: 2군에서 배울 건 다 배웠습니다 (오버롤 ${p.ovr})`, 'info');
       notes.push(msg);
       addNews(core, msg, 'good');
     } else if (p.age >= DECLINE_AGE && rng() < DECLINE_RATE) {
@@ -536,7 +536,7 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   if (p0.kind === 'B' && same <= MIN_BATTERS) return { core: core0, error: `타자는 최소 ${MIN_BATTERS}명이 필요합니다` };
   if (p0.kind === 'P' && same <= MIN_PITCHERS) return { core: core0, error: `투수는 최소 ${MIN_PITCHERS}명이 필요합니다` };
   const cost = releaseCost(p0, core0);
-  if (core0.finance.cash < cost) return { core: core0, error: `위약금이 부족합니다 (필요 ${fmtMoney(cost)})` };
+  if (core0.finance.cash < cost) return { core: core0, error: `잔여 연봉 지급액이 부족합니다 (필요 ${fmtMoney(cost)})` };
 
   const core = structuredClone(core0);
   const t = userTeam(core);
@@ -566,7 +566,7 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   core.finance.cash -= cost;
   core.finance.ledger.signing += cost;
   fixLineup(t);
-  addNews(core, `방출: ${p.name} (위약금 ${fmtMoney(cost)})`, 'info');
+  addNews(core, `방출: ${p.name} (잔여 연봉 지급 ${fmtMoney(cost)})`, 'info');
   return { core };
 }
 
@@ -719,7 +719,7 @@ function aiStoveLeague(core: Core, rng: Rng, ctx: Parameters<typeof genPlayer>[0
       const [p] = pool.splice(i, 1);
       t.roster.push(p);
       autoLineup(t);
-      addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${POS_NAME[p.pos] ?? p.pos} OVR ${p.ovr}) 영입`, 'info');
+      addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${POS_NAME[p.pos] ?? p.pos} 오버롤 ${p.ovr}) 영입`, 'info');
     }
     // 투수가 기준 구성에 못 미치면(투수 10명 시절의 세이브 포함) 남은 FA 구원, 없으면 신인 구원으로 불펜을 채운다
     for (let g = 0; g < 4 && t.roster.filter((p) => p.kind === 'P').length < AI_ROSTER - AI_ROSTER_B; g++) {

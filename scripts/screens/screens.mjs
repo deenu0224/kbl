@@ -13,6 +13,20 @@ export const ALLOW = [
   { kind: 'clip', testid: 'stadium-pan' },
   // 선수 이름 목록의 말줄임은 설계
   { kind: 'ellipsis', testid: 'player-list' },
+  // 관중 칩은 구장 그림 위에 얹는 오버레이 (세로 폰에서는 캔버스 밖 좌상단에 고정되지만 같은 크기를 쓴다)
+  { kind: 'touch', testid: 'crowd-chip' },
+  // 시트 손잡이: 바깥 탭·아래로 끌기·Esc 로도 닫히므로 높이 24px 를 유지한다 (키우면 모든 시트의 내용이 16px 밀린다)
+  { kind: 'touch', testid: 'sheet-handle' },
+  // 주간 브리핑의 대사와 제안 줄은 여러 줄로 읽는 글 (버튼 전체가 카드)
+  { kind: 'wrap', text: '^“' },
+  { kind: 'wrap', testid: 'brief-open' },
+  // 사건 카드·조치 시트의 선택지는 제목 + 설명 두 줄짜리 카드형 버튼
+  { kind: 'wrap', testid: 'ev-choice' },
+  { kind: 'wrap', testid: 'remedy-sheet' },
+  // ì ì¬ë ¥ ì¤ëªì [ìì¦ êµì²´] ì¤ì ë¬¸ì¥ í ì¤ì íµì§¸ë¡ ëë¥´ë ì ê¸° ë²í¼ (ì¢ì í­ììë ë ì¤ë¡ ì½íë¤)
+  { kind: 'wrap', testid: 'pot-toggle' },
+  // 촘촘한 표(선수 표)의 열 머리·필터 칩 줄: 한 화면에 열을 많이 보여 주는 화면이라 행 높이를 키우지 않는다
+  { kind: 'touch', selector: 'table' },
 ];
 
 const c = (click, o = {}) => ({ click, ...o });
@@ -24,6 +38,8 @@ const game = (...xs) => [c('continue'), ...st(xs)];
 const S = (id, fixture, steps, o = {}) => ({ id, fixture, steps, ...o });
 
 const ROSTER = [m('선수단')];
+/** 2군 목록의 첫 줄 (목록 한가운데는 선수가 적으면 빈 곳이다) */
+const FARM_ROW = 'css:[data-testid="farm-list"] button';
 const FO = [...ROSTER, c('teambar-open')];
 const MARKET = [c('이적')];
 const DESK = [...MARKET, c('open-desk')];
@@ -48,6 +64,12 @@ export const SCREENS = [
   S('order-arms', 'fresh', game('editor-view-arms')),
   S('order-recs', 'fresh', game('editor-recs-toggle')),
   S('order-farm', 'farm', game('pre-chance', c('editor-farm-toggle', { optional: true }))),
+  // 2군이 있는 새 게임: 개막전 편집기의 2군 서랍 (타선 · 투수)
+  S('new-farm', 'fresh', game('editor-farm-toggle')),
+  S('new-farm-arms', 'fresh', game('editor-view-arms', 'editor-farm-toggle')),
+  // 불펜 방침 스위치
+  S('pen-style', 'farm', game('pre-chance', 'editor-view-arms')),
+  S('pen-style-swarm', 'farm', game('pre-chance', 'editor-view-arms', 'pen-style-swarm', { wait: 400 })),
 
   // ── 홈
   S('home', 'opened', game()),
@@ -67,7 +89,9 @@ export const SCREENS = [
   S('campaign-dynasty', 'dynasty', game('캠페인')),
   S('campaign-bottom', 'season3', game('캠페인', { scroll: 'bottom' })),
   S('todo', 'post', game()),
-  S('todo-action', 'post', game('지난 홈경기')),
+  S('todo-action', 'post', game('매진 —')),
+  // 조치 시트
+  S('remedy-penover', 'penover', game('불펜 과부하')),
   S('todo-penover', 'penover', game()),
 
   // ── 선수단
@@ -78,9 +102,9 @@ export const SCREENS = [
   S('roster-penover', 'penover', game(...ROSTER, '투수')),
   S('card-batter', 'farm', game(...ROSTER, 'lineup-list')),
   S('card-pitcher', 'farm', game(...ROSTER, '투수', 'pitcher-list')),
-  S('card-farm', 'farm', game(...ROSTER, '2군', 'farm-list')),
-  S('card-pot', 'farm', game(...ROSTER, '2군', 'farm-list', '잠재력 설명')),
-  S('card-pot-toggle', 'farm', game(...ROSTER, '2군', 'farm-list', 'pot-toggle')),
+  S('card-farm', 'farm', game(...ROSTER, '2군', FARM_ROW)),
+  S('card-pot', 'farm', game(...ROSTER, '2군', FARM_ROW, '잠재력 설명')),
+  S('card-pot-toggle', 'farm', game(...ROSTER, '2군', FARM_ROW, '잠재력 설명', 'pot-toggle')),
 
   // ── 프런트 오피스
   S('fo-diag', 'season3', game(...FO, '진단')),
@@ -116,6 +140,9 @@ export const SCREENS = [
   S('briefing-detail', 'briefing', game('brief-open')),
   S('event', 'event', game()),
   S('event-farm', 'eventFarm', game()),
+  // 사건 상세 시트
+  S('event-detail', 'event', game(c('ev-more', { optional: true }))),
+  S('event-farm-detail', 'eventFarm', game(c('ev-more', { optional: true }))),
   S('midcheck', 'midcheck', game()),
 
   // ── 경기 진행

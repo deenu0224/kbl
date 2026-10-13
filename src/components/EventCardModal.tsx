@@ -6,7 +6,7 @@ import PixelFace from "./PixelFace";
 import EventDetail from "./EventDetail";
 import Sheet from "./layout/Sheet";
 import { useUi } from "./layout/uiStore";
-import { POS_KO } from "./ui";
+import { POS_FULL } from "./ui";
 
 /** 카드의 화자: 인물이면 story.ts 의 이름·직함·초상 시드, 'player' 면 관련 선수 본인 */
 function useSpeaker(
@@ -32,7 +32,7 @@ function useSpeaker(
     return {
       id: p.id,
       name: p.name,
-      title: `${POS_KO[p.pos]} · ${p.age}세`,
+      title: `${POS_FULL[p.pos]} · ${p.age}세`,
       color,
       color2,
       foreign: p.foreign,

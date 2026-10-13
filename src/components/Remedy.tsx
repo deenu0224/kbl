@@ -24,6 +24,19 @@ const HELP_OF: Record<string, HelpTopic> = {
 const EDGE = { good: "#5fd38a", warn: "#ffd84a", bad: "#ff6b6b" } as const;
 
 /** 데스크톱: 화면 가운데 작은 모달. 바깥을 누르거나 Esc 로 닫는다 */
+/** "구위 −4" · "연봉 +1.2억" 같은 이름+숫자 묶음은 줄이 꺾여도 떨어지지 않게 묶는다 */
+function keepNums(text: string): ReactNode[] {
+  return text.split(/(\S+ [+−±-]?\d[^\s]*(?: → [+−±-]?\d[^\s]*)?)/g).map((s, i) =>
+    i % 2 ? (
+      <span key={i} className="whitespace-nowrap">
+        {s}
+      </span>
+    ) : (
+      s
+    ),
+  );
+}
+
 function Modal({
   onClose,
   label,
@@ -93,7 +106,7 @@ export default function RemedySheet({
     }
     if (a.t === "go") {
       onClose();
-      return go(a.to, a.sub);
+      return go(a.to, a.sub, a.pid);
     }
     const err = useStore.getState().remedy(r);
     if (err) return setError(err);
@@ -163,7 +176,7 @@ export default function RemedySheet({
                 <span
                   className={`text-[13px] leading-snug ${r.tone === "bad" ? "text-bad" : r.tone === "warn" ? "text-hi/90" : "text-white/65"}`}
                 >
-                  {r.effect}
+                  {keepNums(r.effect)}
                 </span>
               </button>
             );
@@ -190,7 +203,7 @@ export default function RemedySheet({
       {!done && todo.action && !list.some((r) => r.run.t === "go") && (
         <button
           type="button"
-          className="mt-2 min-h-8 w-full cursor-pointer text-right text-[13px] text-white/55"
+          className="mt-2 min-h-10 w-full cursor-pointer text-right text-[13px] text-white/55"
           data-testid="remedy-go"
           onClick={() => {
             onClose();

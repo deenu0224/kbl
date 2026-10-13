@@ -9,7 +9,7 @@ import { useCore, useStore, useUserTeam } from '../../store';
 import PlayerCard from '../PlayerCard';
 import Dialog from '../layout/Dialog';
 import Help from '../Help';
-import { Bar, OvrBadge, POS_KO, TabBar } from '../ui';
+import { Bar, OvrBadge, POS_FULL, POS_KO, TabBar } from '../ui';
 import Diamond, { RankText, diagSummary, rankTone } from './Diamond';
 import PlayerBrowser from './PlayerBrowser';
 import { usePosReport, useRosterUi, type OfficeView } from './rosterUi';
@@ -78,13 +78,13 @@ function DepthRows({ line, onPick }: { line: DepthLine; onPick: (p: Player) => v
     <>
       {line.slots.map((s) => (
         <button key={s.p.id} className="flex w-full cursor-pointer items-center gap-1.5 bg-ink/40 px-1 py-1 text-left hover:bg-white/8 mob:min-h-10" onClick={() => onPick(s.p)}>
-          <span className={`w-9 shrink-0 text-[10px] mob:text-[11px] ${s.starter ? 'text-hi' : 'text-white/55'}`}>{s.starter ? '주전' : s.farm ? '2군' : `백업${++bk}`}</span>
+          <span className={`w-9 shrink-0 text-[10px] mob:text-[13px] ${s.starter ? 'text-hi' : 'text-white/55'}`}>{s.starter ? '주전' : s.farm ? '2군' : `백업${++bk}`}</span>
           <OvrBadge ovr={s.p.ovr} size={20} />
           <span className={`min-w-0 flex-1 truncate ${s.p.injury > 0 ? 'text-bad' : ''}`}>
             {s.p.name}
-            <span className="ml-1 text-[10px] text-white/45 mob:text-[11px]">본 {POS_KO[s.p.pos]}</span>
+            <span className="ml-1 text-[10px] text-white/45 mob:text-[13px]">원래 {POS_FULL[s.p.pos]}</span>
           </span>
-          <span className="shrink-0 text-right text-[10px] text-white/70 mob:text-[11px]">
+          <span className="shrink-0 text-right text-[10px] text-white/70 mob:text-[13px]">
             {s.p.age}세 · {fmtMoney(s.p.salary)}
           </span>
         </button>
@@ -105,7 +105,7 @@ function DiagView({ rows, onCard }: { rows: PosRow[]; onCard: (p: Player) => voi
   return (
     <div className="px-scroll flex min-h-0 flex-1 flex-row gap-2 overflow-y-auto p-2 por:flex-col">
       <div className="flex w-[min(54%,calc((100dvh-190px)*1.02))] shrink-0 flex-col gap-1.5 por:w-full">
-        <div className="flex items-center gap-1.5 bg-ink/60 px-1.5 py-1 text-[11px] leading-snug mob:text-[12px]" data-testid="diag-summary">
+        <div className="flex items-center gap-1.5 bg-ink/60 px-1.5 py-1 text-[11px] leading-snug mob:text-[13px]" data-testid="diag-summary">
           <span className="min-w-0 flex-1 text-white/60">빨간 테두리 = 가장 약한 두 자리. 칸을 누르면 뎁스가 보입니다</span>
           <Help topic="posRank" />
         </div>
@@ -147,7 +147,7 @@ function DepthView({ rows, onCard }: { rows: PosRow[]; onCard: (p: Player) => vo
   const thin = depth.filter((d) => d.thin);
   return (
     <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-2" data-testid="depth-view">
-      <div className="mb-1.5 bg-ink/60 px-1.5 py-1 text-[11px] mob:text-[12px]">
+      <div className="mb-1.5 bg-ink/60 px-1.5 py-1 text-[11px] mob:text-[13px]">
         <span className="text-white/60">빈 뎁스 {thin.length}곳: </span>
         <span className="text-bad">{thin.length ? thin.map((d) => d.label).join(' · ') : '없음'}</span>
         <span className="text-white/45"> — 백업이 리그 백업 평균보다 6 이상 낮은 자리</span>
@@ -160,19 +160,19 @@ function DepthView({ rows, onCard }: { rows: PosRow[]; onCard: (p: Player) => vo
             <div key={d.key} className="flex items-stretch gap-1 bg-ink/40 p-1" data-thin={d.thin || undefined} style={d.thin ? { boxShadow: 'inset 3px 0 0 #ff6b6b' } : undefined}>
               <div className="flex w-[52px] shrink-0 flex-col justify-center pl-1 leading-tight">
                 <span className={d.thin ? 'text-bad' : 'text-sky'}>{d.label}</span>
-                <RankText row={row} className="text-[10px] mob:text-[11px]" />
+                <RankText row={row} className="text-[10px] mob:text-[13px]" />
               </div>
               <div className="grid min-w-0 flex-1 gap-[3px]" style={{ gridTemplateColumns: `repeat(${Math.min(3, n)}, minmax(0, 1fr))` }}>
                 {Array.from({ length: Math.max(3, d.slots.length) }, (_, i) => d.slots[i]).map((s, i) =>
                   s ? (
                     <button key={s.p.id} className="flex min-w-0 cursor-pointer flex-col bg-panel-2/70 px-1 py-0.5 text-left leading-tight hover:bg-panel-2 mob:min-h-10" onClick={() => onCard(s.p)}>
-                      <span className={`truncate text-[11px] mob:text-[12px] ${s.p.injury > 0 ? 'text-bad' : s.starter ? 'text-white' : 'text-white/75'}`}>{s.p.name}</span>
-                      <span className="text-[10px] text-white/55 mob:text-[11px]">
+                      <span className={`truncate text-[11px] mob:text-[13px] ${s.p.injury > 0 ? 'text-bad' : s.starter ? 'text-white' : 'text-white/75'}`}>{s.p.name}</span>
+                      <span className="text-[10px] text-white/55 mob:text-[13px]">
                         {s.starter ? '주전' : '백업'} <span className={!s.starter && d.thin && i === d.slots.findIndex((x) => !x.starter) ? 'text-bad' : 'text-white'}>{s.score.toFixed(0)}</span>
                       </span>
                     </button>
                   ) : i < 3 ? (
-                    <div key={i} className="flex items-center justify-center bg-bad/15 text-[10px] text-bad mob:text-[11px]">비어 있음</div>
+                    <div key={i} className="flex items-center justify-center bg-bad/15 text-[10px] text-bad mob:text-[13px]">비어 있음</div>
                   ) : null,
                 )}
               </div>
@@ -197,7 +197,7 @@ function SalaryView({ onCard }: { onCard: (p: Player) => void }) {
         <button key={x.p.id} className="mb-[2px] flex w-full cursor-pointer items-center gap-1.5 bg-ink/40 px-1 py-1 text-left hover:bg-white/8 mob:min-h-10" onClick={() => onCard(x.p)}>
           <OvrBadge ovr={x.p.ovr} size={18} />
           <span className="min-w-0 flex-1 truncate">{x.p.name}</span>
-          <span className="shrink-0 text-right text-[10px] leading-tight mob:text-[11px]">
+          <span className="shrink-0 text-right text-[10px] leading-tight mob:text-[13px]">
             <span className="block text-white/60">연 {fmtMoney(x.p.salary)}</span>
             <span className={`block ${good ? 'text-good' : 'text-bad'}`}>{good ? '+' : '−'}{fmtMoney(Math.abs(x.gap))}</span>
           </span>
@@ -215,7 +215,7 @@ function SalaryView({ onCard }: { onCard: (p: Player) => void }) {
           ['리그 평균', fmtMoney(r.leagueAvg)],
         ].map(([k, v]) => (
           <div key={k} className="bg-ink/60 px-1 py-1">
-            <div className="text-[10px] text-white/55 mob:text-[11px]">{k}</div>
+            <div className="text-[10px] text-white/55 mob:text-[13px]">{k}</div>
             <div className="font-pixel-lg text-[15px] text-hi">{v}</div>
           </div>
         ))}
@@ -234,12 +234,12 @@ function SalaryView({ onCard }: { onCard: (p: Player) => void }) {
         {list('고평가 (기대 연봉보다 비싼) 상위 3', r.over, false)}
         {list('저평가 (기대 연봉보다 싼) 상위 3', r.under, true)}
       </div>
-      <div className="text-[10px] text-white/45 mob:text-[11px]">기대 연봉 = 이번 시즌 시장가 (OVR·나이로 정해지는 연봉 곡선)</div>
+      <div className="text-[10px] text-white/45 mob:text-[13px]">기대 연봉 = 이번 시즌 시장가 (오버롤·나이로 정해지는 연봉 곡선)</div>
       <div className="mt-2 mb-1 text-[11px] text-sky">▸ 연령 분포</div>
       <div className="grid grid-cols-3 gap-1 text-center">
         {r.ages.map((a) => (
           <div key={a.label} className="bg-ink/60 px-1 py-1 leading-tight">
-            <div className="text-[10px] text-white/55 mob:text-[11px]">{a.label}</div>
+            <div className="text-[10px] text-white/55 mob:text-[13px]">{a.label}</div>
             <div className="text-[13px] text-white">{a.n}명</div>
             <div className="text-[11px] text-hi">{fmtMoney(a.sum)}</div>
             <div className="text-[10px] text-white/45">{r.total ? Math.round((a.sum / r.total) * 100) : 0}%</div>

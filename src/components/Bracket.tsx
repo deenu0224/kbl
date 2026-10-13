@@ -27,7 +27,7 @@ export function usePostLine(): { name: string; gameNo: number; myW: number; oppW
 function Side({ team, seed, wins, state, me, wait }: { team: Team | undefined; seed: number; wins: number; state: 'win' | 'lose' | 'live'; me: boolean; wait: string }) {
   return (
     <div
-      className={`flex items-center gap-1.5 px-1.5 py-1 text-[12px] mob:min-h-8 mob:text-[13px] ${me ? 'bg-hi/20' : 'bg-ink/50'} ${state === 'lose' ? 'opacity-50' : ''}`}
+      className={`flex items-center gap-1.5 px-1.5 py-1 text-[12px] mob:min-h-10 mob:text-[13px] ${me ? 'bg-hi/20' : 'bg-ink/50'} ${state === 'lose' ? 'opacity-50' : ''}`}
       style={me ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
     >
       {team ? (

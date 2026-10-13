@@ -7,7 +7,7 @@ import { useCore, useStore, useUserTeam } from '../../store';
 import { TeamBar } from '../LeftPanel';
 import { useWinChance } from '../useWinChance';
 import { OvrBadge, POS_KO } from '../ui';
-import PenStyleBar from './PenStyle';
+import PenStyleBar, { ArmState } from './PenStyle';
 import { planEdit, recommend, sameSnap, snapOf, type EditorView, type LineupSnap, type Plan, type PlanResult } from './editorOps';
 
 const HOLD_MS = 150; // 이만큼 누르고 있으면 끌기 시작
@@ -408,23 +408,37 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
     </div>
   );
 
-  const arm = (pid: string | null, role: string, wrong: (p: Player) => boolean) => {
+  const arm = (pid: string | null, role: string, wrong: (p: Player) => boolean, state?: 'pen' | 'next') => {
     const p = pid ? byId.get(pid) : undefined;
     if (!p) return null;
     const bad = wrong(p);
-    return tile(p, role, { bad, subBad: bad, pan: 'y' });
+    const sub =
+      state === 'pen' && p.injury === 0 ? (
+        <span className="flex items-center justify-between gap-1">
+          <span className="truncate">{role}</span>
+          <ArmState tired={p.tired} />
+        </span>
+      ) : state === 'next' ? (
+        <span className="flex items-center justify-between gap-1">
+          <span className="truncate">{role}</span>
+          <span className="shrink-0 whitespace-nowrap text-good">다음 등판</span>
+        </span>
+      ) : (
+        role
+      );
+    return tile(p, sub, { bad, subBad: bad, pan: 'y' });
   };
   const armsView = (
     <div className="p-1" data-testid="editor-arms">
       <PenStyleBar />
       <div className="pb-1 text-[13px] text-white/60">선발</div>
       <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3" data-testid="editor-rotation">
-        {team.rotation.map((pid, i) => arm(pid, `${i + 1}선발`, (p) => p.pos !== 'SP'))}
+        {team.rotation.map((pid, i) => arm(pid, `${i + 1}선발`, (p) => p.pos !== 'SP', team.rotation.length && i === team.nextStarter % team.rotation.length ? 'next' : undefined))}
       </div>
       <div className="pb-1 pt-2 text-[13px] text-white/60">마무리 · 불펜</div>
       <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3" data-testid="editor-pen">
         {team.closer ? (
-          arm(team.closer, '마무리', (p) => p.pos === 'SP')
+          arm(team.closer, '마무리', (p) => p.pos === 'SP', 'pen')
         ) : (
           <button
             type="button"
@@ -438,7 +452,7 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
             <span>불펜 투수를 놓으세요</span>
           </button>
         )}
-        {team.bullpen.map((pid, i) => arm(pid, `불펜 ${i + 1}`, (p) => p.pos === 'SP'))}
+        {team.bullpen.map((pid, i) => arm(pid, `불펜 ${i + 1}`, (p) => p.pos === 'SP', 'pen'))}
         {spare.map((p) => arm(p.id, '대기', () => false))}
       </div>
       <div className="flex items-center justify-end px-0.5 pt-2">{farmToggle()}</div>

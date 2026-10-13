@@ -1,4 +1,5 @@
 import type { DayReport, Team } from '../game/types';
+import { useIsMobile } from './layout/useLayout';
 import Fold from './Fold';
 import { findPlayer, useStore } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
@@ -81,7 +82,8 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
   const home = teams.find((t) => t.id === res.homeId);
   const name = (pid?: string) => findPlayer({ teams, freeAgents }, pid)?.name;
   const teamOf = (pid?: string) => (pid ? teams.find((t) => t.roster.some((p) => p.id === pid)) : undefined);
-  const tag = (t: Team | undefined) => <TeamTag team={t} mine={t?.id === userId} size={10} />;
+  const mobile = useIsMobile();
+  const tag = (t: Team | undefined) => <TeamTag team={t} mine={t?.id === userId} size={mobile ? 13 : 10} />;
   const scoring = res.events.filter((e) => e.type === 'hr' || e.type === 'score' || e.type === 'walkoff');
   const n = Math.max(9, res.innings, res.line[0].length, res.line[1].length);
   // 득점 장면은 마지막 3개 (승부가 갈린 쪽)
@@ -139,7 +141,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
           {keyScores.map((e, i) => {
             const mine = e.teamId === userId;
             return (
-              <div key={i} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] leading-snug mob:text-[12px] ${mine ? 'bg-good/10' : 'bg-bad/10'}`} style={{ boxShadow: `inset 3px 0 0 ${mine ? '#6ee07a' : '#ff6b6b'}` }} data-testid="score-row" data-mine={mine ? '1' : '0'}>
+              <div key={i} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] leading-snug mob:text-[13px] ${mine ? 'bg-good/10' : 'bg-bad/10'}`} style={{ boxShadow: `inset 3px 0 0 ${mine ? '#6ee07a' : '#ff6b6b'}` }} data-testid="score-row" data-mine={mine ? '1' : '0'}>
                 <span className="w-9 shrink-0 text-[10px] text-white/55">
                   {e.inning}회{e.half === 0 ? '초' : '말'}
                 </span>
@@ -165,7 +167,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
         </div>
       )}
 
-      <Fold label="자세히: 이닝별 점수 · 투수 · 관중 · 정산" className="mt-2" testid="fold-summary">
+      <Fold label="자세히: 이닝별 득점 · 투수 · 관중 · 정산" className="mt-2" testid="fold-summary">
       {/* 라인스코어 */}
       <div className="mt-2 shrink-0 overflow-x-auto bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
         <table className="w-full border-collapse text-center text-[12px]">

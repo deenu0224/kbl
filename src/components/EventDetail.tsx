@@ -3,7 +3,7 @@ import type { EventCard, Player } from "../game/types";
 import { findPlayer, useStore } from "../store";
 import PlayerCard from "./PlayerCard";
 import Sheet from "./layout/Sheet";
-import { Bar, OvrBadge, POS_KO, ratingColor } from "./ui";
+import { Bar, OvrBadge, POS_FULL, POS_KO, ratingColor } from "./ui";
 
 const B_STATS: [keyof Player, string][] = [
   ["ovr", "종합"],
@@ -51,10 +51,10 @@ function Compare({ a, b }: { a: Player; b: Player }) {
       </div>
       <div className="mb-1 flex items-center text-[12px] text-white/60">
         <span className="flex-1">
-          {POS_KO[a.pos]} · {a.age}세
+          {POS_FULL[a.pos]} · {a.age}세
         </span>
         <span className="flex-1 text-right">
-          {POS_KO[b.pos]} · {b.age}세
+          {POS_FULL[b.pos]} · {b.age}세
         </span>
       </div>
       <div className="flex flex-col gap-1 text-[13px] leading-none">

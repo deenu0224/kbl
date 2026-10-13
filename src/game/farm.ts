@@ -218,7 +218,7 @@ export function seasonTurnFarmMut(core: Core, rng: Rng): number {
     delete p.rookie;
     if (farmRoster(t).length < FARM_MAX || activeRoster(t).length >= ROSTER_MAX) p.farm = true;
     t.roster.push(p);
-    addNews(core, `전역: ${p.name} 복귀 (${p.age}세 · OVR ${before} → ${p.ovr}) — ${p.farm ? '2군 합류' : '1군 합류'}`, 'good');
+    addNews(core, `전역: ${p.name} 복귀 (${p.age}세 · 오버롤 ${before} → ${p.ovr}) — ${p.farm ? '2군 합류' : '1군 합류'}`, 'good');
   }
   fixLineup(t);
   return back.length;
@@ -253,7 +253,7 @@ export function farmCutMut(core: Core): Player | null {
   for (const k of ['since', 'svc', 'ask', 'tired', 'farm', 'farmUntil', 'farmStat', 'subFor', 'armyDue'] as const) delete p[k];
   unshiftPosMut(p);
   core.freeAgents.push(p);
-  addNews(core, `${FARM_COACH}지명 자리를 위해 ${p.name}(${p.age}세 · OVR ${p.ovr}) 방출`, 'info');
+  addNews(core, `${FARM_COACH}지명 자리를 위해 ${p.name}(${p.age}세 · 오버롤 ${p.ovr}) 방출`, 'info');
   return p;
 }
 
@@ -330,7 +330,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
   for (const p of t.roster) {
     if (p.posShift && core.day >= p.posShift.until) {
       unshiftPosMut(p);
-      say(core, notes, `${p.name}, ${posKo(p.pos)} 수비가 몸에 붙었습니다 (OVR ${p.ovr})`, 'good');
+      say(core, notes, `${p.name}, ${posKo(p.pos)} 수비가 몸에 붙었습니다 (오버롤 ${p.ovr})`, 'good');
     }
   }
   if (core.day >= F.armyDay) {
@@ -384,7 +384,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     delete k.farmUntil;
     k.subFor = inj.id;
     fixLineup(t);
-    say(core, notes, `${FARM_COACH}${inj.name} 부상(${inj.injury}경기) 공백에 ${k.name}(${posKo(k.pos)} OVR ${k.ovr}) 콜업${tail}`);
+    say(core, notes, `${FARM_COACH}${inj.name} 부상(${inj.injury}경기) 공백에 ${k.name}(${posKo(k.pos)} 오버롤 ${k.ovr}) 콜업${tail}`);
   }
 
   // ── 벤치에서 썩는 유망주는 2군으로 (하루 한 명) ──
@@ -439,7 +439,7 @@ const upRows = (k: Player, cur: Player, down: Player | null): Row[] => [
   ...(down ? [rowInfo(down.name, '2군행', '1군', 'bad')] : []),
 ];
 const full = (t: Team) => activeRoster(t).length >= ROSTER_MAX;
-const farmLine = (p: Player) => (p.kind === 'B' ? `${fmtAvg(p.farmStat?.h ?? 0, p.farmStat?.ab ?? 0)} ${p.farmStat?.hr ?? 0}홈런 (${p.farmStat?.ab ?? 0}타수)` : `평균자책 ${fmtEra(p.farmStat?.er ?? 0, p.farmStat?.outs ?? 0)} (${Math.floor((p.farmStat?.outs ?? 0) / 3)}이닝)`);
+const farmLine = (p: Player) => (p.kind === 'B' ? `${fmtAvg(p.farmStat?.h ?? 0, p.farmStat?.ab ?? 0)} ${p.farmStat?.hr ?? 0}홈런 (${p.farmStat?.ab ?? 0}타수)` : `평균자책점 ${fmtEra(p.farmStat?.er ?? 0, p.farmStat?.outs ?? 0)} (${Math.floor((p.farmStat?.outs ?? 0) / 3)}이닝)`);
 
 /** B1: 2군 상한에 닿았고 1군 주전과 겨룰 만한 선수 */
 export function readyCase(core: Core): { k: Player; cur: Player; down: Player | null } | null {
@@ -519,7 +519,7 @@ export function painCase(core: Core): { p: Player; alt: Player | null; text: str
         ? t.lineup.some((x) => x.pid === p.id) && s.ab >= F.painAb && s.h / s.ab < F.painAvg
         : (t.rotation.includes(p.id) || t.closer === p.id) && s.outs >= F.painOuts && era9(s.er, s.outs) > F.painEra;
     if (!bad) continue;
-    return { p, alt: altFor(t, p), text: p.kind === 'B' ? `${s.ab}타수 ${s.h}안타 ${fmtAvg(s.h, s.ab)}` : `${Math.floor(s.outs / 3)}이닝 평균자책 ${fmtEra(s.er, s.outs)}` };
+    return { p, alt: altFor(t, p), text: p.kind === 'B' ? `${s.ab}타수 ${s.h}안타 ${fmtAvg(s.h, s.ab)}` : `${Math.floor(s.outs / 3)}이닝 평균자책점 ${fmtEra(s.er, s.outs)}` };
   }
   return null;
 }
@@ -549,7 +549,7 @@ export const FARM_CARDS: FarmCardDef[] = [
       const { sub, orig } = x;
       const s = sinceUp(c, sub)!;
       const vet = orig.age >= 32;
-      const stat = sub.kind === 'B' ? `${s.ab}타수 ${s.h}안타 ${fmtAvg(s.h, s.ab)} · OPS ${s.ops.toFixed(3)}` : `${Math.floor(s.outs / 3)}이닝 평균자책 ${fmtEra(s.er, s.outs)}`;
+      const stat = sub.kind === 'B' ? `${s.ab}타수 ${s.h}안타 ${fmtAvg(s.h, s.ab)} · OPS ${s.ops.toFixed(3)}` : `${Math.floor(s.outs / 3)}이닝 평균자책점 ${fmtEra(s.er, s.outs)}`;
       return mk(`f-sub|${orig.id}`, vet ? 'fSubVet' : 'fSub', {
         title: '대체 선수의 깜짝 활약',
         icon: '🔥',
@@ -602,10 +602,10 @@ export const FARM_CARDS: FarmCardDef[] = [
       sat(c, F.hotBackSat);
       if (farmRoster(t).length >= FARM_MAX) {
         delete sub.subFor;
-        return `${orig?.name ?? '주전'}이(가) 제자리로 — 2군이 가득해 ${sub.name}은(는) 벤치에 남습니다`;
+        return `${orig?.name ?? '주전'}이(가) 원래 자리로 — 2군이 가득해 ${sub.name}은(는) 벤치에 남습니다`;
       }
       demoteMut(c, t, sub, false);
-      return `${orig?.name ?? '주전'}이(가) 제자리로, ${sub.name}은(는) 2군으로 돌아갔습니다`;
+      return `${orig?.name ?? '주전'}이(가) 원래 자리로, ${sub.name}은(는) 2군으로 돌아갔습니다`;
     },
   },
   // ───────── B7 은퇴 선수의 인스트럭터 합류 ─────────
@@ -667,7 +667,7 @@ export const FARM_CARDS: FarmCardDef[] = [
         choices: [
           {
             label: '믿고 쓴다',
-            desc: `${F.painFix}경기 ${p.kind === 'B' ? '고정 출전' : '보직 유지'} · 성장 확률 ×${F.painGrow}`,
+            desc: p.kind === 'B' ? `${F.painFix}경기 고정 출전 · 성장 확률 ×${F.painGrow}` : `${F.painFix}경기 동안 성장 확률 ×${F.painGrow}`,
             detail: {
               rows: [
                 rowInfo('주전', `${p.name} ${p.ovr}`, `${p.name} ${p.ovr}`),

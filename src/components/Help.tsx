@@ -15,13 +15,14 @@ export default function Help({ topic, children, className }: { topic: HelpTopic;
       <button
         type="button"
         aria-label={`${t.title} 설명`}
-        className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[12px] leading-none text-white/70 ${className ?? ''}`}
+        className={`relative inline-flex h-6 w-6 shrink-0 items-center justify-center text-[12px] leading-none text-white/70 mob:-m-2 mob:h-10 mob:w-10 mob:text-[13px] ${className ?? ''}`}
         onClick={(e) => {
           e.stopPropagation();
           setOpen(true);
         }}
       >
-        ?
+        {/* 보이는 원은 24px 그대로, 누르는 영역만 모바일에서 40px */}
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10">?</span>
       </button>
       {open && (
         <Sheet onClose={() => setOpen(false)} label={t.title}>

@@ -225,6 +225,7 @@ const safe = {
 export default function MobileShell({ orientation }: { orientation: 'portrait' | 'landscape' }) {
   const tab = useUi((s) => s.tab);
   const playback = useStore((s) => !!s.playback);
+  const ended = useStore((s) => s.phase === 'ended' && !s.summary && !s.playback);
   // 하이라이트 재생이 시작되면 홈(구장)으로
   useEffect(() => {
     if (playback) useUi.setState({ tab: 'home', facSheet: null });
@@ -234,7 +235,8 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
     <>
       <FacSheet />
       <GameSummary sheet />
-      <EventCardModal sheet />
+      {/* 결산 화면이 떠 있는 동안에는 SeasonEnd 가 사건 카드를 그린다 (두 겹으로 그리지 않게) */}
+      {!ended && <EventCardModal sheet />}
       <OrderSheet />
     </>
   );

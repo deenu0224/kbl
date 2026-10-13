@@ -7,6 +7,7 @@ import {
 } from './economy';
 import { svcYear } from './contract';
 import { FOREIGN_MAX } from './events';
+import { changePenStyle } from './briefing';
 import { farmAutoOn, shuttleArms } from './farm';
 import { applyFixes, bullpenLoad, orderIssues, ploc, pput } from './fixes';
 import { fmtInt, fmtMoney } from './format';
@@ -33,7 +34,7 @@ export type RemedyAction =
   | { t: 'borrow' }
   | { t: 'seats' } // 관중석 증축
   | { t: 'penStyle' } // 불펜 방침을 균형으로
-  | { t: 'go'; to: RemedyGo; sub?: 'lineup' | 'pitchers' } // 화면 이동 (core 는 그대로 — 화면이 처리한다)
+  | { t: 'go'; to: RemedyGo; sub?: 'lineup' | 'pitchers'; pid?: string } // 화면 이동 (core 는 그대로 — 화면이 처리한다)
   | { t: 'dismiss' } // 확인하고 닫기
   | { t: 'none' }; // 그대로 둔다
 
@@ -274,7 +275,7 @@ function penRemedies(core: Core): Remedy[] {
       });
     }
   }
-  // 방침: 다른 워커가 만드는 campaign.penStyle. store 에 setPenStyle 이 생기면 그쪽을 쓰도록 바꾼다
+  // 방침: campaign.penStyle (실행은 store 의 setPenStyle)
   const style = penStyleOf(core);
   if (style === 'swarm' || style === 'trust') {
     out.push({ id: 'penStyle', run: { t: 'penStyle' }, label: '불펜 방침을 균형으로', effect: style === 'swarm' ? '경기당 등판 투수 수가 줄어 쉬는 투수가 생긴다' : '필승조에 몰린 등판을 나눈다' });
@@ -410,14 +411,14 @@ function scoutRemedies(core: Core): Remedy[] {
   const ids = (memoGet(core, 'scoutList') ?? '').split(',');
   const ps = core.freeAgents.filter((p) => ids.includes(p.id)).sort((a, b) => b.ovr - a.ovr);
   if (!ps.length) return [CLOSE];
-  return [{ id: 'go', run: { t: 'go', to: 'market' }, tone: 'good', label: `이적 창구 열기 — 추천 ${ps.length}명`, effect: ps.slice(0, 2).map((p) => `${p.name}(${posKo(p.pos)} 오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ') }, CLOSE];
+  return [{ id: 'go', run: { t: 'go', to: 'market', pid: ps[0].id }, tone: 'good', label: `이적 창구 열기 — 추천 ${ps.length}명`, effect: ps.slice(0, 2).map((p) => `${p.name}(${posKo(p.pos)} 오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ') }, CLOSE];
 }
 
 function faRemedies(core: Core): Remedy[] {
   const t = userTeam(core);
   const fa = t.roster.filter((p) => (svcYear(core, p) ?? 0) >= SVC_YEARS).sort((a, b) => b.ovr - a.ovr);
   if (!fa.length) return [CLOSE];
-  return [{ id: 'go', run: { t: 'go', to: 'squad' }, label: `선수단 열기 — 재계약 대기 ${fa.length}명`, effect: `${fa.slice(0, 2).map((p) => `${p.name}(오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ')} — 시즌이 끝나면 조건을 부른다` }, CLOSE];
+  return [{ id: 'go', run: { t: 'go', to: 'squad', pid: fa[0].id }, label: `선수단 열기 — 재계약 대기 ${fa.length}명`, effect: `${fa.slice(0, 2).map((p) => `${p.name}(오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ')} — 시즌이 끝나면 조건을 부른다` }, CLOSE];
 }
 
 const pct = (v: number) => `${Math.round(Math.abs(v) * 100)}%`;
@@ -540,10 +541,8 @@ export function applyRemedy(core: Core, r: Remedy): Res {
     case 'seats':
       return upgradeFacility(core, 'seats');
     case 'penStyle': {
-      // TODO: store 에 setPenStyle 이 생기면 그 액션을 쓴다
-      const next = structuredClone(core);
-      (next.campaign as { penStyle?: string }).penStyle = 'balance';
-      return { core: next };
+      // 화면에서는 store.remedy 가 setPenStyle 로 보낸다. 여기(스크립트·검증)는 같은 함수를 직접 부른다
+      return { core: changePenStyle(core, 'balance') };
     }
     default:
       return { core };

@@ -7,7 +7,7 @@ import { useStore } from '../store';
 import Help from './Help';
 import type { HelpTopic } from './helpTopics';
 import PixelFace from './PixelFace';
-import { OvrBadge, POS_KO, StatBar } from './ui';
+import { OvrBadge, POS_FULL, StatBar } from './ui';
 import Potential from './roster/Potential';
 
 const SCOUT_COLOR: Record<string, string> = { A: '#ffd84a', B: '#6ee07a', C: '#7fd3ff', D: '#9aa5c4' };
@@ -17,7 +17,7 @@ export function ScoutBadge({ grade, size = 18 }: { grade: Player['scout']; size?
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center font-pixel-lg text-ink"
-      style={{ width: size, height: size, fontSize: size * 0.7, background: SCOUT_COLOR[grade ?? ''] ?? '#56607e', boxShadow: '0 0 0 1px #0f1420' }}
+      style={{ width: size, height: size, fontSize: Math.max(13, size * 0.7), background: SCOUT_COLOR[grade ?? ''] ?? '#56607e', boxShadow: '0 0 0 1px #0f1420' }}
     >
       {grade ?? '?'}
     </span>
@@ -69,7 +69,7 @@ export default function PlayerCard({
       <div className="-mx-0.5 -mt-0.5 mb-1.5 flex items-center justify-between px-1.5 py-0.5 text-[10px]" style={{ background: color, color: '#fff', textShadow: '1px 1px 0 rgba(0,0,0,.5)' }}>
         <span>{team?.name ?? (prospect ? '신인 드래프트' : 'FA · 자유계약')}</span>
         <span>
-          {roleLabel ?? POS_KO[p.pos]} · {p.age}세{p.foreign ? ' · 외인' : ''}
+          {roleLabel ?? POS_FULL[p.pos]} · {p.age}세{p.foreign ? ' · 외인' : ''}
         </span>
       </div>
 
@@ -132,7 +132,7 @@ export default function PlayerCard({
           {p.injury > 0 && <Tag text={`부상 ${p.injury}경기`} tone="text-bad" />}
           {(p.tired ?? 0) > 0 && <Tag text={`연투 ${p.tired}일째`} tone="text-[#f0a35a]" help="fatigue" />}
           {p.posShift && <Tag text={`전향 중 수비 −${p.posShift.pen}`} tone="text-bad" />}
-          {left !== null && <Tag text={left > 0 ? `보유 ${left}시즌 남음` : 'FA 자격'} tone="text-sky" help="service" />}
+          {left !== null && <Tag text={left > 0 ? `FA 자격까지 ${left}시즌` : 'FA 자격'} tone="text-sky" help="service" />}
           {Math.abs(gap) >= VALUE_FAIR && <Tag text={`가성비 ${gap > 0 ? '+' : '−'}${fmtMoney(Math.abs(gap))}`} tone={gap > 0 ? 'text-good' : 'text-bad'} help="value" />}
         </div>
       </div>

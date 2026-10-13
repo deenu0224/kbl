@@ -494,6 +494,11 @@ export const useStore = create<Store>()(
         },
         remedy(r) {
           if (get().playback) return '경기 중에는 변경할 수 없습니다';
+          if (r.run.t === 'penStyle') {
+            get().setPenStyle('balance');
+            set({ ...pickCore(refreshBriefing(pickCore(get()))) });
+            return null;
+          }
           const res = applyRemedy(pickCore(get()), r);
           if (res.error) return res.error;
           // 열려 있는 주간 브리핑의 제안은 바뀐 상태에 맞춰 다시 만든다

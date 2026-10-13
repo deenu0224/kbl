@@ -34,7 +34,7 @@ const EARLY_DAYS = 12; // 시즌 첫 2주
 const EARLY_SALARY = 30000; // 첫 2주의 영입 제안은 연봉 3억 이하만
 const CASH_KEEP = 30000; // 시설·상환 제안은 실행 후에도 현금이 이만큼 남을 때만 (3억)
 
-const POS_NAME: Record<string, string> = { C: '포수', '1B': '1루', '2B': '2루', '3B': '3루', SS: '유격', LF: '좌익', CF: '중견', RF: '우익', DH: '지명', SP: '선발', RP: '불펜', CP: '마무리' };
+const POS_NAME: Record<string, string> = { C: '포수', '1B': '1루수', '2B': '2루수', '3B': '3루수', SS: '유격수', LF: '좌익수', CF: '중견수', RF: '우익수', DH: '지명타자', SP: '선발', RP: '불펜', CP: '마무리' };
 const PART_NAME: [keyof TeamParts, string][] = [['bat', '타선'], ['def', '수비'], ['rot', '선발'], ['pen', '불펜']];
 const sign = (v: number, unit = '') => `${v >= 0 ? '+' : '−'}${fmtInt(Math.abs(v))}${unit}`;
 const signMoney = (v: number) => `${v >= 0 ? '+' : '−'}${fmtMoney(Math.abs(v))}`;
@@ -276,11 +276,11 @@ function penOffer(core: Core): Cand | null {
   const load = bullpenLoad(t);
   if (load.label !== '과부하' && memoNum(core, PEN_OVER_KEY) < PEN_OFFER_DAYS) return null;
   if (activeRoster(t).length >= ROSTER_MAX) return null;
-  const line = `불펜이 쉬지를 못합니다. 쉰 팔이 ${load.rested}명입니다 — 한 명만 더 있으면 돌아갑니다.`;
+  const line = `불펜이 쉬지를 못합니다. 등판 가능한 투수가 ${load.rested}명입니다 — 한 명만 더 있으면 돌아갑니다.`;
   const up = shuttleArms(core)[0];
   if (up) {
     const r = callUp(core, up.id);
-    if (!r.error) return { ...offer(44, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: 2군 ${up.name}(OVR ${up.ovr}) 콜업 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명`, { t: 'fix' }, undefined, [{ t: up.id, d: 1 }]), farm: { up: up.id } };
+    if (!r.error) return { ...offer(44, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: 2군 ${up.name}(오버롤 ${up.ovr}) 콜업 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명`, { t: 'fix' }, undefined, [{ t: up.id, d: 1 }]), farm: { up: up.id } };
   }
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const floor = Math.min(...t.bullpen.map((id) => byId.get(id)?.ovr ?? 99)) - PEN_SIGN_GAP;
@@ -293,7 +293,7 @@ function penOffer(core: Core): Cand | null {
   if (r.error) return null;
   const out = runway(r.core).cashOut;
   if (out !== null && out <= SIGN_RUNWAY_MIN) return null;
-  return offer(40, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: FA ${fa.name}(OVR ${fa.ovr}) 영입 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명 · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))}${cashTail(core, r.core)}`, { t: 'sign', pid: fa.id }, undefined, [{ t: fa.id, d: 1 }]);
+  return offer(40, 'pen', 'pen', 'pitching', line, `불펜 1명 보강: FA ${fa.name}(오버롤 ${fa.ovr}) 영입 — 불펜 과부하 해소 · 불펜 ${load.arms} → ${load.arms + 1}명 · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))}${cashTail(core, r.core)}`, { t: 'sign', pid: fa.id }, undefined, [{ t: fa.id, d: 1 }]);
 }
 
 const STYLE_KO: Record<PenStyle, string> = { trust: '믿음', balance: '균형', swarm: '벌떼' };
@@ -313,11 +313,11 @@ function penStyleOffer(core: Core): Cand | null {
   if (style === 'swarm' && arms < SIM.AI_SWARM_ARMS) {
     const line = `벌떼인데 불펜 ${arms}명입니다. 이 인원으로는 팔이 남아나지 않습니다.`;
     const up = arms === SIM.AI_SWARM_ARMS - 1 && activeRoster(t).length < ROSTER_MAX ? shuttleArms(core)[0] : undefined;
-    if (up && !callUp(core, up.id).error) return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, `벌떼인데 불펜 ${arms}명: 과부하 위험 — 구원 1명 콜업: 2군 ${up.name}(OVR ${up.ovr}) · 불펜 ${arms} → ${arms + 1}명`, { t: 'fix' }, undefined, [{ t: up.id, d: 1 }]), farm: { up: up.id } };
+    if (up && !callUp(core, up.id).error) return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, `벌떼인데 불펜 ${arms}명: 과부하 위험 — 구원 1명 콜업: 2군 ${up.name}(오버롤 ${up.ovr}) · 불펜 ${arms} → ${arms + 1}명`, { t: 'fix' }, undefined, [{ t: up.id, d: 1 }]), farm: { up: up.id } };
     return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, `벌떼인데 불펜 ${arms}명: 과부하 위험 — 균형으로`, { t: 'fix' }, undefined, [styleMove('swarm', -1)]), penStyle: 'balance' };
   }
   if (style === 'trust' && (rotPenGap(t)?.gap ?? 0) <= -SIM.AI_STYLE_GAP)
-    return { ...offer(42, 'penStyle', 'penStyle', 'pitching', '믿음인데 선발이 불펜보다 약합니다. 오래 끌수록 점수를 줍니다.', `믿음인데 선발 평균 OVR 이 불펜보다 ${SIM.AI_STYLE_GAP} 이상 낮음 — 균형으로`, { t: 'fix' }, undefined, [styleMove('trust', -1)]), penStyle: 'balance' };
+    return { ...offer(42, 'penStyle', 'penStyle', 'pitching', '믿음인데 선발이 불펜보다 약합니다. 오래 끌수록 점수를 줍니다.', `믿음인데 선발 평균 오버롤이 불펜보다 ${SIM.AI_STYLE_GAP} 이상 낮음 — 균형으로`, { t: 'fix' }, undefined, [styleMove('trust', -1)]), penStyle: 'balance' };
   return null;
 }
 
@@ -332,7 +332,7 @@ function fieldOffers(core: Core): Cand[] {
     applyFixes(c);
     const a = teamParts(t);
     const b = teamParts(c);
-    const kinds = [iss.lineup ? '▲벤치/⇄제자리' : '', iss.pitchers ? '▲불펜' : ''].filter(Boolean).join('/') || '부상자 교체';
+    const kinds = [iss.lineup ? '▲벤치/⇄원래 자리로' : '', iss.pitchers ? '▲불펜' : ''].filter(Boolean).join('/') || '부상자 교체';
     // 전력이 그대로이거나(경기 전에 저절로 메워지는 부상자 자리뿐) 환산 승률이 오르지 않는 수리는 제안으로 내지 않는다
     // 효과 문턱: 남은 경기로 환산한 승수가 +1.5 이상일 때만
     if (winDelta(a, b) * gamesLeft(core) >= MIN_FIX_WINS) out.push(
@@ -408,7 +408,7 @@ function farmMoveOffer(core: Core, phase: 'up' | 'down'): Cand | null {
       const dw = winDelta(a, b);
       if (better && dw <= 0 && !grad) continue;
       const stat = farmStatText(k);
-      const who = `${k.name}(${stat ? `퓨처스 ${stat}, ` : ''}OVR ${k.ovr})`;
+      const who = `${k.name}(${stat ? `퓨처스 ${stat}, ` : ''}오버롤 ${k.ovr})`;
       const swap = down ? ` ↔ ${down.name} 내려보내기` : '';
       const parts = partsText(a, b) || '전력 변화 없음';
       const moves: BriefMove[] = [{ t: k.id, d: 1 }, ...(down ? [{ t: down.id, d: -1 as const }] : []), ...(better && cur && cur.id !== down?.id ? [{ t: cur.id, d: -1 as const }] : [])];
@@ -419,7 +419,7 @@ function farmMoveOffer(core: Core, phase: 'up' | 'down'): Cand | null {
           'farm',
           'farm',
           better ? `${k.name}, 2군에서 준비가 끝났습니다. 지금 1군 자리보다 낫습니다.` : `${k.name}은 2군에서 배울 건 다 배웠습니다. 이제 위에서 부딪혀야 큽니다.`,
-          better ? `콜업 ${who}${swap}: ${POS_NAME[k.pos] ?? k.pos} ${cur!.ovr} → ${k.ovr} · ${parts}` : `콜업 ${who}${swap}: 2군 상한 OVR ${FARM_CAP} 도달 · 1군에서만 더 자랍니다(잠재 ${k.pot}) · ${parts}`,
+          better ? `콜업 ${who}${swap}: ${POS_NAME[k.pos] ?? k.pos} ${cur!.ovr} → ${k.ovr} · ${parts}` : `콜업 ${who}${swap}: 2군 상한 오버롤 ${FARM_CAP} 도달 · 1군에서만 더 자랍니다(잠재 ${k.pot}) · ${parts}`,
           { t: 'fix' },
           flagPiece(core, { win: dw }),
           moves,
@@ -452,7 +452,7 @@ function farmMoveOffer(core: Core, phase: 'up' | 'down'): Cand | null {
         'farm',
         'farm',
         `${k.name}, ${k.age}세입니다. 벤치에 앉혀 두면 썩습니다. 내려보내 실전을 뛰게 합시다.`,
-        `2군으로 ${k.name}(OVR ${k.ovr} · 잠재 ${k.pot}): 주당 성장 확률 ${pctText(now)} → ${pctText(then)} · ${partsText(a, b) || '전력 변화 없음'} · ${FARM_LOCK}경기 동안 재등록 불가`,
+        `2군으로 ${k.name}(오버롤 ${k.ovr} · 잠재 ${k.pot}): 주당 성장 확률 ${pctText(now)} → ${pctText(then)} · ${partsText(a, b) || '전력 변화 없음'} · ${FARM_LOCK}경기 동안 재등록 불가`,
         { t: 'fix' },
         undefined,
         [{ t: k.id, d: -1 }],
@@ -577,7 +577,7 @@ function rescueOffer(core: Core, m: BriefMemo): Cand | null {
     take(
       val(rw) - m0.n + dw * 100,
       {
-        ...offer(200, `rescue:release:${p.id}`, 'rescue', 'chair', `${p.name}의 연봉이 살림에 비해 큽니다. 미안하지만 보내야겠습니다.`, `방출 ${p.name}: 연봉 −${fmtMoney(p.salary)} · ${moved ? `${moved.label} ${sign(moved.d)}` : '전력 변화 없음'}${cost ? ` · 위약금 ${fmtMoney(cost)}` : ''} · ${tail(rw)}`, { t: 'fix' }, flagPiece(core, { win: dw }), [{ t: p.id, d: -1 }]),
+        ...offer(200, `rescue:release:${p.id}`, 'rescue', 'chair', `${p.name}의 연봉이 살림에 비해 큽니다. 미안하지만 보내야겠습니다.`, `방출 ${p.name}: 연봉 −${fmtMoney(p.salary)} · ${moved ? `${moved.label} ${sign(moved.d)}` : '전력 변화 없음'}${cost ? ` · 잔여 연봉 지급 ${fmtMoney(cost)}` : ''} · ${tail(rw)}`, { t: 'fix' }, flagPiece(core, { win: dw }), [{ t: p.id, d: -1 }]),
         rescue: { t: 'release', pid: p.id },
       },
     );
@@ -625,7 +625,7 @@ function resultLine(core: Core, d: BriefDone): string | null {
       if (!p) return null;
       const key = p.kind === 'B' ? 'bat' : p.pos === 'SP' ? 'rot' : 'pen';
       const label = PART_NAME.find(([k]) => k === key)![1];
-      const stat = p.kind === 'B' ? `${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])} ${p.bat.hr - n[4]}홈런` : `${p.pit.g - n[1]}경기 평균자책 ${fmtEra(p.pit.er - n[2], p.pit.outs - n[3])}`;
+      const stat = p.kind === 'B' ? `${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])} ${p.bat.hr - n[4]}홈런` : `${p.pit.g - n[1]}경기 평균자책점 ${fmtEra(p.pit.er - n[2], p.pit.outs - n[3])}`;
       return `지난주 ${d.label}: ${stat} · ${label} ${n[0]} → ${parts[key]}`;
     }
     case 'price':
@@ -646,11 +646,11 @@ function resultLine(core: Core, d: BriefDone): string | null {
       return `지난주 ${d.label}: 이번 주 훈련 성과 ${Math.max(0, memoNum(core, 'grow') - n[0])}회`;
     case 'callup':
       if (!p) return null;
-      return `지난주 ${d.label}: ${p.farm ? '다시 2군' : p.kind === 'B' ? `1군 ${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])}` : `1군 ${p.pit.g - n[1]}경기 평균자책 ${fmtEra(p.pit.er - n[2], p.pit.outs - n[3])}`} · OVR ${n[0]} → ${p.ovr}`;
+      return `지난주 ${d.label}: ${p.farm ? '다시 2군' : p.kind === 'B' ? `1군 ${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])}` : `1군 ${p.pit.g - n[1]}경기 평균자책점 ${fmtEra(p.pit.er - n[2], p.pit.outs - n[3])}`} · 오버롤 ${n[0]} → ${p.ovr}`;
     case 'senddown':
-      return p ? `지난주 ${d.label}: ${p.farm ? `퓨처스 ${farmStatText(p) || '기록 없음'}` : '1군 복귀'} · OVR ${n[0]} → ${p.ovr}` : null;
+      return p ? `지난주 ${d.label}: ${p.farm ? `퓨처스 ${farmStatText(p) || '기록 없음'}` : '1군 복귀'} · 오버롤 ${n[0]} → ${p.ovr}` : null;
     case 'promote':
-      return p ? `지난주 ${d.label}: ${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])} · OVR ${n[0]} → ${p.ovr}` : null;
+      return p ? `지난주 ${d.label}: ${p.bat.g - n[1]}경기 ${fmtAvg(p.bat.h - n[2], p.bat.ab - n[3])} · 오버롤 ${n[0]} → ${p.ovr}` : null;
     case 'rescue': {
       const r = runway(core);
       return `지난주 ${d.label}: 경기당 손익 ${signMoney(r.perGame)} · ${r.cashOut === null ? '이번 시즌 금고는 버팁니다' : `바닥까지 ${r.cashOut}경기`}`;

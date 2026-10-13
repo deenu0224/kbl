@@ -13,20 +13,20 @@ import { FirstTip } from './Briefing';
 import { useHintTabs } from './RightPanel';
 import Sheet from './layout/Sheet';
 import { useIsMobile } from './layout/useLayout';
-import { OvrBadge, POS_KO, SectionTitle, TabBar } from './ui';
+import { OvrBadge, POS_FULL, POS_KO, SectionTitle, TabBar } from './ui';
 import { MiniDiamond } from './roster/Diamond';
 import FrontOffice, { CardPop } from './roster/FrontOffice';
 import PlayerBrowser from './roster/PlayerBrowser';
 import { AddChip } from './roster/TransferDesk';
 import { openDesk, useTransferUi } from './roster/transferUi';
 import { usePosReport, useRosterUi } from './roster/rosterUi';
-import { PenLoadLine } from './roster/PenStyle';
+import { ArmState, PenLoadLine } from './roster/PenStyle';
 import { callUpPreview, sendDownPreview } from '../game/analysis';
 
 // ───────── 공용 행 ─────────
 
 /** 보기 전용 한 줄: 타순(보직)·포지션 · 이름 · OVR. 고칠 곳이 있는 줄은 왼쪽 빨간 띠만 */
-function Row({ lead, player: p, selected, onClick, flash, issue }: { lead: ReactNode; player: Player; selected: boolean; onClick: () => void; flash?: boolean; issue?: boolean }) {
+function Row({ lead, player: p, selected, onClick, flash, issue, tail }: { lead: ReactNode; player: Player; selected: boolean; onClick: () => void; flash?: boolean; issue?: boolean; tail?: ReactNode }) {
   const mobile = useIsMobile();
   return (
     <button
@@ -38,6 +38,7 @@ function Row({ lead, player: p, selected, onClick, flash, issue }: { lead: React
     >
       <span className="w-12 shrink-0 whitespace-nowrap text-[10px] text-white/55 max-lg:w-auto max-lg:min-w-[58px]">{lead}</span>
       <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : ''}`}>{p.name}</span>
+      {tail}
       <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
     </button>
   );
@@ -58,7 +59,7 @@ const shortPv = (text: string) =>
     .replace(/(\d+)경기 동안 재등록 불가/, '재등록 $1경기')
     .replace('시즌 전: 재등록 제한 없음', '재등록 제한 없음')
     .replace('주당 성장 확률', '성장')
-    .replace(/OVR (\d+) 이상은 2군에서 안 자란다/, 'OVR $1 이상 성장 없음')
+    .replace(/오버롤 (\d+) 이상은 2군에서 안 자란다/, '오버롤 $1 이상 성장 없음')
     .replace('더 자라지 않는 선수', '성장 없음');
 
 export function FarmMoveButton({ player, onDone }: { player: Player; onDone?: () => void }) {
@@ -109,7 +110,7 @@ export function FarmTab() {
       </div>
       <CardDock open={!!selP} onClose={() => setSel(null)} placeholder={farm.length ? '선수를 누르면 카드가 열립니다' : undefined}>
         {selP && (
-          <PlayerCard player={selP} team={team} roleLabel={`2군 · ${POS_KO[selP.pos]}`}>
+          <PlayerCard player={selP} team={team} roleLabel={`2군 · ${POS_FULL[selP.pos]}`}>
             <EditButton pid={selP.id} onDone={() => setSel(null)} />
             <FarmMoveButton player={selP} onDone={() => setSel(null)} />
             <ReleaseButton player={selP} team={team} />
@@ -146,7 +147,7 @@ export function ReleaseButton({ player }: { player: Player; team?: Team }) {
       <button className="px-btn" data-testid="release-to-desk" title="이적 창구에 방출로 담는다 (확정 전까지 실제 선수단은 그대로)" onClick={() => openDesk({ add: [['release', player.id]] })}>
         방출 담기 ⤢
       </button>
-      <span className="text-[10px] text-white/50 mob:text-[13px]" data-testid="release-cost" title="방출 위약금">−{fmtMoney(cost)}</span>
+      <span className="text-[10px] text-white/50 mob:text-[13px]" data-testid="release-cost" title="방출 시 잔여 연봉 지급">−{fmtMoney(cost)}</span>
     </>
   );
 }
@@ -289,7 +290,7 @@ export function LineupTab() {
       </div>
       <CardDock open={!!selP} onClose={() => setSel(null)} placeholder="선수를 누르면 카드가 열립니다">
         {selP && (
-          <PlayerCard player={selP} team={team} roleLabel={selSlot >= 0 ? `${selSlot + 1}번 · ${POS_KO[team.lineup[selSlot].pos]}` : `벤치 · ${POS_KO[selP.pos]}`}>
+          <PlayerCard player={selP} team={team} roleLabel={selSlot >= 0 ? `${selSlot + 1}번 · ${POS_FULL[team.lineup[selSlot].pos]}` : `벤치 · ${POS_FULL[selP.pos]}`}>
             <EditButton pid={selP.id} onDone={() => setSel(null)} />
             <FarmMoveButton player={selP} onDone={() => setSel(null)} />
             <ReleaseButton player={selP} team={team} />
@@ -324,13 +325,14 @@ export function PitchersTab() {
     if (team.bullpen.includes(pid)) return '불펜';
     return '대기';
   };
-  const row = (pid: string, lead: ReactNode) => {
+  const row = (pid: string, lead: ReactNode, tail?: ReactNode) => {
     const p = byId.get(pid);
     if (!p) return null;
     return (
       <Row
         key={pid}
         lead={lead}
+        tail={tail}
         player={p}
         selected={sel === pid}
         onClick={() => setSel(sel === pid ? null : pid)}
@@ -339,6 +341,7 @@ export function PitchersTab() {
       />
     );
   };
+  const pen = (pid: string) => ((byId.get(pid)?.injury ?? 0) > 0 ? undefined : <ArmState tired={byId.get(pid)?.tired} className="text-[11px] mob:text-[13px]" />);
   const nextIdx = team.rotation.length ? team.nextStarter % team.rotation.length : -1;
 
   return (
@@ -351,14 +354,15 @@ export function PitchersTab() {
           row(
             pid,
             <>
-              <span className="text-hi">{i + 1}</span> 선발{i === nextIdx && <span className="text-good"> ◀</span>}
+              <span className="text-hi">{i + 1}</span> 선발
             </>,
+            i === nextIdx ? <span className="shrink-0 whitespace-nowrap text-[11px] text-good mob:text-[13px]" data-testid="next-start">다음 등판</span> : undefined,
           ),
         )}
         <SectionTitle>마무리</SectionTitle>
-        {team.closer && row(team.closer, '마무리')}
+        {team.closer && row(team.closer, '마무리', pen(team.closer))}
         <SectionTitle>불펜 ({team.bullpen.length})</SectionTitle>
-        {team.bullpen.map((pid, i) => row(pid, `불펜${i + 1}`))}
+        {team.bullpen.map((pid, i) => row(pid, `불펜${i + 1}`, pen(pid)))}
         {spare.length > 0 && (
           <>
             <SectionTitle>대기 ({spare.length})</SectionTitle>
