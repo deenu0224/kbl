@@ -1,4 +1,5 @@
 import { SCANDAL_NEWS } from '../game/story';
+import { FEEDBACK_URL, track } from '../analytics';
 import { useMemo, useState, type CSSProperties } from 'react';
 import type { StadiumScene } from '../game/types';
 import { HOF_END_KO, HOF_RECORD_KO, hofWorthy, type HofRecordKey } from '../game/hof';
@@ -191,6 +192,7 @@ function NickEntry({ onBack }: { onBack: () => void }) {
       if (hofWorthy(core)) hofCloseClub(core, 'abandoned');
     }
     useStore.getState().newGame(name);
+    track('new-game');
     // 공유 링크의 ?from= 은 시작하면 지운다
     if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
     useUi.setState({ hasSave: true, screen: 'game', tab: 'home', orderOpen: true, orderBase: null, orderEdit: null, draftPeek: false, eventHidden: null });
@@ -307,6 +309,11 @@ export default function TitleScreen() {
               <button className={big} data-testid="open-settings" onClick={() => setSettingsOpen(true)}>
                 설정
               </button>
+              {FEEDBACK_URL && (
+                <a className="mt-1 flex min-h-10 items-center justify-center text-[13px] text-sky underline" href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" data-testid="feedback" onClick={() => track('feedback')}>
+                  의견 보내기 — 불편한 점을 알려 주세요
+                </a>
+              )}
             </div>
           )}
         </div>

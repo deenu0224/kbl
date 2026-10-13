@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { track } from '../analytics';
 import type { HofClub } from '../game/hof';
 import type { StadiumScene } from '../game/types';
 import { cardScene, clubScene, renderCard, CARD_H, CARD_W } from '../share/card';
@@ -60,6 +61,7 @@ export default function ShareSheet({ data, scene, club = false, onClose }: { dat
   /** 시스템 공유 창: 이미지 파일을 받을 수 있으면 이미지째, 아니면 글만 (주소는 글 안에 있다) */
   const native = async () => {
     const files = blob ? [new File([blob], fileName, { type: 'image/png' })] : [];
+    track('share-native');
     try {
       await navigator.share(files.length && navigator.canShare?.({ files }) ? { text, files } : { text });
     } catch {
@@ -105,16 +107,16 @@ export default function ShareSheet({ data, scene, club = false, onClose }: { dat
         <button
           className="px-btn primary flex min-h-[58px] flex-col items-center justify-center !py-1.5 leading-tight"
           data-testid="share-copy"
-          onClick={async () => say((await copy(text)) ? '복사했습니다 — 대화방에 붙여넣으세요' : '복사하지 못했습니다 — [올라갈 글 보기]에서 직접 복사하세요')}
+          onClick={async () => (track('share-copy'), say((await copy(text)) ? '복사했습니다 — 대화방에 붙여넣으세요' : '복사하지 못했습니다 — [올라갈 글 보기]에서 직접 복사하세요'))}
         >
           <span className="text-[17px]">글과 링크 복사</span>
           <span className="mt-0.5 text-[13px] text-white/75">카톡 대화방에 붙여넣기</span>
         </button>
         <div className="grid grid-cols-2 gap-2">
-          <button className={btn} data-testid="share-x" onClick={() => open(xIntent(text))}>
+          <button className={btn} data-testid="share-x" onClick={() => (track('share-x'), open(xIntent(text)))}>
             X에 올리기
           </button>
-          <button className={btn} data-testid="share-threads" onClick={() => open(threadsIntent(text))}>
+          <button className={btn} data-testid="share-threads" onClick={() => (track('share-threads'), open(threadsIntent(text)))}>
             스레드에 올리기
           </button>
         </div>

@@ -7,6 +7,7 @@ import Dialog from './layout/Dialog';
 import Help from './Help';
 import { SAVE_KEY, useUi } from './layout/uiStore';
 import { clearHof } from './hofStore';
+import { FEEDBACK_URL, setStatsOn, statsAvailable, statsOn, track } from '../analytics';
 import { UI_SIZES, setUiSize, useUiSize } from './layout/uiScale';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -66,6 +67,7 @@ export default function Settings() {
   const setSubAuto = useStore((s) => s.setSubAuto);
   const playback = useStore((s) => !!s.playback);
   const uiSize = useUiSize();
+  const [stats, setStats] = useState(statsOn);
   const [out, setOut] = useState('');
   const [inp, setInp] = useState('');
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -152,7 +154,7 @@ export default function Settings() {
           </Row>
           <Row label="부상 대체">
             <span className="flex min-w-0 flex-1 items-center">
-              <Help topic="farm" />
+              <Help topic="farm" className="!m-0" />
             </span>
             {[false, true].map((v) => (
               <button key={String(v)} className={`px-btn min-h-10 shrink-0 text-[13px] ${subAuto === v ? 'gold' : ''}`} data-testid={v ? 'sub-auto' : 'sub-manual'} disabled={playback} onClick={() => setSubAuto(v)}>
@@ -161,6 +163,35 @@ export default function Settings() {
             ))}
           </Row>
         </div>
+        {(statsAvailable() || FEEDBACK_URL) && (
+          <>
+            <Title>의견 · 통계</Title>
+            <div className="flex flex-col gap-1">
+              {FEEDBACK_URL && (
+                <Row label="의견 보내기">
+                  <a className="px-btn flex min-h-10 items-center text-[13px]" href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" data-testid="settings-feedback" onClick={() => track('feedback')}>
+                    의견 쓰러 가기 ↗
+                  </a>
+                </Row>
+              )}
+              {statsAvailable() && (
+                <Row label="익명 통계">
+                  <span className="min-w-0 flex-1 text-[13px] leading-snug text-white/55">몇 시즌까지 했는지만 셉니다. 이름·기기 정보는 보내지 않습니다</span>
+                  <button
+                    className={`px-btn min-h-10 shrink-0 text-[13px] ${stats ? 'green' : ''}`}
+                    data-testid="stats-toggle"
+                    onClick={() => {
+                      setStatsOn(!stats);
+                      setStats(!stats);
+                    }}
+                  >
+                    {stats ? '켜짐' : '꺼짐'}
+                  </button>
+                </Row>
+              )}
+            </div>
+          </>
+        )}
         <Title>세이브</Title>
         <div className="flex flex-col gap-1.5 bg-panel-2 p-2" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
           <div className="flex flex-wrap gap-2">
