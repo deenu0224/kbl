@@ -518,6 +518,7 @@ export interface SeasonVerdict {
   newAchievements: string[];
   fired: boolean;
   exposures?: Exposure[]; // 이번 결산에서 드러난 덮은 일
+  luxTax?: { cap: number; payroll: number; tax: number }; // 경쟁균형세를 낸 시즌 (economy.ts LUX_TAX)
 }
 
 export interface DraftState {

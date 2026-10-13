@@ -5,7 +5,7 @@
 // - drawStoveTrade: 스토브리그(결산 후 · 드래프트 전)의 제안 1건
 import type { Core, EventCard, EventDetail, Player, Team } from './types';
 import { clamp, pick, randInt, type Rng } from './rng';
-import { FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmRoster, payroll, userTeam } from './economy';
+import { FARM_MAX, LOAN_LIMIT, blockClosedWhy, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmRoster, payroll, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { isFranchise } from './franchise';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
@@ -14,20 +14,26 @@ import { POS_LABEL, positionReport, type PosKey } from './analysis';
 import { winDelta } from './briefing';
 import { GAMES } from './schedule';
 import { addNews, marketSalary } from './season';
-import { memoGet, memoNum, memoSet } from './memo';
+import { memoAdd, memoGet, memoNum, memoSet } from './memo';
 import { rowCash, rowFans, rowInfo, rowPayroll, rowSat, satAfter, type Row } from './eventRows';
 import { CHARACTERS, NEWS } from './story';
 
 // ── 튜닝 상수 ──
 export const TR = {
   from: 18, // 트레이드 기간: 이 경기 뒤부터
-  to: 54, // 마감일
+  to: 54, // 마감일 (economy.ts TRADE_DEADLINE 과 같은 값 — 모듈 순환을 피하려고 따로 둔다)
   warn: 6, // 마감 이 경기 전에 뉴스 한 줄
   max: 2, // AI 가 먼저 거는 제안: 시즌 최대 장수
   gap: 12, // 제안끼리 최소 경기 수
   second: 0.3, // 두 번째 제안이 올 확률
   stove: 0.5, // 스토브리그에 제안이 올 확률 (내놓은 선수가 있으면 항상 답이 온다)
-  edge: [0.05, 0.15], // 상대에 유리한 폭 (오가는 가치 합 대비)
+  edge: [0.1, 0.25], // 상대에 유리한 폭 (오가는 가치 합 대비)
+  burden: 2, // 시장가보다 비싼 잔여 계약: 초과 연봉 × 이 값만큼 가치에서 뺀다 (떠안는 쪽의 부담)
+  debtShy: 0.5, // 유저 부채가 대출 한도의 이 비율 이상이면 상대는 현금을 얹어 주지 않는다 (현금을 받는 제안 없음)
+  churnFrom: 2, // 같은 시즌에 이 번째 트레이드부터 선수단이 동요한다
+  churnSat: -3,
+  churnFocus: -3,
+  churnGames: 6,
   counter: 0.5, // 역제안(유리 폭 0) 수락 확률
   weakRank: 5, // 이 순위 이하인 포지션이 "필요"
   up: 3, // 받는 선수는 우리 주전보다 오버롤이 이만큼 이상 높다
@@ -45,6 +51,9 @@ export const TR = {
   frFans: 8, // 프랜차이즈 스타를 보내면 팬 −star × 이 값
   frSat: -8,
 };
+
+// 감사용 스위치 (scripts/campaign.ts 의 TRADE=off 가 끈다. 게임에서는 켜 둔다)
+export const TRADE_AUDIT = { offers: true };
 
 export type TradeKind = 'now' | 'future' | 'dump' | 'cash';
 export const TRADE_KIND_KO: Record<TradeKind, string> = { now: '즉전감 맞교환', future: '지금 이기기 ↔ 미래', dump: '연봉 떠안기', cash: '현금 트레이드' };
@@ -70,7 +79,8 @@ export function tradeValue(p: Player, season: number): number {
   const years = p.age <= 25 ? 4 : p.age <= 29 ? 3 : p.age <= 32 ? 2 : 1;
   const held = p.svc !== undefined ? clamp(SVC_YEARS - (season - p.svc), 0, years) : 0; // 잔여 보유 기간
   const v = p.svc !== undefined ? (worth - p.salary) * held + (worth - m) * (years - held) : (worth - p.salary) * years;
-  return Math.round(v / 100) * 100;
+  const over = Math.max(0, p.salary - m) * years * TR.burden; // 시장가보다 비싼 계약은 떠안는 쪽의 짐이다
+  return Math.round((v - over) / 100) * 100;
 }
 
 // ───────── 필요 ─────────
@@ -108,14 +118,21 @@ function ourNeeds(core: Core): { key: PosKey; rank: number }[] {
 // ───────── 제안 만들기 ─────────
 
 const round = (v: number) => Math.round(v / 1000) * 1000;
+/** 빚이 많은 구단인가: 상대는 현금을 받는 쪽으로만 거래한다 */
+export const debtShy = (core: Pick<Core, 'finance'>): boolean => core.finance.debt >= LOAN_LIMIT * TR.debtShy;
+/** 이번 시즌에 성사된 트레이드 수 · 다음 트레이드가 선수단을 흔드는가 */
+export const tradesDone = (core: Core): number => memoNum(core, 'trDone');
+export const tradeChurn = (core: Core): boolean => tradesDone(core) + 1 >= TR.churnFrom;
 function price(core: Core, rng: Rng, get: Player[], give: Player[]): { cash: number; fair: number } | null {
   const vg = get.reduce((s, p) => s + tradeValue(p, core.season), 0);
   const vo = give.reduce((s, p) => s + tradeValue(p, core.season), 0);
   const gross = [...get, ...give].reduce((s, p) => s + Math.abs(tradeValue(p, core.season)), 0);
   const edge = TR.edge[0] + rng() * (TR.edge[1] - TR.edge[0]);
-  const fair = round(vo - vg);
+  const shy = debtShy(core);
+  const fair = shy ? Math.min(0, round(vo - vg)) : round(vo - vg);
   const cash = Math.min(fair - 1000, round(vo - vg - edge * gross)); // AI 는 손해 보는 제안을 하지 않는다
   if (Math.abs(cash) > TR.cashMax || -cash > core.finance.cash * 0.6) return null;
+  if (shy && cash > 0) return null; // 빚이 많은 구단에는 현금을 얹어 주지 않는다
   return { cash, fair };
 }
 
@@ -273,7 +290,9 @@ export function applyTradeMut(core: Core, of: TradeOffer, cash: number, quiet = 
   x.t.roster.push(...x.give);
   for (const p of x.get) {
     p.since = core.season;
-    delete p.tired;
+    // 받는 선수도 새 팀에서는 시장가 (보유 할인·약속된 요구는 따라오지 않는다)
+    for (const k of ['svc', 'ask', 'lever', 'tired'] as const) delete p[k];
+    p.salary = Math.max(p.salary, marketSalary(p, core.season));
     if (farmIds.has(p.id)) p.farm = true;
     u.roster.push(p);
   }
@@ -284,6 +303,12 @@ export function applyTradeMut(core: Core, of: TradeOffer, cash: number, quiet = 
   if (cash > 0) core.finance.ledger.sales += cash;
   else core.finance.ledger.signing += -cash;
   if (core.campaign.block) core.campaign.block = core.campaign.block.filter((id) => !of.give.includes(id));
+  // 잦은 트레이드: 같은 시즌 TR.churnFrom 번째부터 선수단이 동요한다
+  if (memoAdd(core, 'trDone') >= TR.churnFrom) {
+    core.fanSat = satAfter(core, TR.churnSat);
+    core.campaign.buffs.push({ kind: 'focus', value: TR.churnFocus, until: core.day + TR.churnGames, label: `잦은 트레이드로 선수단 동요 집중력 ${TR.churnFocus}` });
+    if (!quiet) addNews(core, `잦은 트레이드로 선수단이 동요합니다 — 팬 만족도 ${TR.churnSat} · 집중력 ${TR.churnFocus} (${TR.churnGames}경기)`, 'bad');
+  }
   return true;
 }
 
@@ -299,6 +324,7 @@ export interface TradePreview {
   get: Player[];
   give: Player[];
   fans: number;
+  churn: boolean; // 잦은 트레이드로 선수단이 동요하는가
 }
 export function tradePreview(core: Core, of: TradeOffer, cash: number): TradePreview {
   const x = findAll(core, of);
@@ -323,6 +349,7 @@ export function tradePreview(core: Core, of: TradeOffer, cash: number): TradePre
     get: x?.get ?? [],
     give: x?.give ?? [],
     fans: after.fans - core.fans,
+    churn: ok && tradeChurn(core),
   };
 }
 
@@ -345,7 +372,9 @@ function detailOf(core: Core, of: TradeOffer, cash: number): EventDetail {
   for (const r of pv.ranks.slice(0, 3)) rows.push(rowInfo(`${r.label} 순위`, `${r.b}위`, `${r.a}위`, r.b < r.a ? 'good' : 'bad'));
   rows.push(rowPayroll(core, pv.payroll.b - pv.payroll.a), rowCash(core, cash));
   rows.push(rowInfo('예상 승수', sgn1(pv.wins), '±0.0', pv.wins > 0 ? 'good' : pv.wins < 0 ? 'bad' : 'info'));
-  if (pv.fans) rows.push(rowFans(core, pv.fans), rowSat(core, TR.frSat));
+  if (pv.fans) rows.push(rowFans(core, pv.fans));
+  if (pv.fans || pv.churn) rows.push(rowSat(core, (pv.fans ? TR.frSat : 0) + (pv.churn ? TR.churnSat : 0)));
+  if (pv.churn) rows.push(rowInfo(`집중력 (${TR.churnGames}경기)`, `${TR.churnFocus}`, '±0', 'bad'));
   const g = pv.get[0];
   const o = pv.give[0];
   // 비교: 오가는 주요 선수 2명. 한쪽이 비면 그 자리의 지금 주전과
@@ -356,7 +385,11 @@ function detailOf(core: Core, of: TradeOffer, cash: number): EventDetail {
     pids: [...of.get, ...of.give, ...(cur && !of.give.includes(cur.id) ? [cur.id] : [])],
     ...(pair ? { compare: pair as [string, string] } : {}),
     lasts: `예상 승수는 ${core.phase === 'season' ? '남은' : '다음 시즌'} ${pv.games}경기 기준`,
-    ...(pv.give.some((p) => p.svc !== undefined) ? { risk: '보내는 선수의 보유 기간 할인은 상대 팀에서 사라집니다' } : {}),
+    ...(pv.churn
+      ? { risk: `이번 시즌 ${tradesDone(core) + 1}번째 트레이드 — 잦은 트레이드로 선수단이 동요합니다` }
+      : pv.give.some((p) => p.svc !== undefined)
+        ? { risk: '보내는 선수의 보유 기간 할인은 상대 팀에서 사라집니다' }
+        : {}),
   };
 }
 
@@ -452,7 +485,7 @@ function put(core0: Core, of: TradeOffer): Core | null {
 
 /** 매 경기 후: 트레이드 기간이면 예정된 날에 제안 1건을 campaign.event 에 둔다. 해당 없으면 원본 반환 */
 export function drawTrade(core0: Core, rng: Rng): Core {
-  if (!tradeOpen(core0) || core0.campaign.event) return core0;
+  if (!TRADE_AUDIT.offers || !tradeOpen(core0) || core0.campaign.event) return core0;
   // 유저가 내놓은 선수: 답이 오는 날을 정해 두고, 그날 원하는 구단을 찾는다
   const block = core0.campaign.block ?? [];
   if (block.length) {
@@ -499,7 +532,7 @@ export function drawTrade(core0: Core, rng: Rng): Core {
 
 /** 스토브리그(결산 후 · 드래프트 전): 제안 1건. 내놓은 선수가 있으면 그 선수부터 */
 export function drawStoveTrade(core0: Core, rng: Rng): Core {
-  if (core0.phase !== 'ended' || core0.campaign.event || memoGet(core0, 'trStove')) return core0;
+  if (!TRADE_AUDIT.offers || core0.phase !== 'ended' || core0.campaign.event || memoGet(core0, 'trStove')) return core0;
   const core = structuredClone(core0);
   memoSet(core, 'trStove', 1);
   for (const pid of core.campaign.block ?? []) {
@@ -528,6 +561,8 @@ export function toggleBlock(core0: Core, pid: string): { core: Core; error?: str
   const p = userTeam(core0).roster.find((x) => x.id === pid);
   if (!p) return { core: core0, error: '우리 선수가 아닙니다' };
   const on = cur.includes(pid);
+  const closed = blockClosedWhy(core0);
+  if (!on && closed) return { core: core0, error: closed };
   if (!on && cur.length >= TR.blockMax) return { core: core0, error: `트레이드 시장에는 ${TR.blockMax}명까지 내놓을 수 있습니다` };
   if (!on && !movable(p)) return { core: core0, error: p.rookie ? '올해 입단한 신인은 내놓을 수 없습니다' : '부상·징계·입대 예정 선수는 내놓을 수 없습니다' };
   const core = structuredClone(core0);

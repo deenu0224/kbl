@@ -76,6 +76,7 @@ export interface Store extends Core {
   briefRun(id: string): void; // 주간 브리핑: 제안 실행
   briefSkip(id: string): void; // 주간 브리핑: 제안 넘기기
   briefClose(): void; // 주간 브리핑 닫기 (다음 경기 진행 가능)
+  stoveCards(): boolean; // 스토브리그의 카드(재계약 → 트레이드 제안)를 꺼낸다. 처리할 카드가 떠 있으면 true
   beginDraft(): void;
   draftPick(pid: string): void;
   draftSkip(): void;
@@ -470,22 +471,26 @@ export const useStore = create<Store>()(
           if (locked()) return;
           set(pickCore(closeBriefing(pickCore(get()))));
         },
-        beginDraft() {
+        stoveCards() {
           const s = get();
-          if (s.playback) return;
+          if (s.playback || s.phase !== 'ended') return false;
           // 스토브리그: FA 자격을 얻은 선수의 재계약 카드를 먼저 처리한다
-          if (s.campaign.event) return;
+          if (s.campaign.event) return true;
           const q = drawResign(pickCore(s));
           if (q.campaign.event) {
             set({ ...pickCore(q), summary: null });
-            return;
+            return true;
           }
           // 그다음 스토브리그의 트레이드 제안 1건 (AI 스토브리그 보강보다 먼저)
           const tr = drawStoveTrade(pickCore(q), rng);
           if (tr !== q) {
             set({ ...pickCore(tr), summary: null });
-            if (tr.campaign.event) return;
+            if (tr.campaign.event) return true;
           }
+          return false;
+        },
+        beginDraft() {
+          if (get().playback || get().stoveCards()) return;
           const r = beginDraftFn(pickCore(get()), rng);
           if (applyResult(r)) set({ summary: null, toast: mkToast('신인 드래프트 개막!', 'good') });
         },

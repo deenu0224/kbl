@@ -15,6 +15,8 @@ import EndingScene from './EndingScene';
 import EventCardModal from './EventCardModal';
 import { useIsMobile } from './layout/useLayout';
 import PixelFace from './PixelFace';
+import TransferDesk from './roster/TransferDesk';
+import { openDesk } from './roster/transferUi';
 import { LedgerBars, ledgerTotals } from './RightPanel';
 import { MiniBars, OvrBadge, POS_KO, TeamDot, fmtPct, recText } from './ui';
 
@@ -140,6 +142,8 @@ export default function SeasonEnd() {
   return (
     <>
       <SeasonEndBody />
+      {/* 스토브리그의 이적 창구 (결산 화면에서 연다) */}
+      <TransferDesk />
       {/* 결산 중의 사건 카드는 여기서만 그린다 (MobileShell 은 결산 중에는 그리지 않는다) */}
       {eventId && (
         <div className="fixed inset-0 z-[60] font-pixel text-[12px]" data-testid="season-event">
@@ -153,6 +157,7 @@ export default function SeasonEnd() {
 function SeasonEndBody() {
   const core = useCore();
   const beginDraft = useStore((s) => s.beginDraft);
+  const stoveCards = useStore((s) => s.stoveCards);
   const newGame = () => useUi.getState().setScreen('title');
   const [armNew, setArmNew] = useState(false);
   const [endingSeen, setEndingSeen] = useState(false);
@@ -188,7 +193,7 @@ function SeasonEndBody() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/95 p-4 mob:items-stretch mob:p-0"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-ink/95 p-4 mob:items-stretch mob:p-0"
       style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="px-panel px-scroll flex max-h-full w-full max-w-[1100px] flex-col overflow-y-auto p-4 mob:p-3">
@@ -214,6 +219,12 @@ function SeasonEndBody() {
           </div>
         </div>
 
+        {v?.luxTax && (
+          <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="lux-tax">
+            <span className="text-bad">경쟁균형세 −{fmtMoney(v.luxTax.tax)}</span>
+            <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} (리그 상위 3구단 평균의 120%)</span>
+          </div>
+        )}
         {/* 덮은 일이 드러났다: 무슨 일 · 잃은 것 */}
         {v?.exposures?.map((ex, i) => {
           const l = exposureLines(ex);
@@ -412,9 +423,9 @@ function SeasonEndBody() {
         </div>
         </Fold>
 
-        <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
+        <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:gap-1.5 mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
           <button
-            className="px-btn !px-4 !py-1.5 mob:text-[13px]"
+            className="px-btn whitespace-nowrap !px-4 !py-1.5 mob:!px-2 mob:text-[13px]"
             onClick={() => {
               if (!armNew) return setArmNew(true);
               newGame();
@@ -422,7 +433,17 @@ function SeasonEndBody() {
           >
             {armNew ? '초기 화면으로 나가기' : '초기 화면'}
           </button>
-          <button className="px-btn primary min-h-11 !px-6 !py-2 text-[14px] mob:flex-1" onClick={beginDraft}>
+          {/* 스토브리그: 재계약·트레이드 제안 카드를 먼저 처리하고, 그 뒤에 이적 창구가 열린다 */}
+          <button
+            className="px-btn min-h-11 whitespace-nowrap !px-4 !py-2 text-[13px] mob:!px-2.5"
+            data-testid="stove-market"
+            onClick={() => {
+              if (!stoveCards()) openDesk({ side: 'market' });
+            }}
+          >
+            이적 시장
+          </button>
+          <button className="px-btn primary min-h-11 whitespace-nowrap !px-6 !py-2 text-[14px] mob:flex-1 mob:!px-2" onClick={beginDraft}>
             신인 드래프트로 ▶
           </button>
         </div>

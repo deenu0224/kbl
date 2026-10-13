@@ -1,6 +1,6 @@
 // "할 일" 목록: 탭 배지의 정체. 누적 카운터가 아니라 지금 상태에서 실제로 해당하는 것만 계산한다 (순수 함수).
 import type { Core, HintTab } from './types';
-import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, userTeam } from './economy';
+import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, deadlinesSoon, signingOpen, userTeam } from './economy';
 import { svcYear } from './contract';
 import { FIX_GAIN_MIN, bullpenLoad, fixGain, orderIssues, recPairs } from './fixes';
 import { fmtInt } from './format';
@@ -80,7 +80,7 @@ export function todoList(core: Core): Todo[] {
 
   // 스카우트 팀장의 명단 (아직 시장에 남아 있는 사람만)
   const list = memoGet(core, 'scoutList');
-  if (list) {
+  if (list && signingOpen(core)) {
     const n = list.split(',').filter((id) => core.freeAgents.some((p) => p.id === id)).length;
     if (n > 0) out.push({ id: `scout-${core.season}-${list}`, tab: 'transfer', hint: 'market', icon: '★', tone: 'info', action: 'market', dismissible: true, text: `이적 시장에 팀장 추천 ${n}명` });
   }
@@ -108,6 +108,10 @@ export function todoList(core: Core): Todo[] {
       .filter((x) => !!x.label && x.from > core.day && x.from - core.day <= FORECAST_AHEAD)
       .sort((x, y) => x.from - y.from)[0];
     if (b) out.push({ id: `beat-${core.season}-${b.id}-${b.from}`, tab: 'league', hint: 'league', icon: b.icon ?? '☂', tone: 'info', action: 'league', dismissible: true, text: `${b.from - core.day}경기 뒤 ${b.label}` });
+  }
+  // 마감 예고: 트레이드 마감 · 선수 등록 마감 (마감 6경기 전부터, 확인 항목)
+  for (const d of deadlinesSoon(core)) {
+    out.push({ id: `dl-${d.id}-${core.season}`, tab: 'transfer', hint: 'market', icon: d.icon, tone: 'info', action: d.id === 'reg' ? 'market' : 'squad', dismissible: true, text: `${d.label} ${d.left}경기 전` });
   }
   // 조치 버튼이 없는 알림은 띄우지 않는다: "그대로 둔다" 말고 할 수 있는 게 없으면 뺀다 (확인 항목은 닫을 수 있으니 둔다)
   return out.filter((x) => x.dismissible || remedies(core, x.id).some((r) => r.run.t !== 'none'));
