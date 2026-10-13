@@ -9,6 +9,7 @@ import { isFranchise } from './franchise';
 import { fixLineup } from './lineup';
 import { addNews, marketSalary } from './season';
 import { NEWS } from './story';
+import { rowFans, rowInfo, rowPayroll, rowSat, satAfter } from './eventRows';
 
 export const RESIGN_ID = 'resign';
 
@@ -80,7 +81,7 @@ function resignMut(core: Core, pid: string, accept: boolean): string {
   t.roster = t.roster.filter((x) => x.id !== pid);
   if (isFranchise(p, core.season)) {
     core.fans = Math.max(1000, core.fans - p.star * RESIGN_LEAVE_FANS);
-    core.fanSat = clamp(core.fanSat + RESIGN_LEAVE_SAT, 0, 100);
+    core.fanSat = satAfter(core, RESIGN_LEAVE_SAT);
     addNews(core, NEWS.franchiseGone(p.name), 'bad');
   }
   delete p.since;
@@ -117,10 +118,34 @@ function resignCard(core: Core, p: Player): EventCard {
     pid: p.id,
     who: 'player',
     line: '여섯 해를 이 섬에서 뛰었습니다. 이제 제 값을 듣고 싶습니다.',
-    body: `${p.name}(${p.age}세 · OVR ${p.ovr})이 보유 기간 ${SVC_YEARS}시즌을 채우고 FA 자격을 얻었습니다. 지금 연봉 ${fmtMoney(p.salary)}, 시장가 ${fmtMoney(ask.market)}.`,
+    body: `${p.name}(${p.age}세 · 오버롤 ${p.ovr})이 ${SVC_YEARS}시즌을 채우고 FA 자격을 얻었습니다. 지금 연봉 ${fmtMoney(p.salary)}, 시장가 ${fmtMoney(ask.market)}.`,
     choices: [
-      { label: '재계약한다', desc: `연봉 ${fmtMoney(p.salary)} → ${fmtMoney(ask.salary)} (시장가 ×${ask.mult.toFixed(2)})` },
-      { label: '보낸다', desc: fr ? `FA 시장으로 이탈 · 팬 −${p.star * RESIGN_LEAVE_FANS} · 만족도 ${RESIGN_LEAVE_SAT}` : 'FA 시장으로 이탈', ...(blocked ? { disabled: blocked } : {}) },
+      {
+        label: '재계약한다',
+        desc: `연봉 ${fmtMoney(p.salary)} → ${fmtMoney(ask.salary)}`,
+        detail: {
+          rows: [
+            rowInfo(`${p.name} 연봉`, fmtMoney(ask.salary), fmtMoney(p.salary), 'bad'),
+            rowInfo('시장가 대비', `×${ask.mult.toFixed(2)} (시장가 ${fmtMoney(ask.market)})`),
+            rowPayroll(core, ask.salary - p.salary),
+            rowInfo('FA 자격', '재계약 (잔류)', `${SVC_YEARS}시즌 채움`, 'good'),
+          ],
+          pids: [p.id],
+        },
+      },
+      {
+        label: '보낸다',
+        desc: fr ? `FA 시장으로 이탈 · 팬 −${p.star * RESIGN_LEAVE_FANS}` : `FA 시장으로 이탈 · 연봉 총액 −${fmtMoney(p.salary)}`,
+        ...(blocked ? { disabled: blocked } : {}),
+        detail: {
+          rows: [
+            rowInfo(p.name, 'FA 시장으로', `${p.kind === 'B' ? '타자' : '투수'} 오버롤 ${p.ovr}`, 'bad'),
+            rowPayroll(core, -p.salary),
+            ...(fr ? [rowFans(core, -p.star * RESIGN_LEAVE_FANS), rowSat(core, RESIGN_LEAVE_SAT)] : [rowFans(core, 0)]),
+          ],
+          pids: [p.id],
+        },
+      },
     ],
   };
 }

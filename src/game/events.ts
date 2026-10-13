@@ -10,7 +10,9 @@ import { PEN_OVER_GAMES, PEN_OVER_KEY } from './fixes';
 import { ROSTER_MAX, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { addNews } from './season';
-import { flagForecast, flagOnTrack, hintMut, MID_UP_FAIL_TRUST, stageOf } from './campaign';
+import { flagForecast, flagOnTrack, hintMut, MID_FAIL_TRUST, MID_UP_FAIL_TRUST, MID_UP_MULT, stageOf } from './campaign';
+import { rowAdd, rowCash, rowFans, rowInfo, rowMult, rowNone, rowOvr, rowPayroll, rowSat, rowTrust, satAfter } from './eventRows';
+import { tiredPenalty } from './sim';
 import { beatOn, MID_DAY, POS_NAME } from './script';
 import { memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
@@ -102,7 +104,7 @@ const money = (core: Core, v: number) => Math.round((v * scale(core)) / 1000) * 
 const fanCost = (core: Core, min: number, perFan: number) => Math.max(min, Math.round((core.fans * perFan) / 1000) * 1000);
 const goodsCut = (m: number) => 1 + (m - 1) / 2;
 const cashGate = (core: Core, cost: number): string | undefined => (core.finance.cash < cost ? `현금 부족 (필요 ${fmtMoney(cost)})` : undefined);
-const sat = (core: Core, d: number) => (core.fanSat = clamp(Math.round((core.fanSat + d) * 10) / 10, 0, 100));
+const sat = (core: Core, d: number) => (core.fanSat = satAfter(core, d));
 const spend = (core: Core, v: number) => {
   core.finance.cash -= v;
   core.finance.ledger.upkeep += v;
@@ -142,6 +144,23 @@ const benchBatters = (core: Core) => {
   const ids = lineupIds(core);
   return userTeam(core).roster.filter((p) => p.kind === 'B' && !p.farm && !ids.has(p.id) && p.injury === 0);
 };
+/** 그 자리에 들어갈 가장 나은 벤치 타자 */
+const benchFor = (core: Core, pos: BatPos): Player | null => {
+  const b = benchBatters(core);
+  return b.length ? b.reduce((a, x) => (slotValue(a, pos) >= slotValue(x, pos) ? a : x)) : null;
+};
+const penArms = (core: Core) => {
+  const t = userTeam(core);
+  const ids = new Set([...t.bullpen, ...(t.closer ? [t.closer] : [])]);
+  return t.roster.filter((p) => ids.has(p.id) && !p.farm && p.injury === 0);
+};
+const STYLE_KO = { trust: '믿음', balance: '균형', swarm: '벌떼' } as const;
+const NONE = { rows: [rowNone()] };
+/** 간판의 인상 뒤 연봉 */
+const raised = (p: Player) => Math.round(p.salary * (1 + N.raiseRate));
+const stayCost = (p: Player) => Math.round(p.salary * N.stayBonus);
+/** 프랜차이즈 스타를 트레이드로 보낼 때의 팬 반발 */
+const TRADE_FR = { fansPerStar: 8, sat: -8 };
 
 // ── 카드별 보조 ──
 
@@ -258,12 +277,26 @@ export const CARDS: CardDef[] = [
         body: `${ahead ? `시즌 절반. 지금 페이스면 「${flag}」에 닿습니다.` : `시즌 절반. 지금 페이스로는 「${flag}」에 닿지 못합니다.`}${flagForecast(c).text === '—' ? '' : ` ${flagForecast(c).text}`}`,
         choices: ahead
           ? [
-              { label: '목표 상향을 약속한다', desc: `깃발 달성 시 지원금 2배 (${fmtMoney(st.reward.cash)} → ${fmtMoney(st.reward.cash * 2)}) · 실패 시 ${TRUST_LABEL} 추가 −${MID_UP_FAIL_TRUST}` },
-              { label: '사양한다', desc: '변화 없음' },
+              {
+                label: '목표 상향을 약속한다',
+                desc: `달성 지원금 ×${MID_UP_MULT} · 실패 시 ${TRUST_LABEL} −${MID_UP_FAIL_TRUST} 더`,
+                detail: {
+                  rows: [
+                    rowInfo('깃발 달성 지원금', fmtMoney(st.reward.cash * MID_UP_MULT), fmtMoney(st.reward.cash), 'good'),
+                    rowInfo(`깃발 실패 시 ${TRUST_LABEL}`, `−${st.failTrust + MID_UP_FAIL_TRUST}`, `−${st.failTrust}`, 'bad'),
+                  ],
+                  lasts: '이번 시즌 결산',
+                },
+              },
+              { label: '사양한다', desc: '변화 없음', detail: { rows: [rowInfo('깃발 달성 지원금', fmtMoney(st.reward.cash), fmtMoney(st.reward.cash)), rowInfo(`깃발 실패 시 ${TRUST_LABEL}`, `−${st.failTrust}`, `−${st.failTrust}`)] } },
             ]
           : [
-              { label: '조합원 특별 출자를 받는다', desc: `현금 +${fmtMoney(st.midCash)} · 깃발 실패 시 ${TRUST_LABEL} 추가 −5` },
-              { label: '지금대로 간다', desc: '변화 없음' },
+              {
+                label: '조합원 특별 출자를 받는다',
+                desc: `현금 +${fmtMoney(st.midCash)} · 실패 시 ${TRUST_LABEL} −${MID_FAIL_TRUST} 더`,
+                detail: { rows: [rowCash(c, st.midCash), rowInfo(`깃발 실패 시 ${TRUST_LABEL}`, `−${st.failTrust + MID_FAIL_TRUST}`, `−${st.failTrust}`, 'bad')], lasts: '이번 시즌 결산' },
+              },
+              { label: '지금대로 간다', desc: '변화 없음', detail: { rows: [rowCash(c, 0), rowInfo(`깃발 실패 시 ${TRUST_LABEL}`, `−${st.failTrust}`, `−${st.failTrust}`)] } },
             ],
       });
     },
@@ -289,14 +322,18 @@ export const CARDS: CardDef[] = [
     prio: 95,
     forced: true,
     when: (c) => c.campaign.stage === 4 && !!beatOn(c, c.day, 'dome'),
-    make: () =>
+    make: (c) =>
       card('dome', 'dome', {
         title: '돔구장의 제안',
         icon: '🏟️',
         body: '육지의 한 도시가 신축 돔구장과 이전 지원금을 내밀었습니다. 우승을 눈앞에 둔 지금.',
         choices: [
-          { label: '거절한다', desc: `${TRUST_LABEL} ${sgn(N.domeTrust)}` },
-          { label: '협상 테이블에 앉는다', desc: `현금 +${fmtMoney(N.domeCash)} · ${TRUST_LABEL} ${N.dealTrust} · 팬 만족 ${N.dealSat}` },
+          { label: '거절한다', desc: `${TRUST_LABEL} ${sgn(N.domeTrust)}`, detail: { rows: [rowTrust(c, N.domeTrust), rowCash(c, 0)] } },
+          {
+            label: '협상 테이블에 앉는다',
+            desc: `현금 +${fmtMoney(N.domeCash)} · ${TRUST_LABEL} ${N.dealTrust}`,
+            detail: { rows: [rowCash(c, N.domeCash), rowTrust(c, N.dealTrust), rowSat(c, N.dealSat), rowInfo('엔딩', '협상 테이블이 남는다', '섬에 남는다', 'bad')] },
+          },
         ],
       }),
     resolve: (c, i) => {
@@ -324,10 +361,28 @@ export const CARDS: CardDef[] = [
         title: '베테랑 복귀 요구',
         icon: '🧓',
         pid: v.vet.id,
-        body: `원정 ${-userTeam(c).rec.streak}연패. 감독이 벤치의 ${v.vet.name}(${v.vet.age}세, OVR ${v.vet.ovr})을 ${v.out.name}(${v.out.age}세, OVR ${v.out.ovr}) 자리에 쓰겠다고 합니다.`,
+        body: `원정 ${-userTeam(c).rec.streak}연패. 감독이 벤치의 ${v.vet.name}(${v.vet.age}세, 오버롤 ${v.vet.ovr})을 ${v.out.name}(${v.out.age}세, 오버롤 ${v.out.ovr}) 자리에 쓰겠다고 합니다.`,
         choices: [
-          { label: '복귀시킨다', desc: `${v.vet.name} ${N.vetGames}경기 고정 출전 (그 뒤 ${v.out.name} 복귀) · ${BUFF_GAMES}경기 집중력 ${sgn(N.vetFocus)}` },
-          { label: '지금 타순을 고수한다', desc: `팬 만족 ${N.holdSat} · ${BUFF_GAMES}경기 집중력 ${N.holdFocus} · 이후 감독이 편성에서 손을 뗀다` },
+          {
+            label: '복귀시킨다',
+            desc: `${v.vet.name} ${N.vetGames}경기 고정 출전 · 집중력 ${sgn(N.vetFocus)}`,
+            detail: {
+              rows: [rowOvr(`${posKo(userTeam(c).lineup[v.slot].pos)} 주전`, v.out.ovr, v.vet.ovr), rowAdd('집중력', N.vetFocus), rowInfo(v.out.name, `벤치 (${N.vetGames}경기 뒤 복귀)`, '주전', 'bad')],
+              pids: [v.vet.id, v.out.id],
+              compare: [v.vet.id, v.out.id],
+              lasts: `고정 출전 ${N.vetGames}경기 · 집중력 ${BUFF_GAMES}경기`,
+            },
+          },
+          {
+            label: '지금 타순을 고수한다',
+            desc: `팬 만족도 ${N.holdSat} · 집중력 ${N.holdFocus}`,
+            detail: {
+              rows: [rowSat(c, N.holdSat), rowAdd('집중력', N.holdFocus), rowInfo('감독', '편성에서 손을 뗀다', '기용에 반발', 'good')],
+              pids: [v.vet.id, v.out.id],
+              compare: [v.vet.id, v.out.id],
+              lasts: `집중력 ${BUFF_GAMES}경기`,
+            },
+          },
         ],
       });
     },
@@ -364,10 +419,30 @@ export const CARDS: CardDef[] = [
         title: '아직 이릅니다',
         icon: '🌱',
         pid: p.id,
-        body: `${p.name}(${p.age}세, OVR ${p.ovr} · 잠재력 ${p.pot})이 주전 명단에 올랐습니다. 2군 코치가 찾아왔습니다.`,
+        body: `${p.name}(${p.age}세, 오버롤 ${p.ovr} · 잠재력 ${p.pot})이 주전 명단에 올랐습니다. 2군 코치가 찾아왔습니다.`,
         choices: [
-          { label: '밀어붙인다', desc: `50% 능력치 +${N.pushGain} 성장 / 50% ${BUFF_LONG}경기 슬럼프(능력치 ${N.pushSlump})` },
-          { label: '내린다', desc: `${p.name} 벤치로 · 팬 만족 ${N.benchSat}` },
+          {
+            label: '밀어붙인다',
+            desc: `50% 능력치 합 +${N.pushGain * 2} · 50% ${BUFF_LONG}경기 슬럼프`,
+            detail: {
+              rows: [rowInfo('성공 50%', `능력치 합 +${N.pushGain * 2} (영구)`, undefined, 'good'), rowInfo('실패 50%', `능력치 ${N.pushSlump} (${BUFF_LONG}경기)`, undefined, 'bad'), rowInfo('잠재력까지', `${Math.max(0, p.pot - p.ovr)}`, undefined)],
+              pids: [p.id],
+              risk: `슬럼프 50%: ${BUFF_LONG}경기 능력치 ${N.pushSlump}`,
+            },
+          },
+          (() => {
+            const pos = userTeam(c).lineup.find((s) => s.pid === p.id)?.pos;
+            const alt = pos ? benchFor(c, pos) : null;
+            return {
+              label: '내린다',
+              desc: `${p.name} 벤치로 · 팬 만족도 ${N.benchSat}`,
+              detail: {
+                rows: [rowSat(c, N.benchSat), ...(pos && alt ? [rowOvr(`${posKo(pos)} 주전`, p.ovr, alt.ovr), rowInfo('들어오는 선수', `${alt.name} (${alt.age}세)`)] : [rowInfo('벤치', '대신할 타자 없음 — 그대로 출전')])],
+                pids: [p.id, ...(alt ? [alt.id] : [])],
+                ...(alt ? { compare: [alt.id, p.id] as [string, string] } : {}),
+              },
+            };
+          })(),
         ],
       });
     },
@@ -378,15 +453,15 @@ export const CARDS: CardDef[] = [
         if (rng() < 0.5) {
           const before = p.ovr;
           bump(p, rng, 1, N.pushGain * 2);
-          return `${p.name}, 1군 무대에서 껍질을 깼습니다 — OVR ${before} → ${p.ovr}`;
+          return `${p.name}, 1군 무대에서 껍질을 깼습니다 — 오버롤 ${before} → ${p.ovr}`;
         }
         addBuff(c, { kind: 'slump', value: N.pushSlump, until: c.day + BUFF_LONG, label: `${p.name} 슬럼프`, pid: p.id });
         return `${p.name}, 1군의 벽에 부딪혔습니다 — ${BUFF_LONG}경기 슬럼프`;
       }
       const t = userTeam(c);
       const slot = t.lineup.find((s) => s.pid === p.id);
-      const bench = benchBatters(c);
-      if (slot && bench.length) slot.pid = bench.reduce((a, b) => (slotValue(a, slot.pos) >= slotValue(b, slot.pos) ? a : b)).id;
+      const alt = slot ? benchFor(c, slot.pos) : null;
+      if (slot && alt) slot.pid = alt.id;
       sat(c, N.benchSat);
       return `${p.name}을(를) 벤치로 내렸습니다`;
     },
@@ -403,10 +478,34 @@ export const CARDS: CardDef[] = [
         title: '팔은 소모품이 아니다',
         icon: '💪',
         pid: p.id,
-        body: `불펜이 ${PEN_OVER_GAMES}경기째 쉬지 못하고 있습니다. ${p.name}(${posKo(p.pos)}, OVR ${p.ovr})의 팔이 먼저 한계에 왔습니다.`,
+        body: `불펜이 ${PEN_OVER_GAMES}경기째 쉬지 못하고 있습니다. ${p.name}(${posKo(p.pos)}, 오버롤 ${p.ovr})의 팔이 먼저 한계에 왔습니다.`,
         choices: [
-          { label: '휴식을 보장한다', desc: `${p.name} ${N.restGames}경기 등판 불가` },
-          { label: '강행한다', desc: `부상 위험 ${Math.round(N.armInjury * 100)}% (8~15경기 결장)` },
+          {
+            label: '휴식을 보장한다',
+            desc: `${p.name} ${N.restGames}경기 등판 불가 · 연투 피로 해소`,
+            detail: {
+              rows: [
+                rowInfo('등판 가능 불펜', `${penArms(c).length - 1}명`, `${penArms(c).length}명`, 'bad'),
+                rowInfo(`${p.name} 연투`, '0일 (구위 ±0)', `${p.tired ?? 0}일 (구위 −${tiredPenalty(p.tired)})`, 'good'),
+                rowInfo('불펜 방침', STYLE_KO[c.campaign.penStyle ?? 'balance']),
+              ],
+              pids: [p.id],
+              lasts: `${N.restGames}경기`,
+            },
+          },
+          {
+            label: '강행한다',
+            desc: `부상 ${Math.round(N.armInjury * 100)}% · 8~15경기 결장`,
+            detail: {
+              rows: [
+                rowInfo('등판 가능 불펜', `${penArms(c).length}명`, `${penArms(c).length}명`),
+                rowInfo(`${p.name} 연투`, `${p.tired ?? 0}일 (구위 −${tiredPenalty(p.tired)})`, `${p.tired ?? 0}일 (구위 −${tiredPenalty(p.tired)})`, 'bad'),
+                rowInfo('불펜 방침', STYLE_KO[c.campaign.penStyle ?? 'balance']),
+              ],
+              pids: [p.id],
+              risk: `부상 ${Math.round(N.armInjury * 100)}%: 8~15경기 결장`,
+            },
+          },
         ],
       });
     },
@@ -435,14 +534,25 @@ export const CARDS: CardDef[] = [
       const b = beatOn(c, c.day, 'rainy');
       return !!b && c.day >= b.from + 2;
     },
-    make: () =>
+    make: (c) =>
       card('typhoon', null, {
         title: '태풍 결항',
         icon: '🌀',
         body: '태풍으로 육지행 비행기가 전부 결항되었습니다. 다음 원정 경기를 어떻게든 치러야 합니다.',
         choices: [
-          { label: '경기를 연기한다', desc: '더블헤더 편성 — 불펜 전원 2연투 피로 상태' },
-          { label: '배편으로 강행한다', desc: `${N.typhoonGames}경기 집중력 ${N.typhoonFocus}` },
+          {
+            label: '경기를 연기한다',
+            desc: `더블헤더 · 불펜 전원 연투 ${N.typhoonTired}일`,
+            detail: {
+              rows: [rowInfo('연투 중인 불펜', `${penArms(c).length}명 (전원 ${N.typhoonTired}일)`, `${penArms(c).filter((p) => (p.tired ?? 0) >= 1).length}명`, 'bad'), rowInfo('다음 등판 구위', `−${tiredPenalty(N.typhoonTired)}`, '±0', 'bad'), rowAdd('집중력', 0)],
+              lasts: '하루 쉬면 1일씩 회복',
+            },
+          },
+          {
+            label: '배편으로 강행한다',
+            desc: `집중력 ${N.typhoonFocus} · ${N.typhoonGames}경기`,
+            detail: { rows: [rowAdd('집중력', N.typhoonFocus), rowInfo('연투 중인 불펜', '변화 없음')], lasts: `${N.typhoonGames}경기` },
+          },
         ],
       }),
     resolve: (c, i) => {
@@ -472,8 +582,16 @@ export const CARDS: CardDef[] = [
       const hire = !hired && !cashGate(c, N.analystCost);
       const second = [
         hire
-          ? { label: '데이터 분석원을 채용한다', desc: `비용 ${fmtMoney(N.analystCost)} · 드래프트 등급이 정확해진다 · 팀장과 서먹(다음 드래프트 풀 품질 ${N.coldYouth})` }
-          : { label: hired ? '분석원의 보고서를 따른다' : '수첩을 밀어낸다', desc: `팀장과 서먹 — 다음 드래프트 풀 품질 ${N.coldYouth}` },
+          ? {
+              label: '데이터 분석원을 채용한다',
+              desc: `비용 ${fmtMoney(N.analystCost)} · 드래프트 등급 정확`,
+              detail: { rows: [rowCash(c, -N.analystCost), rowInfo('드래프트 등급', '정확', '흐림', 'good'), rowAdd('다음 드래프트 풀 품질', N.coldYouth)], pids: [p.id], lasts: '분석원은 계속 · 품질은 다음 드래프트' },
+            }
+          : {
+              label: hired ? '분석원의 보고서를 따른다' : '수첩을 밀어낸다',
+              desc: `다음 드래프트 풀 품질 ${N.coldYouth}`,
+              detail: { rows: [rowAdd('다음 드래프트 풀 품질', N.coldYouth), rowPayroll(c, 0)], pids: [p.id], lasts: '다음 드래프트' },
+            },
       ];
       const tail = hire ? 'hire' : 'cold';
       if (s.state === 'unsigned') {
@@ -482,16 +600,48 @@ export const CARDS: CardDef[] = [
           title: '옛날 눈',
           icon: '📓',
           pid: p.id,
-          body: `팀장이 명단 맨 위에 올린 ${p.name}(${posKo(p.pos)}, ${p.age}세, OVR ${p.ovr}, 스타성 ${p.star})은 아직 시장에 있습니다.`,
-          choices: [{ label: '믿어 준다', desc: `${p.name} 영입 (계약금 면제 · 연봉 ${fmtMoney(p.salary)}) · 다음 드래프트 풀 품질 ${sgn(N.trustYouth)}`, disabled: dis }, ...second],
+          body: `팀장이 명단 맨 위에 올린 ${p.name}(${posKo(p.pos)}, ${p.age}세, 오버롤 ${p.ovr}, 스타성 ${p.star})은 아직 시장에 있습니다.`,
+          choices: [
+            (() => {
+              const cur = p.kind === 'B' ? t.roster.find((x) => x.id === t.lineup.find((s) => s.pos === p.pos)?.pid) : undefined;
+              return {
+                label: '믿어 준다',
+                desc: `${p.name} 영입 · 연봉 ${fmtMoney(p.salary)}`,
+                disabled: dis,
+                detail: {
+                  rows: [
+                    rowPayroll(c, p.salary),
+                    rowInfo('계약금', '면제', undefined, 'good'),
+                    rowFans(c, p.star * 2),
+                    rowAdd('다음 드래프트 풀 품질', N.trustYouth),
+                    ...(cur ? [rowInfo(`지금 ${posKo(p.pos)} 주전`, `${cur.name} ${cur.ovr}`)] : []),
+                  ],
+                  pids: [p.id, ...(cur ? [cur.id] : [])],
+                  ...(cur ? { compare: [p.id, cur.id] as [string, string] } : {}),
+                },
+              };
+            })(),
+            ...second,
+          ],
         });
       }
       return card(`oldeye|slump|${tail}`, 'oldeyeSlump', {
         title: '옛날 눈',
         icon: '📓',
         pid: p.id,
-        body: `팀장이 민 ${p.name}(${p.age}세, OVR ${p.ovr})이 부진합니다.`,
-        choices: [{ label: '믿어 준다', desc: `${p.name} ${N.vetGames}경기 고정 출전 · 다음 드래프트 풀 품질 ${sgn(N.trustYouth)}` }, ...second],
+        body: `팀장이 민 ${p.name}(${p.age}세, 오버롤 ${p.ovr})이 부진합니다.`,
+        choices: [
+          {
+            label: '믿어 준다',
+            desc: `${p.name} ${N.vetGames}경기 고정 출전 · 다음 드래프트 풀 품질 ${sgn(N.trustYouth)}`,
+            detail: {
+              rows: [rowInfo(p.name, `${N.vetGames}경기 고정 출전`, p.kind === 'B' ? `OPS ${ops(p).toFixed(3)}` : `평균자책 ${era(p).toFixed(2)}`, 'bad'), rowAdd('다음 드래프트 풀 품질', N.trustYouth)],
+              pids: [p.id],
+              lasts: `고정 출전 ${N.vetGames}경기 · 품질은 다음 드래프트`,
+            },
+          },
+          ...second,
+        ],
       });
     },
     resolve: (c, i, cd) => {
@@ -532,8 +682,8 @@ export const CARDS: CardDef[] = [
         icon: '🙇',
         body: `${-userTeam(c).rec.streak}연패. 팬들이 간담회를 요구합니다.`,
         choices: [
-          { label: '사과 + 할인', desc: `${BUFF_GAMES} 홈경기 입장 수입 ${pctTxt(N.meetTicket)} · 팬 만족 ${sgn(N.meetSat)}` },
-          { label: '침묵', desc: `팬 만족 ${N.silentSat}` },
+          { label: '사과 + 할인', desc: `팬 만족도 ${sgn(N.meetSat)} · 입장 수입 ${pctTxt(N.meetTicket)}`, detail: { rows: [rowSat(c, N.meetSat), rowMult('입장 수입', N.meetTicket)], lasts: `할인 ${BUFF_GAMES}홈경기` } },
+          { label: '침묵', desc: `팬 만족도 ${N.silentSat}`, detail: { rows: [rowSat(c, N.silentSat), rowMult('입장 수입', 1)] } },
         ],
       }),
     resolve: (c, i) => {
@@ -557,9 +707,18 @@ export const CARDS: CardDef[] = [
         icon: '🎟️',
         body: '매진이 이어지자 게이트 앞에 암표상이 나타났습니다.',
         choices: [
-          { label: '단속한다', desc: `비용 ${fmtMoney(cost)} · 검문 대기로 ${N.crackGames} 홈경기 관중 수요 ${pctTxt(N.crackDemand)} · 팬 만족 ${sgn(N.crackSat)} · 팬 +${N.crackFans}`, disabled: cashGate(c, cost) },
-          { label: '방치한다', desc: `비용 없음 · 팬 만족 ${N.ignoreSat}` },
-          { label: '가격 인상을 안내한다', desc: `${N.hikeGames} 홈경기 입장 수입 ${pctTxt(N.hikeTicket)} · 팬 만족 ${N.hikeSat}` },
+          {
+            label: '단속한다',
+            desc: `비용 ${fmtMoney(cost)} · 팬 만족도 ${sgn(N.crackSat)}`,
+            disabled: cashGate(c, cost),
+            detail: { rows: [rowCash(c, -cost), rowSat(c, N.crackSat), rowFans(c, N.crackFans), rowMult('관중 수요', N.crackDemand)], lasts: `검문 대기 ${N.crackGames}홈경기` },
+          },
+          { label: '방치한다', desc: `비용 없음 · 팬 만족도 ${N.ignoreSat}`, detail: { rows: [rowCash(c, 0), rowSat(c, N.ignoreSat)] } },
+          {
+            label: '가격 인상을 안내한다',
+            desc: `입장 수입 ${pctTxt(N.hikeTicket)} · 팬 만족도 ${N.hikeSat}`,
+            detail: { rows: [rowMult('입장 수입', N.hikeTicket), rowSat(c, N.hikeSat)], lasts: `인상 ${N.hikeGames}홈경기` },
+          },
         ],
       });
     },
@@ -592,10 +751,18 @@ export const CARDS: CardDef[] = [
         title: '조기 복귀',
         icon: '🩹',
         pid: p.id,
-        body: `${p.name}(OVR ${p.ovr})이 ${p.injury}경기 남은 재활을 건너뛰고 뛰겠다고 합니다.`,
+        body: `${p.name}(오버롤 ${p.ovr})이 ${p.injury}경기 남은 재활을 건너뛰고 뛰겠다고 합니다.`,
         choices: [
-          { label: '강행', desc: `즉시 복귀 · 재부상 위험 ${Math.round(N.reinjury * 100)}% (4~10경기 추가)` },
-          { label: '대기', desc: `재활 계속 (${p.injury}경기 결장)` },
+          {
+            label: '강행',
+            desc: `즉시 복귀 · 재부상 ${Math.round(N.reinjury * 100)}%`,
+            detail: {
+              rows: [rowInfo('성공 70%: 결장', '0경기', `${p.injury}경기`, 'good'), rowInfo(`실패 ${Math.round(N.reinjury * 100)}%: 결장`, `${p.injury + 4}~${p.injury + 10}경기`, `${p.injury}경기`, 'bad')],
+              pids: [p.id],
+              risk: `재부상 ${Math.round(N.reinjury * 100)}%: 4~10경기 추가 결장`,
+            },
+          },
+          { label: '대기', desc: `재활 계속 · ${p.injury}경기 결장`, detail: { rows: [rowInfo('결장', `${p.injury}경기`, `${p.injury}경기`)], pids: [p.id] } },
         ],
       });
     },
@@ -624,8 +791,13 @@ export const CARDS: CardDef[] = [
         icon: '🧢',
         body: `${userTeam(c).rec.streak}연승. 캐릭터 브랜드가 한정판 굿즈 콜라보를 제안했습니다.`,
         choices: [
-          { label: '투자', desc: `비용 ${fmtMoney(cost)} → ${BUFF_LONG}경기 굿즈 ×${N.goodsMult} · 팬 +${fans} · 연승이 끊기면 남은 기간 효과 절반(×${goodsCut(N.goodsMult)})`, disabled: cashGate(c, cost) },
-          { label: '패스', desc: '변화 없음' },
+          {
+            label: '투자',
+            desc: `비용 ${fmtMoney(cost)} · 굿즈 매출 ×${N.goodsMult}`,
+            disabled: cashGate(c, cost),
+            detail: { rows: [rowCash(c, -cost), rowMult('굿즈 매출', N.goodsMult), rowFans(c, fans)], risk: `연승이 끊기면 남은 기간 ×${goodsCut(N.goodsMult)}`, lasts: `${BUFF_LONG}경기` },
+          },
+          { label: '패스', desc: '변화 없음', detail: { rows: [rowCash(c, 0), rowMult('굿즈 매출', 1)] } },
         ],
       });
     },
@@ -657,10 +829,25 @@ export const CARDS: CardDef[] = [
         title: '트레이드 제안',
         icon: '🔄',
         pid: me.id,
-        body: `${t.city} ${t.name}이(가) 벤치의 ${me.name}(${posKo(me.pos)} OVR ${me.ovr}, ${me.age}세, 연봉 ${fmtMoney(me.salary)})을 원합니다. 대가는 ${p.name}(${posKo(p.pos)} OVR ${p.ovr}, ${p.age}세, 연봉 ${fmtMoney(p.salary)})${cash ? ` + 현금 ${fmtMoney(cash)}` : ''}.`,
+        body: `${t.city} ${t.name}이(가) 벤치의 ${me.name}(${posKo(me.pos)}, 오버롤 ${me.ovr})을 원합니다. 대가는 ${p.name}(${posKo(p.pos)}, 오버롤 ${p.ovr})${cash ? ` + 현금 ${fmtMoney(cash)}` : ''}.`,
         choices: [
-          { label: '수락', desc: `${me.name} ↔ ${p.name}${cash ? ` + ${fmtMoney(cash)}` : ''} · 연봉 ${sgn(Math.round((p.salary - me.salary) / 100) / 100)}억` },
-          { label: '거절', desc: '현 전력 유지' },
+          {
+            label: '수락',
+            desc: `${posKo(pos)} 주전 ${weak.ovr} → ${p.ovr}${cash ? ` · 현금 +${fmtMoney(cash)}` : ` · 연봉 총액 ${p.salary >= me.salary ? '+' : '−'}${fmtMoney(Math.abs(p.salary - me.salary))}`}`,
+            detail: {
+              rows: [
+                rowOvr(`${posKo(pos)} 주전`, weak.ovr, p.ovr),
+                rowInfo('나가는 선수', `${me.name} ${me.ovr} (${me.age}세)`, '벤치', 'bad'),
+                rowInfo('들어오는 선수', `${p.name} ${p.ovr} (${p.age}세)`, weak.name, 'good'),
+                rowCash(c, cash),
+                rowPayroll(c, p.salary - me.salary),
+                ...(isFranchise(me, c.season) ? [rowFans(c, -me.star * TRADE_FR.fansPerStar), rowSat(c, TRADE_FR.sat)] : []),
+              ],
+              pids: [p.id, me.id, weak.id],
+              compare: [p.id, weak.id],
+            },
+          },
+          { label: '거절', desc: '현 전력 유지', detail: { rows: [rowOvr(`${posKo(pos)} 주전`, weak.ovr, weak.ovr), rowCash(c, 0), rowPayroll(c, 0)], pids: [me.id, weak.id, p.id], compare: [p.id, weak.id] } },
         ],
       });
     },
@@ -673,8 +860,8 @@ export const CARDS: CardDef[] = [
       const ap = t?.roster.find((x) => x.id === aid);
       if (!t || !me || !ap) return '상대 구단 사정으로 트레이드가 무산되었습니다';
       if (isFranchise(me, c.season)) {
-        c.fans = Math.max(1000, c.fans - me.star * 8);
-        sat(c, -8);
+        c.fans = Math.max(1000, c.fans - me.star * TRADE_FR.fansPerStar);
+        sat(c, TRADE_FR.sat);
         addNews(c, NEWS.franchiseGone(me.name), 'bad');
       }
       u.roster = u.roster.filter((x) => x.id !== me.id);
@@ -703,14 +890,18 @@ export const CARDS: CardDef[] = [
       const m = c.schedule[d]?.find((g) => g.homeId === c.userId);
       return !!m && d % 6 >= 4 && !!c.crowd && c.crowd.capacity > 0 && c.crowd.attendance / c.crowd.capacity < N.weekendFill;
     },
-    make: () =>
+    make: (c) =>
       card('tourist', 'tourist', {
         title: '관광객 패키지',
         icon: '🧳',
         body: '여행사가 "야구장 포함 제주 패키지"를 제안했습니다.',
         choices: [
-          { label: '여행사와 제휴한다', desc: `${BUFF_LONG} 홈경기 관중 수요 ${pctTxt(N.tourDemand)} · 입장 수입 ${pctTxt(N.tourTicket)} · 팬 만족 ${N.tourSat}` },
-          { label: '거절한다', desc: '변화 없음' },
+          {
+            label: '여행사와 제휴한다',
+            desc: `관중 수요 ${pctTxt(N.tourDemand)} · 입장 수입 ${pctTxt(N.tourTicket)}`,
+            detail: { rows: [rowMult('관중 수요', N.tourDemand), rowMult('입장 수입', N.tourTicket), rowSat(c, N.tourSat)], lasts: `${BUFF_LONG}홈경기` },
+          },
+          { label: '거절한다', desc: '변화 없음', detail: { rows: [rowMult('관중 수요', 1), rowSat(c, 0)] } },
         ],
       }),
     resolve: (c, i) => {
@@ -734,17 +925,31 @@ export const CARDS: CardDef[] = [
       const t = userTeam(c);
       const cur = t.lineup.some((s) => s.pid === p.id) || t.rotation.includes(p.id) || p.kind !== 'B' ? null : t.lineup.find((s) => s.pos === p.pos) ?? t.lineup.find((s) => s.pos === 'DH');
       const out = cur ? t.roster.find((x) => x.id === cur.pid) : undefined;
-      const loss = out ? `${out.name}(OVR ${out.ovr}) 대신 출전 — OVR ${sgn(p.ovr - out.ovr)}` : '전력 손해 없음';
+      const fixRow = out ? [rowOvr(`${posKo(cur!.pos)} 주전`, out.ovr, p.ovr)] : [rowInfo('전력', '손해 없음')];
+      const endRow = rowInfo('시즌 뒤', fr ? '은퇴 (영구결번)' : '은퇴', `${p.age}세`);
+      const who2 = { pids: [p.id, ...(out ? [out.id] : [])], ...(out ? { compare: [p.id, out.id] as [string, string] } : {}) };
       return card('tour', 'tour', {
         title: '은퇴 투어',
         icon: '🎖️',
         pid: p.id,
-        body: `${p.name}(${p.age}세, OVR ${p.ovr})이 올해를 끝으로 유니폼을 벗겠다고 합니다.`,
+        body: `${p.name}(${p.age}세, 오버롤 ${p.ovr})이 올해를 끝으로 유니폼을 벗겠다고 합니다.`,
         choices: [
-          { label: '기념 경기', desc: `행사 비용 ${fmtMoney(cost)} · ${BUFF_GAMES} 홈경기 관중 수요 ${pctTxt(N.retireDemand)} · 그동안 ${p.name} 고정 출전(${loss}) · 시즌 뒤 은퇴${fr ? ' (영구결번)' : ''}`, disabled: cashGate(c, cost) },
-          { label: '조용히', desc: `비용 없음 · 팬 만족 ${N.quietSat} · 시즌 뒤 은퇴${fr ? ' (영구결번)' : ''}` },
+          {
+            label: '기념 경기',
+            desc: `비용 ${fmtMoney(cost)} · 관중 수요 ${pctTxt(N.retireDemand)}`,
+            disabled: cashGate(c, cost),
+            detail: { rows: [rowCash(c, -cost), rowMult('관중 수요', N.retireDemand), ...fixRow, endRow], ...who2, lasts: `${BUFF_GAMES}홈경기 (그동안 ${p.name} 고정 출전)` },
+          },
+          { label: '조용히', desc: `비용 없음 · 팬 만족도 ${N.quietSat}`, detail: { rows: [rowCash(c, 0), rowSat(c, N.quietSat), endRow], pids: [p.id] } },
           ...(p.age <= N.retireAge
-            ? [{ label: '한 해 더', desc: `잔류 보너스 ${fmtMoney(Math.round(p.salary * N.stayBonus))} · 팬 만족 +${N.staySat} · 은퇴하지 않음 (내년 ${p.age + 1}세, 능력치는 더 내려갑니다)`, disabled: cashGate(c, Math.round(p.salary * N.stayBonus)) }]
+            ? [
+                {
+                  label: '한 해 더',
+                  desc: `잔류 보너스 ${fmtMoney(stayCost(p))} · 은퇴하지 않음`,
+                  disabled: cashGate(c, stayCost(p)),
+                  detail: { rows: [rowCash(c, -stayCost(p)), rowSat(c, N.staySat), rowInfo('시즌 뒤', `잔류 (내년 ${p.age + 1}세, 능력치 하락)`, `${p.age}세`)], pids: [p.id] },
+                },
+              ]
             : []),
         ],
       });
@@ -753,7 +958,7 @@ export const CARDS: CardDef[] = [
       const p = findUser(c, cd.pid);
       if (!p) return '조용히 시즌을 이어갑니다';
       if (i === 2) {
-        spend(c, Math.round(p.salary * N.stayBonus));
+        spend(c, stayCost(p));
         sat(c, N.staySat);
         return `${p.name}이(가) 한 해 더 뛰기로 했습니다`;
       }
@@ -780,8 +985,19 @@ export const CARDS: CardDef[] = [
         pid: p.id,
         body: `타이틀 경쟁 중인 ${p.name}의 에이전트가 연봉 ${Math.round(N.raiseRate * 100)}% 인상을 요구합니다.`,
         choices: [
-          { label: '인상', desc: `연봉 ${fmtMoney(p.salary)} → ${fmtMoney(Math.round(p.salary * (1 + N.raiseRate)))}` },
-          { label: '거절', desc: `스타성 ${N.refuseStar} · 능력치 ${N.refuseAbil} · 팬 ${N.refuseFans}` },
+          {
+            label: '인상',
+            desc: `연봉 ${fmtMoney(p.salary)} → ${fmtMoney(raised(p))}`,
+            detail: { rows: [rowInfo(`${p.name} 연봉`, fmtMoney(raised(p)), fmtMoney(p.salary), 'bad'), rowPayroll(c, raised(p) - p.salary), rowInfo('스타성', `${p.star}`, `${p.star}`)], pids: [p.id], lasts: '계약이 끝날 때까지' },
+          },
+          {
+            label: '거절',
+            desc: `스타성 ${N.refuseStar} · 팬 ${N.refuseFans}`,
+            detail: {
+              rows: [rowInfo('스타성', `${clamp(p.star + N.refuseStar, 0, 100)}`, `${p.star}`, 'bad'), rowInfo('능력치', `무작위 1개 ${N.refuseAbil}`, undefined, 'bad'), rowFans(c, N.refuseFans), rowPayroll(c, 0)],
+              pids: [p.id],
+            },
+          },
         ],
       });
     },
@@ -789,7 +1005,7 @@ export const CARDS: CardDef[] = [
       const p = findUser(c, cd.pid);
       if (!p) return '협상이 흐지부지되었습니다';
       if (i === 0) {
-        p.salary = Math.round(p.salary * (1 + N.raiseRate));
+        p.salary = raised(p);
         hintMut(c, 'finance');
         return `${p.name} 연봉 인상 합의 — ${fmtMoney(p.salary)}`;
       }
