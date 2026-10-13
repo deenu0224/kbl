@@ -4,7 +4,7 @@ import { clamp, gauss, pick, randInt, type Rng } from './rng';
 import { calcOvr, MIN_SALARY } from './ratings';
 import { slotNewcomer } from './lineup';
 import { farmAutoOn, farmCutCandidate, farmCutMut } from './farm';
-import { FARM_MAX, ROSTER_MAX, farmRoster, userTeam } from './economy';
+import { farmMax, ROSTER_MAX, farmRoster, userTeam } from './economy';
 import { genPlayer, makeCtx, type GenCtx } from './generate';
 import { fmtMoney } from './format';
 import { standings } from './season';
@@ -189,7 +189,7 @@ export function beginDraft(core0: Core, rng: Rng): { core: Core; error?: string 
   core.draft = { pool: genPool(core, rng), order, pick: 0, log: [], mine: [] };
   core.phase = 'draft';
   addNews(core, `신인 드래프트 개막 — 유망주 ${DRAFT_POOL}명, ${DRAFT_ROUNDS}라운드`, 'info');
-  const out = farmAutoOn(core) && farmRoster(userTeam(core)).length >= FARM_MAX ? farmCutCandidate(core) : null;
+  const out = farmAutoOn(core) && farmRoster(userTeam(core)).length >= farmMax(core) ? farmCutCandidate(core) : null;
   if (out) addNews(core, `2군 코치: 2군이 가득합니다 — 지명하면 ${out.name}(${out.age}세 · 오버롤 ${out.ovr})부터 방출합니다`, 'info');
   runAi(core, rng);
   return { core };
@@ -201,8 +201,8 @@ export function draftPick(core0: Core, pid: string, rng: Rng): { core: Core; err
   const p0 = d0.pool.find((p) => p.id === pid);
   if (!p0) return { core: core0, error: '지명할 수 없는 선수입니다' };
   // 2군이 가득이면: 자동 운영 중에는 2군 코치가 지명 직전에 한 명을 방출한다 (위약금 없음)
-  const cut = farmRoster(userTeam(core0)).length >= FARM_MAX;
-  if (cut && !(farmAutoOn(core0) && farmCutCandidate(core0))) return { core: core0, error: `2군이 가득 찼습니다 (${FARM_MAX}명) — 패스하거나 2군 선수를 방출하세요` };
+  const cut = farmRoster(userTeam(core0)).length >= farmMax(core0);
+  if (cut && !(farmAutoOn(core0) && farmCutCandidate(core0))) return { core: core0, error: `2군이 가득 찼습니다 (${farmMax(core0)}명) — 패스하거나 2군 선수를 방출하세요` };
   const round = draftRound(d0);
   const bonus = DRAFT_BONUS[round - 1] ?? 0;
   if (core0.finance.cash < bonus) return { core: core0, error: `계약금이 부족합니다 (필요 ${fmtMoney(bonus)})` };

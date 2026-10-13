@@ -24,6 +24,7 @@ import { drawFarmEvent, farmCardDef } from './farm';
 import { positionReport } from './analysis';
 import { SCANDAL_CARDS } from './scandal';
 import { TRADE_ID, drawTrade, resolveTradeMut } from './trade';
+import { DEBT_SALE_ID, drawDebtSale, resolveDebtSaleMut } from './debt';
 
 const posKo = (pos: string): string => POS_NAME[pos] ?? pos;
 
@@ -264,6 +265,8 @@ const retiree = (core: Core) =>
 export const CARDS: CardDef[] = [
   // ───────── FA 자격 재계약 (스토브리그. 시즌 중에는 뽑히지 않고 contract.ts drawResign 이 올린다) ─────────
   { id: RESIGN_ID, prio: 0, forced: true, when: () => false, make: () => null, resolve: (c, i, cd) => resolveResignMut(c, i, cd) },
+  // ───────── 부채 한도 초과: 매각 카드 (debt.ts drawDebtSale 이 올린다. 일반 카드 예산과 별도) ─────────
+  { id: DEBT_SALE_ID, prio: 0, forced: true, when: () => false, make: () => null, resolve: (c, i, cd) => resolveDebtSaleMut(c, i, cd) },
   // ───────── 중간 점검 (42경기 직후, 매 시즌, 조합장) ─────────
   {
     id: 'midcheck',
@@ -973,6 +976,8 @@ const all = () => (ALL ??= ((cs: CardDef[]) => ({ def: new Map(cs.map((d) => [d.
 /** 매 경기 후: 조건이 맞는 카드 중 우선순위가 가장 높은 1장을 campaign.event 에 둔다. 해당 없으면 원본 반환. */
 export function maybeDrawEvent(core0: Core, rng: Rng): Core {
   if (core0.phase !== 'season' || core0.campaign.event || core0.day >= core0.schedule.length) return core0;
+  const sale = drawDebtSale(core0);
+  if (sale) return sale;
   const seen = new Set(seenCards(core0));
   const DEF = all().def;
   const normalSeen = [...seen].filter((id) => DEF.has(id) && !DEF.get(id)!.forced).length;

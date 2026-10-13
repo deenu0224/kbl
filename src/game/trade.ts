@@ -5,7 +5,7 @@
 // - drawStoveTrade: 스토브리그(결산 후 · 드래프트 전)의 제안 1건
 import type { Core, EventCard, EventDetail, Player, Team } from './types';
 import { clamp, pick, randInt, type Rng } from './rng';
-import { FARM_MAX, LOAN_LIMIT, blockClosedWhy, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmRoster, payroll, userTeam } from './economy';
+import { farmMax, loanLimit, blockClosedWhy, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmRoster, payroll, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { isFranchise } from './franchise';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
@@ -119,7 +119,7 @@ function ourNeeds(core: Core): { key: PosKey; rank: number }[] {
 
 const round = (v: number) => Math.round(v / 1000) * 1000;
 /** 빚이 많은 구단인가: 상대는 현금을 받는 쪽으로만 거래한다 */
-export const debtShy = (core: Pick<Core, 'finance'>): boolean => core.finance.debt >= LOAN_LIMIT * TR.debtShy;
+export const debtShy = (core: Pick<Core, 'finance' | 'campaign'>): boolean => core.finance.debt >= loanLimit(core) * TR.debtShy;
 /** 이번 시즌에 성사된 트레이드 수 · 다음 트레이드가 선수단을 흔드는가 */
 export const tradesDone = (core: Core): number => memoNum(core, 'trDone');
 export const tradeChurn = (core: Core): boolean => tradesDone(core) + 1 >= TR.churnFrom;
@@ -247,7 +247,7 @@ function findAll(core: Core, of: TradeOffer): { t: Team; get: Player[]; give: Pl
 const toFarm = (core: Core, of: TradeOffer, p: Player, x: { give: Player[] }): boolean => {
   const u = userTeam(core);
   const act = activeRoster(u).length - x.give.filter((g) => !g.farm).length;
-  return act >= ROSTER_MAX && p.age <= TR.prospectAge && farmRoster(u).length - x.give.filter((g) => g.farm).length < FARM_MAX;
+  return act >= ROSTER_MAX && p.age <= TR.prospectAge && farmRoster(u).length - x.give.filter((g) => g.farm).length < farmMax(core);
 };
 
 /** 지금 이 조건으로 할 수 없는 사유. 할 수 있으면 undefined */

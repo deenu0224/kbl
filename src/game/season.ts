@@ -7,9 +7,9 @@ import { simulateGame, type PenStyle } from './sim';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import { projectFx, projectSeasonOpenMut } from './projects';
 import {
-  FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
-  LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, FORCED_SALE_RATE, RENEW_PREMIUM, RENEW_SEASONS,
-  BENCH_GROW, FARM_CAP, FARM_LOCK, IL_MIN, SVC_YEARS, FARM_MAX, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
+  FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_STEP, OVER_LIMIT_ERR, loanInterest, loanLimit, overLimit, farmMax, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
+  LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, RENEW_PREMIUM, RENEW_SEASONS,
+  BENCH_GROW, FARM_CAP, FARM_LOCK, IL_MIN, SVC_YEARS, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
   awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingOpen, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
@@ -114,38 +114,21 @@ export function rollWeather(rng: Rng): Weather {
   return x < 0.6 ? 'sunny' : x < 0.85 ? 'cloudy' : 'rain';
 }
 
-/** 현금이 음수면 긴급 대출, 부채 한도 초과면 최고 연봉 선수 강제 매각 */
+/** 현금이 음수면 긴급 대출(부채 한도에 포함). 한도를 넘으면 다음 카드 판정에서 매각 카드가 온다 (debt.ts) */
 export function settleCash(core: Core, notes: string[]): void {
   const f = core.finance;
-  if (f.cash < 0) {
-    const need = -f.cash;
-    f.debt += need;
-    f.cash = 0;
-    const msg = `현금 부족 — ${fmtMoney(need)} 긴급 대출로 전환`;
-    notes.push(msg);
-    addNews(core, msg, 'bad');
-  }
-  const t = userTeam(core);
-  for (let guard = 0; guard < 3 && f.debt > LOAN_LIMIT; guard++) {
-    const nb = activeRoster(t).filter((p) => p.kind === 'B').length;
-    const np = activeRoster(t).filter((p) => p.kind === 'P').length;
-    const sellable = t.roster
-      .filter((p) => p.farm || (p.kind === 'B' ? nb > MIN_BATTERS : np > MIN_PITCHERS))
-      .sort((a, b) => b.salary - a.salary);
-    const p = sellable[0];
-    if (!p) break;
-    const price = Math.round(p.salary * FORCED_SALE_RATE);
-    t.roster = t.roster.filter((x) => x.id !== p.id);
-    f.ledger.sales += price;
-    f.debt -= price;
-    if (f.debt < 0) {
-      f.cash += -f.debt;
-      f.debt = 0;
-    }
-    fixLineup(t);
-    const msg = `부채 한도 초과! ${p.name} 강제 매각 (${fmtMoney(price)})`;
-    notes.push(msg);
-    addNews(core, msg, 'bad');
+  if (f.cash >= 0) return;
+  const need = -f.cash;
+  const was = overLimit(core);
+  f.debt += need;
+  f.cash = 0;
+  const msg = `현금 부족 — ${fmtMoney(need)} 긴급 대출로 전환`;
+  notes.push(msg);
+  addNews(core, msg, 'bad');
+  if (!was && overLimit(core)) {
+    const over = `부채 한도 초과! 부채 ${fmtMoney(f.debt)} / 한도 ${fmtMoney(loanLimit(core))}`;
+    notes.push(over);
+    addNews(core, over, 'bad');
   }
 }
 
@@ -409,7 +392,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     TRAIN_LV[core.facilities.training].upkeep +
     farmUpkeep(user) +
     opsCost(core);
-  const interest = Math.round((f.debt * LOAN_RATE) / core.schedule.length);
+  const interest = Math.round(loanInterest(core, f.debt) / core.schedule.length);
   const net = ticket + food + merch + league - salary - upkeep - interest;
   f.cash += net;
   const L = f.ledger;
@@ -520,6 +503,7 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
   if (fa.foreign && userTeam(core0).roster.filter((p) => p.foreign).length >= FOREIGN_MAX) {
     return { core: core0, error: `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다` };
   }
+  if (overLimit(core0)) return { core: core0, error: OVER_LIMIT_ERR };
   const bonus = signingBonus(fa);
   if (core0.finance.cash < bonus) return { core: core0, error: `계약금이 부족합니다 (필요 ${fmtMoney(bonus)})` };
 
@@ -597,7 +581,7 @@ export function sendDown(core0: Core, pid: string): { core: Core; error?: string
   if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
   if (p0.farm) return { core: core0, error: '이미 2군에 있습니다' };
   const il = p0.injury > 0;
-  if (!il && farmRoster(t0).length >= FARM_MAX) return { core: core0, error: `2군이 가득 찼습니다 (${FARM_MAX}명) — 2군에서 한 명을 올리거나 방출하세요` };
+  if (!il && farmRoster(t0).length >= farmMax(core0)) return { core: core0, error: `2군이 가득 찼습니다 (${farmMax(core0)}명) — 2군에서 한 명을 올리거나 방출하세요` };
   const same = activeRoster(t0).filter((p) => p.kind === p0.kind).length;
   if (p0.kind === 'B' && same <= MIN_BATTERS) return { core: core0, error: `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다` };
   if (p0.kind === 'P' && same <= MIN_PITCHERS) return { core: core0, error: `1군 투수는 최소 ${MIN_PITCHERS}명이 필요합니다` };
@@ -655,6 +639,7 @@ export function callUp(core0: Core, pid: string): { core: Core; error?: string }
 export function upgradeFacility(core0: Core, kind: FacilityKind): { core: Core; error?: string } {
   const cost = upgradeCost(kind, core0.facilities);
   if (cost === null) return { core: core0, error: '이미 최고 단계입니다' };
+  if (overLimit(core0)) return { core: core0, error: OVER_LIMIT_ERR };
   if (core0.finance.cash < cost) return { core: core0, error: `자금이 부족합니다 (필요 ${fmtMoney(cost)})` };
   const core = structuredClone(core0);
   core.finance.cash -= cost;
@@ -676,11 +661,12 @@ export function setTicketPrice(core0: Core, price: number): Core {
 }
 
 export function borrow(core0: Core): { core: Core; error?: string } {
-  if (core0.finance.debt + LOAN_STEP > LOAN_LIMIT) return { core: core0, error: `대출 한도(${fmtMoney(LOAN_LIMIT)})를 넘을 수 없습니다` };
+  if (overLimit(core0)) return { core: core0, error: OVER_LIMIT_ERR };
+  if (core0.finance.debt + LOAN_STEP > loanLimit(core0)) return { core: core0, error: `대출 한도(${fmtMoney(loanLimit(core0))})를 넘을 수 없습니다` };
   const core = structuredClone(core0);
   core.finance.cash += LOAN_STEP;
   core.finance.debt += LOAN_STEP;
-  addNews(core, `${fmtMoney(LOAN_STEP)} 대출 실행 (연 ${Math.round(LOAN_RATE * 100)}%)`, 'info');
+  addNews(core, `${fmtMoney(LOAN_STEP)} 대출 실행 (이자 시즌당 ${fmtMoney(Math.round(loanInterest(core, core.finance.debt)))})`, 'info');
   return { core };
 }
 

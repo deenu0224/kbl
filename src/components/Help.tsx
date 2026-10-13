@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Sheet from './layout/Sheet';
 import { HELP, type HelpTopic } from './helpTopics';
+import { useCore } from '../store';
 
 /**
  * "?" 버튼. 화면에는 핵심 숫자만 두고, 규칙·세부 설명은 이 버튼 뒤로 숨긴다.
@@ -10,6 +11,8 @@ import { HELP, type HelpTopic } from './helpTopics';
 export default function Help({ topic, children, className }: { topic: HelpTopic; children?: React.ReactNode; className?: string }) {
   const [open, setOpen] = useState(false);
   const t = HELP[topic];
+  const core = useCore();
+  const lines = open ? (typeof t.lines === 'function' ? t.lines(core) : t.lines) : [];
   return (
     <>
       <button
@@ -28,7 +31,7 @@ export default function Help({ topic, children, className }: { topic: HelpTopic;
         <Sheet onClose={() => setOpen(false)} label={t.title}>
           <div className="px-4 pb-5 pt-1">
             <div className="font-pixel-lg mb-2 text-[16px] text-hi">{t.title}</div>
-            {t.lines.map((l, i) => (
+            {lines.map((l, i) => (
               <p key={i} className="mb-1.5 text-[13px] leading-relaxed text-white/85">
                 {l}
               </p>

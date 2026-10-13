@@ -8,7 +8,7 @@ import { clamp, pick, type Rng } from './rng';
 import { calcOvr } from './ratings';
 import { fixLineup, slotNewcomer, slotValue } from './lineup';
 import { PEN_OVER_KEY, PEN_OVER_SUM, bullpenLoad } from './fixes';
-import { FARM_CAP, FARM_LOCK, FARM_MAX, IL_AUTO, IL_AUTO_BAN, IL_MIN, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmGrow, farmRoster, rehabRoster, userTeam } from './economy';
+import { FARM_CAP, FARM_LOCK, farmMax, IL_AUTO, IL_AUTO_BAN, IL_MIN, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, farmGrow, farmRoster, rehabRoster, userTeam } from './economy';
 import { fmtAvg, fmtEra, fmtMoney } from './format';
 import { cardRested, markCardMut, memoAdd, memoGet, memoNum, memoSet } from './memo';
 import { CARD_LINES, CHARACTERS, FARM_COACH_LINE } from './story';
@@ -226,7 +226,7 @@ export function seasonTurnFarmMut(core: Core, rng: Rng): number {
     p.pit = pitZero();
     delete p.away;
     delete p.rookie;
-    if (farmRoster(t).length < FARM_MAX || activeRoster(t).length >= ROSTER_MAX) p.farm = true;
+    if (farmRoster(t).length < farmMax(core) || activeRoster(t).length >= ROSTER_MAX) p.farm = true;
     t.roster.push(p);
     addNews(core, `전역: ${p.name} 복귀 (${p.age}세 · 오버롤 ${before} → ${p.ovr}) — ${p.farm ? '2군 합류' : '1군 합류'}`, 'good');
   }
@@ -391,7 +391,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     const sub = t.roster.find((x) => x.subFor === p.id && !x.farm);
     let tail = '';
     if (activeRoster(t).length >= ROSTER_MAX) {
-      const room = farmRoster(t).length < FARM_MAX;
+      const room = farmRoster(t).length < farmMax(core);
       const ask = !!sub && sub.injury === 0 && pend?.sub !== sub.id && isHot(core, sub) && farmBudgetOk(core);
       const out = !room ? null : ((ask ? null : sub && sub.injury === 0 ? sub : null) ?? returnOut(t, p) ?? (sub && sub.injury === 0 ? sub : null));
       if (!out) continue; // 자리가 없다 — 복귀 대기 (할 일에 뜬다)
@@ -419,7 +419,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
       continue;
     }
     if (asked && pend!.day === core.day) continue;
-    if (farmRoster(t).length >= FARM_MAX) {
+    if (farmRoster(t).length >= farmMax(core)) {
       delete p.subFor;
       continue;
     }
@@ -501,7 +501,7 @@ function benchKidsMut(core: Core, notes: string[]): void {
       continue;
     }
     const n = memoAdd(core, key);
-    if (sent || n < F.benchDays || p.injury > 0 || nb < MIN_BATTERS + 2 || farmRoster(t).length >= FARM_MAX) continue;
+    if (sent || n < F.benchDays || p.injury > 0 || nb < MIN_BATTERS + 2 || farmRoster(t).length >= farmMax(core)) continue;
     demoteMut(core, t, p, true);
     memoSet(core, key, 0);
     nb--;
@@ -633,7 +633,7 @@ const coachCase = (core: Core) => (core.day < F.coachDay ? [...(core.campaign.al
 function swapUpMut(core: Core, k: Player, cur: Player | undefined, downId: string | undefined): void {
   const t = userTeam(core);
   const down = find(core, downId);
-  if (down && !down.farm && full(t) && farmRoster(t).length <= FARM_MAX) demoteMut(core, t, down, true);
+  if (down && !down.farm && full(t) && farmRoster(t).length <= farmMax(core)) demoteMut(core, t, down, true);
   promoteMut(core, t, k, cur);
   hintMut(core, k.kind === 'B' ? 'lineup' : 'pitchers');
 }
@@ -679,7 +679,7 @@ export const FARM_CARDS: FarmCardDef[] = [
             detail: {
               rows: [
                 rowOvr(`${posKo(orig.pos)} 주전`, orig.ovr, orig.ovr),
-                rowInfo(sub.name, farmRoster(userTeam(c)).length >= FARM_MAX ? '벤치 (2군 가득)' : '2군 (재등록 잠금 없음)', '1군'),
+                rowInfo(sub.name, farmRoster(userTeam(c)).length >= farmMax(c) ? '벤치 (2군 가득)' : '2군 (재등록 잠금 없음)', '1군'),
                 rowSat(c, F.hotBackSat),
               ],
               ...pair(sub, orig),
@@ -703,7 +703,7 @@ export const FARM_CARDS: FarmCardDef[] = [
         return `${sub.name}이(가) 자리를 지켰습니다 — 오버롤 ${sub.ovr}`;
       }
       sat(c, F.hotBackSat);
-      if (farmRoster(t).length >= FARM_MAX) {
+      if (farmRoster(t).length >= farmMax(c)) {
         delete sub.subFor;
         return `${orig?.name ?? '주전'}이(가) 원래 자리로 — 2군이 가득해 ${sub.name}은(는) 벤치에 남습니다`;
       }
@@ -785,7 +785,7 @@ export const FARM_CARDS: FarmCardDef[] = [
           {
             label: '내린다',
             desc: `${p.name} 2군행 · ${alt ? `주전 ${p.ovr} → ${alt.ovr}` : `${FARM_LOCK}경기 재등록 불가`}`,
-            disabled: farmRoster(t).length >= FARM_MAX ? '2군이 가득 찼습니다' : undefined,
+            disabled: farmRoster(t).length >= farmMax(c) ? '2군이 가득 찼습니다' : undefined,
             detail: {
               rows: [alt ? rowOvr('주전', p.ovr, alt.ovr) : rowInfo('주전', '빈자리는 감독이 메운다', `${p.name} ${p.ovr}`), rowInfo(`${p.name} 재등록`, `${FARM_LOCK}경기 불가`, undefined, 'bad'), growRow(c, p)],
               ...pair(p, alt),

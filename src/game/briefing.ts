@@ -3,7 +3,7 @@
 import type { BatPos, BriefDetail, BriefDone, BriefMemo, BriefMove, BriefOffer, BriefResult, Briefing, CharId, Core, Player, Team } from './types';
 import { SIM, rotPenGap, type PenStyle } from './sim';
 import { teamParts, type TeamParts } from './ratings';
-import { BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, FOOD_LV, LOAN_RATE, LOAN_STEP, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SEAT_LV, TRAIN_LV, activeRoster, farmRoster, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
+import { BENCH_GROW, FARM_CAP, FARM_LOCK, farmMax, FOOD_LV, LOAN_STEP, LOAN_WARN, loanInterest, loanLimit, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SEAT_LV, TRAIN_LV, activeRoster, farmRoster, capacityOf, opProfit, payroll, previewDemand, signingBonus, upgradeCost, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
 import { farmAutoOn, shuttleArms } from './farm';
 import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, callUp, farmLockLeft, farmStatText, growChance, sendDown, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
@@ -430,7 +430,7 @@ function farmMoveOffer(core: Core, phase: 'up' | 'down'): Cand | null {
     return null;
   }
   // 1군 벤치에서 썩는 25세 이하 → 2군에서 실전 경험
-  if (farmRoster(t).length >= FARM_MAX) return null;
+  if (farmRoster(t).length >= farmMax(core)) return null;
   const inPlay = new Set([...t.lineup.map((l) => l.pid), ...t.rotation, ...(t.closer ? [t.closer] : []), ...t.bullpen.slice(0, 3)]);
   const nb = activeRoster(t).filter((p) => p.kind === 'B').length;
   const np = activeRoster(t).length - nb;
@@ -522,21 +522,24 @@ function chairOffer(core: Core): Cand | null {
   if (f.debt <= 0) return null;
   const amt = Math.min(LOAN_STEP, f.debt);
   if (f.cash < amt + CASH_KEEP) return null;
-  const perSeason = Math.round(amt * LOAN_RATE);
+  const perSeason = Math.round(loanInterest(core, f.debt) - loanInterest(core, f.debt - amt));
   return offer(20, 'repay', 'repay', 'chair', '빚이 있으면 조합원들이 잠을 못 잡니다. 여유가 있을 때 갚읍시다.', `${fmtMoney(amt)} 상환: 이자 시즌당 −${fmtMoney(perSeason)} · 남는 현금 ${fmtMoney(f.cash - amt)}`, { t: 'repay' });
 }
 
 // ───────── 자금 경고 (조합장) ─────────
 
-/** 지금 급한 쪽: 금고가 이미 비었으면(또는 다음 경기에 비면) 강제 매각까지, 아니면 바닥까지 */
+/** 지금 급한 쪽: 금고가 이미 비었으면(또는 다음 경기에 비면) 한도 초과까지, 아니면 바닥까지 */
 function cashMetric(core: Core, r: Runway): { n: number | null; label: string; sale: boolean } {
   const sale = r.forcedSale !== null && (core.finance.cash <= 0 || (r.cashOut !== null && r.cashOut <= 1));
-  return sale ? { n: r.forcedSale, label: '강제 매각까지', sale } : { n: r.cashOut, label: '바닥까지', sale };
+  return sale ? { n: r.forcedSale, label: '한도 초과까지', sale } : { n: r.cashOut, label: '바닥까지', sale };
 }
 
-/** 조합장의 한 줄: 12경기 안에 금고가 비거나 강제 매각이 올 때만 */
+/** 조합장의 한 줄: 12경기 안에 금고가 비거나 부채가 한도를 넘을 때, 또는 부채가 한도의 절반을 넘었을 때 (한 줄로 통합) */
 export function cashAlert(core: Core): string | null {
   const r = runway(core);
+  const lim = loanLimit(core);
+  const debt = core.finance.debt;
+  if (debt > lim) return `빚이 한도를 넘었습니다. 부채 ${fmtMoney(debt)} / 한도 ${fmtMoney(lim)} — 누군가를 보내야 합니다.`;
   if (core.finance.cash <= 0 && r.cashOut !== null && (r.forcedSale === null || r.forcedSale > RUNWAY_DANGER)) return '금고가 비었습니다. 경기마다 빚이 쌓이고 있습니다.';
   if (r.forcedSale !== null && r.forcedSale <= RUNWAY_DANGER) {
     return r.cashOut !== null && r.cashOut > 1 && r.cashOut < r.forcedSale
@@ -544,6 +547,7 @@ export function cashAlert(core: Core): string | null {
       : `이대로면 ${r.forcedSale}경기 뒤에 빚이 한도를 넘습니다. 선수를 내줘야 합니다.`;
   }
   if (r.cashOut !== null && r.cashOut <= RUNWAY_DANGER) return `이대로면 ${r.cashOut}경기 뒤에 금고가 빕니다. 조합원들 볼 낯이 없습니다.`;
+  if (debt >= lim * LOAN_WARN) return `빚이 한도의 ${Math.round((debt / lim) * 100)}%입니다. 부채 ${fmtMoney(debt)} / 한도 ${fmtMoney(lim)} — 이자가 시즌당 ${fmtMoney(Math.round(loanInterest(core, debt)))}입니다.`;
   return null;
 }
 
@@ -602,7 +606,7 @@ function rescueOffer(core: Core, m: BriefMemo): Cand | null {
     const rw = runway(b.core);
     take(
       (val(rw) - m0.n) / 2,
-      { ...offer(200, 'rescue:borrow', 'rescue', 'chair', '급한 불부터 끕시다. 다만 빚은 빚입니다.', `대출 +${fmtMoney(LOAN_STEP)}: 이자 시즌당 ${fmtMoney(Math.round(LOAN_STEP * LOAN_RATE))} · ${tail(rw)}`, { t: 'fix' }), rescue: { t: 'borrow' } },
+      { ...offer(200, 'rescue:borrow', 'rescue', 'chair', '급한 불부터 끕시다. 다만 빚은 빚입니다.', `대출 +${fmtMoney(LOAN_STEP)}: 이자 시즌당 +${fmtMoney(Math.round(loanInterest(core, core.finance.debt + LOAN_STEP) - loanInterest(core, core.finance.debt)))} · ${tail(rw)}`, { t: 'fix' }), rescue: { t: 'borrow' } },
     );
   }
   return (best as { gain: number; c: Cand } | null)?.c ?? null;
@@ -656,7 +660,7 @@ function resultLine(core: Core, d: BriefDone): string | null {
       return `지난주 ${d.label}: 경기당 손익 ${signMoney(r.perGame)} · ${r.cashOut === null ? '이번 시즌 금고는 버팁니다' : `바닥까지 ${r.cashOut}경기`}`;
     }
     case 'repay':
-      return `지난주 ${d.label}: 남은 부채 ${fmtMoney(core.finance.debt)} · 이자 경기당 ${fmtMoney(Math.round((core.finance.debt * LOAN_RATE) / Math.max(1, core.schedule.length)))}`;
+      return `지난주 ${d.label}: 남은 부채 ${fmtMoney(core.finance.debt)} · 이자 경기당 ${fmtMoney(Math.round(loanInterest(core, core.finance.debt) / Math.max(1, core.schedule.length)))}`;
   }
   return null;
 }
@@ -731,7 +735,7 @@ function detailOf(a: Core, b: Core, o: BriefOffer): BriefDetail {
   if (payroll(ta) !== payroll(tb)) num('연봉 총액/시즌', payroll(ta), payroll(tb), money, -1);
   if (a.finance.debt !== b.finance.debt) {
     num('부채', a.finance.debt, b.finance.debt, money, -1);
-    num('이자/시즌', Math.round(a.finance.debt * LOAN_RATE), Math.round(b.finance.debt * LOAN_RATE), money, -1);
+    num('이자/시즌', Math.round(loanInterest(a, a.finance.debt)), Math.round(loanInterest(b, b.finance.debt)), money, -1);
   }
   // 자금 예측: runway 는 최근 관중 실적으로 보므로, 관중이 달라지는 조작은 예상 수입 차이를 얹는다
   const ra = runway(a);

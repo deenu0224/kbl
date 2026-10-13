@@ -11,9 +11,12 @@ import { useCore, useStore, useUserTeam, userMatch, type RightTab } from '../sto
 import { fmtInt, fmtMoney } from '../game/format';
 import {
   FOOD_LV,
-  LOAN_LIMIT,
-  LOAN_RATE,
+  LOAN_DANGER,
   LOAN_STEP,
+  LOAN_TIER,
+  loanInterest,
+  loanLimit,
+  overLimit,
   SEAT_LV,
   TRAIN_LV,
   payroll,
@@ -24,7 +27,7 @@ import {
 } from '../game/economy';
 import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season';
 import { deadlinesSoon } from '../game/economy';
-import { RUNWAY_DANGER, forcedSaleTarget, runway, runwayPath, runwayPieceOf } from '../game/runway';
+import { RUNWAY_DANGER, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import { teamStrength } from '../game/ratings';
 import Bracket from './Bracket';
 import Leaders from './Leaders';
@@ -488,6 +491,8 @@ export function LedgerBars({ ledger }: { ledger: Ledger }) {
   );
 }
 
+const DEBT_BAR_MAX = 1.25; // 부채 막대의 오른쪽 끝 = 한도의 125%
+
 export function FinanceTab() {
   const finance = useStore((s) => s.finance);
   const cashHistory = useStore((s) => s.cashHistory);
@@ -497,14 +502,18 @@ export function FinanceTab() {
   const pay = payroll(team);
   const games = useStore((s) => s.schedule.length) || 84;
 
-  const canBorrow = finance.debt + LOAN_STEP <= LOAN_LIMIT;
-  const canRepay = finance.debt > 0 && finance.cash >= Math.min(LOAN_STEP, finance.debt);
-  const perGameInterest = (finance.debt * LOAN_RATE) / games;
   const core = useCore();
+  const limit = loanLimit(core);
+  const over = overLimit(core);
+  const canBorrow = !over && finance.debt + LOAN_STEP <= limit;
+  const canRepay = finance.debt > 0 && finance.cash >= Math.min(LOAN_STEP, finance.debt);
+  const interest = Math.round(loanInterest(core, finance.debt));
+  const stepInterest = Math.round(loanInterest(core, finance.debt + LOAN_STEP)) - interest;
+  const debtRatio = finance.debt / limit;
+  const debtTone = over || debtRatio >= LOAN_DANGER ? 'text-bad' : debtRatio >= LOAN_TIER ? 'text-[#f0a35a]' : 'text-white/75';
   const rw = useMemo(() => runway(core), [core]);
   const ghost = useMemo(() => runwayPath(core), [core]);
   const inSeason = core.phase === 'season' && core.day < core.schedule.length;
-  const victim = rw.forcedSale !== null ? forcedSaleTarget(core) : null;
   const buyEthics = useStore((s) => s.buyEthics);
   const eLv = ethicsLv(core);
   const eBlocked = ethicsBlocked(core);
@@ -518,6 +527,11 @@ export function FinanceTab() {
       <div className="-mx-1.5 -mt-1.5 mb-1.5 empty:hidden">
         <FirstTip id="finance" />
       </div>
+      {debtRatio >= LOAN_DANGER && (
+        <div className="mb-1.5 bg-bad/25 px-1.5 py-1 text-[11px] text-bad mob:text-[13px]" data-testid="debt-danger">
+          {over ? `부채가 한도를 넘었습니다 — 영입·투자·대출이 막히고 선수를 보내야 합니다` : `부채가 한도의 ${Math.round(debtRatio * 100)}% — 한도를 넘으면 선수를 보내야 합니다`}
+        </div>
+      )}
       {/* 기본 = 현금 · 경기당 손익 · 시즌 말 예상 (+ 경고 시 바닥까지) */}
       <div className="mb-1.5 grid grid-cols-3 gap-1 text-center" data-testid="runway-line">
         <div className="bg-ink/60 px-1 py-1.5 leading-tight">
@@ -545,18 +559,32 @@ export function FinanceTab() {
         )}
         <Help topic="runway" />
       </div>
-      {inSeason && rw.forcedSale !== null && rw.forcedSale <= RUNWAY_DANGER && (
+      {/* 부채 한 줄 + 막대 (눈금: 한도의 50% = 이자 구간, 100% = 한도) */}
+      <div className="mb-1.5" data-testid="debt-line">
+        <div className="flex items-center gap-1.5 text-[11px] mob:text-[13px]">
+          <span className={`min-w-0 flex-1 ${debtTone}`}>
+            부채 {fmtMoney(finance.debt)} / 한도 {fmtMoney(limit)} · 이자 시즌당 {fmtMoney(interest)}
+          </span>
+          <Help topic="debt" />
+        </div>
+        <div className="relative mt-1 h-2 bg-ink/70" data-testid="debt-bar">
+          <div className="h-full" style={{ width: `${Math.min(100, (debtRatio / DEBT_BAR_MAX) * 100)}%`, background: over || debtRatio >= LOAN_DANGER ? '#ff6b6b' : debtRatio >= LOAN_TIER ? '#f0a35a' : '#8fb8de' }} />
+          <div className="absolute -top-0.5 h-3 w-px bg-white/60" style={{ left: `${(LOAN_TIER / DEBT_BAR_MAX) * 100}%` }} />
+          <div className="absolute -top-0.5 h-3 w-0.5 bg-white" style={{ left: `${(1 / DEBT_BAR_MAX) * 100}%` }} />
+        </div>
+      </div>
+      {inSeason && !over && rw.forcedSale !== null && rw.forcedSale <= RUNWAY_DANGER && (
         <div className="mb-1.5 bg-bad/20 px-1.5 py-1 text-[11px] text-bad mob:text-[13px]" data-testid="forced-line">
-          강제 매각까지 {rw.forcedSale}경기{victim ? ` · ${victim.name}` : ''}
+          한도 초과까지 {rw.forcedSale}경기 — 넘으면 선수를 보내야 합니다
         </div>
       )}
       <Fold label="자세히: 누적 장부 · 인건비 · 구단 현황" className="mb-1.5" testid="fold-finance">
         {inSeason && rw.cashOut !== null && (
           <div className="mb-1 bg-ink/60 px-1.5 py-1 text-[11px] leading-snug text-bad mob:text-[13px]">
-            <div>① {rw.cashOut}경기 뒤 바닥 → 모자란 돈은 긴급 대출(연 {Math.round(LOAN_RATE * 100)}%)로 전환</div>
+            <div>① {rw.cashOut}경기 뒤 바닥 → 모자란 돈은 긴급 대출로 전환 (부채에 더해진다)</div>
             {rw.forcedSale !== null && (
               <div>
-                ② {rw.forcedSale}경기 뒤 부채 {fmtMoney(LOAN_LIMIT)} 초과 → 최고 연봉 선수{victim ? ` ${victim.name}(${fmtMoney(victim.salary)})` : ''} 강제 매각
+                ② {rw.forcedSale}경기 뒤 부채 한도 {fmtMoney(limit)} 초과 → 영입·투자가 막히고 선수 매각
               </div>
             )}
           </div>
@@ -580,13 +608,13 @@ export function FinanceTab() {
           <span>
             부채 <span className={finance.debt > 0 ? 'text-bad' : 'text-white/60'}>{fmtMoney(finance.debt)}</span>
           </span>
-          <span className="text-white/55">한도 {fmtMoney(LOAN_LIMIT)}</span>
+          <span className="text-white/55">한도 {fmtMoney(limit)}</span>
         </div>
-        <Bar ratio={finance.debt / LOAN_LIMIT} color={finance.debt > LOAN_LIMIT * 0.7 ? '#ff6b6b' : '#f0a35a'} h={8} className="my-1" />
-        {finance.debt > 0 && <div className="text-[10px] text-white/55 mob:text-[13px]">이자 경기당 {fmtMoney(Math.round(perGameInterest))}</div>}
+        <Bar ratio={finance.debt / limit} color={debtRatio >= LOAN_DANGER ? '#ff6b6b' : '#f0a35a'} h={8} className="my-1" />
+        {finance.debt > 0 && <div className="text-[10px] text-white/55 mob:text-[13px]">이자 시즌당 {fmtMoney(interest)} · 경기당 {fmtMoney(Math.round(interest / games))}</div>}
         {canBorrow && (
           <div className="mt-0.5 text-[11px] text-white" data-testid="loan-effect">
-            +{fmtMoney(LOAN_STEP)} 대출: 이자 시즌당 약 {fmtMoney(Math.round(LOAN_STEP * LOAN_RATE))}
+            +{fmtMoney(LOAN_STEP)} 대출: 이자 시즌당 {fmtMoney(interest)} → {fmtMoney(interest + stepInterest)}
             {loanPiece && <span className="text-hi" data-testid="runway-piece"> · {loanPiece}</span>}
           </div>
         )}
@@ -605,7 +633,7 @@ export function FinanceTab() {
         </div>
         {/* 모바일엔 title 툴팁이 없으므로 상환 불가 사유를 보여준다 */}
         {!canRepay && <div className="mt-1 hidden text-[10px] text-white/50 mob:block">상환 불가: {finance.debt <= 0 ? '갚을 부채가 없습니다' : '현금 부족'}</div>}
-        {!canBorrow && <div className="mt-1 text-[10px] text-bad">한도까지 빌렸습니다. 한도를 넘기면 선수가 강제 매각됩니다</div>}
+        {!canBorrow && <div className="mt-1 text-[10px] text-bad mob:text-[13px]">{over ? '부채가 한도를 넘었습니다 — 선수 매각으로 부채를 줄이세요' : '한도까지 빌렸습니다. 한도를 넘기면 선수를 보내야 합니다'}</div>}
       </div>
 
       {(scandalOpen(core) || eLv > 0) && (

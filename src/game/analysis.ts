@@ -3,7 +3,7 @@
 import type { BatPos, Core, Player, Team } from './types';
 import { batValue, effDef, teamParts, type TeamParts } from './ratings';
 import { slotNewcomer } from './lineup';
-import { BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, TRAIN_LV, activeRoster, farmGrow, farmRoster, payroll, userTeam } from './economy';
+import { BENCH_GROW, FARM_CAP, FARM_LOCK, farmMax, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, TRAIN_LV, activeRoster, farmGrow, farmRoster, payroll, userTeam } from './economy';
 import { DECLINE_AGE, DECLINE_RATE, PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, WEEK, farmLockLeft, growChance, ilLock, marketSalary } from './season';
 import { ANALYST_NOISE, SCOUT_CUT, SCOUT_NOISE } from './draft';
 import { isFranchise } from './franchise';
@@ -399,7 +399,7 @@ export function sendDownPreview(core: Core, p: Player): { ok: boolean; text: str
   // 부상·징계 중이면 부상자 명단으로: 2군 정원과 상관없이 1군 자리가 하나 빈다
   if (p.injury > 0) return few ? { ok: false, text: few } : { ok: true, text: `1군 자리 +1 · 복귀 가능: ${core.phase === 'season' ? `${ilLock(p)}경기 뒤` : '개막부터'}` };
   const nf = farmRoster(t).length;
-  if (nf >= FARM_MAX) return { ok: false, text: `2군 ${nf}/${FARM_MAX} 가득` };
+  if (nf >= farmMax(core)) return { ok: false, text: `2군 ${nf}/${farmMax(core)} 가득` };
   if (few) return { ok: false, text: few };
   const pc = (v: number) => `${Math.round(v * 100)}%`;
   const lock = core.phase === 'season' ? `${FARM_LOCK}경기 동안 재등록 불가` : '시즌 전: 재등록 제한 없음';

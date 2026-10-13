@@ -1,5 +1,6 @@
 // 왕조 프로젝트: 첫 우승(campaign.ending) 뒤에 열리는 대형 지출 목표. 상태는 campaign.projects 한 곳에 둔다.
 // 효과 해석(projectFx)은 여기서만 하고, economy.ts·season.ts·draft.ts 는 그 값을 곱하거나 더하기만 한다.
+import { OVER_LIMIT_ERR, loanLimit } from './economy';
 import type { Core } from './types';
 import { fmtInt, fmtMoney } from './format';
 
@@ -211,6 +212,7 @@ export function buyProject(core0: Core, id: ProjectId): { core: Core; error?: st
   const pv = projectPreview(core0, id);
   if (pv.done) return { core: core0, error: '이미 마친 프로젝트입니다' };
   if (pv.error) return { core: core0, error: pv.error };
+  if (core0.finance.debt > loanLimit(core0)) return { core: core0, error: OVER_LIMIT_ERR };
   const core = structuredClone(core0);
   const c = core.campaign;
   const s = (c.projects = { ...(c.projects ?? {}) });

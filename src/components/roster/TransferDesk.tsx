@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { farmMax } from '../../game/economy';
 import type { Player } from '../../game/types';
 import { play } from '../../audio/sfx';
 import { fmtInt, fmtMoney } from '../../game/format';
-import { FARM_MAX, FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTransfer, type BasketKind, type TransferPreview } from '../../game/transfer';
+import { FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTransfer, type BasketKind, type TransferPreview } from '../../game/transfer';
 import { TR, tradeLeft, tradeOpen } from '../../game/trade';
 import { REG_DEADLINE, blockClosedWhy, signingClosedWhy, signingOpen } from '../../game/economy';
 import { useCore, useStore, useUserTeam } from '../../store';
@@ -249,6 +250,7 @@ function Box({ title, children, className = '', testid }: { title: string; child
 }
 
 function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: string | null; mobile: boolean; onConfirm: () => void }) {
+  const core = useCore();
   const team = useUserTeam();
   const basket = useTransferUi((s) => s.basket);
   const put = useTransferUi((s) => s.put);
@@ -286,7 +288,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
   );
   const heads: [string, string, { a: number; b: number }, number][] = [
     ['1군', 'sum-active', pv.active, ROSTER_MAX],
-    ['2군', 'sum-farm', pv.farm, FARM_MAX],
+    ['2군', 'sum-farm', pv.farm, farmMax(core)],
     ['외국인', 'sum-foreign', pv.foreign, FOREIGN_MAX],
   ];
   const headcount = (

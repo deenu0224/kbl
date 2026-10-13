@@ -1,7 +1,7 @@
 import type { Core, Player, Team } from './types';
 import { positionReport } from './analysis';
 import { winDelta } from './briefing';
-import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, payroll, releaseCost, signingBonus, userTeam } from './economy';
+import { ROSTER_MAX, activeRoster, farmRoster, payroll, releaseCost, signingBonus, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
 import { isFranchise } from './franchise';
 import { slotNewcomer } from './lineup';
@@ -197,4 +197,4 @@ export function previewTransfer(core: Core, basket: Basket): TransferPreview {
   };
 }
 
-export { FARM_MAX, FOREIGN_MAX, ROSTER_MAX };
+export { FOREIGN_MAX, ROSTER_MAX };
