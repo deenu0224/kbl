@@ -193,7 +193,7 @@ function SeasonEndBody() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/95 p-4 mob:items-stretch mob:p-0"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-ink/95 p-4 mob:items-stretch mob:p-0"
       style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="px-panel px-scroll flex max-h-full w-full max-w-[1100px] flex-col overflow-y-auto p-4 mob:p-3">
@@ -423,9 +423,9 @@ function SeasonEndBody() {
         </div>
         </Fold>
 
-        <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
+        <div className="mt-4 flex items-center justify-end gap-3 mob:sticky mob:gap-1.5 mob:-bottom-3 mob:-mx-3 mob:-mb-3 mob:bg-panel mob:p-3">
           <button
-            className="px-btn !px-4 !py-1.5 mob:text-[13px]"
+            className="px-btn whitespace-nowrap !px-4 !py-1.5 mob:!px-2 mob:text-[13px]"
             onClick={() => {
               if (!armNew) return setArmNew(true);
               newGame();
@@ -435,7 +435,7 @@ function SeasonEndBody() {
           </button>
           {/* 스토브리그: 재계약·트레이드 제안 카드를 먼저 처리하고, 그 뒤에 이적 창구가 열린다 */}
           <button
-            className="px-btn min-h-11 !px-4 !py-2 text-[13px]"
+            className="px-btn min-h-11 whitespace-nowrap !px-4 !py-2 text-[13px] mob:!px-2.5"
             data-testid="stove-market"
             onClick={() => {
               if (!stoveCards()) openDesk({ side: 'market' });
@@ -443,7 +443,7 @@ function SeasonEndBody() {
           >
             이적 시장
           </button>
-          <button className="px-btn primary min-h-11 !px-6 !py-2 text-[14px] mob:flex-1" onClick={beginDraft}>
+          <button className="px-btn primary min-h-11 whitespace-nowrap !px-6 !py-2 text-[14px] mob:flex-1 mob:!px-2" onClick={beginDraft}>
             신인 드래프트로 ▶
           </button>
         </div>

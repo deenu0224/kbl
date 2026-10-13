@@ -197,6 +197,8 @@ export const SCREENS = [
   S('ended-exposed', 'exposed', game()),
   // 스토브리그: 결산 화면의 [이적 시장] → 이적 창구 · 스토브리그 트레이드 제안 카드
   S('ended-market', 'ended', game({ scroll: 'bottom' }, 'stove-market', { wait: 400 })),
+  // 스토브리그 카드를 처리한 뒤(거절): [이적 시장]이 이적 창구를 연다
+  S('ended-market-open', 'endedFail', game({ scroll: 'bottom' }, 'stove-market', { wait: 400 }, c('ev-select', { nth: 1, optional: true }), { wait: 1500 }, { scroll: 'bottom' }, 'stove-market', { wait: 800 })),
   S('stove-trade', 'stoveTrade', game()),
   S('stove-trade-detail', 'stoveTrade', game('ev-more')),
   // 마감: 예고(리그 일정표 · 할 일) · 등록 마감 뒤의 이적 창구(영입 꺼짐 · 사유 줄 · 시장 토글 꺼짐)
