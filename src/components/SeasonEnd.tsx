@@ -194,6 +194,8 @@ function SeasonEndBody() {
   const stageAfter = v?.stageAfter ?? c.stage;
   const advanced = stageAfter > stageBefore;
   const finish = core.post?.userFinish ?? 'none';
+  // 와일드카드 결정전을 치러 이겼는가 (userFinish 'WC' = 결정전에서 탈락)
+  const wcPassed = !!core.post?.series.some((s) => s.round === 'WC' && s.winnerId === core.userId);
   // 이 결산에서 처음 엔딩 조건을 넘었는가
   const endingNow = !!v?.cleared && !!c.ending && STAGES.slice(stageBefore, Math.max(stageAfter, stageBefore + 1)).some((s) => s.ending);
 
@@ -216,7 +218,7 @@ function SeasonEndBody() {
             </div>
             <div className="mt-0.5 text-[13px]">
               최종 <span className="font-pixel-lg text-[18px] text-hi">{rank}위</span> · {recText(team.rec)} · 승률 {fmtPct(team.rec.w, team.rec.l)}
-              {finish !== 'none' && <span className="ml-2 whitespace-nowrap text-hi">{finish === 'champion' ? '한국시리즈 우승' : finish === 'KS' ? '한국시리즈 준우승' : `${POST_KO[finish]} 진출`}</span>}
+              {finish !== 'none' && <span className="ml-2 whitespace-nowrap text-hi">{finish === 'champion' ? '한국시리즈 우승' : finish === 'KS' ? '한국시리즈 준우승' : finish === 'WC' ? '와일드카드 탈락' : wcPassed && finish === 'SPO' ? '와일드카드 통과' : `${POST_KO[finish]} 진출`}</span>}
             </div>
           </div>
           <div
