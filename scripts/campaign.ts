@@ -11,7 +11,7 @@ import type { Core, EventCard } from '../src/game/types';
 import { mulberry32, type Rng } from '../src/game/rng';
 import { newCore } from '../src/game/generate';
 import { advanceDay, nextSeason, rankOf } from '../src/game/season';
-import { payroll, userTeam } from '../src/game/economy';
+import { LUX_TAX, payroll, userTeam } from '../src/game/economy';
 import { ensureObjectives, STAGES } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { closeBriefing, drawBriefing, runOffer } from '../src/game/briefing';
@@ -29,6 +29,7 @@ const AB_REPS = process.argv[4] !== undefined ? Number(process.argv[4]) : 2; // 
 const ONLY_BOTS = process.env.BOTS ? process.env.BOTS.split(',') : null;
 const TRADE_MODE = process.env.TRADE ?? 'on';
 if (TRADE_MODE === 'off') TRADE_AUDIT.offers = false;
+if (process.env.LUX === '1') LUX_TAX.on = true; // 경쟁균형세를 켜고 잰다
 const pickOf = (bot: Bot, c: Core, card: EventCard): number => (TRADE_MODE === 'deny' && baseId(card) === 'trade' ? firstEnabled(card, [1]) : bot.event(c, card));
 
 

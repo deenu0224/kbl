@@ -85,6 +85,17 @@ export const RESIGN_LEAVE_FANS = 8; // 프랜차이즈 스타를 FA 로 보내�
 export const RESIGN_LEAVE_SAT = -8;
 // 감사용 스위치 (scripts/economy.ts 가 하나씩 끄고 재실행한다. 게임에서는 전부 켜 둔다)
 export const AUDIT = { benchHalf: true, farmBatBig: true, svc: true, penGrow: true, farmUpkeep: -1 };
+// 경쟁균형세(샐러리캡 · KBO 규정): 연봉 총액이 상한(리그 연봉 상위 3구단 평균 × capRate)을 넘으면 초과분 × rate 를 시즌 말 제재금으로 낸다.
+// 기본값은 꺼 둔다 (LUX_TAX_ON). 스크립트는 환경 변수 LUX=1 로 LUX_TAX.on 을 켜고 잰다
+export const LUX_TAX_ON = false;
+export const LUX_TAX = { on: LUX_TAX_ON, top: 3, capRate: 1.2, rate: 0.5 };
+/** 경쟁균형세: 상한 · 유저 연봉 총액 · 낼 제재금 (꺼져 있으면 tax 0) */
+export function luxTax(core: Pick<Core, 'teams' | 'userId'>): { cap: number; payroll: number; tax: number } {
+  const pays = core.teams.map(payroll).sort((a, b) => b - a).slice(0, LUX_TAX.top);
+  const cap = Math.round(((pays.reduce((s, v) => s + v, 0) / Math.max(1, pays.length)) * LUX_TAX.capRate) / 100) * 100;
+  const mine = payroll(core.teams.find((t) => t.id === core.userId) ?? { roster: [] } as unknown as Team);
+  return { cap, payroll: mine, tax: LUX_TAX.on ? Math.round((Math.max(0, mine - cap) * LUX_TAX.rate) / 100) * 100 : 0 };
+}
 export const MIN_BATTERS = 10;
 export const MIN_PITCHERS = 8;
 

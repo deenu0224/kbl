@@ -219,6 +219,12 @@ function SeasonEndBody() {
           </div>
         </div>
 
+        {v?.luxTax && (
+          <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="lux-tax">
+            <span className="text-bad">경쟁균형세 −{fmtMoney(v.luxTax.tax)}</span>
+            <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} (리그 상위 3구단 평균의 120%)</span>
+          </div>
+        )}
         {/* 덮은 일이 드러났다: 무슨 일 · 잃은 것 */}
         {v?.exposures?.map((ex, i) => {
           const l = exposureLines(ex);

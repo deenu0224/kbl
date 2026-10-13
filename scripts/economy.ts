@@ -5,7 +5,7 @@ import type { Core, Ledger, Player } from '../src/game/types';
 import { mulberry32, type Rng } from '../src/game/rng';
 import { newCore } from '../src/game/generate';
 import { TRAIN_MAX_AGE, advanceDay, marketSalary, nextSeason, rankOf } from '../src/game/season';
-import { AUDIT, FARM_CAP, activeRoster, farmRoster, farmUpkeep, opProfit, opsCost, payroll, userTeam } from '../src/game/economy';
+import { AUDIT, LUX_TAX, FARM_CAP, activeRoster, farmRoster, farmUpkeep, opProfit, opsCost, payroll, userTeam } from '../src/game/economy';
 import { POST_DIVIDEND, STAGES, ensureObjectives } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
 import { FARM_CARDS, FARM_COACH } from '../src/game/farm';
@@ -20,6 +20,7 @@ const N_SEEDS = Number(args[0]) || 24;
 const N_SEASONS = Number(args[1]) || 12;
 const ONLY = args[2] ? args[2].split(',') : null;
 const OFF = (process.argv.find((a) => a.startsWith('--off='))?.slice(6) ?? '').split(',').filter(Boolean);
+if (process.env.LUX === '1') LUX_TAX.on = true; // 경쟁균형세를 켜고 잰다
 if (OFF.includes('bench')) AUDIT.benchHalf = false;
 if (OFF.includes('farmbig')) AUDIT.farmBatBig = false;
 if (OFF.includes('svc')) AUDIT.svc = false;
