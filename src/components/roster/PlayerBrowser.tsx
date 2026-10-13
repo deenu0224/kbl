@@ -115,11 +115,11 @@ export default function PlayerBrowser({
               key={p.id}
               data-pid={p.id}
               data-band={bd ? '' : undefined}
-              className={`mb-[3px] flex min-h-8 items-center gap-1.5 px-1.5 text-[12px] mob:min-h-12 mob:text-[14px] ${bd ? '' : sel === p.id ? 'bg-hi/20' : 'bg-ink/40'}`}
+              className={`mb-[3px] flex min-h-8 items-center gap-1 px-1.5 text-[12px] mob:min-h-12 mob:text-[14px] ${bd ? '' : sel === p.id ? 'bg-hi/20' : 'bg-ink/40'}`}
               style={bd ? { background: bd.bg, boxShadow: `inset 4px 0 0 ${bd.color}` } : undefined}
             >
               <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 self-stretch text-left" onClick={() => onPick(p)}>
-                <span className="w-9 shrink-0 whitespace-nowrap text-[11px] text-sky mob:w-11 mob:text-[13px]">{POS_KO[p.pos]}</span>
+                <span className="w-9 shrink-0 whitespace-nowrap text-[11px] text-sky mob:w-10 mob:text-[13px]">{POS_KO[p.pos]}</span>
                 <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
                   {p.name}
                   {mode === 'roster' && p.farm && <span className="ml-1 text-[10px] text-sky mob:text-[13px]">2군</span>}
@@ -132,7 +132,7 @@ export default function PlayerBrowser({
                 {draft ? (
                   <ScoutBadge grade={p.scout} size={20} />
                 ) : (
-                  <span className="w-12 shrink-0 whitespace-nowrap text-right text-[11px] text-white/80 mob:w-14 mob:text-[13px]">{fmtMoney(p.salary)}</span>
+                  <span className="w-12 shrink-0 whitespace-nowrap text-right text-[11px] text-white/80 mob:w-[50px] mob:text-[13px]">{fmtMoney(p.salary)}</span>
                 )}
               </button>
               {rowAction && <span className="flex shrink-0 gap-1">{rowAction(p)}</span>}

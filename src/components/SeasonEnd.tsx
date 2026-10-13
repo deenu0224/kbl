@@ -10,6 +10,8 @@ import { leagueAwards, type LeaderRow } from '../game/leaders';
 import Bracket from './Bracket';
 import { Flag, POST_KO, StageTrail, silhouette, stageName } from './Campaign';
 import EndingScene from './EndingScene';
+import EventCardModal from './EventCardModal';
+import { useIsMobile } from './layout/useLayout';
 import PixelFace from './PixelFace';
 import { LedgerBars, ledgerTotals } from './RightPanel';
 import { MiniBars, OvrBadge, POS_KO, TeamDot, fmtPct, recText } from './ui';
@@ -126,6 +128,26 @@ function TrustMove({ before, after }: { before: number; after: number }) {
 
 /** 시즌 종료 전체 화면 결산: 깃발 → 별 → 도민 지지 → 시즌 이름 → 대진표 → 시상 → 다음 장 */
 export default function SeasonEnd() {
+  // 재계약 카드는 결산 화면(z-50) 위에 띄운다. 결산 중에는 카드를 접어 둘 수 없다
+  const eventId = useStore((s) => s.campaign.event?.id ?? null);
+  const hidden = useUi((s) => s.eventHidden);
+  const mobile = useIsMobile();
+  useEffect(() => {
+    if (eventId && hidden === eventId) useUi.getState().setEventHidden(null);
+  }, [eventId, hidden]);
+  return (
+    <>
+      <SeasonEndBody />
+      {eventId && (
+        <div className="fixed inset-0 z-[60] font-pixel text-[12px]" data-testid="season-event">
+          <EventCardModal sheet={mobile} />
+        </div>
+      )}
+    </>
+  );
+}
+
+function SeasonEndBody() {
   const core = useCore();
   const beginDraft = useStore((s) => s.beginDraft);
   const newGame = () => useUi.getState().setScreen('title');

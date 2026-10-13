@@ -88,8 +88,8 @@ function DraftReturn({ className = '' }: { className?: string }) {
   const setPeek = useUi((s) => s.setDraftPeek);
   if (phase !== 'draft') return null;
   return (
-    <button className={`px-btn primary ${className}`} onClick={() => setPeek(false)}>
-      드래프트로 돌아가기 ▶
+    <button className={`px-btn primary whitespace-nowrap ${className}`} onClick={() => setPeek(false)}>
+      드래프트로 ▶
     </button>
   );
 }

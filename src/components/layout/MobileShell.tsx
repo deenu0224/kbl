@@ -267,7 +267,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
         <>
           {!playback && <TripLine />}
           {/* 구장이 남는 높이를 채운다: 다음 경기·할 일 카드는 제 높이만큼만 */}
-          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[34dvh] flex-1'}`} style={playback ? { height: '65dvh' } : undefined} data-testid="stadium-box">
+          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[34dvh] flex-1'}`} style={playback ? { height: 'min(65dvh, calc(100dvh - 256px))' } : undefined} data-testid="stadium-box">
             <div className="absolute inset-0">
               <StadiumView pan />
             </div>

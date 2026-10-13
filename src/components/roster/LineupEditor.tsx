@@ -570,8 +570,8 @@ export default function LineupEditor({ top, action, chanceLabel, fixNote, focus 
 
       <div className="flex shrink-0 items-stretch gap-2 px-1.5 pt-1.5 pb-2">
         {opener && !yielded ? (
-          <button className="min-h-11 flex-1 cursor-pointer px-1 text-[13px] text-white/60 underline" data-testid="order-reset" onClick={runAuto}>
-            감독의 원래 오더로
+          <button className="min-h-11 flex-1 cursor-pointer whitespace-nowrap px-1 text-[13px] text-white/60 underline" data-testid="order-reset" onClick={runAuto}>
+            감독 오더로
           </button>
         ) : (
           <button className="px-btn min-h-11 flex-1 text-[13px]" data-testid="editor-auto" onClick={runAuto}>

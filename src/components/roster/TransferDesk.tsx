@@ -41,7 +41,7 @@ export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: str
       data-on={on || undefined}
       data-sfx="tab"
       onClick={() => toggle(kind, pid)}
-      className={`shrink-0 cursor-pointer whitespace-nowrap ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-2 mob:text-[13px]'}`}
+      className={`shrink-0 cursor-pointer whitespace-nowrap ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
       style={on ? { background: b.color, color: '#0f1420' } : { background: '#0f1420', color: b.color, boxShadow: `inset 0 0 0 1px ${b.color}88` }}
     >
       {on ? `✓ ${b.label}` : b.add}
