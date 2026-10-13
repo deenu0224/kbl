@@ -161,6 +161,7 @@ export interface GameResult {
   injuries: { pid: string; name: string; teamId: string; games: number }[];
   errs?: [{ pid: string; name: string; pos: string }[], { pid: string; name: string; pos: string }[]]; // [원정, 홈] 실책한 야수
   box?: [BoxSide, BoxSide]; // [원정, 홈] 선수별 기록 (유저 경기만)
+  pitOrder?: [string[], string[]]; // [원정, 홈] 투수 등판 순서 pid (유저 경기만. 경기 기록의 투수 줄 순서)
 }
 
 /** 한 경기의 선수별 기록 */
