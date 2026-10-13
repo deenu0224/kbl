@@ -108,6 +108,12 @@ export const SCREENS = [
   S('roster-arms', 'farm', game(...SQUAD, 'squad-view-arms')),
   S('roster-arms-slot', 'farm', game(...SQUAD, 'squad-view-arms', 'css:[data-testid="squad-rotation"] [data-item]')),
   S('roster-penover', 'penover', game(...SQUAD, 'squad-view-arms')),
+  // 부상자 명단(재활): 2군 트레이의 재활 칩 · 재활 선수 카드 · 자리 시트의 재활 줄 · 직접 말소(자동 운영 끔)
+  S('rehab-tray', 'rehab', game(...SQUAD, 'squad-farm-toggle')),
+  S('rehab-card', 'rehab', game(...SQUAD, 'squad-farm-toggle', 'css:[data-testid="squad-rehab"] [data-item]')),
+  S('rehab-slot', 'rehab', game(...SQUAD, 'css:[data-testid="squad-field"] [data-item]', c('slot-more', { optional: true }))),
+  S('il-card', 'injuryManual', game(...SQUAD, 'css:[data-testid="squad-field"] [data-injured]', 'css:[data-testid="slot-row"] button')),
+  S('il-remedy', 'injuryManual', game('부상:')),
   S('roster-recs', 'injury', game(...SQUAD, c('squad-recs-toggle', { optional: true }))),
   S('roster-from-chance', 'farm', game('pre-chance')),
   S('card-batter', 'farm', game(...SQUAD, 'css:[data-testid="squad-bench"] [data-item]')),

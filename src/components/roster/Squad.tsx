@@ -440,6 +440,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
       {...itemProps(p.id, o.pan)}
       data-pos={o.row?.key}
       data-weak={o.row?.weak || undefined}
+      data-injured={p.injury > 0 || undefined}
       className={`flex min-h-[50px] cursor-pointer flex-col justify-center bg-panel-2 px-1 py-1 select-none ${o.className ?? ''}`}
       style={{ ...frame(p.id, o.row), touchAction: o.pan === 'none' ? 'none' : `pan-${o.pan}`, ...o.style }}
     >
