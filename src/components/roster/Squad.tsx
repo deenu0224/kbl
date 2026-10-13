@@ -206,7 +206,11 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
       <button key={c.p.id} type="button" className={`flex min-h-12 cursor-pointer items-center gap-1.5 bg-ink/40 px-1.5 text-left ${c.rehab ? 'opacity-55' : ''}`} data-testid={c.rehab ? 'slot-row-rehab' : 'slot-row'} onClick={() => setPick(c.p.id)}>
         <OvrBadge ovr={c.p.ovr} size={22} />
         <span className="min-w-0 flex-1 leading-tight">
-          <span className={`block truncate text-[14px] ${c.p.injury > 0 ? 'text-bad' : 'text-white'}`}>{c.p.name}</span>
+          <span className={`block truncate text-[14px] ${c.p.injury > 0 ? 'text-bad' : 'text-white'}`}>
+            {c.p.name}
+            {/* 원래 포지션: 이 자리가 제 자리면 하늘색 */}
+            <span className={`pl-1.5 text-[13px] ${pos && c.p.pos === pos ? 'text-sky' : 'text-white/55'}`} data-testid="slot-pos">{POS_KO[c.p.pos]}</span>
+          </span>
           <span className={`block truncate text-[13px] ${!plan || lock > 0 ? 'text-white/50' : plan.sum < 0 ? 'text-bad' : plan.sum > 0 ? 'text-good' : 'text-white/70'}`} data-testid="slot-delta">
             <span className={lead === '2군' ? 'text-sky' : 'text-white/55'}>{lead}</span> {c.rehab ? `${c.rehab}경기 뒤 복귀` : lock > 0 ? `재등록 ${lock}경기 뒤` : plan ? plan.text.replace(/ · /g, ' ').replace(/ ([+−])/g, '$1') || '±0' : '교체 불가'}
           </span>
