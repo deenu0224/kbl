@@ -16,6 +16,7 @@ export const TRUST_MAX = 100;
 export const STAR_TRUST = 5; // 별 1개당 도민 지지
 export const MAX_JUMP = 2; // 월반 포함 한 번에 오를 수 있는 최대 장 수
 export const STOP_INJ_GAP = 3; // 부상으로 일괄 진행을 멈춘 뒤 이 경기 수 안에는 부상으로 다시 멈추지 않는다
+export const DYNASTY_FAIL_TRUST = 10; // 왕조(5장): 우승 엔딩을 본 뒤에는 깃발 실패의 벌이 가볍다
 export const MID_FAIL_TRUST = 5; // 중간 점검에서 출자를 받고 깃발 실패 시 추가 감소
 export const MID_UP_FAIL_TRUST = 12; // 목표 상향을 약속하고 깃발 실패 시 추가 감소
 export const MID_UP_MULT = 2; // 목표 상향 약속 성공 시 깃발 지원금 배율
@@ -133,7 +134,7 @@ export const STAGES: StageDef[] = [
       { kind: 'avgAtt', target: 20000, text: '홈 평균 관중 20,000명' },
     ],
     reward: { cash: 150000, trust: 10 },
-    failTrust: 20,
+    failTrust: DYNASTY_FAIL_TRUST,
     starCash: 30000,
     midCash: 40000,
   },

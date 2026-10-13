@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "balance": "tsx scripts/balance.ts",
     "campaign": "tsx scripts/campaign.ts",
+    "economy": "tsx scripts/economy.ts",
     "verify": "tsx scripts/verify.ts",
     "deploy": "sh scripts/deploy.sh"
   },

@@ -131,6 +131,7 @@ function takePlayer(core: Core, t: Team, p: Player, round: number): void {
   d.log.push({ round, teamId: t.id, pid: p.id, name: p.name, pos: p.pos });
   if (t.id === core.userId) {
     p.since = core.season + 1; // 다음 시즌 데뷔
+    p.svc = core.season + 1; // 보유 기간 1년차 = 데뷔 시즌
     const bonus = DRAFT_BONUS[round - 1] ?? DRAFT_BONUS[DRAFT_BONUS.length - 1];
     core.finance.cash -= bonus;
     core.finance.ledger.signing += bonus;
@@ -166,7 +167,9 @@ function runAi(core: Core, rng: Rng): void {
 /** phase 'ended' → 'draft'. 풀 생성 + 지명 순서(정규시즌 역순 × 3라운드) + 첫 유저 차례까지 AI 진행 */
 export function beginDraft(core0: Core, rng: Rng): { core: Core; error?: string } {
   if (core0.phase !== 'ended') return { core: core0, error: '시즌 결산 후에만 드래프트를 열 수 있습니다' };
+  if (core0.campaign.event) return { core: core0, error: '재계약 협상을 먼저 마치세요' };
   const core = structuredClone(core0);
+  delete core.campaign.resignQueue;
   const rev = standings(core.teams).reverse().map((t) => t.id);
   const order: string[] = [];
   for (let r = 0; r < DRAFT_ROUNDS; r++) order.push(...rev);

@@ -39,7 +39,15 @@ export const FARM_GROW = 2.2; // 2군의 주간 성장 확률 = 훈련장 확률
 export const FARM_GROW_MIN = 0.25; // 훈련장이 없어도 2군은 실전으로 이만큼은 자란다
 export const BENCH_GROW = 0.5; // 1군 벤치의 25세 이하: 안 쓰면 썩는다
 export const FARM_LOCK = 10; // 2군으로 내린 뒤 재등록까지 걸리는 경기 수
-export const FARM_UPKEEP = 4; // 2군 운영비 (만원/경기 · 선수 1명당)
+export const FARM_UPKEEP = 12; // 2군 운영비 (만원/경기 · 선수 1명당. 20명이면 시즌 약 2억)
+// 보유 기간(서비스 타임): 유저 팀의 드래프트 출신은 입단 후 SVC_YEARS 시즌 동안 연봉 = 시장가 × SVC_RATE[n년차−1] (0 = 최저연봉). 그 뒤 FA 자격
+export const SVC_YEARS = 6;
+export const SVC_RATE = [0, 0.25, 0.4, 0.55, 0.7, 0.85];
+export const RESIGN_ASK_MAX = 0.15; // FA 자격 재계약 요구: 시장가 × (1 ~ 1 + 이 값), 스타성이 높을수록 많이 부른다
+export const RESIGN_LEAVE_FANS = 8; // 프랜차이즈 스타를 FA 로 보내면 팬 − star × 이 값, 만족도 RESIGN_LEAVE_SAT
+export const RESIGN_LEAVE_SAT = -8;
+// 감사용 스위치 (scripts/economy.ts 가 하나씩 끄고 재실행한다. 게임에서는 전부 켜 둔다)
+export const AUDIT = { benchHalf: true, farmBatBig: true, svc: true, penGrow: true, farmUpkeep: -1 };
 export const MIN_BATTERS = 10;
 export const MIN_PITCHERS = 8;
 
@@ -98,7 +106,7 @@ export function farmRoster(t: Team): Player[] {
 
 /** 2군 운영비 (만원/경기) */
 export function farmUpkeep(t: Team): number {
-  return farmRoster(t).length * FARM_UPKEEP;
+  return farmRoster(t).length * (AUDIT.farmUpkeep >= 0 ? AUDIT.farmUpkeep : FARM_UPKEEP);
 }
 
 /** 2군의 주간 성장 확률 */

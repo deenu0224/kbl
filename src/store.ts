@@ -22,6 +22,7 @@ import { maybeDrawEvent, resolveEvent as resolveEventFn } from './game/events';
 import { closeBriefing, drawBriefing, refreshBriefing, runOffer, skipOffer } from './game/briefing';
 import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
 import { postMatch } from './game/postseason';
+import { drawResign } from './game/contract';
 import { memoGet, memoSet } from './game/memo';
 import { RUNWAY_STOP, runway } from './game/runway';
 import { useUi } from './components/layout/uiStore';
@@ -412,6 +413,13 @@ export const useStore = create<Store>()(
         beginDraft() {
           const s = get();
           if (s.playback) return;
+          // 스토브리그: FA 자격을 얻은 선수의 재계약 카드를 먼저 처리한다
+          if (s.campaign.event) return;
+          const q = drawResign(pickCore(s));
+          if (q.campaign.event) {
+            set({ ...pickCore(q), summary: null });
+            return;
+          }
           const r = beginDraftFn(pickCore(s), rng);
           if (applyResult(r)) set({ summary: null, toast: mkToast('신인 드래프트 개막!', 'good') });
         },

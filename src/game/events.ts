@@ -1,6 +1,7 @@
 // 사건은 생긴다 (docs/LEVEL_DESIGN.md 5절). 카드는 무작위 덱이 아니라 지금 상태의 결과다.
 // 카드마다 when(core)·우선순위·인물이 있고, 매 경기 후 검사해 1장을 낸다.
 // 카드 id 는 "기본id" 또는 "기본id|payload…" 형태 (eventsSeen 에는 기본id 만 기록).
+import { RESIGN_ID, resolveResignMut } from './contract';
 import type { BatPos, Buff, CharId, Core, EventCard, Player } from './types';
 import { clamp, pick, randInt, type Rng } from './rng';
 import { calcOvr } from './ratings';
@@ -228,6 +229,8 @@ const retiree = (core: Core) =>
     .sort((a, b) => b.star - a.star)[0];
 
 export const CARDS: CardDef[] = [
+  // ───────── FA 자격 재계약 (스토브리그. 시즌 중에는 뽑히지 않고 contract.ts drawResign 이 올린다) ─────────
+  { id: RESIGN_ID, prio: 0, forced: true, when: () => false, make: () => null, resolve: (c, i, cd) => resolveResignMut(c, i, cd) },
   // ───────── 중간 점검 (42경기 직후, 매 시즌, 조합장) ─────────
   {
     id: 'midcheck',

@@ -8,7 +8,7 @@ import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, FORCED_SALE_RATE, RENEW_PREMIUM, RENEW_SEASONS,
-  BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, activeRoster, farmGrow, farmRoster, farmUpkeep,
+  BENCH_GROW, FARM_CAP, FARM_LOCK, SVC_YEARS, FARM_MAX, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
   calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
@@ -20,6 +20,7 @@ import { isFranchise } from './franchise';
 import { afterRegularSeasonMut, playPostDayMut } from './postseason';
 import { isDraftDone } from './draft';
 import { cutGoodsMut, FOREIGN_MAX } from './events';
+import { svcSalary, svcYearAt } from './contract';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -149,6 +150,8 @@ export function growChance(core: Pick<Core, 'facilities'>, t: Team, p: Player): 
   if (p.farm) return p.ovr >= FARM_CAP ? 0 : farmGrow(core.facilities);
   if (p.age > PLAY_GROW_AGE) return grow;
   const playing = t.lineup.some((x) => x.pid === p.id) || t.rotation.includes(p.id) || t.closer === p.id;
+  // 불펜 투수는 벤치가 아니다: 등판하는 투수이므로 훈련장 확률 그대로 자란다
+  if (!playing && ((p.kind === 'P' && AUDIT.penGrow) || !AUDIT.benchHalf)) return grow;
   return Math.min(1, grow * (playing ? PLAY_GROW : BENCH_GROW));
 }
 
@@ -209,7 +212,7 @@ function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
       memoAdd(core, 'grow');
       const k = pick(rng, keys);
       // 2군 타자는 매일 타석에 서므로 한 번의 성과가 크다 (능력치가 다섯이라 OVR 로는 투수와 비슷해진다 — scripts/farmgrowth.ts)
-      const big = !!p.farm && p.kind === 'B';
+      const big = !!p.farm && p.kind === 'B' && AUDIT.farmBatBig;
       const d = randInt(rng, 1, 2) + (big ? 1 : 0);
       p[k] = clamp(p[k] + d, 20, 99);
       p.ovr = calcOvr(p);
@@ -538,6 +541,8 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
     addNews(core, NEWS.franchiseGone(p.name), 'bad');
   }
   delete p.since;
+  delete p.svc;
+  delete p.ask;
   delete p.tired;
   delete p.farm;
   delete p.farmUntil;
@@ -739,7 +744,15 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       delete p.scout;
       const franchise = t.id === core.userId && isFranchise(p, endedSeason);
       develop(p, rng, core.season);
-      if (t.id === core.userId) p.salary = Math.round((p.salary * premium) / 100) * 100;
+      if (t.id === core.userId) {
+        // 보유 기간 안의 드래프트 출신은 시장가의 일부만 받는다. FA 자격을 얻고도 재계약 카드를 거치지 않았으면 시장가로 자동 재계약
+        const yr = AUDIT.svc ? svcYearAt(p, core.season) : null;
+        if (yr !== null && yr <= SVC_YEARS) p.salary = svcSalary(p.salary, yr);
+        else {
+          delete p.svc;
+          p.salary = Math.round((p.salary * premium * (p.ask ?? 1)) / 100) * 100;
+        }
+      }
       if (p.age < RETIRE_AGE && !(t.id === core.userId && p.id === tourPid)) return p;
       // 은퇴 → 같은 포지션 신인으로 충원. 프랜차이즈 스타는 영구결번
       if (t.id === core.userId) {
@@ -750,7 +763,10 @@ export function nextSeason(core0: Core, rng: Rng): Core {
         }
       }
       const nw = genPlayer(ctx, p.pos, 50, { age: randInt(rng, 19, 22), tag: '신인' });
-      if (t.id === core.userId) nw.since = core.season;
+      if (t.id === core.userId) {
+        nw.since = core.season;
+        nw.svc = core.season; // 구단이 키우는 신인: 보유 기간 적용
+      }
       if (p.farm) nw.farm = true;
       return nw;
     });
