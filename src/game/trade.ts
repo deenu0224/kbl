@@ -344,7 +344,7 @@ function detailOf(core: Core, of: TradeOffer, cash: number): EventDetail {
   }
   for (const r of pv.ranks.slice(0, 3)) rows.push(rowInfo(`${r.label} 순위`, `${r.b}위`, `${r.a}위`, r.b < r.a ? 'good' : 'bad'));
   rows.push(rowPayroll(core, pv.payroll.b - pv.payroll.a), rowCash(core, cash));
-  rows.push(rowInfo(`예상 승수 (${pv.games}경기)`, sgn1(pv.wins), '±0.0', pv.wins > 0 ? 'good' : pv.wins < 0 ? 'bad' : 'info'));
+  rows.push(rowInfo('예상 승수', sgn1(pv.wins), '±0.0', pv.wins > 0 ? 'good' : pv.wins < 0 ? 'bad' : 'info'));
   if (pv.fans) rows.push(rowFans(core, pv.fans), rowSat(core, TR.frSat));
   const g = pv.get[0];
   const o = pv.give[0];
@@ -355,6 +355,7 @@ function detailOf(core: Core, of: TradeOffer, cash: number): EventDetail {
     rows,
     pids: [...of.get, ...of.give, ...(cur && !of.give.includes(cur.id) ? [cur.id] : [])],
     ...(pair ? { compare: pair as [string, string] } : {}),
+    lasts: `예상 승수는 ${core.phase === 'season' ? '남은' : '다음 시즌'} ${pv.games}경기 기준`,
     ...(pv.give.some((p) => p.svc !== undefined) ? { risk: '보내는 선수의 보유 기간 할인은 상대 팀에서 사라집니다' } : {}),
   };
 }

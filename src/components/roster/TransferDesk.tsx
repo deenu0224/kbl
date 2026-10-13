@@ -61,11 +61,13 @@ function BlockChip({ pid }: { pid: string }) {
       data-on={on || undefined}
       data-sfx="tab"
       title="트레이드 시장에 내놓기"
+      aria-label="트레이드 시장에 내놓기"
       onClick={() => toggle(pid)}
       className="shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]"
       style={on ? { background: color, color: '#0f1420' } : { background: '#0f1420', color, boxShadow: `inset 0 0 0 1px ${color}88` }}
     >
-      {on ? '✓ 시장' : '⇄ 시장'}
+      {on ? '✓' : '⇄'}
+      <span className="mob:hidden"> 시장</span>
     </button>
   );
 }
