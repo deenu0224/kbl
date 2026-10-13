@@ -103,6 +103,12 @@ function tradeStatus(core: { phase: string; day: number; schedule: unknown[] }, 
   return `${when}${reg} · 시장에 내놓음 ${n}/${TR.blockMax}`;
 }
 
+/** 계약금 누진 안내 한 줄: 이미 영입한 수 + 담은 수 기준 (담은 선수가 있으면 그렇다고 적는다) */
+function heatText(core: Parameters<typeof faHeatLine>[0], inBasket: number): string | null {
+  const line = faHeatLine(core, inBasket);
+  return line && inBasket > 0 ? line.replace('명 ·', `명(담은 ${inBasket}명 포함) ·`) : line;
+}
+
 const squadKinds = (p: Player): BasketKind[] => ['release', p.farm ? 'up' : 'down'];
 
 function Desk() {
@@ -146,7 +152,7 @@ function Desk() {
   const regWhy = signingClosedWhy(core);
   // 계약금 누진(10구단): 이미 영입한 수 + 담은 수 기준으로 "다음 영입"의 계약금을 미리 말한다
   const heatN = faSigned(core) + basket.sign.length;
-  const heatLine = faHeatLine(core, basket.sign.length);
+  const heatLine = heatText(core, basket.sign.length);
   const cardAhead = cardFa ? (basket.sign.includes(cardFa.id) ? basket.sign.indexOf(cardFa.id) : basket.sign.length) : 0;
   const blockWhy = blockClosedWhy(core);
   const closedLine = (why: string | null, testid: string) =>
@@ -302,7 +308,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
   const wins = Math.round(pv.wins * 10) / 10;
   const winText = `${wins >= 0 ? '+' : '−'}${Math.abs(wins).toFixed(1)}승`;
   const oneOff = pv.bonus + pv.penalty;
-  const heatLine = faHeatLine(core, basket.sign.length);
+  const heatLine = heatText(core, basket.sign.length);
 
   if (done) {
     return (
