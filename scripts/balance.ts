@@ -220,7 +220,7 @@ for (let seed = 1; seed <= N_SEEDS; seed++) {
     `${pad(seed, 4)} | ${f3(s.avg)} ${s.era.toFixed(2)} ${s.rpg.toFixed(2)} | ${pad(s.hrTop, 3)} ${pad(s.n300, 5)} ${pad(s.n340, 5)} ${pad(f3(s.avgTop), 8)} ${pad(s.winsTop, 4)} ${pad(s.svTop, 6)} ${pad(s.ties, 2)} | ${pad(s.rank, 3)}위 ${pad(s.rec, 9)} | ${pad(fmtMoney(s.profit), 7)} ${pad(fmtMoney(s.payroll), 8)} | ${pad(Math.round(s.avgAtt), 8)} ${pad(s.sellouts, 4)} ${pad(s.turnedAway, 8)} | ${pad(s.fans, 5)} ${s.fanSat.toFixed(0)}`,
   );
 }
-console.log('---- 평균 (목표: AVG .265~.275 / ERA 4.2~4.8 / R/G 4.6~5.2 / HR1 20~27 / 순위 7~8 / 손익 +8억~+18억 — 손익은 아래 [개막 오더만 고친 무개입] 기준, 이 줄은 완전 방치)');
+console.log(`---- 평균 (목표: AVG .265~.275 / ERA 4.2~4.8 / R/G 4.6~5.2 / HR1 20~27 / 순위 ${L_TEAMS - 1}~${L_TEAMS} / 손익 +8억~+18억 — 손익은 아래 [개막 오더만 고친 무개입] 기준, 이 줄은 완전 방치)`);
 console.log(
   `AVG ${f3(mean(base.map((s) => s.avg)))} · ERA ${mean(base.map((s) => s.era)).toFixed(2)} · R/G ${mean(base.map((s) => s.rpg)).toFixed(2)} · HR1 ${mean(base.map((s) => s.hrTop)).toFixed(1)} · .300+ ${mean(base.map((s) => s.n300)).toFixed(1)}명 · .340+ ${mean(base.map((s) => s.n340)).toFixed(1)}명`,
 );

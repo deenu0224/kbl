@@ -17,7 +17,8 @@ const ROUND_DEF: Record<PostRound, { name: string; bestOf: number; hiHome: numbe
   PO: { name: '플레이오프', bestOf: 5, hiHome: [0, 1, 4] },
   KS: { name: '한국시리즈', bestOf: 7, hiHome: [0, 1, 5, 6] },
 };
-const DEMAND_MULT: Record<PostRound, number> = { WC: 1.2, SPO: 1.25, PO: 1.4, KS: 1.6 };
+// WC 는 준플레이오프 가산(+25%)의 60% (docs/TEN_TEAMS.md 3단계 — 와일드카드 값은 준PO 의 절반~3분의 2)
+const DEMAND_MULT: Record<PostRound, number> = { WC: 1.15, SPO: 1.25, PO: 1.4, KS: 1.6 };
 const TICKET_MULT = 1.5; // 정산 가격 배율 (표시가와 별개)
 const POST_DOW = 4; // 수요 계산용 요일 (토요일급 열기)
 const NOISE_SD = 0.05;

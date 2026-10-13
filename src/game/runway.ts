@@ -17,7 +17,7 @@
 import { leagueMult } from './scandal';
 import type { Core, Player } from './types';
 import {
-  DOW_MULT, FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, MIN_BATTERS, MIN_PITCHERS, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
+  DOW_MULT, FOOD_LV, leagueShare, MERCH_K, MIN_BATTERS, MIN_PITCHERS, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
   capacityOf, loanInterest, loanLimit, opsCost, payroll, previewDemand, starPower, userTeam,
 } from './economy';
 import { fmtMoney } from './format';
@@ -52,7 +52,7 @@ function baseNet(core: Core): { home: number; away: number } {
   const food = FOOD_LV[core.facilities.food].spend * (core.facilities.food < FOOD_LV.length - 1 ? 1 - RAIN_P * (1 - RAIN_FOOD) : 1);
   const gate = Math.min(cap, att) * (core.finance.ticketPrice + food);
   const merch = core.fans * MERCH_K * (starPower(t, core.season) / 100);
-  const league = perGame(core, (LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + rankUnits(core, rank) * LEAGUE_PER_RANK) * leagueMult(core));
+  const league = perGame(core, leagueShare(core, rank) * leagueMult(core));
   const fixed = payroll(t) / len + perGame(core, TRAIN_LV[core.facilities.training].upkeep + opsCost(core));
   return {
     home: gate + merch * 1.4 + league - fixed - SEAT_LV[core.facilities.seats].upkeep - FOOD_LV[core.facilities.food].upkeep,

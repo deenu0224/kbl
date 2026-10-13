@@ -10,7 +10,8 @@
 import { DOME_COST } from '../src/game/projects';
 import type { Core, EventCard } from '../src/game/types';
 import { mulberry32, type Rng } from '../src/game/rng';
-import { newCore } from '../src/game/generate';
+import { NEW_GAME, newCore } from '../src/game/generate';
+import { postTeamsFor } from '../src/game/league';
 import { advanceDay, nextSeason, rankOf } from '../src/game/season';
 import { LUX_TAX, payroll, userTeam } from '../src/game/economy';
 import { ensureObjectives, STAGES } from '../src/game/campaign';
@@ -581,10 +582,13 @@ const overRate = (b: string) => all[b].filter((r) => r.over !== null).length / a
 const overAvg = (b: string) => mean(all[b].filter((r) => r.over !== null).map((r) => r.over!));
 const maxCash = Math.max(...Array.from({ length: N_SEASONS }, (_, s) => mean(all.sensible.map((r) => r.snaps[s]).filter((x): x is SeasonSnap => !!x).map((x) => x.cash))).filter((v) => Number.isFinite(v)));
 console.log('\n── 목표 대비 (LEVEL_DESIGN 11절) ──');
+const flag0 = (b: string) => { const xs = all[b].flatMap((r) => r.snaps.filter((x) => x.stage === 0)); return xs.length ? xs.filter((x) => x.cleared).length / xs.length : NaN; };
+console.log(`리그 ${NEW_GAME.teams}구단 · 0장 깃발 = ${NEW_GAME.teams - 1}위 이내(탈꼴찌) · 가을야구 = ${postTeamsFor(NEW_GAME.teams)}위 이내`);
 console.log(`passive  연고 이전 평균 시즌 ${overAvg('passive').toFixed(1)} (목표 3~4) · 이전율 ${Math.round(overRate('passive') * 100)}%`);
-console.log(`sensible 장당 평균 ${spanS.toFixed(2)}시즌 (목표 1.3~1.8) · 우승 ${champS.length}/${N_SEEDS} 중앙 시즌 ${champS.length ? median(champS).toFixed(1) : '—'} (목표 7~10) · 이전율 ${Math.round(overRate('sensible') * 100)}% (목표 <15%)`);
-console.log(`sensible 별 장당 평균 ${sStars.avg.toFixed(2)}개 (목표 1.0~1.5) · 3개 전부 ${Math.round(sStars.all3 * 100)}% (목표 <10%) · 시즌 말 평균 현금 최대 ${fmtMoney(maxCash)} (목표 ≤100억)`);
-console.log(`greedy   2장 도달 중앙 ${median(all.greedy.map((r) => r.reach[2]).filter((x): x is number => x !== null)).toFixed(1)} · 3장 도달률 ${Math.round((all.greedy.filter((r) => r.reach[3] !== null).length / N_SEEDS) * 100)}% · 이전율 ${Math.round(overRate('greedy') * 100)}% (목표 30%+)`);
+console.log(`sensible 0장 깃발 달성률 ${Math.round(flag0('sensible') * 100)}% (목표 60~80%)`);
+console.log(`sensible 장당 평균 ${spanS.toFixed(2)}시즌 (목표 1.3~1.8) · 우승 ${champS.length}/${N_SEEDS} 중앙 시즌 ${champS.length ? median(champS).toFixed(1) : '—'} (목표 7~8) · 이전율 ${Math.round(overRate('sensible') * 100)}% (목표 0%)`);
+console.log(`sensible 별 장당 평균 ${sStars.avg.toFixed(2)}개 (목표 1.2~1.6) · 3개 전부 ${Math.round(sStars.all3 * 100)}% (목표 10~15%) · 시즌 말 평균 현금 최대 ${fmtMoney(maxCash)} (목표 ≤100억)`);
+console.log(`greedy   2장 도달 중앙 ${median(all.greedy.map((r) => r.reach[2]).filter((x): x is number => x !== null)).toFixed(1)} · 3장 도달률 ${Math.round((all.greedy.filter((r) => r.reach[3] !== null).length / N_SEEDS) * 100)}% · 이전율 ${Math.round(overRate('greedy') * 100)}% (목표 25~40%)`);
 
 // 왕조 프로젝트: 구매 시즌 분포 (시즌 말 스냅샷 기준 — 구매는 그 전 스토브리그)
 {

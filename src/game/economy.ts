@@ -1,6 +1,6 @@
 import type { Core, Facilities, FacilityKind, Ledger, Player, Team, Weather } from './types';
 import { clamp } from './rng';
-import { dayAt, seasonGames } from './league';
+import { BASE_TEAMS, dayAt, leagueSize, rankUnits, seasonGames } from './league';
 import { activeBuffs } from './campaign';
 import { isFranchise } from './franchise';
 import { projectFx } from './projects';
@@ -140,6 +140,16 @@ export const RENEW_SEASONS = 2; // 3시즌 합산(최대 +36%)은 왕조 팀의 
 export const LEAGUE_BASE = 2400; // 리그 분배금·스폰서 기본 (만원/경기)
 export const LEAGUE_PER_FAN = 0.04;
 export const LEAGUE_PER_RANK = 45; // 순위 한 계단당
+// 구단이 8개보다 많은 리그의 분배: 균등 몫이 크고 팬 비례 몫이 작다 (docs/TEN_TEAMS.md 3단계).
+// 팬 5,000 에서 경기당 +200(시즌 +1.7억 — 개막 오더만 고친 무개입의 손익을 +8억 위로), 팬 25,000 에서 8구단과 같아지고 그 위로는 적다
+export const LEAGUE_BASE_BIG = 2650;
+export const LEAGUE_PER_FAN_BIG = 0.03;
+
+/** 리그 분배금·스폰서: 84경기 기준 경기당 금액 (만원). 정산에서는 perGame·징계 배율을 곱한다 */
+export function leagueShare(core: Pick<Core, 'teams' | 'fans'>, rank: number): number {
+  const big = leagueSize(core) > BASE_TEAMS;
+  return (big ? LEAGUE_BASE_BIG : LEAGUE_BASE) + core.fans * (big ? LEAGUE_PER_FAN_BIG : LEAGUE_PER_FAN) + rankUnits(core, rank) * LEAGUE_PER_RANK;
+}
 export const MERCH_K = 0.03; // 팬 1명 × 스타합/100 당 (만원/경기)
 export const RAIN_FOOD = 0.8;
 export const SIGN_BONUS_RATE = 0.25;
