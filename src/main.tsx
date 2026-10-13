@@ -5,9 +5,11 @@ import './index.css';
 import App from './App';
 import { initAnalytics } from './analytics';
 import { initUiScale } from './components/layout/uiScale';
+import { initAchv } from './components/achvStore';
 
 initUiScale();
 initAnalytics();
+initAchv();
 
 // 뒤로 갔다 돌아왔을 때 중간에 멈춘 등장 애니메이션(반투명 창)을 풀어 준다
 document.addEventListener('visibilitychange', () => {

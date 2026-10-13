@@ -22,6 +22,7 @@ import { usePlaybackDriver } from './components/StadiumView';
 import TransferDesk from './components/roster/TransferDesk';
 import TitleScreen from './components/TitleScreen';
 import Settings from './components/Settings';
+import Achievements, { AchvToast } from './components/Achievements';
 
 /** 시즌 사이의 전체 화면들: 결산 → 드래프트, 또는 연고 이전 */
 function PhaseScreens() {
@@ -54,6 +55,7 @@ export default function App() {
     return (
       <>
         <TitleScreen />
+        <Achievements />
         <Settings />
       </>
     );
@@ -68,7 +70,9 @@ export default function App() {
         <CampaignSheet />
         <PhaseScreens />
         <Settings />
+        <Achievements />
         <Toast />
+        <AchvToast />
       </>
     );
   }
@@ -97,7 +101,9 @@ export default function App() {
       <BriefingSheet />
       <CampaignSheet />
       <PhaseScreens />
+      <Achievements />
       <Toast />
+      <AchvToast />
     </div>
   );
 }

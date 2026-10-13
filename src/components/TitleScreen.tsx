@@ -10,6 +10,7 @@ import StadiumCanvas, { HOTSPOTS, STADIUM_H, STADIUM_W } from '../stadium/Stadiu
 import { pickCore, useStore } from '../store';
 import { Flag, stageLabel } from './Campaign';
 import { hofCloseClub, useHof } from './hofStore';
+import { useAchv } from './achvStore';
 import { useUi } from './layout/uiStore';
 import { parseFrom } from '../share/shareData';
 import { ShareClubButton } from './ShareSheet';
@@ -305,6 +306,9 @@ export default function TitleScreen() {
               </button>
               <button className={big} data-testid="open-hof" onClick={() => setView('hof')}>
                 명예의 전당
+              </button>
+              <button className={big} data-testid="open-achv" onClick={() => useAchv.getState().setOpen(true)}>
+                도전과제
               </button>
               <button className={big} data-testid="open-settings" onClick={() => setSettingsOpen(true)}>
                 설정

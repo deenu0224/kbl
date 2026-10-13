@@ -22,7 +22,7 @@ const safe = {
 };
 
 /** 전체 화면 틀: 모바일은 100dvh, 데스크톱은 화면 대부분을 덮는 모달 */
-export function FullScreen({ title, sub, onClose, children, testid, hold = false }: { title: string; sub?: ReactNode; onClose: () => void; children: ReactNode; testid?: string; hold?: boolean }) {
+export function FullScreen({ title, sub, onClose, children, testid, hold = false, top = false }: { title: string; sub?: ReactNode; onClose: () => void; children: ReactNode; testid?: string; hold?: boolean; top?: boolean }) {
   useEffect(() => {
     // 선수 카드가 떠 있으면(hold) Esc 는 카드만 닫는다
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !hold && onClose();
@@ -30,7 +30,7 @@ export function FullScreen({ title, sub, onClose, children, testid, hold = false
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, hold]);
   return createPortal(
-    <div className="fixed inset-0 z-40 flex h-[calc(var(--dvh)*100)] items-stretch justify-center bg-ink/90 p-5 font-pixel text-[12px] select-none mob:p-0" style={safe} data-testid={testid}>
+    <div className={`fixed inset-0 ${top ? 'z-[75]' : 'z-40'} flex h-[calc(var(--dvh)*100)] items-stretch justify-center bg-ink/90 p-5 font-pixel text-[12px] select-none mob:p-0`} style={safe} data-testid={testid}>
       <div className="absolute inset-0" onClick={onClose} />
       <div className="px-panel relative flex min-h-0 w-full max-w-[1180px] flex-col">
         <div className="flex shrink-0 items-center gap-2 px-2 pt-1.5">
