@@ -11,7 +11,7 @@ import { POS_NAME } from './script';
 import { addNews } from './season';
 import { hintMut } from './campaign';
 import { CHARACTERS } from './story';
-import { FARM_COACH, FARM_N, farmAutoOn, ilAutoMut, ilMoveMut, markUpMut, subBenchOut, subFarmPick, subGapMut, subQueue, subQueueSet, subRole, subSlotKey, type SubRole } from './farm';
+import { FARM_COACH, FARM_N, farmAutoOn, ilAutoMut, ilMoveMut, markUpMut, subBenchOut, subFarmPick, subGapMut, subHandoverMut, subQueue, subQueueSet, subRole, subSlotKey, type SubRole } from './farm';
 import { rowInfo, rowOvr, type Row } from './eventRows';
 
 const posKo = (pos: string): string => POS_NAME[pos] ?? pos;
@@ -255,7 +255,13 @@ export function resolveSubCard(core: Core, idx: number, card: EventCard): string
   memoSet(core, subSlotKey(inj.id), role.k === 'L' ? ['L', role.i, role.pos, pl.mover?.id ?? '', moverPos ?? ''].join('~') : role.k);
   // 이미 다른 부상자의 대체로 뛰던 선수는 그 표시를 유지한다
   if (!pl.x.subFor) {
-    pl.x.subFor = inj.id;
+    // 다친 선수가 다른 부상자의 대체로 뛰던 중이었으면, 새 대체 선수가 그 역할을 넘겨받는다 (원래 주인이 돌아오면 그 칸을 돌려준다)
+    const root = inj.subFor ? t.roster.find((p) => p.id === inj.subFor) : undefined;
+    if (root && subHandoverMut(core, root, inj)) {
+      pl.x.subFor = root.id;
+      delete inj.subFor;
+      delete inj.subFrom;
+    } else pl.x.subFor = inj.id;
     if (pl.type === 'bench') pl.x.subFrom = 'bench';
   }
   if (pl.type === 'callup') {
