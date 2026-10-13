@@ -160,8 +160,10 @@ function Desk() {
     {closedLine(regWhy, 'reg-closed')}
     {!regWhy && heatLine && (
       <div className={`shrink-0 px-1.5 py-1 text-[11px] mob:text-[13px] ${heatN > 0 ? 'bg-[#4a3a2a] text-[#f0a35a]' : 'bg-ink/40 text-white/55'}`} data-testid="fa-heat">
-        {heatN > 0 ? '🔥 ' : ''}{heatLine}
-        <Help topic="faheat" className="ml-1" />
+        <div className="flex items-center gap-1">
+          <span className="min-w-0">{heatN > 0 ? '🔥 ' : ''}{heatLine}</span>
+          <Help topic="faheat" className="shrink-0" />
+        </div>
         {heatN > 0 && (
           <div className="text-white/60" data-testid="fa-heat-say">
             {CHARACTERS.scout.name} {CHARACTERS.scout.title}: “시장이 달아올랐습니다. 에이전트들이 제주가 급하다는 걸 압니다.”
@@ -393,8 +395,12 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
       {pv.ins.map(({ p, bonus, why }) => (
         <div key={p.id} className="truncate" data-testid="sum-in">
           <span className="text-good">+ 영입 </span>
-          {p.name} <span className="text-white/60">오버롤 {p.ovr} · {POS_FULL[p.pos]} · 연 {fmtMoney(p.salary)} · 계약금 {fmtMoney(bonus)}</span>
-          {why && <span className="text-[#f0a35a]"> ({why})</span>}
+          {p.name} <span className="text-white/60">오버롤 {p.ovr} · {POS_FULL[p.pos]} · 연 {fmtMoney(p.salary)}{!why && ` · 계약금 ${fmtMoney(bonus)}`}</span>
+          {why && (
+            <div className="truncate pl-3 text-[#f0a35a]" data-testid="sum-in-bonus">
+              계약금 {fmtMoney(bonus)} ({why})
+            </div>
+          )}
         </div>
       ))}
       {heatLine && pv.ins.length > 0 && (
