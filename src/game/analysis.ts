@@ -3,8 +3,8 @@
 import type { BatPos, Core, Player, Team } from './types';
 import { batValue, effDef, teamParts, type TeamParts } from './ratings';
 import { slotNewcomer } from './lineup';
-import { TRAIN_LV, payroll, userTeam } from './economy';
-import { DECLINE_AGE, DECLINE_RATE, PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, WEEK, marketSalary } from './season';
+import { BENCH_GROW, FARM_CAP, FARM_LOCK, FARM_MAX, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, TRAIN_LV, activeRoster, farmGrow, farmRoster, payroll, userTeam } from './economy';
+import { DECLINE_AGE, DECLINE_RATE, PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, WEEK, farmLockLeft, growChance, marketSalary } from './season';
 import { ANALYST_NOISE, SCOUT_CUT, SCOUT_NOISE } from './draft';
 import { isFranchise } from './franchise';
 
@@ -285,6 +285,10 @@ export interface GrowthInfo {
   playing: boolean; // 주전 가산을 받는 중
   playAge: number; // 주전 가산 나이 상한
   playMult: number;
+  farm: boolean; // 2군 소속
+  rates: { starter: number; bench: number; farm: number }; // 이 선수가 1군 주전 / 1군 벤치 / 2군일 때의 주당 확률
+  farmCap: number; // 2군에서 오를 수 있는 OVR 상한
+  capped: boolean; // 2군 상한에 닿았다 (1군에서만 더 자란다)
   left: number; // 이번 시즌 남은 훈련 횟수
   expect: number; // 남은 시즌 기대 OVR 성장 (여지를 넘지 않는다)
   decline: { age: number; rate: number } | null; // 시즌 중 노쇠 대상이면
@@ -299,10 +303,14 @@ export function growthInfo(core: Core, p: Player): GrowthInfo {
   const trains = p.age <= TRAIN_MAX_AGE && room > 0;
   const inPlay = new Set([...t.lineup.map((x) => x.pid), ...t.rotation, ...(t.closer ? [t.closer] : [])]);
   const playing = mine && p.age <= PLAY_GROW_AGE && inPlay.has(p.id);
-  const chance = Math.min(1, lv.grow * (playing ? PLAY_GROW : 1));
+  const young = p.age <= PLAY_GROW_AGE;
+  const rates = { starter: Math.min(1, lv.grow * (young ? PLAY_GROW : 1)), bench: lv.grow * (young ? BENCH_GROW : 1), farm: p.ovr >= FARM_CAP ? 0 : farmGrow(core.facilities) };
+  const farm = mine && !!p.farm;
+  const capped = farm && p.ovr >= FARM_CAP && room > 0;
+  const chance = !trains ? 0 : !mine ? lv.grow : farm ? rates.farm : playing ? rates.starter : rates.bench;
   const total = core.schedule.length;
   const left = core.phase === 'season' ? Math.max(0, Math.floor(total / WEEK) - Math.floor(core.day / WEEK)) : 0;
-  const expect = trains ? Math.min(room, r1(left * chance * GAIN_PER_HIT[p.kind])) : 0;
+  const expect = trains ? Math.min(farm ? Math.max(0, FARM_CAP - p.ovr) : room, r1(left * chance * GAIN_PER_HIT[p.kind])) : 0;
   const nextAge = p.age + 1;
   return {
     room,
@@ -316,6 +324,10 @@ export function growthInfo(core: Core, p: Player): GrowthInfo {
     playing,
     playAge: PLAY_GROW_AGE,
     playMult: PLAY_GROW,
+    farm,
+    rates,
+    farmCap: FARM_CAP,
+    capped,
     left,
     expect,
     decline: p.age >= DECLINE_AGE ? { age: DECLINE_AGE, rate: DECLINE_RATE } : null,
@@ -344,8 +356,52 @@ export function statusTags(p: Player, season: number, mine: boolean): { text: st
   const out: { text: string; tone: 'bad' | 'warn' | 'good' | 'hi' }[] = [];
   if (p.injury > 0) out.push({ text: `부상 ${p.injury}`, tone: 'bad' });
   if ((p.tired ?? 0) > 0) out.push({ text: `연투 ${p.tired}`, tone: 'warn' });
+  if (mine && p.farm) out.push({ text: '2군', tone: 'warn' });
   if (p.rookie) out.push({ text: '신인', tone: 'good' });
   if (mine && isFranchise(p, season)) out.push({ text: '프랜차이즈', tone: 'hi' });
   if (p.foreign) out.push({ text: '외인', tone: 'warn' });
   return out;
+}
+
+// ───────── 2군 ─────────
+
+const POS_KO_SHORT: Record<string, string> = { C: '포수', '1B': '1루', '2B': '2루', '3B': '3루', SS: '유격', LF: '좌익', CF: '중견', RF: '우익', DH: '지명', SP: '선발', RP: '불펜', CP: '마무리' };
+
+/** [콜업] 을 누르기 전에 보이는 결과 한 줄. ok=false 면 지금은 올릴 수 없다 */
+export function callUpPreview(core: Core, p: Player): { ok: boolean; text: string } {
+  const t = userTeam(core);
+  const left = farmLockLeft(core, p);
+  if (left > 0) return { ok: false, text: `재등록 ${left}경기 뒤` };
+  const n = activeRoster(t).length;
+  if (n >= ROSTER_MAX) return { ok: false, text: `1군 ${n}/${ROSTER_MAX} 가득` };
+  if (p.injury > 0) return { ok: true, text: `부상 ${p.injury}경기 · 벤치로` };
+  const byId = new Map(t.roster.map((x) => [x.id, x]));
+  const label = POS_KO_SHORT[p.pos] ?? p.pos;
+  if (p.kind === 'B') {
+    const cur = byId.get(t.lineup.find((l) => l.pos === p.pos)?.pid ?? '');
+    return { ok: true, text: cur && cur.ovr < p.ovr ? `${label} ${cur.ovr} → ${p.ovr}` : `벤치로 (${label} 주전 ${cur?.ovr ?? '-'})` };
+  }
+  if (p.pos === 'SP') {
+    const low = t.rotation.map((id) => byId.get(id)).filter((x): x is Player => !!x).sort((a, b) => a.ovr - b.ovr)[0];
+    return { ok: true, text: !low || t.rotation.length < 5 || low.ovr < p.ovr ? `선발 ${low?.ovr ?? '-'} → ${p.ovr}` : `불펜으로 (선발 최약 ${low.ovr})` };
+  }
+  const cl = t.closer ? byId.get(t.closer) : undefined;
+  return { ok: true, text: p.pos === 'CP' && (!cl || cl.ovr < p.ovr) ? `마무리 ${cl?.ovr ?? '-'} → ${p.ovr}` : '불펜으로' };
+}
+
+/** [2군으로] 를 누르기 전에 보이는 결과 한 줄 */
+export function sendDownPreview(core: Core, p: Player): { ok: boolean; text: string } {
+  const t = userTeam(core);
+  if (p.injury > 0) return { ok: false, text: '부상자는 못 내린다' };
+  const nf = farmRoster(t).length;
+  if (nf >= FARM_MAX) return { ok: false, text: `2군 ${nf}/${FARM_MAX} 가득` };
+  const same = activeRoster(t).filter((x) => x.kind === p.kind).length;
+  if (same <= (p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS)) return { ok: false, text: `1군 ${p.kind === 'B' ? '타자' : '투수'} 최소 ${p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS}명` };
+  const pc = (v: number) => `${Math.round(v * 100)}%`;
+  const lock = core.phase === 'season' ? `${FARM_LOCK}경기 동안 재등록 불가` : '시즌 전: 재등록 제한 없음';
+  const now = growChance(core, t, p);
+  const then = growChance(core, t, { ...p, farm: true });
+  if (p.age > TRAIN_MAX_AGE || p.ovr >= p.pot) return { ok: true, text: `${lock} · 더 자라지 않는 선수` };
+  if (p.ovr >= FARM_CAP) return { ok: true, text: `${lock} · OVR ${FARM_CAP} 이상은 2군에서 안 자란다` };
+  return { ok: true, text: `${lock} · 주당 성장 확률 ${pc(now)} → ${pc(then)}` };
 }

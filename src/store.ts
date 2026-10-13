@@ -7,6 +7,8 @@ import {
   advanceDay,
   signPlayer,
   releasePlayer,
+  sendDown,
+  callUp,
   upgradeFacility,
   setTicketPrice,
   borrow as borrowLoan,
@@ -24,7 +26,7 @@ import { memoGet, memoSet } from './game/memo';
 import { RUNWAY_STOP, runway } from './game/runway';
 import { useUi } from './components/layout/uiStore';
 
-export type LeftTab = 'lineup' | 'pitchers' | 'market';
+export type LeftTab = 'lineup' | 'pitchers' | 'farm' | 'market';
 export type RightTab = 'league' | 'stadium' | 'finance' | 'news';
 export type Tone = 'good' | 'bad' | 'info';
 
@@ -44,6 +46,8 @@ export interface Store extends Core {
   closeSummary(): void;
   sign(pid: string): void;
   release(pid: string): void;
+  sendDown(pid: string): void;
+  callUp(pid: string): void;
   upgrade(kind: FacilityKind): void;
   setPrice(v: number): void;
   borrow(): void;
@@ -256,6 +260,18 @@ export const useStore = create<Store>()(
           const s = get();
           const p = findPlayer(s, pid);
           applyResult(releasePlayer(pickCore(s), pid), p ? `${p.name} 방출` : '방출 완료');
+        },
+        sendDown(pid) {
+          if (locked()) return;
+          const s = get();
+          const p = findPlayer(s, pid);
+          applyResult(sendDown(pickCore(s), pid), p ? `${p.name} 2군으로` : '2군으로 내렸습니다');
+        },
+        callUp(pid) {
+          if (locked()) return;
+          const s = get();
+          const p = findPlayer(s, pid);
+          if (applyResult(callUp(pickCore(s), pid), p ? `${p.name} 1군 등록!` : '콜업 완료!')) set({ flash: { pid, at: Date.now() } });
         },
         upgrade(kind) {
           if (locked()) return;

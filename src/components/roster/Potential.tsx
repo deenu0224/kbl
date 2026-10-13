@@ -63,12 +63,32 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
           {g.trains || prospect ? (
             <span>
               {who}{g.maxAge}세 이하 · 여지가 있으면 {g.week}경기마다 훈련. {g.facility}에서 주당 <span className="text-hi">{pct(prospect ? g.base : g.chance)}</span> 확률로 능력치 +1~2 와 +1
-              {g.playing ? <span className="text-good"> ({g.playAge}세 이하 주전 ×{g.playMult} 적용)</span> : p.age <= g.playAge ? <span className="text-white/55"> (주전이면 ×{g.playMult} = {pct(Math.min(1, g.base * g.playMult))})</span> : null}
+              {g.capped ? <span className="text-bad"> (2군 상한 OVR {g.farmCap} 도달 — 1군에서만 더 자란다)</span> : g.farm ? <span className="text-good"> (2군 실전)</span> : g.playing ? <span className="text-good"> ({g.playAge}세 이하 주전 ×{g.playMult})</span> : g.mine && p.age <= g.playAge ? <span className="text-bad"> ({g.playAge}세 이하 벤치 — 안 쓰면 썩는다)</span> : null}
             </span>
           ) : (
             <span className="text-white/70">{g.room <= 0 ? '잠재력에 닿아 시즌 중 훈련 성장 없음' : `${g.maxAge}세를 넘어 시즌 중 훈련 성장 없음`}</span>
           )}
         </div>
+        {!prospect && g.trains && (
+          <div className={line} data-testid="pot-rates">
+            <span className={key}>어디서</span>
+            <span>
+              {([['1군 주전', g.rates.starter, g.mine && !g.farm && g.playing], ['1군 벤치', g.rates.bench, g.mine && !g.farm && !g.playing], ['2군', g.rates.farm, g.farm]] as const).map(([label, v, on], i) => (
+                <span key={label} className={on ? 'text-hi' : 'text-white/70'}>
+                  {i > 0 && <span className="text-white/30"> · </span>}
+                  {label} {pct(v)}
+                </span>
+              ))}
+              <span className="text-white/50"> (2군은 OVR {g.farmCap} 까지)</span>
+            </span>
+          </div>
+        )}
+        {prospect && (
+          <div className={line} data-testid="pot-rates">
+            <span className={key}>2군</span>
+            <span className="text-white/70">지명하면 2군에서 시작 · 주당 <span className="text-hi">{pct(g.rates.farm)}</span> (1군 주전 {pct(g.rates.starter)} · 벤치 {pct(g.rates.bench)}) · 2군은 OVR {g.farmCap} 까지</span>
+          </div>
+        )}
         {g.decline && (
           <div className={line} data-testid="pot-decline">
             <span className={key}>노쇠</span>

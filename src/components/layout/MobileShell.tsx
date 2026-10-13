@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import type { HintTab } from '../../game/types';
 import { useStore } from '../../store';
 import { MobileActionBar } from '../BottomBar';
 import GameSummary from '../GameSummary';
-import { LineupTab, MarketTab, PitchersTab } from '../LeftPanel';
+import { FarmTab, LineupTab, MarketTab, PitchersTab } from '../LeftPanel';
+import { FARM_MAX } from '../../game/economy';
 import EventCardModal from '../EventCardModal';
 import OrderSheet from '../OrderSheet';
 import { FinanceTab, LeagueTab, NewsTab, StadiumTab, useHintTabs } from '../RightPanel';
@@ -13,7 +14,7 @@ import { TabBar } from '../ui';
 import MobileNav from './MobileNav';
 import { useUi, type ClubSub, type RosterSub } from './uiStore';
 
-const ROSTER_SUBS: { id: RosterSub; label: string }[] = [
+const ROSTER_SUBS: { id: 'lineup' | 'pitchers'; label: string }[] = [
   { id: 'lineup', label: '타선' },
   { id: 'pitchers', label: '투수' },
 ];
@@ -32,8 +33,9 @@ function MobilePanel() {
   const playback = useStore((s) => !!s.playback);
   const clearHint = useStore((s) => s.clearHint);
   // 지금 보이는 하위 탭의 배지는 지운다
-  const active: HintTab = tab === 'roster' ? rosterSub : tab === 'club' ? clubSub : tab;
-  const rosterTabs = useHintTabs(ROSTER_SUBS, tab === 'roster' ? rosterSub : null);
+  const active: HintTab = tab === 'roster' ? (rosterSub === 'farm' ? 'lineup' : rosterSub) : tab === 'club' ? clubSub : tab;
+  const nFarm = useStore((s) => (s.teams.find((t) => t.id === s.userId)?.roster ?? []).filter((p) => p.farm).length);
+  const rosterTabs: { id: RosterSub; label: string; badge?: ReactNode }[] = [...useHintTabs(ROSTER_SUBS, tab === 'roster' && rosterSub !== 'farm' ? rosterSub : null), { id: 'farm', label: `2군 ${nFarm}/${FARM_MAX}` }];
   const clubTabs = useHintTabs(CLUB_SUBS, tab === 'club' ? clubSub : null);
   const activeN = useStore((s) => s.campaign.hints?.[active] ?? 0);
   useEffect(() => {
@@ -46,7 +48,7 @@ function MobilePanel() {
       {tab === 'roster' && (
         <>
           <TabBar tabs={rosterTabs} value={rosterSub} onChange={setRosterSub} />
-          {rosterSub === 'lineup' ? <LineupTab /> : <PitchersTab />}
+          {rosterSub === 'lineup' ? <LineupTab /> : rosterSub === 'farm' ? <FarmTab /> : <PitchersTab />}
         </>
       )}
       {tab === 'market' && <MarketTab />}

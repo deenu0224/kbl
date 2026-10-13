@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Player } from '../../game/types';
 import { depthChart, fitsKey, salaryReport, signImpact, type DepthLine, type PosKey, type PosRow } from '../../game/analysis';
-import { ROSTER_MAX, signingBonus } from '../../game/economy';
+import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, signingBonus } from '../../game/economy';
+import { FarmMoveButton } from '../LeftPanel';
 import { fmtMoney } from '../../game/format';
 import { useCore, useStore, useUserTeam } from '../../store';
 import PlayerCard from '../PlayerCard';
@@ -78,7 +79,7 @@ function DepthRows({ line, onPick }: { line: DepthLine; onPick: (p: Player) => v
     <>
       {line.slots.map((s) => (
         <button key={s.p.id} className="flex w-full cursor-pointer items-center gap-1.5 bg-ink/40 px-1 py-1 text-left hover:bg-white/8 mob:min-h-10" onClick={() => onPick(s.p)}>
-          <span className={`w-9 shrink-0 text-[10px] mob:text-[11px] ${s.starter ? 'text-hi' : 'text-white/55'}`}>{s.starter ? '주전' : `백업${++bk}`}</span>
+          <span className={`w-9 shrink-0 text-[10px] mob:text-[11px] ${s.starter ? 'text-hi' : 'text-white/55'}`}>{s.starter ? '주전' : s.farm ? '2군' : `백업${++bk}`}</span>
           <OvrBadge ovr={s.p.ovr} size={20} />
           <span className={`min-w-0 flex-1 truncate ${s.p.injury > 0 ? 'text-bad' : ''}`}>
             {s.p.name}
@@ -282,16 +283,32 @@ function Office({ view, onClose }: { view: OfficeView; onClose: () => void }) {
   const [card, setCard] = useState<string | null>(null);
   const cardP = card ? team.roster.find((p) => p.id === card) : undefined;
   const pick = (p: Player) => setCard(p.id);
+  const [squad, setSquad] = useState<'all' | 'first' | 'farm'>('all');
+  const nFarm = farmRoster(team).length;
+  const shown = squad === 'all' ? team.roster : team.roster.filter((p) => !!p.farm === (squad === 'farm'));
   return (
-    <FullScreen title="프런트 오피스" sub={`${team.name} · 선수단 ${team.roster.length}/${ROSTER_MAX}명`} onClose={onClose} testid="front-office" hold={!!cardP}>
+    <FullScreen title="프런트 오피스" sub={`${team.name} · 1군 ${team.roster.length - nFarm}/${ROSTER_MAX} · 2군 ${nFarm}/${FARM_MAX}`} onClose={onClose} testid="front-office" hold={!!cardP}>
       <div className="mt-1 shrink-0">
         <TabBar tabs={VIEWS} value={view} onChange={(v) => useRosterUi.setState({ office: v })} />
       </div>
       {view === 'diag' && <DiagView rows={rows} onCard={pick} />}
-      {view === 'table' && <PlayerTable mode="roster" players={team.roster} rows={rows} sel={card} onPick={pick} />}
+      {view === 'table' && (
+        <div className="mt-1 flex shrink-0 items-center gap-1 text-[11px]" data-testid="squad-filter">
+          {([['all', `전체 ${team.roster.length}`], ['first', `1군 ${team.roster.length - nFarm}`], ['farm', `2군 ${nFarm}`]] as const).map(([id, label]) => (
+            <button key={id} data-testid={`squad-${id}`} onClick={() => setSquad(id)} className={`cursor-pointer whitespace-nowrap px-2 py-0.5 mob:min-h-9 ${squad === id ? 'bg-hi text-ink' : 'bg-ink text-white/70'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {view === 'table' && <PlayerTable mode="roster" players={shown} rows={rows} sel={card} onPick={pick} />}
       {view === 'depth' && <DepthView rows={rows} onCard={pick} />}
       {view === 'salary' && <SalaryView onCard={pick} />}
-      {cardP && <CardPop player={cardP} onClose={() => setCard(null)} />}
+      {cardP && (
+        <CardPop player={cardP} onClose={() => setCard(null)}>
+          <FarmMoveButton player={cardP} onDone={() => setCard(null)} />
+        </CardPop>
+      )}
     </FullScreen>
   );
 }
@@ -317,10 +334,10 @@ function Board() {
   const im = useMemo(() => (p ? signImpact(team, p) : null), [p, team]);
   const close = () => useRosterUi.setState({ board: false });
   const bonus = p ? signingBonus(p) : 0;
-  const reason = !p ? null : team.roster.length >= ROSTER_MAX ? `로스터 정원 초과 (${ROSTER_MAX}명)` : cash < bonus ? `현금 부족 (계약금 ${fmtMoney(bonus)})` : null;
+  const reason = !p ? null : activeRoster(team).length >= ROSTER_MAX ? `1군 가득 (${ROSTER_MAX}명) — 먼저 한 명을 2군으로 내리세요` : cash < bonus ? `현금 부족 (계약금 ${fmtMoney(bonus)})` : null;
   const deltas = Object.entries(im?.delta ?? {}) as [keyof typeof PART_KO, number][];
   return (
-    <FullScreen title="영입 시장" sub={`FA ${freeAgents.length}명 · 현금 ${fmtMoney(cash)} · 로스터 ${team.roster.length}/${ROSTER_MAX}`} onClose={close} testid="market-board" hold={!!p}>
+    <FullScreen title="영입 시장" sub={`FA ${freeAgents.length}명 · 현금 ${fmtMoney(cash)} · 1군 ${activeRoster(team).length}/${ROSTER_MAX}`} onClose={close} testid="market-board" hold={!!p}>
       <PlayerTable mode="market" players={freeAgents} rows={rows} sel={card} onPick={(x) => setCard(x.id)} initPos={initPos} />
       {p && (
         <CardPop
