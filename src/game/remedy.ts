@@ -241,6 +241,7 @@ function penRemedies(core: Core): Remedy[] {
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const full = activeRoster(t).length >= ROSTER_MAX;
   const restedOf = (c: Core) => bullpenLoad(userTeam(c)).rested;
+  const after = (c: Core) => (bullpenLoad(userTeam(c)).label === '과부하' ? '과부하는 남는다' : '과부하 해소');
   const up = shuttleArms(core)[0];
   if (up) {
     // 1군이 가득이면 가장 지친 추격조를 내린다
@@ -249,11 +250,12 @@ function penRemedies(core: Core): Remedy[] {
       : undefined;
     if (!full || down) {
       const r = chain(core, [...(down ? [(c: Core) => sendDown(c, down.id)] : []), (c) => callUp(c, up.id)]);
-      if (!r.error) {
+      // 등판 가능 인원이 실제로 늘 때만 낸다
+      if (!r.error && restedOf(r.core) > load.rested) {
         out.push({
           id: `up-${up.id}`, run: { t: 'callup', pid: up.id, ...(down ? { down: down.id } : {}) }, tone: 'good',
           label: `2군 ${up.name} 콜업 — 등판 가능 ${load.rested} → ${restedOf(r.core)}명`,
-          effect: `${posKo(up.pos)} 오버롤 ${up.ovr}${down ? ` · ${down.name} 2군행(${FARM_LOCK}경기 재등록 불가)` : ` · 1군 ${activeRoster(t).length} → ${activeRoster(t).length + 1}명`}`,
+          effect: `${after(r.core)} · ${posKo(up.pos)} 오버롤 ${up.ovr}${down ? ` · ${down.name} 2군행(${FARM_LOCK}경기 재등록 불가)` : ` · 1군 ${activeRoster(t).length} → ${activeRoster(t).length + 1}명`}`,
         });
       }
     }
@@ -264,11 +266,11 @@ function penRemedies(core: Core): Remedy[] {
       .filter((p) => p.kind === 'P' && p.pos !== 'SP' && p.injury === 0 && p.salary <= PEN_SIGN_SALARY && signingBonus(p) <= core.finance.cash && !(p.foreign && foreignFull))
       .sort((a, b) => b.ovr - a.ovr || a.salary - b.salary)[0];
     const r = fa ? signPlayer(core, fa.id) : null;
-    if (fa && r && !r.error) {
+    if (fa && r && !r.error && restedOf(r.core) > load.rested) {
       out.push({
         id: `sign-${fa.id}`, run: { t: 'sign', pid: fa.id },
         label: `FA 구원 ${fa.name} 영입 — 등판 가능 ${sgn(restedOf(r.core) - load.rested)}`,
-        effect: `오버롤 ${fa.ovr} · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))}`,
+        effect: `${after(r.core)} · 오버롤 ${fa.ovr} · 연봉 +${fmtMoney(fa.salary)} · 계약금 ${fmtMoney(signingBonus(fa))}`,
       });
     }
   }
