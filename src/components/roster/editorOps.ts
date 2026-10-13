@@ -1,4 +1,3 @@
-import { create } from 'zustand';
 import type { BatPos, Core, LineupSlot, Player, Team } from '../../game/types';
 import { ROSTER_MAX, activeRoster } from '../../game/economy';
 import { farmLockLeft } from '../../game/season';
@@ -6,11 +5,11 @@ import { sendDownPreview } from '../../game/analysis';
 import { recPairs } from '../../game/fixes';
 import { teamParts, type TeamParts } from '../../game/ratings';
 
-// ───────── 오더 편집기의 순수 연산 (미리 보기와 실제 반영이 같은 함수를 쓴다) ─────────
+// ───────── 선수단 화면의 순수 연산 (미리 보기와 실제 반영이 같은 함수를 쓴다) ─────────
 
 export type EditorView = 'field' | 'order' | 'arms';
 
-/** 편집기가 되돌릴 수 있는 편성 상태: 타순·수비 위치·투수 보직 + 1군/2군 소속 */
+/** 선수단 화면이 되돌릴 수 있는 편성 상태: 타순·수비 위치·투수 보직 + 1군/2군 소속 */
 export interface LineupSnap {
   lineup: LineupSlot[];
   rotation: string[];
@@ -164,7 +163,7 @@ export interface Rec {
   to: string; // "4번 지명"
 }
 
-const POS: Record<string, string> = { C: '포수', '1B': '1루수', '2B': '2루수', '3B': '3루수', SS: '유격수', LF: '좌익수', CF: '중견수', RF: '우익수', DH: '지명타자' };
+export const POS: Record<string, string> = { C: '포수', '1B': '1루수', '2B': '2루수', '3B': '3루수', SS: '유격수', LF: '좌익수', CF: '중견수', RF: '우익수', DH: '지명타자' };
 
 export function recommend(team: Team): Rec[] {
   const byId = new Map(team.roster.map((p) => [p.id, p]));
@@ -177,19 +176,55 @@ export function recommend(team: Team): Rec[] {
   });
 }
 
-// ───────── 편집기 열기 (선수단 탭 · 선수 카드) ─────────
-
-interface EditorUi {
-  open: boolean; // 경기가 없는 날에도 여는 편집기 (개막전·오늘의 오더는 uiStore 의 orderOpen·dailyOpen)
-  focus: string | null; // 이 선수가 선택된 채로 연다
-  openEditor(focus?: string | null): void;
-  close(): void;
-}
-export const useEditorUi = create<EditorUi>()((set) => ({
-  open: false,
-  focus: null,
-  openEditor: (focus = null) => set({ open: true, focus }),
-  close: () => set({ open: false, focus: null }),
-}));
-
 export const playerOf = (team: Team, pid: string | null | undefined): Player | undefined => (pid ? team.roster.find((p) => p.id === pid) : undefined);
+
+// ───────── 자리 시트: 그 자리에 올 수 있는 후보 ─────────
+
+export type Group = 'lineup' | 'rot' | 'pen' | 'cl' | 'spare' | 'farm';
+
+/** 선수가 지금 속한 묶음 (선발 타순 · 선발진 · 불펜 · 마무리 · 벤치/대기 · 2군) */
+export function groupOf(t: Team, p: Player): Group {
+  if (p.farm) return 'farm';
+  if (p.kind === 'B') return t.lineup.some((l) => l.pid === p.id) ? 'lineup' : 'spare';
+  const l = ploc(t, p.id);
+  return l ? l.k : 'spare';
+}
+
+/** 비어 있는 마무리 자리에 pid 를 놓는다. 선발·2군·타자는 놓을 수 없다 */
+export function planCloser(team: Team, pid: string): PlanResult {
+  const p = team.roster.find((x) => x.id === pid);
+  if (team.closer || !p || p.kind !== 'P' || p.farm) return null;
+  if (team.rotation.includes(pid)) return { error: '선발 투수는 마무리 자리에 놓을 수 없습니다 — 불펜 투수를 고르세요' };
+  const t = light(team);
+  t.bullpen = t.bullpen.filter((id) => id !== pid);
+  t.closer = pid;
+  const d = partsDelta(teamParts(team), teamParts(t));
+  return { after: t, text: d.text, sum: d.sum };
+}
+
+export const EMPTY_CLOSER = '__closer'; // 비어 있는 마무리 자리
+
+export interface Candidate {
+  p: Player;
+  farm: boolean;
+  plan: PlanResult;
+}
+
+/** owner(그 자리의 주인, 또는 빈 마무리 자리)를 대신할 수 있는 후보: 1군 백업 먼저, 그다음 2군. 각 묶음은 예상 변화가 큰 순 */
+export function slotCandidates(core: Core, team: Team, owner: string): Candidate[] {
+  const o = team.roster.find((p) => p.id === owner);
+  const g = o ? groupOf(team, o) : 'cl';
+  const kind = o ? o.kind : 'P';
+  const sum = (c: Candidate) => (c.plan && 'after' in c.plan ? c.plan.sum : -99);
+  const all = team.roster
+    .filter((p) => {
+      if (p.kind !== kind || p.id === owner) return false;
+      const pg = groupOf(team, p);
+      if (pg === g) return false;
+      if (!o) return pg === 'pen' || pg === 'spare';
+      return !(pg === 'rot' && (g === 'pen' || g === 'cl'));
+    })
+    .map((p): Candidate => ({ p, farm: !!p.farm, plan: o ? planEdit(core, team, kind === 'B' ? 'field' : 'arms', p.id, owner) : planCloser(team, p.id) }))
+    .sort((a, b) => sum(b) - sum(a) || b.p.ovr - a.p.ovr);
+  return [...all.filter((c) => !c.farm).slice(0, 6), ...all.filter((c) => c.farm).slice(0, 4)];
+}

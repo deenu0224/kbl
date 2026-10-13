@@ -3,7 +3,8 @@ import type { TeamParts } from '../../game/ratings';
 
 /** 모바일 하단 탭 5개 */
 export type MobileTab = 'home' | 'roster' | 'market' | 'league' | 'club';
-export type RosterSub = 'lineup' | 'pitchers' | 'farm';
+/** 선수단 화면의 세 보기: 야수(다이아몬드) · 타순 · 투수 */
+export type SquadView = 'field' | 'order' | 'arms';
 export type ClubSub = 'finance' | 'stadium' | 'news';
 export type Screen = 'title' | 'game';
 /** 구장에서 연 시트: 시설 셋 또는 티켓 가격 */
@@ -62,7 +63,8 @@ interface UiState {
   setFacSheet(v: FacSheet | null): void;
   setFast(v: boolean): void;
   tab: MobileTab;
-  rosterSub: RosterSub;
+  squadView: SquadView;
+  squadOpen: boolean; // 데스크톱: 선수단 화면 모달 (모바일은 선수단 탭이 곧 그 화면)
   clubSub: ClubSub;
   topOpen: boolean; // 컴팩트 상단바 상세 펼침
   leagueSub: LeagueSub; // 리그 탭 서브뷰 (데스크톱·모바일 공용)
@@ -72,17 +74,17 @@ interface UiState {
   orderOpen: boolean; // 개막전 오더지 (시즌이 바뀌면 다시 열린다)
   orderBase: { season: number; parts: TeamParts } | null; // 오더지를 처음 열었을 때의 전력
   orderEdit: { season: number; from: TeamParts; to: TeamParts } | null; // 제출 시점과의 차이 (개막전 요약의 "오더 수정" 줄)
-  dailyOpen: boolean; // "오늘의 오더" (승리 확률 숫자를 탭해 연다)
   chances: Record<string, number>; // 경기 전 승리 확률(%) — 키는 chanceKey(). 경기 요약의 "경기 전 44% → 승리"
   tips: Partial<Record<TipId, boolean>>; // 닫은 탭별 첫 만남 한 문장 (localStorage 유지)
   stadiumZoom: boolean; // 홈 구장: 확대(높이 맞춤) / 전체(폭 맞춤). 구장이 다시 마운트돼도 유지한다
   stadiumPan: number; // 확대했을 때의 가로 위치 0~1 (0.5 = 가운데)
   setStadiumView(v: { zoom?: boolean; pan?: number }): void;
-  setDailyOpen(v: boolean): void;
   setChance(key: string, pct: number): void;
   closeTip(id: TipId): void;
   setTab(tab: MobileTab): void;
-  setRosterSub(s: RosterSub): void;
+  setSquadView(v: SquadView): void;
+  openSquad(view?: SquadView): void; // 선수단 화면으로 (모바일: 선수단 탭, 데스크톱: 모달)
+  closeSquad(): void;
   setClubSub(s: ClubSub): void;
   setTopOpen(v: boolean): void;
   setLeagueSub(s: LeagueSub): void;
@@ -111,7 +113,8 @@ export const useUi = create<UiState>()((set) => ({
     set({ fast });
   },
   tab: 'home',
-  rosterSub: 'lineup',
+  squadView: 'field',
+  squadOpen: false,
   clubSub: 'finance',
   topOpen: false,
   leagueSub: 'table',
@@ -121,7 +124,6 @@ export const useUi = create<UiState>()((set) => ({
   orderOpen: true,
   orderBase: null,
   orderEdit: null,
-  dailyOpen: false,
   chances: {},
   tips: loadTips(),
   dismissed: loadDismissed(),
@@ -139,7 +141,6 @@ export const useUi = create<UiState>()((set) => ({
   stadiumZoom: true,
   stadiumPan: 0.5,
   setStadiumView: (v) => set((s) => ({ stadiumZoom: v.zoom ?? s.stadiumZoom, stadiumPan: v.pan ?? s.stadiumPan })),
-  setDailyOpen: (dailyOpen) => set({ dailyOpen }),
   setChance: (key, pct) =>
     set((s) => {
       if (s.chances[key] === pct) return s;
@@ -157,7 +158,9 @@ export const useUi = create<UiState>()((set) => ({
       return { tips };
     }),
   setTab: (tab) => set({ tab }),
-  setRosterSub: (rosterSub) => set({ rosterSub }),
+  setSquadView: (squadView) => set({ squadView }),
+  openSquad: (view) => set((s) => ({ tab: 'roster', squadOpen: true, squadView: view ?? s.squadView })),
+  closeSquad: () => set({ squadOpen: false }),
   setClubSub: (clubSub) => set({ clubSub }),
   setTopOpen: (topOpen) => set({ topOpen }),
   setLeagueSub: (leagueSub) => set({ leagueSub }),

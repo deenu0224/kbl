@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore, userMatch, useUserTeam } from '../../store';
 import { MobileActionBar, PreGame, useMatchActions } from '../BottomBar';
 import GameSummary from '../GameSummary';
-import { FarmTab, LineupTab, MarketTab, PitchersTab } from '../LeftPanel';
-import { FARM_MAX } from '../../game/economy';
+import { MarketTab } from '../LeftPanel';
+import Squad from '../roster/Squad';
 import { fmtMoney } from '../../game/format';
 import EventCardModal from '../EventCardModal';
 import OrderSheet from '../OrderSheet';
@@ -17,12 +17,8 @@ import { TabBar, TeamDot } from '../ui';
 import MobileNav, { TAB_TODO } from './MobileNav';
 import Sheet from './Sheet';
 import { tripInfo } from './away';
-import { useUi, type ClubSub, type RosterSub } from './uiStore';
+import { useUi, type ClubSub } from './uiStore';
 
-const ROSTER_SUBS: { id: 'lineup' | 'pitchers'; label: string }[] = [
-  { id: 'lineup', label: '타선' },
-  { id: 'pitchers', label: '투수' },
-];
 const CLUB_SUBS: { id: ClubSub; label: string }[] = [
   { id: 'finance', label: '재무' },
   { id: 'stadium', label: '구장' },
@@ -59,24 +55,15 @@ function TodayCards() {
 /** 현재 모바일 탭의 내용. 데스크톱 패널과 같은 탭 컴포넌트를 그대로 쓴다. */
 function MobilePanel() {
   const tab = useUi((s) => s.tab);
-  const rosterSub = useUi((s) => s.rosterSub);
   const clubSub = useUi((s) => s.clubSub);
-  const setRosterSub = useUi((s) => s.setRosterSub);
   const setClubSub = useUi((s) => s.setClubSub);
-  const nFarm = useStore((s) => (s.teams.find((t) => t.id === s.userId)?.roster ?? []).filter((p) => p.farm).length);
-  const rosterTabs: { id: RosterSub; label: string; badge?: ReactNode }[] = [...useHintTabs(ROSTER_SUBS), { id: 'farm', label: `2군 ${nFarm}/${FARM_MAX}` }];
   const clubTabs = useHintTabs(CLUB_SUBS);
 
   if (tab === 'home') return <TodayCards />;
   return (
     <div className="px-panel m-shell flex min-h-0 flex-1 flex-col" data-testid="m-panel">
       <TodoLines tab={TAB_TODO[tab]} className="p-1 pb-0" />
-      {tab === 'roster' && (
-        <>
-          <TabBar tabs={rosterTabs} value={rosterSub} onChange={setRosterSub} />
-          {rosterSub === 'lineup' ? <LineupTab /> : rosterSub === 'farm' ? <FarmTab /> : <PitchersTab />}
-        </>
-      )}
+      {tab === 'roster' && <Squad />}
       {tab === 'market' && <MarketTab />}
       {tab === 'league' && <LeagueTab />}
       {tab === 'club' && (
@@ -219,7 +206,7 @@ const safe = {
 
 /**
  * 모바일 레이아웃. 하단 내비 5탭 = 홈 · 선수단 · 이적 · 리그 · 구단.
- * - portrait: 홈은 [상단바 / 일정 줄 / 큰 구장(57dvh, 경기 중 65dvh) / 오늘 카드 / 액션 바], 다른 탭은 [얇은 줄 / 탭 전체] (+선수단만 액션 바)
+ * - portrait: 홈은 [상단바 / 일정 줄 / 큰 구장(57dvh, 경기 중 65dvh) / 오늘 카드 / 액션 바], 다른 탭은 [얇은 줄 / 탭 전체] (선수단 탭 = 선수단 화면 하나)
  * - landscape: [상단바 · 구장(높이 맞춤) · 액션 바] | [탭 · 패널]
  */
 export default function MobileShell({ orientation }: { orientation: 'portrait' | 'landscape' }) {
@@ -277,7 +264,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
         </>
       )}
       {home && playback ? <LiveLine /> : <MobilePanel />}
-      {(home || tab === 'roster') && <MobileActionBar bare={home} />}
+      {home && <MobileActionBar bare />}
       <MobileNav placement="bottom" />
       {overlays}
     </div>

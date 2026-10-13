@@ -1,55 +1,34 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Player, Team } from '../game/types';
-import { useCore, useStore, useUserTeam, type LeftTab } from '../store';
+import { useCore, useStore, useUserTeam } from '../store';
 import { fmtMoney } from '../game/format';
 import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, releaseCost } from '../game/economy';
 import { basketCount } from '../game/transfer';
-import { betterArms, betterBats, homeSwap, offPos, orderIssues } from '../game/fixes';
+import { offPos } from '../game/fixes';
 import { teamParts, type TeamParts } from '../game/ratings';
-import PlayerCard from './PlayerCard';
 import Help from './Help';
-import { useEditorUi } from './roster/editorOps';
 import { FirstTip } from './Briefing';
 import { useHintTabs } from './RightPanel';
-import Sheet from './layout/Sheet';
-import { useIsMobile } from './layout/useLayout';
-import { OvrBadge, POS_FULL, POS_KO, SectionTitle, TabBar } from './ui';
-import { MiniDiamond } from './roster/Diamond';
-import FrontOffice, { CardPop } from './roster/FrontOffice';
+import { useUi } from './layout/uiStore';
+import { OvrBadge, POS_KO, SectionTitle, TabBar } from './ui';
+import { CardPop } from './roster/RosterList';
 import PlayerBrowser from './roster/PlayerBrowser';
 import { AddChip } from './roster/TransferDesk';
 import { openDesk, useTransferUi } from './roster/transferUi';
-import { usePosReport, useRosterUi } from './roster/rosterUi';
-import { ArmState, PenLoadLine } from './roster/PenStyle';
+import { usePosReport } from './roster/rosterUi';
 import { callUpPreview, sendDownPreview } from '../game/analysis';
 
 // ───────── 공용 행 ─────────
 
-/** 보기 전용 한 줄: 타순(보직)·포지션 · 이름 · OVR. 고칠 곳이 있는 줄은 왼쪽 빨간 띠만 */
-function Row({ lead, player: p, selected, onClick, flash, issue, tail }: { lead: ReactNode; player: Player; selected: boolean; onClick: () => void; flash?: boolean; issue?: boolean; tail?: ReactNode }) {
-  const mobile = useIsMobile();
+/** 읽기 전용 한 줄: 타순·포지션 · 이름 · OVR. 누르면 선수단 화면이 열린다 */
+function Row({ lead, player: p, onClick }: { lead: ReactNode; player: Player; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      data-pid={p.id}
-      data-issue={issue || undefined}
-      className={`flex w-full cursor-pointer items-center gap-1.5 px-1 py-[3px] text-left text-[12px] mob:min-h-10 mob:gap-2 mob:text-[13px] ${flash ? 'bg-hi/35' : selected ? 'bg-hi/20' : 'hover:bg-white/8'}`}
-      style={flash ? { boxShadow: 'inset 0 0 0 2px #ffd84a' } : selected ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : issue ? { boxShadow: 'inset 3px 0 0 #ff6b6b' } : undefined}
-    >
-      <span className="w-12 shrink-0 whitespace-nowrap text-[10px] text-white/55 max-lg:w-auto max-lg:min-w-[58px]">{lead}</span>
+    <button onClick={onClick} data-pid={p.id} className="flex w-full cursor-pointer items-center gap-1.5 px-1 py-[3px] text-left text-[12px] hover:bg-white/8">
+      <span className="w-12 shrink-0 whitespace-nowrap text-[10px] text-white/55">{lead}</span>
       <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : ''}`}>{p.name}</span>
-      {tail}
-      <OvrBadge ovr={p.ovr} size={mobile ? 22 : 18} />
+      <OvrBadge ovr={p.ovr} size={18} />
     </button>
   );
-}
-
-/** 선수 카드 자리: 데스크톱은 패널 아래에 붙고, 모바일은 바텀 시트로 뜬다. */
-function CardDock({ open, onClose, placeholder, children }: { open: boolean; onClose: () => void; placeholder?: ReactNode; children: ReactNode }) {
-  const mobile = useIsMobile();
-  if (mobile) return open ? <Sheet onClose={onClose} label="선수 카드">{children}</Sheet> : null;
-  if (open) return <>{children}</>;
-  return placeholder ? <div className="shrink-0 bg-panel-2/60 p-2 text-center text-[11px] text-white/45">{placeholder}</div> : null;
 }
 
 /** [2군으로] / [콜업] 버튼 + 누르기 전에 보이는 결과 줄 */
@@ -87,57 +66,6 @@ export function FarmMoveButton({ player, onDone }: { player: Player; onDone?: ()
   );
 }
 
-// ───────── 2군 ─────────
-
-export function FarmTab() {
-  const team = useUserTeam();
-  const [sel, setSel] = useState<string | null>(null);
-  const farm = useMemo(() => farmRoster(team).sort((a, b) => Number(a.kind === 'P') - Number(b.kind === 'P') || b.ovr - a.ovr), [team]);
-  const nAct = activeRoster(team).length;
-  const selP = sel ? farm.find((p) => p.id === sel) : undefined;
-  return (
-    <>
-      <div className="flex shrink-0 items-center gap-2 px-1.5 pt-1 text-[11px] text-white/60 mob:text-[13px]" data-testid="farm-head">
-        <span className="min-w-0 flex-1">
-          1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className={farm.length >= FARM_MAX ? 'text-bad' : 'text-white'}>{farm.length}/{FARM_MAX}</span>
-        </span>
-        <Help topic="farm" />
-      </div>
-      <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5" data-testid="farm-list">
-        {farm.map((p) => (
-          <Row key={p.id} lead={POS_KO[p.pos]} player={p} selected={sel === p.id} onClick={() => setSel(sel === p.id ? null : p.id)} />
-        ))}
-      </div>
-      <CardDock open={!!selP} onClose={() => setSel(null)} placeholder={farm.length ? '선수를 누르면 카드가 열립니다' : undefined}>
-        {selP && (
-          <PlayerCard player={selP} team={team} roleLabel={`2군 · ${POS_FULL[selP.pos]}`}>
-            <EditButton pid={selP.id} onDone={() => setSel(null)} />
-            <FarmMoveButton player={selP} onDone={() => setSel(null)} />
-            <ReleaseButton player={selP} team={team} />
-          </PlayerCard>
-        )}
-      </CardDock>
-    </>
-  );
-}
-
-/** 선수 카드의 [오더 편집에서 보기]: 그 선수가 선택된 채로 편집기를 연다 */
-function EditButton({ pid, onDone }: { pid: string; onDone: () => void }) {
-  const openEditor = useEditorUi((s) => s.openEditor);
-  return (
-    <button
-      className="px-btn green"
-      data-testid="card-edit"
-      onClick={() => {
-        onDone();
-        openEditor(pid);
-      }}
-    >
-      오더 편집에서 보기
-    </button>
-  );
-}
-
 /** [방출 담기]: 즉시 방출하지 않고 이적 창구에 담는다 (얻는 것·잃는 것을 한 화면에서 보고 확정) */
 export function ReleaseButton({ player }: { player: Player; team?: Team }) {
   const core = useCore();
@@ -162,8 +90,8 @@ export const PART_LABEL: [keyof TeamParts, string][] = [
 ];
 const DELTA_MS = 2000;
 
-/** 타선 54 · 수비 49 · 선발 58 · 불펜 51. 편성을 바꾸는 순간 변한 칸이 "49 → 57"로 잠깐 보인다. */
-export function TeamBar({ team }: { team: Team }) {
+/** 지금 전력과, 방금 변한 칸의 이전 값 (2초 동안) */
+export function usePartsDelta(team: Team): { parts: TeamParts; delta: Partial<Record<keyof TeamParts, number>> } {
   const parts = useMemo(() => teamParts(team), [team]);
   const prev = useRef(parts);
   const [delta, setDelta] = useState<Partial<Record<keyof TeamParts, number>>>({});
@@ -176,6 +104,12 @@ export function TeamBar({ team }: { team: Team }) {
     const id = setTimeout(() => setDelta({}), DELTA_MS);
     return () => clearTimeout(id);
   }, [parts]);
+  return { parts, delta };
+}
+
+/** 타선 54 · 수비 49 · 선발 58 · 불펜 51. 편성을 바꾸는 순간 변한 칸이 "49 → 57"로 잠깐 보인다. */
+function TeamBar({ team }: { team: Team }) {
+  const { parts, delta } = usePartsDelta(team);
   return (
     <div className="grid shrink-0 grid-cols-4 gap-[3px] px-1.5 pt-1.5" data-testid="teambar">
       {PART_LABEL.map(([k, label]) => {
@@ -198,187 +132,51 @@ export function TeamBar({ team }: { team: Team }) {
   );
 }
 
-/** 방금 영입한 선수의 자리를 잠깐 강조하고 그 줄로 스크롤한다 */
-function useFlash(box: React.RefObject<HTMLDivElement | null>): string | null {
-  const flash = useStore((s) => s.flash);
-  const [pid, setPid] = useState<string | null>(null);
-  useEffect(() => {
-    if (!flash) return;
-    const left = DELTA_MS - (Date.now() - flash.at);
-    if (left <= 0) return;
-    setPid(flash.pid);
-    box.current?.querySelector(`[data-pid="${flash.pid}"]`)?.scrollIntoView({ block: 'nearest' });
-    const id = setTimeout(() => setPid(null), left);
-    return () => clearTimeout(id);
-  }, [flash, box]);
-  return pid;
-}
+// ───────── 선수단 (데스크톱 왼쪽 패널) ─────────
 
-export { orderIssues };
-
-/** 선수단 탭 맨 위: 전력 막대 · [오더 편집] · 팀 진단 미니맵. 목록은 보기 전용이고, 고치는 일은 전부 오더 편집기에서 한다 */
-function RosterTop({ team }: { team: Team }) {
-  const rows = usePosReport();
-  const openOffice = useRosterUi((s) => s.openOffice);
-  const openEditor = useEditorUi((s) => s.openEditor);
+/** 좁은 패널에는 읽는 것만: 전력 막대 · 타순 1~9 · 벤치. 고치는 곳은 [선수단 열기]로 여는 큰 화면 하나다 */
+function SquadSummary() {
+  const team = useUserTeam();
+  const openSquad = useUi((s) => s.openSquad);
+  const byId = useMemo(() => new Map(team.roster.map((p) => [p.id, p])), [team.roster]);
+  const inLineup = useMemo(() => new Set(team.lineup.map((l) => l.pid)), [team.lineup]);
+  const bench = useMemo(() => team.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => b.ovr - a.ovr), [team.roster, inLineup]);
   return (
     <>
       <div className="flex shrink-0 items-end gap-1 pr-1.5">
-        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => openOffice('table')} title="선수단 크게 보기" data-testid="teambar-open">
+        <div className="min-w-0 flex-1">
           <TeamBar team={team} />
         </div>
         <Help topic="strength" />
       </div>
       <div className="shrink-0 px-1.5 pt-1.5">
-        <button className="px-btn primary min-h-9 w-full text-[13px] mob:min-h-11 mob:text-[15px]" data-testid="open-editor" onClick={() => openEditor()}>
-          오더 편집
+        <button className="px-btn primary min-h-9 w-full text-[13px]" data-testid="open-squad" onClick={() => openSquad()}>
+          선수단 열기 ⤢
         </button>
       </div>
-      <MiniDiamond rows={rows} onOpen={() => openOffice('diag')} />
-      <FrontOffice />
-    </>
-  );
-}
-
-// ───────── 타선 ─────────
-
-export function LineupTab() {
-  const team = useUserTeam();
-  const [sel, setSel] = useState<string | null>(null);
-
-  const byId = useMemo(() => new Map(team.roster.map((p) => [p.id, p])), [team.roster]);
-  const inLineup = useMemo(() => new Set(team.lineup.map((l) => l.pid)), [team.lineup]);
-  const bench = useMemo(
-    () => team.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => b.ovr - a.ovr),
-    [team.roster, inLineup],
-  );
-  const selP = sel ? byId.get(sel) : undefined;
-  const selSlot = sel ? team.lineup.findIndex((l) => l.pid === sel) : -1;
-  const box = useRef<HTMLDivElement>(null);
-  const flashPid = useFlash(box);
-  const better = useMemo(() => betterBats(team), [team]);
-
-  return (
-    <>
-      <RosterTop team={team} />
-      <div ref={box} className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5" data-testid="lineup-list">
+      <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5" data-testid="lineup-list">
         <SectionTitle>선발 타순</SectionTitle>
         {team.lineup.map((l, i) => {
           const p = byId.get(l.pid);
           if (!p) return null;
-          const off = offPos(p, l.pos);
           return (
             <Row
               key={l.pid}
               lead={
                 <>
-                  <span className="text-hi">{i + 1}</span> <span className={off ? 'text-bad' : ''}>{POS_KO[l.pos]}</span>
+                  <span className="text-hi">{i + 1}</span> <span className={offPos(p, l.pos) ? 'text-hi' : ''}>{POS_KO[l.pos]}</span>
                 </>
               }
               player={p}
-              selected={sel === p.id}
-              onClick={() => setSel(sel === p.id ? null : p.id)}
-              flash={flashPid === p.id}
-              issue={p.injury > 0 || better.has(p.id) || (off && homeSwap(team, byId, i) >= 0)}
+              onClick={() => openSquad('field')}
             />
           );
         })}
         <SectionTitle>벤치 ({bench.length})</SectionTitle>
         {bench.map((p) => (
-          <Row key={p.id} lead={POS_KO[p.pos]} player={p} selected={sel === p.id} onClick={() => setSel(sel === p.id ? null : p.id)} flash={flashPid === p.id} />
+          <Row key={p.id} lead={POS_KO[p.pos]} player={p} onClick={() => openSquad('field')} />
         ))}
       </div>
-      <CardDock open={!!selP} onClose={() => setSel(null)} placeholder="선수를 누르면 카드가 열립니다">
-        {selP && (
-          <PlayerCard player={selP} team={team} roleLabel={selSlot >= 0 ? `${selSlot + 1}번 · ${POS_FULL[team.lineup[selSlot].pos]}` : `벤치 · ${POS_FULL[selP.pos]}`}>
-            <EditButton pid={selP.id} onDone={() => setSel(null)} />
-            <FarmMoveButton player={selP} onDone={() => setSel(null)} />
-            <ReleaseButton player={selP} team={team} />
-          </PlayerCard>
-        )}
-      </CardDock>
-    </>
-  );
-}
-
-// ───────── 투수 ─────────
-
-export function PitchersTab() {
-  const team = useUserTeam();
-  const [sel, setSel] = useState<string | null>(null);
-
-  const byId = useMemo(() => new Map(team.roster.map((p) => [p.id, p])), [team.roster]);
-  const assigned = useMemo(
-    () => new Set([...team.rotation, ...team.bullpen, ...(team.closer ? [team.closer] : [])]),
-    [team.rotation, team.bullpen, team.closer],
-  );
-  const spare = useMemo(() => team.roster.filter((p) => p.kind === 'P' && !p.farm && !assigned.has(p.id)), [team.roster, assigned]);
-  const selP = sel ? byId.get(sel) : undefined;
-  const box = useRef<HTMLDivElement>(null);
-  const flashPid = useFlash(box);
-  const better = useMemo(() => betterArms(team), [team]);
-
-  const roleOf = (pid: string): string => {
-    const ri = team.rotation.indexOf(pid);
-    if (ri >= 0) return `${ri + 1}선발`;
-    if (team.closer === pid) return '마무리';
-    if (team.bullpen.includes(pid)) return '불펜';
-    return '대기';
-  };
-  const row = (pid: string, lead: ReactNode, tail?: ReactNode) => {
-    const p = byId.get(pid);
-    if (!p) return null;
-    return (
-      <Row
-        key={pid}
-        lead={lead}
-        tail={tail}
-        player={p}
-        selected={sel === pid}
-        onClick={() => setSel(sel === pid ? null : pid)}
-        flash={flashPid === pid}
-        issue={better.has(pid) || (p.injury > 0 && team.rotation.includes(pid))}
-      />
-    );
-  };
-  const pen = (pid: string) => ((byId.get(pid)?.injury ?? 0) > 0 ? undefined : <ArmState tired={byId.get(pid)?.tired} className="text-[11px] mob:text-[13px]" />);
-  const nextIdx = team.rotation.length ? team.nextStarter % team.rotation.length : -1;
-
-  return (
-    <>
-      <RosterTop team={team} />
-      <PenLoadLine className="shrink-0 px-2 pt-1.5 !text-[11px] mob:!text-[13px]" />
-      <div ref={box} className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5" data-testid="pitcher-list">
-        <SectionTitle>선발 로테이션</SectionTitle>
-        {team.rotation.map((pid, i) =>
-          row(
-            pid,
-            <>
-              <span className="text-hi">{i + 1}</span> 선발
-            </>,
-            i === nextIdx ? <span className="shrink-0 whitespace-nowrap text-[11px] text-good mob:text-[13px]" data-testid="next-start">다음 등판</span> : undefined,
-          ),
-        )}
-        <SectionTitle>마무리</SectionTitle>
-        {team.closer && row(team.closer, '마무리', pen(team.closer))}
-        <SectionTitle>불펜 ({team.bullpen.length})</SectionTitle>
-        {team.bullpen.map((pid, i) => row(pid, `불펜${i + 1}`, pen(pid)))}
-        {spare.length > 0 && (
-          <>
-            <SectionTitle>대기 ({spare.length})</SectionTitle>
-            {spare.map((p) => row(p.id, '대기'))}
-          </>
-        )}
-      </div>
-      <CardDock open={!!selP} onClose={() => setSel(null)} placeholder="투수를 누르면 카드가 열립니다">
-        {selP && (
-          <PlayerCard player={selP} team={team} roleLabel={roleOf(selP.id)}>
-            <EditButton pid={selP.id} onDone={() => setSel(null)} />
-            <FarmMoveButton player={selP} onDone={() => setSel(null)} />
-            <ReleaseButton player={selP} team={team} />
-          </PlayerCard>
-        )}
-      </CardDock>
     </>
   );
 }
@@ -440,33 +238,27 @@ export function MarketTab() {
 
 // ───────── 패널 ─────────
 
-const TABS: { id: Exclude<LeftTab, 'farm'>; label: string }[] = [
-  { id: 'lineup', label: '타선' },
-  { id: 'pitchers', label: '투수' },
+const TABS: { id: 'lineup' | 'market'; label: string }[] = [
+  { id: 'lineup', label: '선수단' },
   { id: 'market', label: '이적' },
 ];
 
 export default function LeftPanel() {
-  const tab = useStore((s) => s.leftTab);
+  const tab = useStore((s) => (s.leftTab === 'market' ? 'market' : 'lineup'));
   const setTab = useStore((s) => s.setTab);
   const clearHint = useStore((s) => s.clearHint);
-  const nFarm = useStore((s) => (s.teams.find((t) => t.id === s.userId)?.roster ?? []).filter((p) => p.farm).length);
-  const hinted = useHintTabs(TABS, tab === 'farm' ? null : tab);
-  const tabs: { id: LeftTab; label: string; badge?: ReactNode }[] = [...hinted.slice(0, 2), { id: 'farm' as const, label: `2군 ${nFarm}/${FARM_MAX}` }, ...hinted.slice(2)];
+  const tabs = useHintTabs(TABS, tab);
   return (
     <div className="px-panel flex h-full min-h-0 flex-col">
       <TabBar
         tabs={tabs}
         value={tab}
         onChange={(t) => {
-          if (t !== 'farm') clearHint(t as Exclude<LeftTab, 'farm'>);
+          clearHint(t);
           setTab('left', t);
         }}
       />
-      {tab === 'farm' && <FarmTab />}
-      {tab === 'lineup' && <LineupTab />}
-      {tab === 'pitchers' && <PitchersTab />}
-      {tab === 'market' && <MarketTab />}
+      {tab === 'lineup' ? <SquadSummary /> : <MarketTab />}
     </div>
   );
 }

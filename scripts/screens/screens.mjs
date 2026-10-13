@@ -37,10 +37,13 @@ const st = (xs) => xs.map((x) => (typeof x === 'string' ? c(x) : x));
 const game = (...xs) => [c('continue'), ...st(xs)];
 const S = (id, fixture, steps, o = {}) => ({ id, fixture, steps, ...o });
 
-const ROSTER = [m('선수단')];
-/** 2군 목록의 첫 줄 (목록 한가운데는 선수가 적으면 빈 곳이다) */
-const FARM_ROW = 'css:[data-testid="farm-list"] button';
-const FO = [...ROSTER, c('teambar-open')];
+/** 선수단 화면: 모바일은 하단 탭, 데스크톱은 왼쪽 패널의 [선수단 열기] */
+const SQUAD = [m('선수단'), d('open-squad')];
+/** 가장 약한 자리의 칸 (굵은 빨간 테두리) */
+const WEAK = 'css:[data-testid="squad-field"] [data-weak]';
+/** 2군 서랍의 첫 칩 */
+const FARM_CHIP = 'css:[data-testid="squad-farm"] [data-item]';
+const LIST = [...SQUAD, c('open-list')];
 const MARKET = [c('이적')];
 const DESK = [...MARKET, c('open-desk')];
 const CLUB = [m('구단')];
@@ -58,18 +61,18 @@ export const SCREENS = [
   S('title-hof', 'over', st(['open-hof'])),
   S('title-hof-empty', null, st(['open-hof'])),
 
-  // ── 개막전 오더
+  // ── 개막전 오더 (선수단 화면 + 감독 대사 + [오더 제출])
   S('order-field', 'fresh', game()),
-  S('order-order', 'fresh', game('editor-view-order')),
-  S('order-arms', 'fresh', game('editor-view-arms')),
-  S('order-recs', 'fresh', game('editor-recs-toggle')),
-  S('order-farm', 'farm', game('pre-chance', c('editor-farm-toggle', { optional: true }))),
-  // 2군이 있는 새 게임: 개막전 편집기의 2군 서랍 (타선 · 투수)
-  S('new-farm', 'fresh', game('editor-farm-toggle')),
-  S('new-farm-arms', 'fresh', game('editor-view-arms', 'editor-farm-toggle')),
+  S('order-order', 'fresh', game('squad-view-order')),
+  S('order-arms', 'fresh', game('squad-view-arms')),
+  S('order-recs', 'fresh', game('squad-recs-toggle')),
+  S('order-slot', 'fresh', game(WEAK)),
+  // 2군이 있는 새 게임: 2군 서랍 (야수 · 투수)
+  S('new-farm', 'fresh', game('squad-farm-toggle')),
+  S('new-farm-arms', 'fresh', game('squad-view-arms', 'squad-farm-toggle')),
   // 불펜 방침 스위치
-  S('pen-style', 'farm', game('pre-chance', 'editor-view-arms')),
-  S('pen-style-swarm', 'farm', game('pre-chance', 'editor-view-arms', 'pen-style-swarm', { wait: 400 })),
+  S('pen-style', 'farm', game(...SQUAD, 'squad-view-arms')),
+  S('pen-style-swarm', 'farm', game(...SQUAD, 'squad-view-arms', 'pen-style-swarm', { wait: 400 })),
 
   // ── 홈
   S('home', 'opened', game()),
@@ -94,24 +97,32 @@ export const SCREENS = [
   S('remedy-penover', 'penover', game('불펜 과부하')),
   S('todo-penover', 'penover', game()),
 
-  // ── 선수단
-  S('roster-lineup', 'farm', game(...ROSTER)),
-  S('roster-pitchers', 'farm', game(...ROSTER, '투수')),
-  S('roster-farm', 'farm', game(...ROSTER, '2군')),
-  S('roster-injury', 'injury', game(...ROSTER)),
-  S('roster-penover', 'penover', game(...ROSTER, '투수')),
-  S('card-batter', 'farm', game(...ROSTER, 'lineup-list')),
-  S('card-pitcher', 'farm', game(...ROSTER, '투수', 'pitcher-list')),
-  S('card-farm', 'farm', game(...ROSTER, '2군', FARM_ROW)),
-  S('card-pot', 'farm', game(...ROSTER, '2군', FARM_ROW, '잠재력 설명')),
-  S('card-pot-toggle', 'farm', game(...ROSTER, '2군', FARM_ROW, '잠재력 설명', 'pot-toggle')),
+  // ── 선수단 (모바일: 선수단 탭, 데스크톱: [선수단 열기] 모달)
+  S('roster-field', 'farm', game(...SQUAD)),
+  S('roster-field-s3', 'season3', game(...SQUAD)),
+  S('roster-injury', 'injury', game(...SQUAD)),
+  S('roster-farm', 'farm', game(...SQUAD, 'squad-farm-toggle')),
+  S('roster-slot', 'season3', game(...SQUAD, WEAK)),
+  S('roster-slot-swapped', 'season3', game(...SQUAD, WEAK, 'slot-swap', { wait: 300 })),
+  S('roster-order', 'farm', game(...SQUAD, 'squad-view-order')),
+  S('roster-arms', 'farm', game(...SQUAD, 'squad-view-arms')),
+  S('roster-arms-slot', 'farm', game(...SQUAD, 'squad-view-arms', 'css:[data-testid="squad-rotation"] [data-item]')),
+  S('roster-penover', 'penover', game(...SQUAD, 'squad-view-arms')),
+  S('roster-recs', 'injury', game(...SQUAD, c('squad-recs-toggle', { optional: true }))),
+  S('roster-from-chance', 'farm', game('pre-chance')),
+  S('card-batter', 'farm', game(...SQUAD, 'css:[data-testid="squad-bench"] [data-item]')),
+  S('card-order', 'farm', game(...SQUAD, 'squad-view-order', 'css:[data-testid="squad-order"] [data-item]')),
+  S('card-slot', 'farm', game(...SQUAD, 'css:[data-testid="squad-field"] [data-item]', 'css:[data-testid="slot-row"] button')),
+  S('card-farm', 'farm', game(...SQUAD, 'squad-farm-toggle', FARM_CHIP)),
+  S('card-pot', 'farm', game(...SQUAD, 'squad-farm-toggle', FARM_CHIP, '잠재력 설명')),
+  S('card-pot-toggle', 'farm', game(...SQUAD, 'squad-farm-toggle', FARM_CHIP, '잠재력 설명', 'pot-toggle')),
 
-  // ── 프런트 오피스
-  S('fo-diag', 'season3', game(...FO, '진단')),
-  S('fo-squad', 'season3', game(...FO, '명단')),
-  S('fo-depth', 'season3', game(...FO, '뎁스')),
-  S('fo-salary', 'season3', game(...FO, '연봉')),
-  S('fo-table', 'season3', game(...FO, '명단', 'view-toggle')),
+  // ── 명단 (선수단 화면의 [명단 ▤])
+  S('fo-list', 'season3', game(...LIST)),
+  S('fo-list-farm', 'season3', game(...LIST, 'squad-farm')),
+  S('fo-table', 'season3', game(...LIST, 'view-toggle')),
+  S('fo-salary', 'season3', game(...LIST, '연봉')),
+  S('fo-card', 'season3', game(...LIST, 'player-list')),
 
   // ── 이적
   S('market-list', 'season3', game(...MARKET)),

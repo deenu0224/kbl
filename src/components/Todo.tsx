@@ -50,10 +50,8 @@ export function useGoScreen(): (
     if (pid) spotlight(pid);
     const ui = useUi.getState();
     const st = useStore.getState();
-    const left = (sub: "lineup" | "pitchers") => {
-      if (mobile) useUi.setState({ tab: "roster", rosterSub: sub });
-      else st.setTab("left", sub);
-    };
+    // 선수단 화면 하나로 간다 (모바일: 선수단 탭, 데스크톱: 모달). 투수 문제면 투수 보기로
+    const left = (sub: "lineup" | "pitchers") => ui.openSquad(sub === "pitchers" ? "arms" : "field");
     const right = (sub: "league" | "finance" | "stadium") => {
       if (!mobile) st.setTab("right", sub);
       else if (sub === "league") ui.setTab("league");
@@ -62,7 +60,6 @@ export function useGoScreen(): (
     switch (to) {
       case "order":
         left(sub ?? "lineup");
-        ui.setDailyOpen(true);
         break;
       case "pitchers":
         left("pitchers");
