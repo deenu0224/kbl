@@ -252,11 +252,9 @@ function DetailSheet({ o, r, mobile, onClose }: { o?: BriefOffer; r?: BriefResul
             </div>
           </div>
         )}
-        {o?.detail && <DetailBody d={o.detail} />}
-        {o && !o.detail && <div className="text-[12px] text-white/60">상세 내역이 없습니다.</div>}
         {o && !o.state && (o.action.t === 'sign' || o.rescue?.t === 'release') && (
           <button
-            className="px-btn min-h-10 text-[13px]"
+            className="px-btn min-h-10 shrink-0 text-[13px]"
             data-testid="detail-desk"
             onClick={() => {
               const add: ['sign' | 'release', string] = o.rescue?.t === 'release' ? ['release', o.rescue.pid] : ['sign', (o.action as { pid: string }).pid];
@@ -267,6 +265,8 @@ function DetailSheet({ o, r, mobile, onClose }: { o?: BriefOffer; r?: BriefResul
             이적 창구에 담아서 보기 ⤢ <span className="text-white/60">(방출·2군 이동과 합산)</span>
           </button>
         )}
+        {o?.detail && <DetailBody d={o.detail} />}
+        {o && !o.detail && <div className="text-[12px] text-white/60">상세 내역이 없습니다.</div>}
         {r && (
           <>
             <div className="bg-ink/55 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #ffd84a' }} data-testid="detail-expect">

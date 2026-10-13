@@ -64,6 +64,11 @@ function Desk() {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // 담은 채로 열렸으면 그 줄이 보이게
+  useEffect(() => {
+    document.querySelector('[data-testid=transfer-desk] tr[data-band]')?.scrollIntoView({ block: 'center' });
+  }, [nonce, side]);
+
   const pv = useMemo(() => previewTransfer(core, basket), [core, basket]);
   const band = (p: Player) => {
     const k = basketKindOf(basket, p.id);
@@ -74,7 +79,8 @@ function Desk() {
 
   const confirm = () => {
     const moved = PARTS.filter((k) => pv.parts.a[k] !== pv.parts.b[k]).map((k) => `${PART_KO[k]} ${pv.parts.a[k]} → ${pv.parts.b[k]}`);
-    const text = `✓ ${pv.n}건 완료 · ${moved.length ? moved.join(' · ') : `현금 ${fmtMoney(pv.cash.a)} → ${fmtMoney(pv.cash.b)}`}`;
+    const rest = pv.cash.a !== pv.cash.b ? `현금 ${fmtMoney(pv.cash.a)} → ${fmtMoney(pv.cash.b)}` : `1군 ${pv.active.a} → ${pv.active.b}`;
+    const text = `✓ ${pv.n}건 완료 · ${moved.length ? moved.join(' · ') : rest}`;
     if (!transfer(basket)) return;
     play('buy');
     clear();
@@ -371,7 +377,7 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
               </span>
               <span className="text-white/35"> · </span>
               <span className="whitespace-nowrap">
-                연봉 {signed(pv.payroll.b - pv.payroll.a)}
+                연봉 {pv.payroll.b === pv.payroll.a ? '그대로' : signed(pv.payroll.b - pv.payroll.a)}
               </span>
               <span className="text-white/35"> · </span>
               <span className={`whitespace-nowrap ${pv.active.b > ROSTER_MAX ? 'text-bad' : ''}`}>
@@ -387,7 +393,12 @@ function Summary({ pv, done, mobile, onConfirm }: { pv: TransferPreview; done: s
           )}
         </div>
       )}
-      {bumps.length > 0 && <div className="mt-1 flex flex-col gap-1 bg-ink/55 px-1.5 py-1">{bumps}</div>}
+      {bumps.length > 0 && (
+        <div className="px-scroll mt-1 flex max-h-[15dvh] flex-col gap-1 overflow-y-auto bg-ink/55 px-1.5 py-1" data-testid="sum-bumps">
+          {full ? bumps : bumps.slice(0, 1)}
+          {!full && bumps.length > 1 && <span className="text-white/50">밀려나는 선수 {bumps.length - 1}명 더 · [자세히 ▲]</span>}
+        </div>
+      )}
       {pv.error && (
         <div className="mt-1 bg-bad/20 px-1.5 py-1 text-bad" data-testid="desk-error">
           ✕ 불가: {pv.error}
