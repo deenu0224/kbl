@@ -80,6 +80,12 @@ export const SIM = {
   TIRED_CTL_2: 12,
   TIRED_INJ_1: 1.6, // 연투 상태로 등판한 경기의 부상 확률 배율
   TIRED_INJ_2: 2.5,
+  // 타순 바퀴 수: 같은 투수를 두·세·네 번째 만나는 타자는 공이 눈에 익는다 (구위 하락). 구위가 낮은 투수일수록 크게 읽힌다
+  TTO_STF: [0, 2, 6, 11],
+  TTO_REF: 60, // 가중 = 1 + (TTO_REF − 구위) / TTO_SLOPE, TTO_MIN~TTO_MAX
+  TTO_SLOPE: 20,
+  TTO_MIN: 0.6,
+  TTO_MAX: 1.6,
   SHORT_BF: 4, // 구원이 한 경기에서 상대한 타자가 이 수 이하인 동안은 전력 투구
   SHORT_STF: 3, // 전력 투구의 구위 가산
   // 불펜 운영 방침 (믿음 / 균형 / 벌떼)
@@ -438,7 +444,8 @@ export function simulateGame(
 
       // ── 타석 확률 ──
       const fat = Math.max(0, ps.bf - ps.limit);
-      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - ps.tiredPen + (!ps.starter && ps.bf <= SIM.SHORT_BF ? SIM.SHORT_STF + (fld.style === 'swarm' ? SIM.SWARM_STF : 0) : 0));
+      const tto = SIM.TTO_STF[Math.min(SIM.TTO_STF.length - 1, Math.floor((ps.bf - 1) / 9))] * clamp(1 + (SIM.TTO_REF - ps.p.stf) / SIM.TTO_SLOPE, SIM.TTO_MIN, SIM.TTO_MAX);
+      const stfRaw = Math.max(20, ps.p.stf - fat * SIM.FAT_STF - tto - ps.tiredPen + (!ps.starter && ps.bf <= SIM.SHORT_BF ? SIM.SHORT_STF + (fld.style === 'swarm' ? SIM.SWARM_STF : 0) : 0));
       const stf = norm(stfRaw);
       const ctl = norm(Math.max(20, ps.p.ctl - fat * SIM.FAT_CTL - ps.tiredCtl));
       const pBB = clamp((SIM.BB * Math.pow(norm(b.eye), SIM.BB_EYE)) / Math.pow(ctl, SIM.BB_CTL), 0.02, 0.28);
