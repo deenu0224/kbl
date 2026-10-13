@@ -154,6 +154,7 @@ export const SCREENS = [
   S('market-table', 'season3', game(...MARKET, 'view-toggle')),
   S('desk', 'season3', game(...DESK)),
   S('desk-fa-card', 'season3', game(...DESK, 'css:[data-testid="browser-market"] [data-testid="player-list"] > * button')),
+  S('desk-fa-card-pick', 'season3', game(...DESK, 'css:[data-testid="browser-market"] [data-testid="player-list"] > * button', c('vs-pick', { nth: 2 }))),
   S('desk-table', 'season3', game(...DESK, 'view-toggle')),
   S('desk-added', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }))),
   S('desk-summary', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), m('sum-toggle'))),
