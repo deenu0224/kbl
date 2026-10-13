@@ -536,11 +536,14 @@ export function objDisplay(core: Core, o: Objective): ObjDisplay {
       target = t <= 0 ? '무차입' : `${fmtMoney(t)} 이하`;
       ratio = v <= t ? 1 : Math.max(t, 1) / v;
       break;
-    case 'post':
-      cur = POST_SHORT[v] ?? `${v}`;
-      target = POST_SHORT[t] ?? `${t}`;
+    case 'post': {
+      // 와일드카드가 있는 리그의 1단계는 "포스트시즌 진출"(와일드카드 포함)이다
+      const short = (lv: number) => (lv === 1 && postTeams(core) >= 5 ? '가을야구' : (POST_SHORT[lv] ?? `${lv}`));
+      cur = short(v);
+      target = short(t);
       ratio = v / Math.max(1, t);
       break;
+    }
     case 'losses':
       cur = `${v}패`;
       target = `${t}패`;
