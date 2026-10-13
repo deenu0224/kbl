@@ -8,7 +8,7 @@ import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import { projectFx, projectSeasonOpenMut } from './projects';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_STEP, OVER_LIMIT_ERR, loanInterest, loanLimit, overLimit, farmMax, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
-  LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, RENEW_PREMIUM, RENEW_SEASONS,
+  MERCH_K, leagueShare, RENEW_PREMIUM, RENEW_SEASONS,
   BENCH_GROW, FARM_CAP, FARM_LOCK, IL_MIN, SVC_YEARS, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
   awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingOpen, starPower, upgradeCost, userTeam,
 } from './economy';
@@ -416,7 +416,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const ticket = Math.round(att * price * fx.ticket);
   const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather, core)) : 0;
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
-  const league = Math.round(perGame(core, (LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + rankUnits(core, rankNow) * LEAGUE_PER_RANK) * leagueMult(core)));
+  const league = Math.round(perGame(core, leagueShare(core, rankNow) * leagueMult(core)));
   const salary = Math.round(payroll(user) / core.schedule.length);
   const upkeep =
     (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep + projectFx(core).upkeep : 0) +

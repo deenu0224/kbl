@@ -3,7 +3,7 @@ import type { Core, EventCard, FacilityKind, Player, Team } from '../src/game/ty
 import { borrow, callUp, farmLockLeft, releasePlayer, sendDown, repay, setTicketPrice, signPlayer, upgradeFacility } from '../src/game/season';
 import {
   activeRoster, farmRoster,
-  FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_STEP, loanLimit, farmMax, MERCH_K, ROSTER_MAX, SEAT_LV, TRAIN_LV,
+  FOOD_LV, leagueShare, LEAGUE_PER_RANK, LOAN_STEP, loanLimit, farmMax, MERCH_K, ROSTER_MAX, SEAT_LV, TRAIN_LV,
   capacityOf, opsCost, payroll, previewDemand, refPrice, signingBonus, starPower, upgradeCost, userTeam,
 } from '../src/game/economy';
 import { GIVE_COST, buyProject, projectPreview, projectsOpen, type ProjectId } from '../src/game/projects';
@@ -153,7 +153,7 @@ function expectedMargin(c: Core): number {
   const att = Math.min(capacityOf(c), previewDemand(c) * 1.08);
   const G = c.schedule.length || 84; // 시즌 경기 수 (경기당 분배금·고정비는 시즌 합계가 84경기 기준과 같다)
   const gate = 42 * att * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend);
-  const league = 84 * (LEAGUE_BASE + c.fans * LEAGUE_PER_FAN + 3 * LEAGUE_PER_RANK);
+  const league = 84 * (leagueShare(c, c.teams.length) + 3 * LEAGUE_PER_RANK);
   const merch = G * c.fans * MERCH_K * (starPower(t, c.season) / 100);
   const fixed = 42 * (SEAT_LV[c.facilities.seats].upkeep + FOOD_LV[c.facilities.food].upkeep) + 84 * (TRAIN_LV[c.facilities.training].upkeep + opsCost(c)) + c.finance.debt * 0.08;
   return gate + league + merch - fixed;
