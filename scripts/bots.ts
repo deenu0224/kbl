@@ -52,12 +52,24 @@ function buyProjects(c0: Core, order: ProjectId[], give: boolean): Core {
     if (pv.error) continue;
     c = ok(buyProject(c, id), c);
   }
-  // 남으면 도민 환원: 돔을 다 지었으면 여유만 남기고, 짓는 중이면 다음 단계 대금까지 남긴다
+  return give ? giveSpare(c, PROJECT_RESERVE) : c;
+}
+/** 남으면 도민 환원: 돔을 다 지었으면 여유만 남기고, 짓는 중이면 다음 단계 대금까지 남긴다. 관중석을 올리는 중이거나 빚이 있으면 하지 않는다 */
+function giveSpare(c0: Core, reserve: number): Core {
+  if (!projectsOpen(c0) || upgradeCost('seats', c0.facilities) !== null) return c0;
+  let c = c0;
+  while (c.finance.debt > 0 && c.finance.cash >= LOAN_STEP + reserve) {
+    const r = repay(c);
+    if (r.error) break;
+    c = r.core;
+  }
+  if (c.finance.debt > 0) return c;
   const dome = projectPreview(c, 'dome');
-  const keep = PROJECT_RESERVE + (dome.done ? 0 : dome.cost);
-  for (let n = 0; give && n < 30 && c.finance.cash >= GIVE_COST + keep; n++) c = ok(buyProject(c, 'give'), c);
+  const keep = reserve + (dome.done ? 0 : dome.cost);
+  for (let n = 0; n < 30 && c.finance.cash >= GIVE_COST + keep; n++) c = ok(buyProject(c, 'give'), c);
   return c;
 }
+const GIVE_MIDSEASON = 500000; // 시즌 중의 환원은 50억을 남기고 (3주에 한 번)
 
 const enabled = (card: EventCard, i: number) => !!card.choices[i] && !card.choices[i].disabled;
 export const firstEnabled = (card: EventCard, pref: number[]) => pref.find((i) => enabled(card, i)) ?? card.choices.map((_, i) => i).reverse().find((i) => enabled(card, i)) ?? 0;
@@ -419,6 +431,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
         coverRotation(t);
       });
     if (name === 'sensible') c = farmMoves(c);
+    if (name === 'sensible' && !pre && c.day % 21 === 20) c = giveSpare(c, GIVE_MIDSEASON);
     if (v.has('youth') && v.has('lineup') && c.campaign.stage >= 2) c = playYoung(c);
     return c;
   };

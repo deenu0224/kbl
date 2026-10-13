@@ -7,11 +7,11 @@ export type ProjectId = 'dome' | 'academy' | 'museum' | 'youth' | 'camp' | 'give
 export const PROJECT_IDS: ProjectId[] = ['dome', 'academy', 'museum', 'youth', 'camp', 'give'];
 
 // ── 금액·효과 테이블 (만원) ──
-export const DOME_COST = [600000, 1200000, 1500000]; // 설계 → 착공 → 완공 (총 330억)
+export const DOME_COST = [300000, 500000, 500000]; // 설계 → 착공 → 완공 (총 130억). 60/120/150억으로는 봇이 18시즌 안에 완공하지 못했다 (왕조 장의 순수입이 시즌당 25억 안팎)
 export const DOME_STEP = ['설계', '착공', '완공'];
 export const DOME_SEATS = 6000; // 완공: 수용 +6,000석 (24,000 → 30,000)
-export const DOME_REF_PRICE = 0.1; // 완공: 적정 티켓가 +1,000원
-export const DOME_UPKEEP = 900; // 완공: 홈경기당 시설 유지비 +900만
+export const DOME_REF_PRICE = 0.05; // 완공: 적정 티켓가 +500원
+export const DOME_UPKEEP = 8000; // 완공: 홈경기당 시설 유지비 +8,000만 (시즌 약 34억). 늘어난 6,000석 수입(시즌 50억+)의 절반 남짓을 되가져간다 — 900만일 때는 완공 뒤 현금이 다시 150억까지 쌓였다
 export const DOME_BUILD_CAP = 0.9; // 착공 뒤 공사 중인 한 시즌: 수용 −10%
 export const DOME_DESIGN_TRUST = 5; // 설계 발표: 도민 지지 +5
 export const ACADEMY_COST = 400000;
