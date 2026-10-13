@@ -1,4 +1,5 @@
 import type { DayReport, Team } from '../game/types';
+import Fold from './Fold';
 import { findPlayer, useStore } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import { PART_LABEL } from './LeftPanel';
@@ -83,6 +84,12 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
   const tag = (t: Team | undefined) => <TeamTag team={t} mine={t?.id === userId} size={10} />;
   const scoring = res.events.filter((e) => e.type === 'hr' || e.type === 'score' || e.type === 'walkoff');
   const n = Math.max(9, res.innings, res.line[0].length, res.line[1].length);
+  // 득점 장면은 마지막 3개 (승부가 갈린 쪽)
+  const keyScores = scoring.slice(-3);
+  const news = [
+    ...res.injuries.filter((x) => x.teamId === userId).map((x) => `✚ ${x.name} 부상 (${x.games}경기 결장)`),
+    ...r.notes.filter((t) => !t.startsWith('부상: ')),
+  ];
   const verdict = r.won === null ? '무승부' : r.won ? '승리!' : '패배';
   const vColor = r.won === null ? 'text-sky' : r.won ? 'text-hi' : 'text-bad';
 
@@ -115,6 +122,50 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
         </div>
       </div>
 
+      {/* 기본: 스코어 한 줄 · 득점 장면 최대 3 · 소식 최대 2 */}
+      <div className="mt-2 flex items-center justify-center gap-3 bg-ink px-2 py-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="score-line">
+        <span className={`flex min-w-0 flex-1 items-center justify-end gap-1 truncate text-[13px] ${away?.id === userId ? 'text-white' : 'text-white/70'}`}>
+          {away?.name} <TeamDot team={away} />
+        </span>
+        <span className="font-pixel-lg shrink-0 text-[22px] leading-none text-hi">
+          {res.away} : {res.home}
+        </span>
+        <span className={`flex min-w-0 flex-1 items-center gap-1 truncate text-[13px] ${home?.id === userId ? 'text-white' : 'text-white/70'}`}>
+          <TeamDot team={home} /> {home?.name}
+        </span>
+      </div>
+      {scoring.length > 0 && (
+        <div className="mt-2 flex flex-col gap-[3px]" data-testid="score-log">
+          {keyScores.map((e, i) => {
+            const mine = e.teamId === userId;
+            return (
+              <div key={i} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] leading-snug mob:text-[12px] ${mine ? 'bg-good/10' : 'bg-bad/10'}`} style={{ boxShadow: `inset 3px 0 0 ${mine ? '#6ee07a' : '#ff6b6b'}` }} data-testid="score-row" data-mine={mine ? '1' : '0'}>
+                <span className="w-9 shrink-0 text-[10px] text-white/55">
+                  {e.inning}회{e.half === 0 ? '초' : '말'}
+                </span>
+                {tag(teams.find((t) => t.id === e.teamId))}
+                <span className={`min-w-0 flex-1 ${mine ? 'text-white' : 'text-white/75'}`}>{e.text}</span>
+                <span className="shrink-0 text-hi">
+                  {e.away}:{e.home}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+
+      {news.length > 0 && (
+        <div className="mt-1.5 flex flex-col gap-[2px]" data-testid="sum-news">
+          {news.slice(0, 2).map((t, i) => (
+            <div key={i} className={`text-[11px] leading-snug mob:text-[13px] ${t.startsWith('✚') ? 'text-bad' : 'text-white/80'}`}>
+              {t.startsWith('✚') ? t : `· ${t}`}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Fold label="자세히: 이닝별 점수 · 투수 · 관중 · 정산" className="mt-2" testid="fold-summary">
       {/* 라인스코어 */}
       <div className="mt-2 shrink-0 overflow-x-auto bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
         <table className="w-full border-collapse text-center text-[12px]">
@@ -194,27 +245,6 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
         )}
       </div>
 
-      {scoring.length > 0 && (
-        <div className="mt-2 flex flex-col gap-[3px]" data-testid="score-log">
-          <div className="text-[11px] text-sky">▸ 득점 기록</div>
-          {scoring.map((e, i) => {
-            const mine = e.teamId === userId;
-            return (
-              <div key={i} className={`flex items-center gap-1.5 px-1.5 py-[3px] text-[11px] leading-snug mob:text-[12px] ${mine ? 'bg-good/10' : 'bg-bad/10'}`} style={{ boxShadow: `inset 3px 0 0 ${mine ? '#6ee07a' : '#ff6b6b'}` }} data-testid="score-row" data-mine={mine ? '1' : '0'}>
-                <span className="w-9 shrink-0 text-[10px] text-white/55">
-                  {e.inning}회{e.half === 0 ? '초' : '말'}
-                </span>
-                {tag(teams.find((t) => t.id === e.teamId))}
-                <span className={`min-w-0 flex-1 ${mine ? 'text-white' : 'text-white/75'}`}>{e.text}</span>
-                <span className="shrink-0 text-hi">
-                  {e.away}:{e.home}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       <div className="mt-2 grid grid-cols-2 gap-2 por:grid-cols-1">
         <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
           <div className="mb-1 text-[11px] text-sky">▸ 관중</div>
@@ -238,28 +268,13 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
           ) : (
             <div className="text-[10px] text-white/45">원정 경기 (입장·매점 수입 없음)</div>
           )}
-          {(r.notes.length > 0 || res.injuries.length > 0) && <div className="mt-1.5 mb-0.5 text-[11px] text-sky">▸ 소식</div>}
-          {res.injuries
-            .filter((x) => x.teamId === userId)
-            .map((x) => (
-              <div key={x.pid} className="text-[10px] text-bad">
-                ✚ {x.name} 부상 ({x.games}경기 결장)
-              </div>
-            ))}
-          {r.notes
-            .filter((t) => !t.startsWith('부상: ')) /* 부상은 위의 ✚ 줄로 이미 나왔다 */
-            .slice(0, 6)
-            .map((t, i) => (
-            <div key={i} className="text-[10px] leading-snug text-white/80">
-              · {t}
-            </div>
-          ))}
         </div>
         <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
           <div className="mb-1 text-[11px] text-sky">▸ 오늘의 정산</div>
           <MoneyBlock m={r.money} />
         </div>
       </div>
+      </Fold>
     </>
   );
 }
