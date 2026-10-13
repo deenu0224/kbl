@@ -2,7 +2,7 @@
 // 시즌 대본(일정 배치·구간 효과)은 script.ts, 이벤트 카드는 events.ts, 대사·문구는 story.ts.
 import type { Buff, CharId, Core, DayReport, HintTab, ObjKind, Objective, Player, PostFinish, SeasonRecord, SeasonVerdict, StadiumScene, Team } from './types';
 import { clamp, type Rng } from './rng';
-import { luxTax, opProfit, payroll, userTeam } from './economy';
+import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, loanLimit, luxTax, opProfit, payroll, revenueOf, userTeam } from './economy';
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
 import { memoGet, memoNum, memoSet } from './memo';
@@ -824,6 +824,18 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
   }
 
   core.finance.cash += cashReward;
+
+  // 부채 한도 초과로 결산: 한 시즌 −DEBT_OVER_TRUST, 두 시즌 연속 −DEBT_OVER_TRUST2. 한도는 이번 시즌 것(매출 갱신 전)
+  const limit = loanLimit(core);
+  let debtOver: SeasonVerdict['debtOver'];
+  if (core.finance.debt > limit) {
+    c.debtOver = (c.debtOver ?? 0) + 1;
+    const d = c.debtOver >= 2 ? DEBT_OVER_TRUST2 : DEBT_OVER_TRUST;
+    trust -= d;
+    debtOver = { debt: core.finance.debt, limit, streak: c.debtOver, trust: -d };
+    addNews(core, `${c.debtOver >= 2 ? '두 시즌 연속 ' : ''}부채 한도 초과로 결산 — 부채 ${fmtMoney(core.finance.debt)} / 한도 ${fmtMoney(limit)} · ${TRUST_LABEL} −${d}`, 'bad');
+  } else delete c.debtOver;
+  c.prevRevenue = revenueOf(core.finance.ledger);
   c.trust = clamp(Math.round(trust), 0, TRUST_MAX);
 
   const rank = rankOf(core.teams, core.userId);
@@ -865,6 +877,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     fired,
     ...(exposures.length ? { exposures } : {}),
     ...(lux.tax > 0 ? { luxTax: lux } : {}),
+    ...(debtOver ? { debtOver } : {}),
   };
   c.verdict = verdict;
   const st = STAGES[stageBefore];

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Player, Team } from '../game/types';
 import { useCore, useStore, useUserTeam } from '../store';
 import { fmtMoney } from '../game/format';
-import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster, releaseCost } from '../game/economy';
+import { ROSTER_MAX, farmMax, activeRoster, farmRoster, releaseCost } from '../game/economy';
 import { basketCount } from '../game/transfer';
 import { offPos } from '../game/fixes';
 import { teamParts, type TeamParts } from '../game/ratings';
@@ -185,6 +185,7 @@ function SquadSummary() {
 
 /** 이적 탭: 이적 창구(전체 화면)로 들어가는 문. 목록의 선수를 누르면 담은 채로 창구가 열린다 */
 export function MarketTab() {
+  const core = useCore();
   const team = useUserTeam();
   const freeAgents = useStore((s) => s.freeAgents);
   const cash = useStore((s) => s.finance.cash);
@@ -213,7 +214,7 @@ export function MarketTab() {
           </button>
         </div>
         <div className="truncate text-[10px] text-white/60 mob:text-[13px]" data-testid="desk-head">
-          현금 <span className="text-hi">{fmtMoney(cash)}</span> · 1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className="text-white">{nFarm}/{FARM_MAX}</span>
+          현금 <span className="text-hi">{fmtMoney(cash)}</span> · 1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className="text-white">{nFarm}/{farmMax(core)}</span>
         </div>
       </div>
       <PlayerBrowser

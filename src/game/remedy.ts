@@ -2,7 +2,7 @@
 // 원칙: 조치 버튼이 없는 알림은 띄우지 않는다 — todo.ts 가 remedies() 로 걸러 낸다.
 import type { BatPos, Core, Player, Team } from './types';
 import {
-  FARM_LOCK, FOOD_LV, LOAN_RATE, LOAN_STEP, MIN_BATTERS, MIN_PITCHERS, RAIN_ROOF, ROOF_SEATS, ROSTER_MAX, SEAT_LV, SVC_YEARS, WEATHER_MULT,
+  FARM_LOCK, FOOD_LV, LOAN_STEP, loanInterest, loanLimit, MIN_BATTERS, MIN_PITCHERS, RAIN_ROOF, ROOF_SEATS, ROSTER_MAX, SEAT_LV, SVC_YEARS, WEATHER_MULT,
   activeRoster, capacityOf, farmRoster, hasRoof, previewDemand, releaseCost, signingBonus, upgradeCost, userTeam, deadlinesSoon,
 } from './economy';
 import { svcYear } from './contract';
@@ -17,7 +17,7 @@ import { memoGet } from './memo';
 import { teamParts, type TeamParts } from './ratings';
 import { runway, runwayAfter, type Runway } from './runway';
 import { POS_NAME } from './script';
-import { borrow, callUp, farmLockLeft, ilLock, releasePlayer, sendDown, setTicketPrice, signPlayer, upgradeFacility } from './season';
+import { borrow, repay, callUp, farmLockLeft, ilLock, releasePlayer, sendDown, setTicketPrice, signPlayer, upgradeFacility } from './season';
 import { tiredPenalty } from './sim';
 
 export type RemedyGo = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad';
@@ -33,6 +33,7 @@ export type RemedyAction =
   | { t: 'release'; pid: string }
   | { t: 'price'; value: number }
   | { t: 'borrow' }
+  | { t: 'repay' }
   | { t: 'seats' } // 관중석 증축
   | { t: 'penStyle' } // 불펜 방침을 균형으로
   | { t: 'go'; to: RemedyGo; sub?: 'lineup' | 'pitchers'; pid?: string } // 화면 이동 (core 는 그대로 — 화면이 처리한다)
@@ -364,10 +365,10 @@ function fewRemedies(core: Core, kind: 'B' | 'P'): Remedy[] {
 
 // ───────── 자금 경고 ─────────
 
-/** 지금 급한 쪽: 금고가 이미 비었으면 강제 매각까지, 아니면 바닥까지 (briefing.ts cashMetric 과 같은 기준) */
+/** 지금 급한 쪽: 금고가 이미 비었으면 한도 초과까지, 아니면 바닥까지 (briefing.ts cashMetric 과 같은 기준) */
 function cashMetric(core: Core, r: Runway): { n: number | null; label: string; sale: boolean } {
   const sale = r.forcedSale !== null && (core.finance.cash <= 0 || (r.cashOut !== null && r.cashOut <= 1));
-  return sale ? { n: r.forcedSale, label: '강제 매각까지', sale } : { n: r.cashOut, label: '바닥까지', sale };
+  return sale ? { n: r.forcedSale, label: '한도 초과까지', sale } : { n: r.cashOut, label: '바닥까지', sale };
 }
 const gateIncome = (c: Core) => Math.min(capacityOf(c), previewDemand(c)) * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend);
 function homeShare(core: Core): number {
@@ -419,11 +420,47 @@ function cashRemedies(core: Core): Remedy[] {
   if (!b.error && !m0.sale) {
     const rw = runway(b.core);
     const gain = val(rw) - m0.n;
-    if (gain > 0) cands.push({ gain: gain / 2, r: { id: 'borrow', run: { t: 'borrow' }, tone: 'warn', label: `대출 +${fmtMoney(LOAN_STEP)} — ${tail(rw)}`, effect: `이자 시즌당 ${fmtMoney(Math.round(LOAN_STEP * LOAN_RATE))} · 부채 ${fmtMoney(core.finance.debt)} → ${fmtMoney(b.core.finance.debt)}` } });
+    if (gain > 0) cands.push({ gain: gain / 2, r: { id: 'borrow', run: { t: 'borrow' }, tone: 'warn', label: `대출 +${fmtMoney(LOAN_STEP)} — ${tail(rw)}`, effect: `이자 시즌당 +${fmtMoney(Math.round(loanInterest(core, core.finance.debt + LOAN_STEP) - loanInterest(core, core.finance.debt)))} · 부채 ${fmtMoney(core.finance.debt)} → ${fmtMoney(b.core.finance.debt)}` } });
   }
   if (!cands.length) return [];
   const out = cands.sort((a, b2) => b2.gain - a.gain).slice(0, REMEDY_MAX - 1).map((c) => c.r);
   out.push({ id: 'none', run: { t: 'none' }, tone: 'bad', label: '그대로 둔다', effect: m0.sale ? `${m0.n}경기 뒤 빚이 한도를 넘어 선수를 내준다` : core.finance.cash <= 0 ? '금고 바닥 — 경기마다 빚이 쌓인다' : `${m0.n}경기 뒤 금고가 빈다 · 경기당 ${sgnMoney(now.perGame)}` });
+  return out;
+}
+
+/** 부채가 한도의 절반 이상: 상환 · 방출 · 티켓값 (자금 조치와 같은 재료) */
+function debtRemedies(core: Core): Remedy[] {
+  if (core.phase !== 'season') return [];
+  const t = userTeam(core);
+  const f = core.finance;
+  const lim = loanLimit(core);
+  const int0 = loanInterest(core, f.debt);
+  const out: Remedy[] = [];
+  const rp = repay(core);
+  if (!rp.error) {
+    const d = rp.core.finance.debt;
+    out.push({ id: 'repay', run: { t: 'repay' }, tone: 'good', label: `상환 −${fmtMoney(f.debt - d)} — 부채 ${fmtMoney(f.debt)} → ${fmtMoney(d)}`, effect: `이자 시즌당 −${fmtMoney(Math.round(int0 - loanInterest(core, d)))} · 남는 현금 ${fmtMoney(rp.core.finance.cash)}` });
+  }
+  const before = teamParts(t);
+  const len = Math.max(1, core.schedule.length);
+  const left = core.schedule.length - core.day;
+  const p = t.roster
+    .filter((x) => x.salary >= 8000 && !isFranchise(x, core.season) && !releasePlayer(core, x.id).error)
+    .sort((a, b) => b.salary / Math.max(5, b.ovr - 45) - a.salary / Math.max(5, a.ovr - 45))[0];
+  if (p) {
+    const r = releasePlayer(core, p.id);
+    out.push({ id: `rel-${p.id}`, run: { t: 'release', pid: p.id }, label: `방출: ${p.name} — 남은 시즌 연봉 −${fmtMoney(Math.round((p.salary * left) / len))}`, effect: `잔여 연봉 지급 ${fmtMoney(f.cash - r.core.finance.cash)} · ${partsDelta(before, teamParts(userTeam(r.core)))}` });
+  }
+  for (const d of [0.2, -0.2]) {
+    const next = setTicketPrice(core, f.ticketPrice + d);
+    if (next === core) continue;
+    const inc = Math.round(gateIncome(next) - gateIncome(core));
+    if (inc <= 0) continue;
+    out.push({ id: `price-${d > 0 ? 'up' : 'down'}`, run: { t: 'price', value: next.finance.ticketPrice }, label: `티켓값 ${f.ticketPrice.toFixed(1)} → ${next.finance.ticketPrice.toFixed(1)}만 — 홈경기당 ${sgnMoney(inc)}`, effect: `예상 관중 ${sgn(Math.min(capacityOf(next), previewDemand(next)) - Math.min(capacityOf(core), previewDemand(core)), '명')}` });
+    break;
+  }
+  if (!out.length) return [];
+  out.push({ id: 'none', run: { t: 'none' }, tone: 'bad', label: '그대로 둔다', effect: f.debt > lim ? '한도 초과 — 경기 뒤마다 선수를 보낸다' : `이자 시즌당 ${fmtMoney(Math.round(int0))} · 한도까지 ${fmtMoney(lim - f.debt)}` });
   return out;
 }
 
@@ -518,6 +555,7 @@ export function remedies(core: Core, todoId: string): Remedy[] {
     : id === 'fewB' ? fewRemedies(core, 'B')
     : id === 'fewP' ? fewRemedies(core, 'P')
     : id === 'cash' ? cashRemedies(core)
+    : id === 'debt' ? debtRemedies(core)
     : id === 'away' ? awayRemedies(core)
     : id === 'scout' ? scoutRemedies(core)
     : id === 'fa' ? faRemedies(core)
@@ -552,6 +590,8 @@ export function remedyNow(core: Core, todoId: string): string {
       const nb = act.filter((x) => x.kind === 'B').length;
       return `1군 ${act.length}/${ROSTER_MAX}명 (타자 ${nb} · 투수 ${act.length - nb}) · 2군 ${farmRoster(t).length}명`;
     }
+    case 'debt':
+      return `부채 ${fmtMoney(core.finance.debt)} / 한도 ${fmtMoney(loanLimit(core))} · 이자 시즌당 ${fmtMoney(Math.round(loanInterest(core, core.finance.debt)))} · 현금 ${fmtMoney(core.finance.cash)}`;
     case 'cash': {
       const r = runway(core);
       return `현금 ${fmtMoney(core.finance.cash)} · 경기당 ${sgnMoney(r.perGame)}${core.finance.debt > 0 ? ` · 부채 ${fmtMoney(core.finance.debt)}` : ''}`;
@@ -594,6 +634,8 @@ export function applyRemedy(core: Core, r: Remedy): Res {
     }
     case 'borrow':
       return borrow(core);
+    case 'repay':
+      return repay(core);
     case 'seats':
       return upgradeFacility(core, 'seats');
     case 'penStyle': {

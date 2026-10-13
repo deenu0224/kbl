@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Player } from '../game/types';
-import { useStore, useUserTeam } from '../store';
+import { useCore, useStore, useUserTeam } from '../store';
 import { DRAFT_BONUS, DRAFT_ROUNDS, draftRound } from '../game/draft';
-import { FARM_MAX, ROSTER_MAX, activeRoster, farmRoster } from '../game/economy';
+import { ROSTER_MAX, farmMax, activeRoster, farmRoster } from '../game/economy';
 import { fmtMoney } from '../game/format';
 import PlayerCard from './PlayerCard';
 import Sheet from './layout/Sheet';
@@ -45,6 +45,7 @@ export default function DraftScreen() {
   const selP = sel ? pool.find((p) => p.id === sel) : undefined;
   const mine = useMemo(() => new Set(draft?.mine ?? []), [draft?.mine]);
   const nFarm = farmRoster(team).length;
+  const FARM_MAX = farmMax(useCore());
   const full = nFarm >= FARM_MAX;
   const reason = !myTurn ? '지명 차례가 아닙니다' : full ? `2군이 가득 찼습니다 (${FARM_MAX}명)` : cash < bonus ? `계약금 부족 (${fmtMoney(bonus)})` : null;
 

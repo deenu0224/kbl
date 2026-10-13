@@ -7,7 +7,7 @@
 //    굿즈·분배금은 현재 팬 수·순위·스타성으로 계산. 홈 3경기를 치르기 전(시즌 초)에는 관중을 previewDemand ×
 //    요일·날씨 평균 계수로 대신한다.
 //  · 남은 일정을 홈/원정 순서대로 한 경기씩 굴려 현금이 0 아래로 내려가는 경기(cashOut)와, 그 뒤 긴급 대출이 쌓여
-//    부채가 한도를 넘는 경기(forcedSale)를 찾는다. 이자는 불어난 부채에 맞춰 매 경기 다시 계산한다.
+//    부채가 한도(loanLimit)를 넘는 경기(forcedSale)를 찾는다. 이자는 불어난 부채에 맞춰 매 경기 구간별로 다시 계산한다.
 //  · DayReport.money.net 은 저장되지 않고, cashHistory 의 차분에는 계약금·시설 투자·대출·이벤트 카드가 섞여 있어
 //    걸러낼 수 없다. 그래서 차분 대신 위 식을 쓴다.
 // 한계
@@ -17,8 +17,8 @@
 import { leagueMult } from './scandal';
 import type { Core, Player } from './types';
 import {
-  DOW_MULT, FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_LIMIT, LOAN_RATE, MERCH_K, MIN_BATTERS, MIN_PITCHERS, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
-  capacityOf, opsCost, payroll, previewDemand, starPower, userTeam,
+  DOW_MULT, FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, MIN_BATTERS, MIN_PITCHERS, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
+  capacityOf, loanInterest, loanLimit, opsCost, payroll, previewDemand, starPower, userTeam,
 } from './economy';
 import { fmtMoney } from './format';
 import { rankOf } from './season';
@@ -26,7 +26,7 @@ import { rankOf } from './season';
 export interface Runway {
   perGame: number; // 경기당 평균 손익(만원): 남은 일정(홈/원정)의 평균. 최근 홈 관중 실적 × 현재 가격·연봉·유지비·이자
   cashOut: number | null; // 현금이 0 이 되기까지 남은 경기 수 (흑자이거나 이번 시즌 안에 안 비면 null)
-  forcedSale: number | null; // 부채 한도 초과(강제 매각)까지 남은 경기 수 (해당 없으면 null)
+  forcedSale: number | null; // 부채 한도 초과(영입·투자 차단 · 매각 카드)까지 남은 경기 수 (이미 넘었으면 0, 해당 없으면 null)
   seasonEnd: number; // 이 페이스로 시즌 말 예상 현금(부채 차감 전)
 }
 
@@ -65,16 +65,17 @@ function project(core: Core, d: { cash?: number; perGame?: number; debt?: number
   const debt0 = Math.max(0, core.finance.debt + (d.debt ?? 0));
   if (core.phase !== 'season' || core.day >= core.schedule.length) return { perGame: 0, cashOut: null, forcedSale: null, seasonEnd: cash0 };
   const net = baseNet(core);
+  const limit = loanLimit(core);
   const add = d.perGame ?? 0;
   let cash = cash0;
   let debt = debt0;
   let sum = 0;
   let cashOut: number | null = null;
-  let forcedSale: number | null = null;
+  let forcedSale: number | null = debt0 > limit ? 0 : null;
   const left = core.schedule.length - core.day;
   for (let k = 1; k <= left; k++) {
     const home = core.schedule[core.day + k - 1].some((g) => g.homeId === core.userId);
-    const n = (home ? net.home : net.away) + add - (debt * LOAN_RATE) / len;
+    const n = (home ? net.home : net.away) + add - loanInterest(core, debt) / len;
     sum += n;
     cash += n;
     if (cash < 0) {
@@ -82,7 +83,7 @@ function project(core: Core, d: { cash?: number; perGame?: number; debt?: number
       debt += -cash;
       cash = 0;
     }
-    if (debt > LOAN_LIMIT && forcedSale === null) forcedSale = k;
+    if (debt > limit && forcedSale === null) forcedSale = k;
     path?.push(Math.round(cash - (debt - debt0)));
   }
   return { perGame: Math.round(sum / left), cashOut, forcedSale, seasonEnd: Math.round(cash0 + sum) };
@@ -105,7 +106,7 @@ export function runwayPath(core: Core): number[] {
   return path;
 }
 
-/** 강제 매각 대상: settleCash 와 같은 기준(최소 인원을 지키는 선에서 최고 연봉) */
+/** 조합에 맡기면 팔릴 선수 (최소 인원을 지키는 선에서 최고 연봉. debt.ts saleCandidates().auto 와 같은 기준) */
 export function forcedSaleTarget(core: Core): Player | null {
   const t = userTeam(core);
   const nb = t.roster.filter((p) => p.kind === 'B' && !p.farm).length;
@@ -113,10 +114,10 @@ export function forcedSaleTarget(core: Core): Player | null {
   return t.roster.filter((p) => p.farm || (p.kind === 'B' ? nb > MIN_BATTERS : np > MIN_PITCHERS)).sort((a, b) => b.salary - a.salary)[0] ?? null;
 }
 
-/** 상단 경고: 30경기 이내에 금고가 비거나 강제 매각이 올 때만. danger = 12경기 이내 */
+/** 상단 경고: 30경기 이내에 금고가 비거나 부채가 한도를 넘을 때만. danger = 12경기 이내 */
 export function runwayAlert(core: Pick<Core, 'finance'>, r: Runway): { text: string; danger: boolean } | null {
   if (core.finance.debt > 0 && r.forcedSale !== null && r.forcedSale <= RUNWAY_SHOW && (r.cashOut === null || r.cashOut <= 1 || r.forcedSale <= RUNWAY_DANGER)) {
-    return { text: `강제 매각까지 ${r.forcedSale}경기`, danger: r.forcedSale <= RUNWAY_DANGER };
+    return { text: r.forcedSale <= 0 ? '부채 한도 초과' : `한도 초과까지 ${r.forcedSale}경기`, danger: r.forcedSale <= RUNWAY_DANGER };
   }
   if (r.cashOut !== null && core.finance.cash <= 0) return { text: '금고 바닥 · 빚 증가 중', danger: true };
   if (r.cashOut !== null && r.cashOut <= RUNWAY_SHOW) return { text: `${r.cashOut}경기 뒤 바닥`, danger: r.cashOut <= RUNWAY_DANGER };

@@ -1,7 +1,7 @@
 // 포스트시즌 (KBO 사다리식 8구단 축소판). docs/LEVEL_DESIGN.md 3절.
 import type { BatStats, Core, Crowd, DayReport, GameEvent, GameResult, PitStats, PostFinish, PostRound, PostSeries, Postseason, Team } from './types';
 import { clamp, gauss, randInt, type Rng } from './rng';
-import { FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_RATE, MERCH_K, calcDemand, opsCost, rainFood, starPower, userTeam } from './economy';
+import { FOOD_LV, SEAT_LV, TRAIN_LV, loanInterest, MERCH_K, calcDemand, opsCost, rainFood, starPower, userTeam } from './economy';
 import { fmtInt } from './format';
 import { addNews, playGame, rankOf, rollWeather, settleCash, standings } from './season';
 import { activeBuffs, concludeMut, hintMut, refreshProgressMut, tickBuffs } from './campaign';
@@ -308,7 +308,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
     (m.isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
     TRAIN_LV[core.facilities.training].upkeep +
     opsCost(core);
-  const interest = Math.round((f.debt * LOAN_RATE) / core.schedule.length);
+  const interest = Math.round(loanInterest(core, f.debt) / core.schedule.length);
   const net = ticket + food + merch - upkeep - interest;
   f.cash += net;
   f.ledger.ticket += ticket;

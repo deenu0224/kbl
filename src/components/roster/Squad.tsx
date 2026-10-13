@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BatPos, Player } from '../../game/types';
 import type { PosKey, PosRow } from '../../game/analysis';
-import { FARM_MAX } from '../../game/economy';
+import { farmMax } from '../../game/economy';
 import { applyFixes, offPos } from '../../game/fixes';
 import { farmLockLeft } from '../../game/season';
 import { useCore, useStore, useUserTeam } from '../../store';
@@ -555,7 +555,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
   function farmToggle() {
     return (
       <button className="flex min-h-9 cursor-pointer items-center px-2 text-[13px] text-sky" data-testid="squad-farm-toggle" onClick={() => setFarmOpen((v) => !v)}>
-        2군 {nFarm}/{FARM_MAX}
+        2군 {nFarm}/{farmMax(core)}
         {nRehab > 0 && <span className="text-bad" data-testid="squad-rehab-n">&nbsp;· 재활 {nRehab}</span>}
         &nbsp;{farmOpen ? '▾' : '▸'}
       </button>
@@ -574,7 +574,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
               return tile(p, left > 0 ? `${POS_KO[p.pos]} 잠금${left}` : POS_KO[p.pos], { pan, subBad: left > 0, className: 'w-[104px] shrink-0', style: { background: '#1c2740' } });
             })
           ) : (
-            <span className="px-1 py-3 text-[13px] text-white/45">0/{FARM_MAX}</span>
+            <span className="px-1 py-3 text-[13px] text-white/45">0/{farmMax(core)}</span>
           )
         }
       </Tray>

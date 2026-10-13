@@ -1,5 +1,6 @@
 // "?" 버튼 뒤의 설명. 한 주제에 3~5줄, 한 줄에 한 문장. 숫자는 실제 규칙 값만.
-import { FARM_CAP, FARM_LOCK, FARM_MAX, LOAN_LIMIT, LOAN_RATE, ROSTER_MAX, SVC_YEARS } from '../game/economy';
+import { BAILOUT_TRUST, DEBT_OVER_TRUST, DEBT_OVER_TRUST2, DEBT_SALE_RATE, FARM_CAP, FARM_LOCK, FARM_MAX, FARM_MAX_ACADEMY, LOAN_LIMIT, LOAN_RATE, LOAN_RATE_HI, LOAN_REV_SHARE, LOAN_TIER, ROSTER_MAX, SVC_YEARS, loanInterest, loanLimit } from '../game/economy';
+import type { Core } from '../game/types';
 import { TRUST_MAX, TRUST_START } from '../game/campaign';
 import { RUNWAY_DANGER, RUNWAY_SHOW } from '../game/runway';
 import { VALUE_FAIR } from '../game/analysis';
@@ -16,6 +17,7 @@ export type HelpTopic =
   | 'trust'
   | 'flag'
   | 'runway'
+  | 'debt'
   | 'fatigue'
   | 'penStyle'
   | 'farm'
@@ -27,7 +29,7 @@ export type HelpTopic =
   | 'secrets'
   | 'projects';
 
-export const HELP: Record<HelpTopic, { title: string; lines: string[] }> = {
+export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: Core) => string[]) }> = {
   projects: {
     title: '왕조 프로젝트',
     lines: [
@@ -69,13 +71,27 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] }> = {
     title: '시즌 목표',
     lines: ['깃발은 이번 시즌에 꼭 이뤄야 하는 목표입니다.', '깃발을 이루면 지원금과 도민 지지를 받고 다음 장으로 넘어갑니다.', '별 3개는 더 어려운 선택 목표입니다.', '별을 누르면 지금 진행 수치가 보입니다.'],
   },
+  debt: {
+    title: '부채와 한도',
+    lines: (core: Core) => {
+      const lim = loanLimit(core);
+      const pct = (v: number) => Math.round(v * 100);
+      return [
+        `한도 ${fmtMoney(lim)} = 지난 시즌 매출${core.campaign.prevRevenue ? ` ${fmtMoney(core.campaign.prevRevenue)}` : ''}의 ${pct(LOAN_REV_SHARE)}% (최소 ${fmtMoney(LOAN_LIMIT)}).`,
+        `이자는 ${fmtMoney(lim * LOAN_TIER)}까지 연 ${pct(LOAN_RATE)}%, 그 위는 연 ${pct(LOAN_RATE_HI)}% — 지금 시즌당 ${fmtMoney(Math.round(loanInterest(core, core.finance.debt)))}.`,
+        '금고가 비면 모자란 돈은 긴급 대출이 되어 부채에 더해집니다.',
+        `한도를 넘으면 영입·시설·프로젝트·대출이 막히고, 경기 뒤마다 선수 한 명을 보냅니다 (대금 = 시장 연봉의 ${pct(DEBT_SALE_RATE)}%). 보낼 선수가 없으면 조합 특별 출자(도민 지지 −${BAILOUT_TRUST}, 시즌 1회).`,
+        `한도를 넘긴 채 결산하면 도민 지지 −${DEBT_OVER_TRUST}, 두 시즌 연속이면 −${DEBT_OVER_TRUST2}.`,
+      ];
+    },
+  },
   runway: {
     title: '자금 예측',
     lines: [
       '최근 홈 관중과 지금 연봉·유지비가 이어진다고 보고 남은 경기를 계산합니다.',
       `금고가 ${RUNWAY_SHOW}경기 안에 비면 경고가 뜨고, ${RUNWAY_DANGER}경기 안이면 빨간색입니다.`,
       `금고가 비면 모자란 돈은 연 ${Math.round(LOAN_RATE * 100)}% 긴급 대출로 바뀝니다.`,
-      `부채가 ${fmtMoney(LOAN_LIMIT)}을 넘으면 최고 연봉 선수가 강제 매각됩니다.`,
+      '부채가 한도를 넘으면 영입·투자가 막히고, 보낼 선수를 골라야 합니다.',
     ],
   },
   fatigue: {
@@ -95,7 +111,7 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] }> = {
   },
   farm: {
     title: '2군',
-    lines: ['2군 선수는 경기에 나오지 않습니다.', `젊은 선수는 1군 벤치보다 빨리 자라지만 종합 능력 ${FARM_CAP}까지만 자랍니다.`, `2군으로 내린 선수는 ${FARM_LOCK}경기 뒤에 다시 올릴 수 있습니다.`, `1군 정원은 ${ROSTER_MAX}명, 2군 정원은 ${FARM_MAX}명입니다.`, '부상·징계 중인 선수는 부상자 명단(재활)으로 내릴 수 있습니다. 1군 자리가 하나 비고 2군 정원에는 들지 않으며, 나을 때까지(최소 10경기) 복귀할 수 없습니다.', '2군 자동 운영이 켜져 있으면 10경기 이상 결장하는 부상자는 2군 코치가 명단에 올리고 대체 선수를 콜업합니다. 나으면 자동으로 복귀합니다.'],
+    lines: ['2군 선수는 경기에 나오지 않습니다.', `젊은 선수는 1군 벤치보다 빨리 자라지만 종합 능력 ${FARM_CAP}까지만 자랍니다.`, `2군으로 내린 선수는 ${FARM_LOCK}경기 뒤에 다시 올릴 수 있습니다.`, `1군 정원은 ${ROSTER_MAX}명, 2군 정원은 ${FARM_MAX}명입니다 (육성 아카데미가 있으면 ${FARM_MAX_ACADEMY}명).`, '부상·징계 중인 선수는 부상자 명단(재활)으로 내릴 수 있습니다. 1군 자리가 하나 비고 2군 정원에는 들지 않으며, 나을 때까지(최소 10경기) 복귀할 수 없습니다.', '2군 자동 운영이 켜져 있으면 10경기 이상 결장하는 부상자는 2군 코치가 명단에 올리고 대체 선수를 콜업합니다. 나으면 자동으로 복귀합니다.'],
   },
   service: {
     title: 'FA 자격',

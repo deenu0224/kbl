@@ -165,6 +165,15 @@ export const SCREENS = [
   S('club-finance', 'season3', game(...CLUB, '재무')),
   S('club-finance-more', 'season3', game(...CLUB, '재무', '자세히: 누적 장부')),
   S('club-finance-cashlow', 'cashlow', game(...CLUB, '재무')),
+  // 부채 한도: 50% · 80% · 초과 재무 화면, 설명, 매각 카드와 상세, 한도 초과 결산의 빨간 줄
+  S('club-finance-debt50', 'debt50', game(...CLUB, '재무')),
+  S('club-finance-debt80', 'debt80', game(...CLUB, '재무')),
+  S('club-finance-debtover', 'debtOver', game(...CLUB, '재무')),
+  S('event-debtsale', 'debtSale', game()),
+  S('event-debtsale-detail', 'debtSale', game(c('ev-more', { optional: true }))),
+  S('ended-debtover', 'endedDebt', game()),
+  S('academy-farm', 'academy', game('squad-farm-toggle')),
+  S('share-dome', 'domeDone', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
   S('club-stadium', 'season3', game(...CLUB, '구장')),
   S('club-news', 'season3', game(...CLUB, '뉴스')),
   // ── 왕조 프로젝트 (첫 우승 뒤)

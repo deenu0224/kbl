@@ -1,4 +1,5 @@
 import { projectVerdictLine, projectsOpen } from '../game/projects';
+import { TRUST_LABEL } from '../game/story';
 import Sheet from './layout/Sheet';
 import { ProjectsSection } from './RightPanel';
 import { exposureLines } from '../game/scandal';
@@ -224,6 +225,12 @@ function SeasonEndBody() {
           </div>
         </div>
 
+        {v?.debtOver && (
+          <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="debt-over">
+            <span className="text-bad">{v.debtOver.streak >= 2 ? '두 시즌 연속 ' : ''}부채 한도 초과 — {TRUST_LABEL} {v.debtOver.trust}</span>
+            <span className="text-white/70"> · 부채 {fmtMoney(v.debtOver.debt)} / 한도 {fmtMoney(v.debtOver.limit)}{v.debtOver.streak < 2 ? ' · 다음 시즌에도 넘기면 −30' : ''}</span>
+          </div>
+        )}
         {v?.luxTax && (
           <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="lux-tax">
             <span className="text-bad">경쟁균형세 −{fmtMoney(v.luxTax.tax)}</span>

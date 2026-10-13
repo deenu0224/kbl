@@ -30,9 +30,7 @@ export const TRAIN_LV: { grow: number; inj: number; cost: number; upkeep: number
   { grow: 0.36, inj: 0.5, cost: 450000, upkeep: 1000, name: '퍼포먼스 센터', desc: '주간 성장 36% · 부상 -50%' },
 ];
 
-export const LOAN_LIMIT = 500000; // 50억
-export const LOAN_STEP = 50000; // 5억
-export const LOAN_RATE = 0.08; // 연이율
+export * from './loan';
 export const ROSTER_MAX = 28; // 1군 등록 정원
 export const TRADE_DEADLINE = 54; // 트레이드 마감: 이 경기 수를 치른 뒤에는 트레이드 제안·시장 등록 불가 (스토브리그에 다시 열린다)
 export const DEADLINE_WARN = 6; // 마감 이 경기 전부터 일정표 예보·할 일에 올린다
@@ -71,7 +69,12 @@ export function deadlinesSoon(core: Pick<Core, 'phase' | 'day'>): Deadline[] {
   ];
   return all.filter((d) => d.left > 0 && d.left <= DEADLINE_WARN);
 }
-export const FARM_MAX = 20; // 2군(퓨처스) 정원
+export const FARM_MAX = 20; // 2군(퓨처스) 정원 (기본. 실제 정원은 farmMax — 육성 아카데미가 있으면 FARM_MAX_ACADEMY)
+export const FARM_MAX_ACADEMY = 25;
+/** 2군 정원: 육성 아카데미가 있으면 25명 */
+export function farmMax(core: Partial<Pick<Core, 'campaign'>>): number {
+  return (core.campaign?.projects?.academy ?? 0) > 0 ? FARM_MAX_ACADEMY : FARM_MAX;
+}
 export const FARM_CAP = 64; // 2군에서는 이 OVR 까지만 자란다 (그 위는 1군에서만)
 export const FARM_GROW = 2.2; // 2군의 주간 성장 확률 = 훈련장 확률 × 이 값
 export const FARM_GROW_MIN = 0.25; // 훈련장이 없어도 2군은 실전으로 이만큼은 자란다

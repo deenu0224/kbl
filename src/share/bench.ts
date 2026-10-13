@@ -24,6 +24,11 @@ export interface BenchInput {
 }
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+/** 가상 단장 중 연고 이전으로 끝난 비율(%). 표에 값이 없으면 null */
+export function relocatedPct(t: BenchTable = BENCH): number | null {
+  if (!t || !(t.n > 0) || !Array.isArray(t.over)) return null;
+  return Math.round((sum(t.over) / t.n) * 100);
+}
 /** 나보다 잘한 단장 + 나와 같은 단장의 절반 → 상위 % */
 const rankPct = (better: number, equal: number, n: number) => Math.max(1, Math.min(99, Math.round(((better + equal / 2) / Math.max(1, n)) * 100)));
 const score = (stage: number, best: number) => stage * 10 + (8 - best);

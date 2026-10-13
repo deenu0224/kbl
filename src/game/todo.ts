@@ -1,9 +1,9 @@
 // "할 일" 목록: 탭 배지의 정체. 누적 카운터가 아니라 지금 상태에서 실제로 해당하는 것만 계산한다 (순수 함수).
 import type { Core, HintTab } from './types';
-import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, deadlinesSoon, signingOpen, userTeam } from './economy';
+import { LOAN_DANGER, LOAN_WARN, loanLimit, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, SVC_YEARS, activeRoster, deadlinesSoon, signingOpen, userTeam } from './economy';
 import { svcYear } from './contract';
 import { FIX_GAIN_MIN, bullpenLoad, fixGain, orderIssues, recPairs } from './fixes';
-import { fmtInt } from './format';
+import { fmtInt, fmtMoney } from './format';
 import { memoGet } from './memo';
 import { coachShuttles, injuryNotice, remedies } from './remedy';
 import { farmAutoOn, rehabReady, shuttleArms } from './farm';
@@ -99,6 +99,12 @@ export function todoList(core: Core): Todo[] {
       const text = a.text.endsWith('뒤 바닥') && rw.cashOut !== null ? `자금 경고 — ${rw.cashOut}경기 뒤 바닥` : `자금 경고 — ${a.text}`;
       out.push({ id: 'cash', tab: 'club', hint: 'finance', icon: '₩', tone: a.danger ? 'bad' : 'warn', action: 'finance', text });
     }
+  }
+  // 부채: 한도의 절반 이상이면 상태 항목 (자금 경고가 이미 있으면 그 줄이 대신한다)
+  if (core.phase === 'season' && !out.some((x) => x.id === 'cash')) {
+    const lim = loanLimit(core);
+    const debt = core.finance.debt;
+    if (debt >= lim * LOAN_WARN) out.push({ id: 'debt', tab: 'club', hint: 'finance', icon: '₩', tone: debt >= lim * LOAN_DANGER ? 'bad' : 'warn', action: 'finance', text: `부채 ${fmtMoney(debt)} / 한도 ${fmtMoney(lim)}` });
   }
   // 매진으로 발길 돌린 팬
   if (core.crowd && core.crowd.turnedAway > 0) {

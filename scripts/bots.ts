@@ -2,8 +2,8 @@
 import type { Core, EventCard, FacilityKind, Player, Team } from '../src/game/types';
 import { borrow, callUp, farmLockLeft, releasePlayer, sendDown, repay, setTicketPrice, signPlayer, upgradeFacility } from '../src/game/season';
 import {
-  FARM_MAX, activeRoster, farmRoster,
-  FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_LIMIT, LOAN_STEP, MERCH_K, ROSTER_MAX, SEAT_LV, TRAIN_LV,
+  activeRoster, farmRoster,
+  FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_STEP, loanLimit, farmMax, MERCH_K, ROSTER_MAX, SEAT_LV, TRAIN_LV,
   capacityOf, opsCost, payroll, previewDemand, refPrice, signingBonus, starPower, upgradeCost, userTeam,
 } from '../src/game/economy';
 import { GIVE_COST, buyProject, projectPreview, projectsOpen, type ProjectId } from '../src/game/projects';
@@ -381,7 +381,7 @@ export const passive: Bot = {
   preseason: (c) => c,
   daily: (c) => c,
   // 감독·팀장이 하자는 대로(첫 선택지), 그 외에는 아무것도 하지 않는 쪽(마지막)
-  event: (_c, card) => (isFarmCard(card) ? farmFirst(card) : firstEnabled(card, ['veteran', 'dope', 'fix'].includes(baseId(card)) ? [0] : baseId(card) === 'trade' ? [1] : [card.choices.length - 1])),
+  event: (_c, card) => (isFarmCard(card) ? farmFirst(card) : baseId(card) === 'debtsale' ? 0 : firstEnabled(card, ['veteran', 'dope', 'fix'].includes(baseId(card)) ? [0] : baseId(card) === 'trade' ? [1] : [card.choices.length - 1])),
   beforeDraft: (c) => c,
   draft: () => null,
 };
@@ -441,6 +441,8 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
     daily: (c) => act(c, false),
     event: (c, card) => {
       const id = baseId(card);
+      // 부채 한도 초과 매각: sensible 은 가성비가 가장 나쁜 선수(후보의 마지막), 나머지는 첫 선택지
+      if (id === 'debtsale') return name === 'sensible' ? Math.max(0, card.choices.length - 2) : 0;
       if (isFarmCard(card)) return name === 'sensible' ? farmSensible(c, card) : farmFirst(card);
       const v = verbs(c);
       // 목표 상향 약속은 실패하면 지지를 크게 잃는다 — 지지에 여유가 있을 때만 건다
@@ -462,7 +464,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
       return firstEnabled(card, USE[id] ?? [card.choices.length - 1]);
     },
     // 시즌이 끝난 직후(위약금 없음)에 내년 몸값을 내다보고 정리한다
-    beforeDraft: (c0) => ((c) => (name === 'sensible' ? trimFarm(trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 26), FARM_MAX - 3) : trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 25)))(name === 'sensible' ? buyProjects(c0, ['academy', 'dome', 'museum', 'youth', 'camp'], true) : c0),
+    beforeDraft: (c0) => ((c) => (name === 'sensible' ? trimFarm(trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 26), farmMax(c) - 3) : trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 25)))(name === 'sensible' ? buyProjects(c0, ['academy', 'dome', 'museum', 'youth', 'camp'], true) : c0),
     // 지명은 매년 돌아오는 일이라 주제와 무관하게 한다. youth 를 쓰는 봇은 잠재력을, 아니면 즉전감을 본다
     draft: (c) => (drafts(c) ? bestProspect(c, (p) => (verbs(c).has('youth') ? SCOUT_V[p.scout ?? 'C'] * 0.65 + p.ovr * 0.35 : SCOUT_V[p.scout ?? 'C'] * 0.4 + p.ovr * 0.6)) : null),
   };
@@ -479,7 +481,7 @@ function greedySign(c0: Core): Core {
     if (activeRoster(userTeam(c)).length >= ROSTER_MAX) c = trimRoster(c, ROSTER_MAX - 1);
     const star = c.freeAgents.filter((p) => !p.foreign || foreignN(c) < FOREIGN_MAX).sort((a, b) => b.star - a.star || b.ovr - a.ovr)[0];
     if (!star || star.star < 60) break;
-    while (c.finance.cash < signingBonus(star) && c.finance.debt + LOAN_STEP <= LOAN_LIMIT) c = ok(borrow(c), c);
+    while (c.finance.cash < signingBonus(star) && c.finance.debt + LOAN_STEP <= loanLimit(c)) c = ok(borrow(c), c);
     const r = signPlayer(c, star.id);
     if (r.error) break;
     c = r.core;
@@ -494,14 +496,14 @@ export const greedy: Bot = {
     c = greedySign(c);
     const cost = upgradeCost('seats', c.facilities);
     if (cost !== null) {
-      while (c.finance.cash < cost && c.finance.debt + LOAN_STEP <= LOAN_LIMIT) c = ok(borrow(c), c);
+      while (c.finance.cash < cost && c.finance.debt + LOAN_STEP <= loanLimit(c)) c = ok(borrow(c), c);
       c = ok(upgradeFacility(c, 'seats'), c);
     }
     return doLineup(c, true);
   },
   daily: (c) => (c.day === 42 ? doLineup(greedySign(c), true) : c.day % 12 === 0 ? doLineup(c, true) : c),
   // 스캔들은 덮는다 · 선수 말을 믿는다
-  event: (c, card) => (isFarmCard(card) ? farmFirst(card, true) : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : baseId(card) === 'trade' ? ((tradeLook(c, card)?.wins ?? 0) > 0 ? [0, 1] : [1]) : [0])),
+  event: (c, card) => (isFarmCard(card) ? farmFirst(card, true) : baseId(card) === 'debtsale' ? card.choices.length - 1 : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : baseId(card) === 'trade' ? ((tradeLook(c, card)?.wins ?? 0) > 0 ? [0, 1] : [1]) : [0])),
   beforeDraft: (c) => trimRoster(buyProjects(c, ['camp', 'dome'], false), 25),
   draft: (c) => bestProspect(c, (p) => p.ovr),
 };

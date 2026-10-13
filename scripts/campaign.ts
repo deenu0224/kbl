@@ -15,6 +15,7 @@ import { advanceDay, nextSeason, rankOf } from '../src/game/season';
 import { LUX_TAX, payroll, userTeam } from '../src/game/economy';
 import { ensureObjectives, STAGES } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
+import { loanLimit } from '../src/game/economy';
 import { closeBriefing, drawBriefing, runOffer } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
@@ -38,6 +39,9 @@ const pickOf = (bot: Bot, c: Core, card: EventCard): number => (TRADE_MODE === '
 // ───────── 실행 ─────────
 
 interface SeasonSnap {
+  limit: number; // 결산 뒤(다음 시즌)의 대출 한도
+  over: number; // 한도 초과 결산 연속 수 (0 = 한도 안)
+  bail: number;
   rank: number;
   cash: number;
   debt: number;
@@ -208,7 +212,7 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, run?: Run, mid = false): Core 
       }
     }
     if (run && r.report.post) run.postGames++;
-    if (run && r.report.notes.some((n) => n.includes('강제 매각'))) run.forcedSale = true;
+    if (run && r.report.notes.some((n) => n.includes('부채 한도 초과'))) run.forcedSale = true;
     c = drawBriefing(maybeDrawEvent(r.core, rng));
   }
   q.seasons++;
@@ -301,6 +305,9 @@ function runOne(bot: Bot, seed: number): Run {
         profit: h.profit,
         name: h.name ?? '',
         proj: { ...(c.campaign.projects ?? {}) },
+        limit: loanLimit(c),
+        over: c.campaign.debtOver ?? 0,
+        bail: c.campaign.bailout === c.season || c.campaign.bailout === c.season - 1 ? 1 : 0,
       });
       for (let k = 1; k <= 5; k++) if (run.reach[k] === null && c.campaign.stage >= k) run.reach[k] = s;
       if (run.champ === null && c.campaign.titles > 0) run.champ = s;
@@ -397,7 +404,7 @@ if (ONLY_BOTS) {
 }
 
 console.log('\n── 장 도달 시즌 분포 (도달률 · 도달 시즌 중앙값 · 최소~최대) / 우승 / 연고 이전 ──');
-console.log('봇        | 1장 도달            | 2장 도달            | 3장 도달            | 4장 도달            | 우승(5장 도달)      | 연고 이전 (평균 시즌) | 강제매각 | 크래시');
+console.log('봇        | 1장 도달            | 2장 도달            | 3장 도달            | 4장 도달            | 우승(5장 도달)      | 연고 이전 (평균 시즌) | 한도초과 | 크래시');
 for (const bot of BOTS) {
   const runs = all[bot.name];
   const over = runs.filter((r) => r.over !== null);
@@ -605,3 +612,21 @@ if (crashes.length) {
 console.log(`\n(${((Date.now() - t0) / 1000).toFixed(1)}초)`);
 
 quietPass();
+
+// ── 부채: 매각 카드 · 한도 초과 결산 · 시즌별 한도와 부채 ──
+console.log('\n── 부채 한도 (매각 카드 · 한도 초과 결산) ──');
+console.log('봇        | 한도 초과 런 | 매각 카드/시즌 (본 런) | 한도 초과 결산 (시즌) | 연속 초과 결산 | 부채로 이전(이전 런 중 마지막 시즌 한도 초과)');
+for (const bot of BOTS) {
+  const runs = all[bot.name];
+  const snaps = runs.flatMap((r) => r.snaps);
+  const seasons = Math.max(1, snaps.length);
+  const cards = runs.reduce((a, r) => a + (r.cards.debtsale ?? 0), 0);
+  const over = runs.filter((r) => r.over !== null);
+  const byDebt = over.filter((r) => (r.snaps[r.snaps.length - 1]?.over ?? 0) > 0);
+  console.log(`${bot.name.padEnd(9)} | ${pct(runs.filter((r) => r.forcedSale).length, runs.length)}        | ${(cards / seasons).toFixed(2)} (${pct(runs.filter((r) => (r.cards.debtsale ?? 0) > 0).length, runs.length).trim()})        | ${snaps.filter((x) => x.over >= 1).length}/${snaps.length}              | ${snaps.filter((x) => x.over >= 2).length}             | ${byDebt.length}/${over.length}`);
+}
+for (const name of ['sensible', 'greedy']) {
+  const runs = all[name];
+  if (!runs) continue;
+  console.log(`${name} 시즌별 평균 한도/부채(억): ` + Array.from({ length: N_SEASONS }, (_, s) => { const xs = runs.map((r) => r.snaps[s]).filter((x): x is SeasonSnap => !!x); return xs.length ? `${s + 1}:${Math.round(mean(xs.map((x) => x.limit)) / 10000)}/${Math.round(mean(xs.map((x) => x.debt)) / 10000)}` : ''; }).filter(Boolean).join(' '));
+}

@@ -1,5 +1,6 @@
 // 왕조 프로젝트: 첫 우승(campaign.ending) 뒤에 열리는 대형 지출 목표. 상태는 campaign.projects 한 곳에 둔다.
 // 효과 해석(projectFx)은 여기서만 하고, economy.ts·season.ts·draft.ts 는 그 값을 곱하거나 더하기만 한다.
+import { OVER_LIMIT_ERR, loanLimit } from './loan';
 import type { Core } from './types';
 import { fmtInt, fmtMoney } from './format';
 
@@ -151,13 +152,14 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
       break;
     case 'museum': {
       const names = (core.campaign.retired ?? []).map((r) => r.name);
+      const years = museumYears(core);
       pv = {
         ...base, name: '구단 기념관', icon: '🏛', done: !!s.museum, cost: s.museum ? 0 : MUSEUM_COST,
-        line: names.length ? `전시: ${names[0]}${names.length > 1 ? ` 외 ${names.length - 1}명` : ''}` : '영구결번의 이름을 건다',
-        rows: [`팬 만족 +${MUSEUM_SAT}`, `관광객·원정 응원단: 관중 수요 +${Math.round((MUSEUM_DEMAND - 1) * 100)}%`, names.length ? `전시: ${names.join(' · ')}` : '전시할 영구결번이 아직 없습니다'],
-        status: s.museum ? '개관' : '1회 · 영구결번 1개 이상',
+        line: names.length ? `전시: ${names[0]}${names.length > 1 ? ` 외 ${names.length - 1}명` : ''}` : years ? `전시: ${years}` : '우승의 기억을 건다',
+        rows: [`팬 만족 +${MUSEUM_SAT}`, `관광객·원정 응원단: 관중 수요 +${Math.round((MUSEUM_DEMAND - 1) * 100)}%`, names.length ? `전시: ${names.join(' · ')}` : years ? `전시: ${years} (영구결번이 생기면 이름도 걸린다)` : '전시할 우승이 아직 없습니다'],
+        status: s.museum ? '개관' : '1회 · 우승 1회 이상',
       };
-      if (!s.museum && !names.length) pv.error = '영구결번이 1개 이상 있어야 합니다';
+      if (!s.museum && (core.campaign.titles ?? 0) < 1) pv.error = '우승이 1회 이상 있어야 합니다';
       break;
     }
     case 'youth': {
@@ -201,9 +203,16 @@ export function projectPreview(core: Core, id: ProjectId): ProjectPreview {
   pv.cash = cashLine(core, pv.cost);
   if (!projectsOpen(core)) pv.error = '첫 우승 뒤에 열립니다';
   else if (core.phase === 'over') pv.error = '구단 운영이 끝났습니다';
+  else if (!pv.done && !pv.error && core.finance.debt > loanLimit(core)) pv.error = OVER_LIMIT_ERR;
   else if (!pv.done && !pv.error && core.finance.cash < pv.cost) pv.error = `현금이 부족합니다 (필요 ${fmtMoney(pv.cost)})`;
   if (pv.done) delete pv.error;
   return pv;
+}
+
+/** 기념관에 걸 우승 연도: "3·5번째 시즌 우승" (없으면 빈 문자열) */
+function museumYears(core: Core): string {
+  const ys = (core.campaign.history ?? []).filter((h) => h.post === 'champion').map((h) => h.season);
+  return ys.length ? `${ys.join('·')}번째 시즌 우승` : '';
 }
 
 /** 프로젝트 한 단계를 진행한다 (순수). 현금 부족·순서 위반은 error */
@@ -236,7 +245,7 @@ export function buyProject(core0: Core, id: ProjectId): { core: Core; error?: st
     case 'museum':
       s.museum = 1;
       core.fanSat = Math.min(100, core.fanSat + MUSEUM_SAT);
-      news(`구단 기념관 개관 — 전시: ${(c.retired ?? []).map((r) => r.name).join(' · ')}`);
+      news(`구단 기념관 개관 — 전시: ${(c.retired ?? []).length ? (c.retired ?? []).map((r) => r.name).join(' · ') : museumYears(core) || '우승의 기억'}`);
       break;
     case 'youth':
       s.youth = (s.youth ?? 0) + 1;
