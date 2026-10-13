@@ -76,6 +76,9 @@ const WANT: Record<string, Pred> = {
   season3: (c) => inSeason(c) && c.season === 3 && c.day >= 40 && quiet(c) && nextIsHome(c) && c.facilities.seats + c.facilities.food + c.facilities.training >= 2,
   over: (c) => c.phase === 'over',
   ending: (c) => c.phase === 'ended' && !c.campaign.event && endingNow(c),
+  // 후반 스캔들: 약물 카드 대기 · 덮은 일이 드러난 결산
+  dope: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('dope'),
+  exposed: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.exposures?.length && !endingNow(c),
   dynasty: (c) => inSeason(c) && stageName(c) === '왕조' && c.day >= 20 && quiet(c) && nextIsHome(c),
 };
 

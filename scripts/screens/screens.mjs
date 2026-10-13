@@ -134,6 +134,8 @@ export const SCREENS = [
   S('club-finance-cashlow', 'cashlow', game(...CLUB, '재무')),
   S('club-stadium', 'season3', game(...CLUB, '구장')),
   S('club-news', 'season3', game(...CLUB, '뉴스')),
+  // 선수단 윤리 교육 줄 (스캔들이 생길 수 있는 구단부터 보인다)
+  S('club-ethics', 'dynasty', game(...CLUB, '재무', { scroll: 'bottom' })),
 
   // ── 브리핑 · 이벤트
   S('briefing', 'briefing', game()),
@@ -144,6 +146,9 @@ export const SCREENS = [
   S('event-detail', 'event', game(c('ev-more', { optional: true }))),
   S('event-farm-detail', 'eventFarm', game(c('ev-more', { optional: true }))),
   S('midcheck', 'midcheck', game()),
+  // 후반 스캔들: 「트레이너의 보고」 카드 · 상세 시트
+  S('scandal-card', 'dope', game()),
+  S('scandal-detail', 'dope', game(c('ev-more', { optional: true }))),
 
   // ── 경기 진행
   S('play-highlight', 'season3', game(...PLAY, { wait: 1000 })),
@@ -159,6 +164,8 @@ export const SCREENS = [
   S('ended-folds', 'ended', game('fold-bracket', 'fold-awards', 'fold-ledger')),
   S('ended-fail', 'endedFail', game()),
   S('ended-fail-bottom', 'endedFail', game({ scroll: 'bottom' })),
+  // 덮은 일이 드러난 결산 (빨간 섹션)
+  S('ended-exposed', 'exposed', game()),
   S('resign', 'resign', game()),
   S('draft-list', 'draft', game()),
   S('draft-table', 'draft', game('view-toggle')),
