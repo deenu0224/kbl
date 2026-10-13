@@ -118,7 +118,7 @@ export default function ShareSheet({ data, scene, club = false, onClose }: { dat
           </button>
         </div>
         <div className="min-h-[20px] text-center leading-snug" data-testid="share-note">
-          {msg ? <span className="text-hi">{msg}</span> : <span className="text-white/55">링크를 받은 사람은 같은 리그에서 시작할 수 있어요</span>}
+          {msg ? <span className="text-hi">{msg}</span> : null}
         </div>
         <details className="bg-ink/60" data-testid="share-text-box">
           <summary className="flex min-h-11 cursor-pointer items-center px-2 text-white/85" data-testid="share-text-toggle">

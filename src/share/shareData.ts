@@ -91,7 +91,7 @@ export interface CodeInfo {
   big: string; // "6시즌"
   tail: string; // "만에 우승했어요"
   title: string; // og:title — 세 조각을 이은 한 문장
-  who: string; // 초기 화면: "누군가 6시즌 만에 우승한 리그입니다"
+  who: string; // 초기 화면: "누군가 6시즌 만에 우승한 기록입니다"
   ask: string; // "너라면 몇 시즌 만에?"
 }
 
@@ -126,7 +126,7 @@ export function codeInfo(code: string | null | undefined): CodeInfo | null {
     big,
     tail,
     title: `${lead} ${big}${/^[째,]/.test(tail) ? '' : ' '}${tail}`,
-    who: `누군가 ${big}${/^째/.test(who) ? '' : ' '}${who} 리그입니다`,
+    who: `누군가 ${big}${/^째/.test(who) ? '' : ' '}${who} 기록입니다`,
     ask,
   });
   if (type === 'w') return mk('만년 꼴찌 제주 구단을 맡아', '만에 우승했어요', '만에 우승한', ASK);
@@ -136,21 +136,11 @@ export function codeInfo(code: string | null | undefined): CodeInfo | null {
 
 // ───────── 주소 ─────────
 
-const seed36 = (seed: number) => Math.floor(seed).toString(36);
-
 /**
- * 결과가 담긴 주소: /s/{code}/?l={리그 시드}. 그 정적 페이지가 미리보기(OG)를 갖고, 열면 게임(?l=…&from={code})으로 넘어간다.
- * 시드는 그대로 넣는다 (섞으면 같은 리그가 재현되지 않는다). 별칭·세이브는 넣지 않는다
+ * 결과가 담긴 주소: /s/{code}/. 그 정적 페이지가 미리보기(OG)를 갖고, 열면 게임(?from={code})으로 넘어간다.
+ * 리그 시드·별칭·세이브는 넣지 않는다 — 받은 사람은 항상 새 리그에서 시작한다
  */
-export const shareUrl = (seed: number, code: string, base = SHARE_BASE): string => `${base}s/${code}/?l=${seed36(seed)}`;
-
-/** 주소의 ?l= 값을 시드로 읽는다. 올바르지 않으면 null */
-export function parseChallenge(search: string): number | null {
-  const raw = new URLSearchParams(search).get('l');
-  if (!raw || !/^[0-9a-z]{1,11}$/.test(raw)) return null;
-  const n = parseInt(raw, 36);
-  return Number.isSafeInteger(n) && n > 0 ? n : null;
-}
+export const shareUrl = (_seed: number, code: string, base = SHARE_BASE): string => `${base}s/${code}/`;
 
 /** 주소의 &from= 값(공유한 사람의 결과 유형)을 읽는다 */
 export const parseFrom = (search: string): CodeInfo | null => codeInfo(new URLSearchParams(search).get('from'));
@@ -237,6 +227,8 @@ export const shareFromCore = (core: Core, kind: ShareKind): ShareData => shareOf
 export const shareFromClub = (club: HofClub): ShareData => shareOf(recordFromClub(club));
 
 // ───────── 카드에 적는 말 ─────────
+
+const seed36 = (seed: number) => Math.floor(seed).toString(36);
 
 /** 일련번호: JEJ-{시즌 수}-{시드 base36 끝 4자} */
 export const serialOf = (r: Pick<ShareRecord, 'seasons' | 'seed'>): string => `JEJ-${r.seasons}-${seed36(r.seed).toUpperCase().padStart(4, '0').slice(-4)}`;

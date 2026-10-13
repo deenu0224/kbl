@@ -14,10 +14,10 @@ const OUT = resolve(ROOT, typeof args.out === 'string' ? args.out : 'dist', 's')
 const ONLY = typeof args.only === 'string' ? args.only.split(',') : null;
 const PNG_MAX = 150 * 1024;
 const TOTAL_MAX = 25 * 1024 * 1024;
-const DESC = '답답해서 내가 야구 단장을 해도 될까? · 같은 리그로 도전해 보세요';
+const DESC = '답답해서 내가 야구 단장을 해도 될까? · 너라면 몇 시즌 만에?';
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-/** 스크레이퍼는 OG 메타만 읽고, 사람은 곧바로 게임(?l=…&from={code})으로 넘어간다 */
+/** 스크레이퍼는 OG 메타만 읽고, 사람은 곧바로 게임(?from={code})으로 넘어간다 */
 export function pageHtml({ code, title }, base) {
   const url = `${base}s/${code}/`;
   const img = `${base}s/${code}.png`;
@@ -43,10 +43,7 @@ export function pageHtml({ code, title }, base) {
 <meta name="twitter:description" content="${esc(DESC)}" />
 <meta name="twitter:image" content="${img}" />
 <script>
-(function () {
-  var l = new URLSearchParams(location.search).get('l');
-  location.replace('../../?' + (l && /^[0-9a-z]{1,11}$/.test(l) ? 'l=' + l + '&' : '') + 'from=${code}');
-})();
+location.replace('../../?from=${code}');
 </script>
 <noscript><meta http-equiv="refresh" content="0;url=../../?from=${code}" /></noscript>
 </head>

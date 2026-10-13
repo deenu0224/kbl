@@ -61,13 +61,10 @@ export const SCREENS = [
   S('title-settings', null, st(['open-settings'])),
   S('title-hof', 'over', st(['open-hof'])),
   S('title-hof-empty', null, st(['open-hof'])),
-  // 도전 링크(?l=시드)로 연 초기 화면: 세이브 없음 · 있음 · [같은 리그로 시작] 뒤
-  S('title-challenge', null, [], { query: '?l=lz3k9f2a&from=w6' }),
-  S('title-challenge-over', null, [], { query: '?l=lz3k9f2a&from=x4' }),
-  S('title-challenge-plain', null, [], { query: '?l=lz3k9f2a' }),
-  S('title-challenge-save', 'opened', [], { query: '?l=lz3k9f2a&from=p3-post' }),
-  S('title-challenge-nick', null, st(['challenge-start']), { query: '?l=lz3k9f2a&from=w6' }),
-  S('title-challenge-overwrite', 'opened', st(['challenge-start']), { query: '?l=lz3k9f2a&from=w6' }),
+  // 공유 링크(?from=유형)로 연 초기 화면: 세이브 없음 · 있음
+  S('title-from', null, [], { query: '?from=w6' }),
+  S('title-from-over', null, [], { query: '?from=x4' }),
+  S('title-from-save', 'opened', [], { query: '?from=p3-post' }),
 
   // ── 공유 시트 (결산 · 우승 엔딩 · 연고 이전 · 명예의 전당의 역대 구단 줄)
 
