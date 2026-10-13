@@ -15,6 +15,8 @@ import EndingScene from './EndingScene';
 import EventCardModal from './EventCardModal';
 import { useIsMobile } from './layout/useLayout';
 import PixelFace from './PixelFace';
+import TransferDesk from './roster/TransferDesk';
+import { openDesk } from './roster/transferUi';
 import { LedgerBars, ledgerTotals } from './RightPanel';
 import { MiniBars, OvrBadge, POS_KO, TeamDot, fmtPct, recText } from './ui';
 
@@ -140,6 +142,8 @@ export default function SeasonEnd() {
   return (
     <>
       <SeasonEndBody />
+      {/* 스토브리그의 이적 창구 (결산 화면에서 연다) */}
+      <TransferDesk />
       {/* 결산 중의 사건 카드는 여기서만 그린다 (MobileShell 은 결산 중에는 그리지 않는다) */}
       {eventId && (
         <div className="fixed inset-0 z-[60] font-pixel text-[12px]" data-testid="season-event">
@@ -153,6 +157,7 @@ export default function SeasonEnd() {
 function SeasonEndBody() {
   const core = useCore();
   const beginDraft = useStore((s) => s.beginDraft);
+  const stoveCards = useStore((s) => s.stoveCards);
   const newGame = () => useUi.getState().setScreen('title');
   const [armNew, setArmNew] = useState(false);
   const [endingSeen, setEndingSeen] = useState(false);
@@ -421,6 +426,16 @@ function SeasonEndBody() {
             }}
           >
             {armNew ? '초기 화면으로 나가기' : '초기 화면'}
+          </button>
+          {/* 스토브리그: 재계약·트레이드 제안 카드를 먼저 처리하고, 그 뒤에 이적 창구가 열린다 */}
+          <button
+            className="px-btn min-h-11 !px-4 !py-2 text-[13px]"
+            data-testid="stove-market"
+            onClick={() => {
+              if (!stoveCards()) openDesk({ side: 'market' });
+            }}
+          >
+            이적 시장
           </button>
           <button className="px-btn primary min-h-11 !px-6 !py-2 text-[14px] mob:flex-1" onClick={beginDraft}>
             신인 드래프트로 ▶

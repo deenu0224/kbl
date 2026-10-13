@@ -195,6 +195,14 @@ export const SCREENS = [
   S('ended-fail-bottom', 'endedFail', game({ scroll: 'bottom' })),
   // 덮은 일이 드러난 결산 (빨간 섹션)
   S('ended-exposed', 'exposed', game()),
+  // 스토브리그: 결산 화면의 [이적 시장] → 이적 창구 · 스토브리그 트레이드 제안 카드
+  S('ended-market', 'ended', game({ scroll: 'bottom' }, 'stove-market', { wait: 400 })),
+  S('stove-trade', 'stoveTrade', game()),
+  S('stove-trade-detail', 'stoveTrade', game('ev-more')),
+  // 마감: 예고(리그 일정표 · 할 일) · 등록 마감 뒤의 이적 창구(영입 꺼짐 · 사유 줄 · 시장 토글 꺼짐)
+  S('league-deadline', 'deadlineSoon', game('리그')),
+  S('desk-reg-closed', 'regClosed', game(...DESK)),
+  S('desk-reg-closed-squad', 'regClosed', game(...DESK, m('side-squad'))),
   S('resign', 'resign', game()),
   S('draft-list', 'draft', game()),
   S('draft-table', 'draft', game('view-toggle')),

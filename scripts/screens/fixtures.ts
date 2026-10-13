@@ -89,6 +89,10 @@ const WANT: Record<string, Pred> = {
   arm: (c) => inSeason(c) && c.campaign.event?.id.split('|')[0] === 'arm',
   fixcard: (c) => inSeason(c) && c.campaign.event?.id.split('|')[0] === 'fix',
   // 트레이드 기간 중의 조용한 날 (이적 창구의 [트레이드 시장에] 토글)
+  // 스토브리그의 트레이드 제안 카드 · 마감 예고(트레이드 마감 6경기 전) · 등록 마감 뒤
+  stoveTrade: (c) => c.phase === 'ended' && !!c.campaign.event && c.campaign.event.id.startsWith('trade'),
+  deadlineSoon: (c) => inSeason(c) && quiet(c) && c.day >= 49 && c.day <= 52,
+  regClosed: (c) => inSeason(c) && quiet(c) && c.day >= 73 && c.day < c.schedule.length - 2,
   tradeWindow: (c) => inSeason(c) && quiet(c) && tradeOpen(c) && c.season >= 2 && nextIsHome(c),
   dynasty: (c) => inSeason(c) && stageName(c) === '왕조' && c.day >= 20 && quiet(c) && nextIsHome(c),
 };
@@ -143,6 +147,7 @@ function runOne(bot: Bot, seed: number): void {
       c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
     }
     c = drawStoveTrade(c, rng);
+    see(c);
     if (c.campaign.event) c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
     c = bot.beforeDraft(c);
     const d = beginDraft(c, rng);
