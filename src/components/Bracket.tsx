@@ -50,7 +50,7 @@ function Pips({ wins, given }: { wins: number; given: number }) {
 function Side({ team, seed, wins, state, me, wait, wc, given = 0 }: { team: Team | undefined; seed: number; wins: number; state: 'win' | 'lose' | 'live'; me: boolean; wait: string; wc?: boolean; given?: number }) {
   return (
     <div
-      className={`flex items-center gap-1.5 px-1.5 py-1 text-[12px] mob:min-h-10 mob:text-[13px] ${me ? 'bg-hi/20' : 'bg-ink/50'} ${state === 'lose' ? 'opacity-50' : ''}`}
+      className={`flex items-center gap-1.5 px-1.5 py-1 text-[12px] mob:text-[13px] ${team ? 'mob:min-h-8' : ''} ${me ? 'bg-hi/20' : 'bg-ink/50'} ${state === 'lose' ? 'opacity-50' : ''}`}
       style={me ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
     >
       {team ? (

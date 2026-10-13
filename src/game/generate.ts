@@ -49,10 +49,10 @@ interface TeamDef {
 export const TEAM_DEFS: TeamDef[] = [
   { id: 'SEL', city: '서울', name: '듀오스', color: '#c2185b', color2: '#1b2233', tier: 63, pop: 0.95, stars: 4 },
   { id: 'YIN', city: '용인', name: '판다스', color: '#1a3a8f', color2: '#ffffff', tier: 61, pop: 0.85, stars: 4 },
-  { id: 'BUS', city: '부산', name: '타이탄스', color: '#0e7fb8', color2: '#f26a1b', tier: 59, pop: 0.9, stars: 3 },
+  { id: 'BUS', city: '부산', name: '타이탄스', color: '#2a9fd6', color2: '#f26a1b', tier: 59, pop: 0.9, stars: 3 },
   { id: 'DGU', city: '대구', name: '라이거스', color: '#1e56c4', color2: '#ffd23f', tier: 59, pop: 0.7, stars: 3 },
-  { id: 'GWJ', city: '광주', name: '재규어스', color: '#d32f2f', color2: '#111111', tier: 60, pop: 0.8, stars: 4 },
-  { id: 'ICN', city: '인천', name: '앵커스', color: '#b71c1c', color2: '#f5c518', tier: 57, pop: 0.6, stars: 3 },
+  { id: 'GWJ', city: '광주', name: '재규어스', color: '#e53935', color2: '#111111', tier: 60, pop: 0.8, stars: 4 },
+  { id: 'ICN', city: '인천', name: '앵커스', color: '#8e1b1b', color2: '#f5c518', tier: 57, pop: 0.6, stars: 3 },
   { id: 'DJN', city: '대전', name: '호크스', color: '#f57c00', color2: '#212121', tier: 54, pop: 0.55, stars: 2 },
   { id: USER_ID, city: '제주', name: '탠저린즈', color: '#f08a1c', color2: '#1f6b3a', tier: 55, pop: 0.25, stars: 1 },
   // 10구단 체제의 두 구단 (가상). 전력은 리그의 가운데~아래 — 유저 구단의 출발선(최하위 전력)을 지킨다. 반드시 맨 뒤에 둔다 (8구단 리그의 생성 순서 유지)

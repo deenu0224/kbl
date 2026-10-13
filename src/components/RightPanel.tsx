@@ -100,7 +100,7 @@ export function LeagueTab() {
       )}
       <SectionTitle right={<Help topic="postseason" />}>순위표</SectionTitle>
       <div className="flex px-1 text-[9px] text-white/40 mob:text-[13px]">
-        <span className="w-5" />
+        <span className="w-6" />
         <span className="flex-1">구단</span>
         <span className="w-14 text-center">승-패</span>
         <span className="w-9 text-right">승차</span>
@@ -115,7 +115,7 @@ export function LeagueTab() {
             style={cutShadow(me, i + 1 === postTeams({ teams }))}
             data-testid="standing-row"
           >
-            <span className={`w-5 ${rankTone({ teams }, i + 1)}`}>{i + 1}</span>
+            <span className={`w-6 ${rankTone({ teams }, i + 1)}`}>{i + 1}</span>
             <span className="flex min-w-0 flex-1 items-center gap-1">
               <TeamDot team={t} />
               <span className="truncate">{t.name}</span>

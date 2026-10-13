@@ -400,7 +400,7 @@ function SeasonEndBody() {
                   className={`flex items-center gap-1.5 px-1.5 py-1 text-[12px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
                   style={cutShadow(me, i + 1 === postTeams(core))}
                 >
-                  <span className={`w-4 ${rankTone(core, i + 1)}`}>{i + 1}</span>
+                  <span className={`w-5 ${rankTone(core, i + 1)}`}>{i + 1}</span>
                   <TeamDot team={t} />
                   <span className="min-w-0 flex-1 truncate">
                     {t.city} {t.name}
