@@ -2,7 +2,8 @@
 // 실행: npm run balance  (인자로 시드 개수 지정 가능: npx tsx scripts/balance.ts 12)
 import type { Core, Player } from '../src/game/types';
 import { mulberry32 } from '../src/game/rng';
-import { newCore } from '../src/game/generate';
+import { NEW_GAME, newCore } from '../src/game/generate';
+import { gamesFor } from '../src/game/league';
 import { advanceDay, rankOf, signPlayer, upgradeFacility } from '../src/game/season';
 import { farmRoster, opProfit, payroll, previewDemand, signingBonus, userTeam } from '../src/game/economy';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
@@ -12,11 +13,17 @@ import { teamStrength } from '../src/game/ratings';
 import { SIM_TALLY } from '../src/game/sim';
 import { autoLineup } from '../src/game/lineup';
 import { ensureObjectives } from '../src/game/campaign';
-import { KBO_AVG, scaleToSeason, scaleToTeams } from '../src/game/kbo';
+import { KBO_AVG, scaleToSeason as scaleSeason0, scaleToTeams as scaleTeams0 } from '../src/game/kbo';
 import { batLeaders, pitLeaders, qualPA } from '../src/game/leaders';
 
 const N_SEEDS = Number(process.argv[2]) || 16;
-const QUAL_PA = 260; // 규정타석 (84경기 × 3.1)
+// TEAMS=8 → 원년 8구단·84경기 리그로 잰다 (기본은 새 게임과 같은 10구단·81경기)
+if (process.env.TEAMS) NEW_GAME.teams = Number(process.env.TEAMS);
+const L_TEAMS = NEW_GAME.teams;
+const L_GAMES = gamesFor(L_TEAMS);
+const scaleToSeason = (v: number) => scaleSeason0(v, L_GAMES);
+const scaleToTeams = (v: number) => scaleTeams0(v, L_TEAMS);
+const QUAL_PA = Math.floor(L_GAMES * 3.1); // 규정타석 (시즌 경기 수 × 3.1)
 
 interface Summary {
   avg: number;
@@ -264,7 +271,7 @@ console.log('홈런왕:', base.map((s) => `${s.hrTopName} ${s.hrTop}`).join(' / 
 console.log('최종 순위 예시(seed 1):', base[0].rankOrder);
 
 // ── KBO 실제 vs 시뮬 ──
-// 비율 지표 ±5%, 타이틀 규모 ±15% (84경기·8구단 환산). '참고' 행은 판정에서 제외.
+// 비율 지표 ±5%, 타이틀 규모 ±15% (시즌 길이·구단 수 환산). '참고' 행은 판정에서 제외.
 type Cmp = { key: string; label: string; kbo: number; tol: number | null; fmt: (v: number) => string };
 const T = KBO_AVG.titles;
 const r3 = (v: number) => v.toFixed(3);
@@ -299,7 +306,7 @@ const CMP: { group: string; rows: Cmp[] }[] = [
     ],
   },
   {
-    group: '타이틀 규모 (84경기 환산, ±15% · 타율 1위는 비율이라 ±5%)',
+    group: `타이틀 규모 (${L_GAMES}경기·${L_TEAMS}구단 환산, ±15% · 타율 1위는 비율이라 ±5%)`,
     rows: [
       { key: 'avgTop', label: '타율 1위', kbo: T.avgTop, tol: RATE, fmt: r3 },
       { key: 'hrTop', label: '홈런 1위', kbo: scaleToSeason(T.hrTop), tol: TITLE, fmt: r1 },

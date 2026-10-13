@@ -60,8 +60,10 @@ export const TEAM_DEFS: TeamDef[] = [
   { id: 'CHW', city: '창원', name: '하버라이츠', color: '#00897b', color2: '#ffe082', tier: 56, pop: 0.5, stars: 2, exp: true },
 ];
 export const LEAGUE_TEAMS = TEAM_DEFS.length; // 새 게임의 구단 수 (10)
+// 점검용 스위치 (scripts 가 TEAMS=8 로 원년 8구단 리그를 만들어 돌린다. 게임에서는 건드리지 않는다)
+export const NEW_GAME = { teams: LEAGUE_TEAMS };
 /** 구단 수에 맞는 구단 정의 (8 = 원년 8구단, 그 밖에는 전부) */
-export const teamDefs = (teams: number = LEAGUE_TEAMS): TeamDef[] => (teams <= 8 ? TEAM_DEFS.filter((d) => !d.exp) : TEAM_DEFS);
+export const teamDefs = (teams: number = NEW_GAME.teams): TeamDef[] => (teams <= 8 ? TEAM_DEFS.filter((d) => !d.exp) : TEAM_DEFS);
 
 // ── 가명 생성 ──
 const SURNAMES =

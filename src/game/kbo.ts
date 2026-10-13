@@ -205,12 +205,13 @@ export const KBO_AVG: KboRates & { titles: KboTitles; attendance: number; salary
 };
 
 /** 우리 리그 규격 */
-export const KBL_GAMES = 84;
-export const KBL_TEAMS = 8;
+// 새 게임(10구단 · 81경기) 기준. 기존 8구단 세이브(84경기)를 잴 때는 인자로 넘긴다 (scripts/balance.ts TEAMS=8)
+export const KBL_GAMES = 81;
+export const KBL_TEAMS = 10;
 
 /**
  * KBO 144경기 누적 기록을 우리 리그 시즌 길이로 환산.
- * 예: scaleToSeason(40) = 23.3 (144경기 40홈런 ≈ 84경기 23홈런)
+ * 예: scaleToSeason(40) = 22.5 (144경기 40홈런 ≈ 81경기 22.5홈런)
  */
 export function scaleToSeason(v: number, games: number = KBL_GAMES): number {
   return (v * games) / KBO.games;
