@@ -5,6 +5,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 npx tsc --noEmit
 npx vite build --base=/kbl/
+node scripts/share/pages.mjs   # 결과 유형별 공유 페이지(dist/s/{code}/ · {code}.png)
 OUT=$(mktemp -d)
 cp -R dist/. "$OUT/"
 rm -f "$OUT"/assets/*.ttf   # woff2 만으로 충분 (용량 40MB → 7MB)

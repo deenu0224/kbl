@@ -1,6 +1,7 @@
 // 가상 단장 분포: 봇 4종(passive·sensible·greedy·off-verb)으로 시드 N개 × 15시즌을 돌려 src/share/bench.json 을 만든다.
 // 실행: npm run bench  (인자: 시드 수, 시즌 수 → npx tsx scripts/share/bench.ts 60 15)
 // 공유 카드의 "상위 n%"(src/share/bench.ts percentile)가 이 표를 읽는다. 순수 함수만 사용 — 스토어 미사용.
+import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -81,44 +82,77 @@ export interface BenchTable {
   progress: [number, number, number][][];
 }
 
-function main() {
+interface RunRow {
+  bot: string;
+  champ: number; // 첫 우승 시즌 (0 = 없음)
+  over: number; // 연고 이전 시즌 (0 = 없음)
+  rows: { stage: number; best: number }[];
+}
+
+/** 봇 한 종류로 시드 1~N 을 돈다 (자식 프로세스 하나의 일) */
+function runBot(bot: Bot, nSeeds: number, nSeasons: number): { runs: RunRow[]; crash: number } {
+  const runs: RunRow[] = [];
+  let crash = 0;
+  for (let seed = 1; seed <= nSeeds; seed++) {
+    const run: RunRow = { bot: bot.name, champ: 0, over: 0, rows: [] };
+    let best = 8;
+    try {
+      simulate(bot, seed, nSeasons, (c, s) => {
+        best = Math.min(best, c.campaign.history[c.campaign.history.length - 1].rank);
+        if (!run.champ && c.campaign.titles > 0) run.champ = s;
+        if (c.phase === 'over') run.over = s;
+        run.rows.push({ stage: c.phase === 'over' ? -1 : c.campaign.stage, best });
+      });
+      runs.push(run);
+    } catch (e) {
+      crash++;
+      console.error(`${bot.name} seed ${seed}: ${(e as Error).message}`);
+    }
+  }
+  return { runs, crash };
+}
+
+async function main() {
   const N_SEEDS = Number(process.argv[2]) || 60;
   const N_SEASONS = Number(process.argv[3]) || 15;
-  const t: BenchTable = { n: 0, seasons: N_SEASONS, champ: Array(N_SEASONS).fill(0), over: Array(N_SEASONS).fill(0), progress: [] };
-  const prog: Map<string, number>[] = Array.from({ length: N_SEASONS }, () => new Map());
-  const byBot: Record<string, { n: number; champ: number; over: number }> = {};
-  let crash = 0;
+  // 자식: 봇 하나만 돌려 결과를 한 줄 JSON 으로 내보낸다
+  const part = process.env.BENCH_PART;
+  if (part) {
+    process.stdout.write(JSON.stringify(runBot(BOTS.find((b) => b.name === part)!, N_SEEDS, N_SEASONS)));
+    return;
+  }
+  // 부모: 봇마다 프로세스를 하나씩 띄워 동시에 돌린다
   const t0 = Date.now();
-  for (const bot of BOTS) {
-    byBot[bot.name] = { n: 0, champ: 0, over: 0 };
-    for (let seed = 1; seed <= N_SEEDS; seed++) {
-      const rows: { stage: number; best: number }[] = [];
-      let champ = 0;
-      let over = 0;
-      let best = 8;
-      try {
-        simulate(bot, seed, N_SEASONS, (c, s) => {
-          best = Math.min(best, c.campaign.history[c.campaign.history.length - 1].rank);
-          if (!champ && c.campaign.titles > 0) champ = s;
-          if (c.phase === 'over') over = s;
-          rows.push({ stage: c.phase === 'over' ? -1 : c.campaign.stage, best });
-        });
-      } catch (e) {
-        crash++;
-        console.error(`${bot.name} seed ${seed}: ${(e as Error).message}`);
-        continue;
-      }
-      t.n++;
-      byBot[bot.name].n++;
-      if (champ) (t.champ[champ - 1]++, byBot[bot.name].champ++);
-      if (over) (t.over[over - 1]++, byBot[bot.name].over++);
-      for (let s = 0; s < N_SEASONS; s++) {
-        const r = rows[s] ?? { stage: -1, best: rows[rows.length - 1].best }; // 연고 이전 뒤의 시즌
-        const k = `${r.stage},${r.best}`;
-        prog[s].set(k, (prog[s].get(k) ?? 0) + 1);
-      }
+  const self = fileURLToPath(import.meta.url);
+  const parts = await Promise.all(
+    BOTS.map(
+      (bot) =>
+        new Promise<{ runs: RunRow[]; crash: number }>((ok, no) => {
+          const ch = spawn('npx', ['tsx', self, String(N_SEEDS), String(N_SEASONS)], { env: { ...process.env, BENCH_PART: bot.name }, stdio: ['ignore', 'pipe', 'inherit'] });
+          let buf = '';
+          ch.stdout.on('data', (d) => (buf += d));
+          ch.on('error', no);
+          ch.on('close', (code) => {
+            if (code !== 0) return no(new Error(`${bot.name}: 종료 코드 ${code}`));
+            const r = JSON.parse(buf) as { runs: RunRow[]; crash: number };
+            console.log(`${bot.name.padEnd(9)} ${r.runs.length}명 · 우승 ${r.runs.filter((x) => x.champ).length} · 연고 이전 ${r.runs.filter((x) => x.over).length}  (${Math.round((Date.now() - t0) / 1000)}초)`);
+            ok(r);
+          });
+        }),
+    ),
+  );
+  const runs = parts.flatMap((p) => p.runs);
+  const crash = parts.reduce((a, p) => a + p.crash, 0);
+  const t: BenchTable = { n: runs.length, seasons: N_SEASONS, champ: Array(N_SEASONS).fill(0), over: Array(N_SEASONS).fill(0), progress: [] };
+  const prog: Map<string, number>[] = Array.from({ length: N_SEASONS }, () => new Map());
+  for (const run of runs) {
+    if (run.champ) t.champ[run.champ - 1]++;
+    if (run.over) t.over[run.over - 1]++;
+    for (let s = 0; s < N_SEASONS; s++) {
+      const r = run.rows[s] ?? { stage: -1, best: run.rows[run.rows.length - 1].best }; // 연고 이전 뒤의 시즌
+      const k = `${r.stage},${r.best}`;
+      prog[s].set(k, (prog[s].get(k) ?? 0) + 1);
     }
-    console.log(`${bot.name.padEnd(9)} ${byBot[bot.name].n}명 · 우승 ${byBot[bot.name].champ} · 연고 이전 ${byBot[bot.name].over}  (${Math.round((Date.now() - t0) / 1000)}초)`);
   }
   t.progress = prog.map((m) => [...m.entries()].map(([k, n]) => [...k.split(',').map(Number), n] as [number, number, number]).sort((a, b) => b[0] - a[0] || a[1] - b[1]));
   const out = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/share/bench.json');
@@ -132,4 +166,4 @@ function main() {
   for (const s of [1, 3, 5, 10, N_SEASONS].filter((x) => x <= N_SEASONS)) console.log(`${s}시즌 뒤 [장,최고순위,수]: ${t.progress[s - 1].map((r) => r.join('/')).join('  ')}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

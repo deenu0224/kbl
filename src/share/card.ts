@@ -270,12 +270,13 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
   const px = PAD + mapW + 44;
   const pw = CARD_W - PAD - px;
   ctx.fillStyle = RULE;
-  ctx.fillRect(px - 24, by, 4, 212);
-  line(ctx, '상위', 'Galmuri11', [33], px, by, MUTE, pw);
+  ctx.fillRect(px - 24, by, 4, 224);
+  line(ctx, '상위', 'Galmuri11', [33], px, by - 4, MUTE, pw);
   const pct = `${d.pct.pct}%`;
-  line(ctx, pct, 'Galmuri14', [112], px, by + 36, accent, pw);
-  line(ctx, `시뮬레이션 단장 ${d.pct.n}명 대비`, 'Galmuri11', [22], px, by + 160, INK, pw);
-  line(ctx, d.pct.basis, 'Galmuri11', [22], px, by + 190, MUTE, pw);
+  line(ctx, pct, 'Galmuri14', [112], px, by + 46, accent, pw);
+  line(ctx, pct, 'Galmuri14', [112], px + 8, by + 46, accent, pw); // 한 픽셀 옆에 한 번 더 찍어 굵게
+  line(ctx, `시뮬레이션 단장 ${d.pct.n}명 대비`, 'Galmuri11', [22], px, by + 172, INK, pw);
+  line(ctx, d.pct.basis, 'Galmuri11', [22], px, by + 202, MUTE, pw);
 
   // 맨 아래: 질문 + 주소
   ctx.fillStyle = INK;

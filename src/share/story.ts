@@ -55,9 +55,9 @@ export function storySentences(d: ShareData): Sentence[] {
     else if (r1 <= 5) add(1, 5, [`첫해에 ${r1}위까지 끌어올렸다.`, `부임 첫해, 꼴찌 팀이 ${r1}위를 했다.`]);
     else add(1, 7, [`첫해는 ${r1}위. 꼴찌만 면했다.`, `첫해에는 ${r1}위로 겨우 꼴찌를 벗어났다.`]);
   }
-  if (r.firstProfitAt && r.firstProfitAt < end && r.firstProfitAt !== r.firstPostAt) {
+  if (r.firstProfitAt && r.firstProfitAt > 1 && r.firstProfitAt < end && r.firstProfitAt !== r.firstPostAt) {
     const k = r.firstProfitAt;
-    add(k + 0.1, 8, [k === 1 ? '첫해부터 장부를 흑자로 돌려놨다.' : `${k}년째에 처음 흑자를 냈다.`, k === 1 ? '적자 구단이 첫해에 흑자를 냈다.' : `${k}년째, 장부가 처음으로 흑자가 됐다.`]);
+    add(k + 0.1, 8, [`${k}년째에 처음 흑자를 냈다.`, `${k}년째, 장부가 처음으로 흑자가 됐다.`]);
   }
   if (r.firstPostAt && r.firstPostAt !== r.champAt && !(r.kind === 'season' && r.firstPostAt === n && !r.champAt)) {
     const k = r.firstPostAt;
@@ -65,14 +65,12 @@ export function storySentences(d: ShareData): Sentence[] {
   }
   if (r.exposed > 0) add(end - 0.5, 4, ['덮어 둔 일이 드러나 고개를 숙인 해도 있었다.', '감춘 일이 드러나 도민 앞에 사과한 해도 있었다.']);
   if (r.retired.length) add(end - 0.4, 5, [`${r.retired[0]}의 등번호는 영구결번이 됐다.`, `${r.retired[0]}의 번호는 이제 아무도 달지 못한다.`]);
-  else if (r.star && n >= 2) add(end - 0.4, 7, [`팀의 얼굴은 ${r.star}.`, `관중은 ${r.star}의 이름을 가장 크게 불렀다.`]);
+  else if (r.star && n >= 2 && r.kind !== 'relocated') add(end - 0.4, 7, [`팀의 얼굴은 ${r.star}.`, `관중은 ${r.star}의 이름을 가장 크게 불렀다.`]);
 
   if (r.kind === 'relocated') {
-    const k = Math.max(1, r.failStreak);
-    add(99, 1, [
-      k >= 2 ? `${k}시즌 연속 약속을 못 지켰고, ${n}시즌 만에 구단은 제주를 떠났다.` : `도민의 마음을 잃었고, ${n}시즌 만에 구단은 제주를 떠났다.`,
-      k >= 2 ? `${k}년 내리 목표를 놓쳤다. ${n}시즌 만에 연고지를 내줬다.` : `지지가 바닥났다. ${n}시즌 만에 연고지를 내줬다.`,
-    ]);
+    const k = r.failStreak;
+    const why = k >= n ? ['한 번도 약속을 지키지 못했고,', '끝내 목표를 한 번도 못 이뤘다.'] : k >= 2 ? [`${k}시즌 연속 약속을 못 지켰고,`, `${k}년 내리 목표를 놓쳤다.`] : ['도민의 마음을 잃었고,', '지지가 바닥났다.'];
+    add(99, 1, [`${why[0]} ${n}시즌 만에 구단은 제주를 떠났다.`, `${why[1]} ${n}시즌 만에 연고지를 내줬다.`]);
   } else if (r.champAt) {
     const w = r.champAt;
     add(w, 1, [w === 1 ? '그리고 첫 시즌에 한국시리즈에서 우승했다.' : `${w}시즌 만에 한국시리즈에서 우승했다.`, w === 1 ? '첫 시즌에 우승 깃발을 걸었다.' : `${w}시즌 만에 제주에 우승 깃발을 걸었다.`]);
