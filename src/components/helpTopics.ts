@@ -15,6 +15,7 @@ export type HelpTopic =
   | 'flag'
   | 'runway'
   | 'fatigue'
+  | 'penStyle'
   | 'farm'
   | 'service'
   | 'value'
@@ -45,7 +46,17 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] }> = {
   },
   fatigue: {
     title: '연투 피로',
-    lines: [`전날 던진 불펜 투수는 구위가 ${SIM.TIRED_1} 떨어집니다.`, `이틀 연속 던졌으면 ${SIM.TIRED_2} 떨어집니다.`, `마무리는 ${SIM.CLOSER_MAX_TIRED + 1}연투까지만 나오고 그 뒤에는 쉽니다.`, '하루 쉬면 회복합니다.'],
+    lines: [`전날 던진 불펜 투수는 구위가 ${SIM.TIRED_1}, 제구가 ${SIM.TIRED_CTL_1} 떨어집니다.`, `이틀 연속 던졌으면 ${SIM.TIRED_2}, ${SIM.TIRED_CTL_2} 떨어집니다.`, `마무리는 ${SIM.CLOSER_MAX_TIRED + 1}연투까지만 나오고 그 뒤에는 쉽니다.`, '하루 쉬면 회복합니다.'],
+  },
+  penStyle: {
+    title: '불펜 운영 방침',
+    lines: [
+      `믿음: 선발을 타자 ${SIM.TRUST_SP_LIMIT}명 더 끌고, 승부처는 필승조 ${SIM.TRUST_CORE}명과 마무리가 맡습니다.`,
+      '균형: 선발은 한계 타자 수에서 내리고, 상황에 따라 필승조와 추격조를 씁니다.',
+      `벌떼: 선발을 타자 ${-SIM.SWARM_SP_LIMIT}명 일찍 내리고, 구원은 타자 ${SIM.SWARM_BF_TIGHT}~${SIM.SWARM_BF}명씩 끊어 던집니다.`,
+      `구원은 타자 ${SIM.SHORT_BF}명까지 구위가 ${SIM.SHORT_STF} 오릅니다.`,
+      `연투하면 구위가 ${SIM.TIRED_1}, 이틀 연투하면 ${SIM.TIRED_2} 떨어지고 다치기 쉽습니다.`,
+    ],
   },
   farm: {
     title: '2군',
