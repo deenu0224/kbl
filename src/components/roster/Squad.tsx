@@ -11,7 +11,9 @@ import Help from '../Help';
 import Dialog from '../layout/Dialog';
 import { useUi, type SquadView } from '../layout/uiStore';
 import { useWinChance } from '../useWinChance';
-import { OvrBadge, POS_FULL, POS_KO } from '../ui';
+import { Bar, OvrBadge, POS_KO, ratingColor } from '../ui';
+import { effDef } from '../../game/ratings';
+import { fmtMoney } from '../../game/format';
 import PenStyleBar, { ArmState } from './PenStyle';
 import RosterList, { CardPop, goMarket } from './RosterList';
 import { EMPTY_CLOSER, POS, groupOf, planCloser, planEdit, recommend, slotCandidates, snapOf, type Plan, type PlanResult } from './editorOps';
@@ -126,12 +128,57 @@ function useFlashPid(): string | null {
   return pid;
 }
 
+/** 자리 시트의 한쪽 칸: 선수 한 명의 능력치. vs 가 있으면 그 선수와의 차이를 숫자 옆에 붙인다 */
+function SlotStats({ p, pos, vs, lead, onCard, onBack }: { p: Player; pos?: BatPos; vs?: Player; lead: string; onCard: (pid: string) => void; onBack?: () => void }) {
+  // 수비는 그 자리에 섰을 때의 값
+  const defAt = (x: Player) => (pos && pos !== 'DH' ? effDef(x, pos) : x.def);
+  const stats: [string, (x: Player) => number][] =
+    p.kind === 'B'
+      ? [['컨택', (x) => x.con], ['파워', (x) => x.pow], ['선구', (x) => x.eye], ['주력', (x) => x.spd], ['수비', defAt], ['잠재', (x) => x.pot]]
+      : [['구위', (x) => x.stf], ['제구', (x) => x.ctl], ['체력', (x) => x.sta], ['잠재', (x) => x.pot]];
+  return (
+    <div className="flex min-w-0 flex-col gap-1 bg-ink/40 px-1.5 py-1.5" data-testid={vs ? 'slot-pick' : 'slot-owner'}>
+      <div className="flex items-center gap-1">
+        <OvrBadge ovr={p.ovr} size={22} />
+        <span className={`min-w-0 flex-1 truncate text-[14px] ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
+        {onBack && (
+          <button type="button" className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center text-[15px] text-white/70" aria-label="후보 목록으로" data-testid="slot-back" onClick={onBack}>
+            ✕
+          </button>
+        )}
+      </div>
+      <div className="truncate text-[13px] leading-tight text-white/55">
+        <span className={lead === '지금' ? 'text-hi' : lead === '2군' ? 'text-sky' : ''}>{lead}</span> · {p.age}세 · {POS_KO[p.pos]}
+        {pos && offPos(p, pos) && <span className="text-hi"> ⚠</span>}
+      </div>
+      <div className="flex flex-col gap-[5px] py-0.5">
+        {stats.map(([label, f]) => {
+          const v = Math.round(f(p));
+          const d = vs && vs.kind === p.kind ? v - Math.round(f(vs)) : 0;
+          return (
+            <div key={label} className="flex items-center gap-1 text-[13px] leading-none" data-testid="slot-stat">
+              <span className="w-7 shrink-0 text-white/60">{label}</span>
+              <Bar ratio={(v - 15) / 85} color={ratingColor(v)} h={7} />
+              <span className="w-5 shrink-0 text-right" style={{ color: ratingColor(v) }}>{v}</span>
+              {vs && <span className={`w-6 shrink-0 text-right ${d > 0 ? 'text-good' : d < 0 ? 'text-bad' : 'text-white/35'}`}>{d > 0 ? `+${d}` : d < 0 ? `−${-d}` : '='}</span>}
+            </div>
+          );
+        })}
+      </div>
+      <button type="button" className="mt-auto flex min-h-9 cursor-pointer items-center text-[13px] text-sky" data-testid="slot-card" onClick={() => onCard(p.id)}>
+        연봉 {fmtMoney(p.salary)} · 카드 ›
+      </button>
+    </div>
+  );
+}
+
 /**
  * 자리 시트: 그 자리의 리그 순위와 후보(주전 / 1군 백업 / 2군). 보는 것만으로는 아무것도 바뀌지 않고,
  * [교체]를 눌러야 바뀐다 (그 위에 예상 변화).
  */
 function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; rows: PosRow[]; onClose: () => void; onSwap: (plan: Plan) => void; onCard: (pid: string) => void }) {
   const [more, setMore] = useState(false);
+  const [pick, setPick] = useState<string | null>(null);
   const team = useUserTeam();
   const core = useCore();
   const o = team.roster.find((p) => p.id === owner);
@@ -142,29 +189,33 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
   const row = rows.find((r) => r.key === key);
   const name = slot ? POS[slot.pos] : g === 'rot' ? `${team.rotation.indexOf(owner) + 1}선발` : g === 'cl' ? '마무리' : `불펜 ${team.bullpen.indexOf(owner) + 1}`;
   const nFa = useStore((s) => s.freeAgents.filter((p) => (key === 'DH' ? p.kind === 'B' : p.pos === key)).length);
-  const line = (p: Player, lead: string, right: ReactNode, lock = 0, rehab = 0) => (
-    <div key={p.id} className={`flex min-h-12 items-center gap-1.5 bg-ink/40 pl-1.5 pr-1 ${rehab > 0 ? 'opacity-55' : ''}`} data-testid={rehab > 0 ? 'slot-row-rehab' : 'slot-row'}>
-      <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 self-stretch text-left" onClick={() => onCard(p.id)}>
-        <span className={`w-9 shrink-0 text-[13px] ${lead === '주전' ? 'text-hi' : lead === '2군' ? 'text-sky' : 'text-white/55'}`}>{lead}</span>
-        <OvrBadge ovr={p.ovr} size={22} />
-        <span className="min-w-0 flex-1 leading-tight">
-          <span className={`block truncate text-[14px] ${rehab > 0 ? 'text-white/70' : p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
-          <span className={`block truncate text-[13px] ${rehab > 0 ? 'text-white/70' : lock > 0 ? 'text-bad' : 'text-white/55'}`}>
-            {p.age}세 · {POS_FULL[p.pos]}
-            {rehab > 0 ? ` · ${rehab}경기 뒤 복귀` : lock > 0 && ` · 재등록 ${lock}경기 뒤`}
-          </span>
-        </span>
-      </button>
-      {right}
-    </div>
-  );
-  // 이득이 큰 후보부터. 기본은 3명만 보이고 나머지는 접는다
+  // 이득이 큰 후보부터. 기본은 4명만 보이고 나머지는 접는다
   const sorted = cands.filter((c) => !c.rehab).sort((x, y) => (isPlan(y.plan) ? y.plan.sum : -99) - (isPlan(x.plan) ? x.plan.sum : -99));
-  const shown = more ? sorted : sorted.slice(0, 3);
+  const shown = more ? sorted : sorted.slice(0, 4);
   const hidden = sorted.length - shown.length;
   const rehab = cands.filter((c) => c.rehab); // 재활 중: 맨 아래 회색, 교체 불가
+  const picked = cands.find((c) => c.p.id === pick);
+  const pickPlan = picked && isPlan(picked.plan) ? picked.plan : null;
+  const pos = slot?.pos;
+  const row1 = (c: (typeof cands)[number]) => {
+    const plan = isPlan(c.plan) ? c.plan : null;
+    const lock = c.farm ? farmLockLeft(core, c.p) : 0;
+    const lead = c.rehab ? '재활' : c.farm ? '2군' : '백업';
+    return (
+      <button key={c.p.id} type="button" className={`flex min-h-12 cursor-pointer items-center gap-1.5 bg-ink/40 px-1.5 text-left ${c.rehab ? 'opacity-55' : ''}`} data-testid={c.rehab ? 'slot-row-rehab' : 'slot-row'} onClick={() => setPick(c.p.id)}>
+        <OvrBadge ovr={c.p.ovr} size={22} />
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className={`block truncate text-[14px] ${c.p.injury > 0 ? 'text-bad' : 'text-white'}`}>{c.p.name}</span>
+          <span className={`block truncate text-[13px] ${!plan || lock > 0 ? 'text-white/50' : plan.sum < 0 ? 'text-bad' : plan.sum > 0 ? 'text-good' : 'text-white/70'}`} data-testid="slot-delta">
+            <span className={lead === '2군' ? 'text-sky' : 'text-white/55'}>{lead}</span> {c.rehab ? `${c.rehab}경기 뒤 복귀` : lock > 0 ? `재등록 ${lock}경기 뒤` : plan ? plan.text.replace(/ · /g, ' ').replace(/ ([+−])/g, '$1') || '±0' : '교체 불가'}
+          </span>
+        </span>
+        <span className="shrink-0 text-white/40">›</span>
+      </button>
+    );
+  };
   return (
-    <Dialog onClose={onClose} label="자리" width={460}>
+    <Dialog onClose={onClose} label="자리" width={520}>
       <div className="flex max-h-[calc(calc(var(--dvh)*70)-34px)] flex-col gap-1" data-testid="slot-sheet">
         <div className="flex shrink-0 items-center gap-1.5">
           <span className="font-pixel-lg min-w-0 flex-1 truncate text-[16px] text-white">
@@ -173,33 +224,34 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
           </span>
           <Help topic="posRank" />
         </div>
-        <div className="px-scroll flex min-h-0 flex-1 flex-col gap-[3px] overflow-y-auto [&>*]:shrink-0">
-          {o ? line(o, '주전', null) : <div className="bg-bad/15 px-2 py-2 text-[13px] text-bad">마무리 비어 있음 — 불펜 투수를 고르세요</div>}
-          {shown.map((c) => {
-            const plan = c.plan;
-            const ok = isPlan(plan);
-            return line(
-              c.p,
-              c.farm ? '2군' : '백업',
-              <span className="flex shrink-0 flex-col items-end gap-0.5">
-                <span className={`whitespace-nowrap text-[13px] leading-none ${!ok ? 'text-white/45' : plan.sum < 0 ? 'text-bad' : plan.sum > 0 ? 'text-good' : 'text-white/70'}`} data-testid="slot-delta">
-                  {ok ? plan.text || '±0' : '교체 불가'}
-                </span>
-                <button className="px-btn min-h-9 !px-2 text-[13px]" data-testid="slot-swap" disabled={!ok} onClick={() => ok && onSwap(plan)}>
-                  {c.farm ? '콜업·교체' : '교체'}
+        {/* 왼쪽은 지금 선수, 오른쪽은 후보 목록. 후보를 누르면 목록 자리에 그 후보의 능력치가 나란히 선다 */}
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-1">
+          {o ? <SlotStats p={o} pos={pos} lead="지금" onCard={onCard} /> : <div className="bg-bad/15 px-2 py-2 text-[13px] leading-snug text-bad">마무리 비어 있음 — 불펜 투수를 고르세요</div>}
+          {picked ? (
+            <SlotStats p={picked.p} pos={pos} vs={o} lead={picked.rehab ? '재활' : picked.farm ? '2군' : '백업'} onCard={onCard} onBack={() => setPick(null)} />
+          ) : (
+            <div className="px-scroll flex min-h-0 flex-col gap-[3px] overflow-y-auto [&>*]:shrink-0" data-testid="slot-list">
+              {shown.map(row1)}
+              {hidden > 0 && (
+                <button className="px-btn min-h-10 text-[13px]" data-testid="slot-more" onClick={() => setMore(true)}>
+                  {hidden}명 더 ▾
                 </button>
-              </span>,
-              c.farm ? farmLockLeft(core, c.p) : 0,
-            );
-          })}
-          {hidden > 0 && (
-            <button className="px-btn min-h-10 text-[13px]" data-testid="slot-more" onClick={() => setMore(true)}>
-              후보 {hidden}명 더 보기 ▾
-            </button>
+              )}
+              {rehab.map(row1)}
+              {!cands.length && <div className="px-1 py-2 text-[13px] text-white/45">바꿀 수 있는 후보가 없습니다</div>}
+            </div>
           )}
-          {rehab.map((c) => line(c.p, '재활', <span className="shrink-0 whitespace-nowrap px-1 text-[13px] text-white/70">교체 불가</span>, 0, c.rehab))}
-          {!cands.length && <div className="px-1 py-2 text-[13px] text-white/45">바꿀 수 있는 후보가 없습니다</div>}
         </div>
+        {picked && (
+          <div className="flex shrink-0 items-center gap-2">
+            <span className={`min-w-0 flex-1 truncate text-[13px] ${!pickPlan ? 'text-white/55' : pickPlan.sum < 0 ? 'text-bad' : pickPlan.sum > 0 ? 'text-good' : 'text-white/70'}`}>
+              {pickPlan ? `교체하면 ${pickPlan.text || '±0'}` : picked.rehab ? `재활 중 — ${picked.rehab}경기 뒤 복귀` : errOf(picked.plan) ?? '교체 불가'}
+            </span>
+            <button className="px-btn primary min-h-10 shrink-0 !px-4 text-[14px]" data-testid="slot-swap" disabled={!pickPlan} onClick={() => pickPlan && onSwap(pickPlan)}>
+              {picked.farm ? '콜업·교체' : '교체'}
+            </button>
+          </div>
+        )}
         {o && <div className="shrink-0 truncate text-[13px] text-white/55">교체하면 {o.name} → {slot ? '벤치' : '상대의 보직'}</div>}
         <button className="px-btn min-h-10 shrink-0 text-[13px]" data-testid="go-fa" disabled={!nFa} onClick={() => goMarket(key)}>
           {nFa ? `이 자리 FA 보기 ›` : '이 자리 FA 없음'}
