@@ -8,7 +8,7 @@ import Help from './Help';
 import { SAVE_KEY, useUi } from './layout/uiStore';
 import { clearHof } from './hofStore';
 import { clearAchv } from './achvStore';
-import { FEEDBACK_URL, setStatsOn, statsAvailable, statsOn, track } from '../analytics';
+import { DONATE_URL, FEEDBACK_URL, setStatsOn, statsAvailable, statsOn, track } from '../analytics';
 import { UI_SIZES, setUiSize, useUiSize } from './layout/uiScale';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -168,7 +168,7 @@ export default function Settings() {
             ))}
           </Row>
         </div>
-        {(statsAvailable() || FEEDBACK_URL) && (
+        {(statsAvailable() || FEEDBACK_URL || DONATE_URL) && (
           <>
             <Title>의견 · 통계</Title>
             <div className="flex flex-col gap-1">
@@ -176,6 +176,14 @@ export default function Settings() {
                 <Row label="의견 보내기">
                   <a className="px-btn flex min-h-10 items-center text-[13px]" href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" data-testid="settings-feedback" onClick={() => track('feedback')}>
                     의견 쓰러 가기 ↗
+                  </a>
+                </Row>
+              )}
+              {DONATE_URL && (
+                <Row label="후원">
+                  <span className="min-w-0 flex-1 text-[13px] leading-snug text-white/55">카카오페이로 열립니다</span>
+                  <a className="px-btn flex min-h-10 shrink-0 items-center text-[13px]" href={DONATE_URL} target="_blank" rel="noopener noreferrer" data-testid="settings-donate" onClick={() => track('donate')}>
+                    ☕ 커피 한 잔 ↗
                   </a>
                 </Row>
               )}

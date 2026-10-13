@@ -7,6 +7,8 @@ import { useStore } from './store';
 export const STATS_CODE: string = 'deenu0224';
 /** 의견 보내기 링크 (구글 폼). 비어 있으면 버튼이 뜨지 않는다 */
 export const FEEDBACK_URL: string = 'https://docs.google.com/forms/d/e/1FAIpQLSdF2ceTEtSme1Ph4mGg-h8k5n8e8W8hLTY94MMJKtnU-usYBw/viewform';
+/** 후원 링크 (카카오페이 송금코드). 비어 있으면 버튼이 뜨지 않는다. 후원에 게임 안 대가는 걸지 않는다 */
+export const DONATE_URL: string = 'https://qr.kakaopay.com/Ej8FYHCrH';
 
 const OFF_KEY = 'kbl-no-stats';
 const local = () => /^(localhost|127\.|\[::1\]|192\.168\.|10\.)/.test(location.hostname) || location.hostname.endsWith('.local');
