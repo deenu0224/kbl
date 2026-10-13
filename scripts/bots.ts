@@ -6,6 +6,7 @@ import {
   FOOD_LV, LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, LOAN_LIMIT, LOAN_STEP, MERCH_K, ROSTER_MAX, SEAT_LV, TRAIN_LV,
   capacityOf, opsCost, payroll, previewDemand, refPrice, signingBonus, starPower, upgradeCost, userTeam,
 } from '../src/game/economy';
+import { GIVE_COST, buyProject, projectPreview, projectsOpen, type ProjectId } from '../src/game/projects';
 import { FOREIGN_MAX } from '../src/game/events';
 import { autoBatting, autoPitching, slotValue } from '../src/game/lineup';
 import { bullpenLoad } from '../src/game/fixes';
@@ -23,6 +24,24 @@ const THEME: Verb[][] = [['lineup', 'sign'], ['gate'], ['youth'], ['pitch'], ALL
 const themeOf = (c: Core) => THEME[Math.min(c.campaign.stage, THEME.length - 1)];
 
 const ok = (r: { core: Core; error?: string }, c: Core) => (r.error ? c : r.core);
+
+// 왕조 프로젝트 (스토브리그): 현금이 (비용 + 여유) 이상이면 순서대로 산다. 큰 것(돔)이 남아 있으면 도민 환원은 미룬다
+export const PROJECT_RESERVE = 300000; // 30억
+function buyProjects(c0: Core, order: ProjectId[], give: boolean): Core {
+  if (!projectsOpen(c0) || c0.phase === 'over') return c0;
+  let c = c0;
+  for (const id of order) {
+    const pv = projectPreview(c, id);
+    if (pv.done || pv.error || c.finance.cash < pv.cost + PROJECT_RESERVE) continue;
+    c = ok(buyProject(c, id), c);
+  }
+  // 남으면 도민 환원: 돔을 다 지었으면 여유만 남기고, 짓는 중이면 다음 단계 대금을 모으고 남는 만큼
+  const dome = projectPreview(c, 'dome');
+  const keep = PROJECT_RESERVE + (dome.done ? 0 : Math.max(0, dome.cost - PROJECT_SAVE));
+  for (let n = 0; give && n < 30 && c.finance.cash >= GIVE_COST + keep; n++) c = ok(buyProject(c, 'give'), c);
+  return c;
+}
+const PROJECT_SAVE = 600000; // 돔 다음 단계 대금 중 이만큼은 다음 시즌 수입으로 채운다고 본다
 const enabled = (card: EventCard, i: number) => !!card.choices[i] && !card.choices[i].disabled;
 export const firstEnabled = (card: EventCard, pref: number[]) => pref.find((i) => enabled(card, i)) ?? card.choices.map((_, i) => i).reverse().find((i) => enabled(card, i)) ?? 0;
 const SCOUT_V: Record<string, number> = { A: 84, B: 74, C: 65, D: 57 };
@@ -413,7 +432,7 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
       return firstEnabled(card, USE[id] ?? [card.choices.length - 1]);
     },
     // 시즌이 끝난 직후(위약금 없음)에 내년 몸값을 내다보고 정리한다
-    beforeDraft: (c) => (name === 'sensible' ? trimFarm(trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 26), FARM_MAX - 3) : trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 25)),
+    beforeDraft: (c0) => ((c) => (name === 'sensible' ? trimFarm(trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 26), FARM_MAX - 3) : trimRoster(verbs(c).has('sign') ? shedPayroll(c, 1.12) : c, 25)))(name === 'sensible' ? buyProjects(c0, ['academy', 'dome', 'museum', 'youth', 'camp'], true) : c0),
     // 지명은 매년 돌아오는 일이라 주제와 무관하게 한다. youth 를 쓰는 봇은 잠재력을, 아니면 즉전감을 본다
     draft: (c) => (drafts(c) ? bestProspect(c, (p) => (verbs(c).has('youth') ? SCOUT_V[p.scout ?? 'C'] * 0.65 + p.ovr * 0.35 : SCOUT_V[p.scout ?? 'C'] * 0.4 + p.ovr * 0.6)) : null),
   };
@@ -453,7 +472,7 @@ export const greedy: Bot = {
   daily: (c) => (c.day === 42 ? doLineup(greedySign(c), true) : c.day % 12 === 0 ? doLineup(c, true) : c),
   // 스캔들은 덮는다 · 선수 말을 믿는다
   event: (c, card) => (isFarmCard(card) ? farmFirst(card, true) : firstEnabled(card, ['dope', 'fix'].includes(baseId(card)) ? [1] : baseId(card) === 'trade' ? ((tradeLook(c, card)?.wins ?? 0) > 0 ? [0, 1] : [1]) : [0])),
-  beforeDraft: (c) => trimRoster(c, 25),
+  beforeDraft: (c) => trimRoster(buyProjects(c, ['camp', 'dome'], false), 25),
   draft: (c) => bestProspect(c, (p) => p.ovr),
 };
 

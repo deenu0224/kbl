@@ -1,3 +1,4 @@
+import { projectVerdictLine } from '../game/projects';
 import { exposureLines } from '../game/scandal';
 import { CHARACTERS, SCANDAL_NEWS } from '../game/story';
 import Fold from './Fold';
@@ -223,6 +224,11 @@ function SeasonEndBody() {
           <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="lux-tax">
             <span className="text-bad">경쟁균형세 −{fmtMoney(v.luxTax.tax)}</span>
             <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} (리그 상위 3구단 평균의 120%)</span>
+          </div>
+        )}
+        {projectVerdictLine(core) && (
+          <div className="mt-3 bg-hi/10 px-2 py-1.5 text-[12px] leading-snug text-hi mob:text-[13px]" data-testid="project-line">
+            {projectVerdictLine(core)}
           </div>
         )}
         {/* 덮은 일이 드러났다: 무슨 일 · 잃은 것 */}

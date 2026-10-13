@@ -1,3 +1,5 @@
+import { fmtMoney } from './game/format';
+import { buyProject, projectPreview, type ProjectId } from './game/projects';
 import { create } from 'zustand';
 import { changePenStyle } from './game/briefing';
 import type { PenStyle } from './game/sim';
@@ -60,6 +62,7 @@ export interface Store extends Core {
   blockToggle(pid: string): void; // 이적 창구: 트레이드 시장에 내놓기 / 거두기
   transfer(basket: Basket): boolean; // 이적 창구: 바구니를 한 번에 실행 (하나라도 막히면 전체 취소)
   upgrade(kind: FacilityKind): void;
+  project(id: ProjectId): boolean;
   setPrice(v: number): void;
   borrow(): void;
   buyEthics(): void; // 선수단 윤리 교육 (scandal.ts)
@@ -305,6 +308,11 @@ export const useStore = create<Store>()(
           if (locked()) return;
           const ok = applyResult(upgradeFacility(pickCore(get()), kind), `${FAC_NAME[kind]} 업그레이드 완료!`);
           if (ok) set({ fx: { kind, key: ++seq } });
+        },
+        project(id) {
+          if (locked()) return false;
+          const pv = projectPreview(pickCore(get()), id);
+          return applyResult(buyProject(pickCore(get()), id), `${pv.name}${pv.step && id === 'dome' ? ` ${pv.step}` : ''} — ${fmtMoney(pv.cost)}`);
         },
         setPrice(v) {
           if (locked()) return;

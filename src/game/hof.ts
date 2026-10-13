@@ -1,5 +1,6 @@
 import type { Core } from './types';
 import type { LeagueAwards } from './leaders';
+import { domePaid, giveTotal } from './projects';
 
 /** 명예의 전당: 세이브와 독립된 기록 (localStorage 키 HOF_KEY). 전부 순수 함수 — 읽기·쓰기는 화면 쪽이 한다. */
 export const HOF_KEY = 'kbl-hof-v1';
@@ -18,6 +19,8 @@ export interface HofClub {
   end: HofEnd;
   date: string; // YYYY-MM-DD
   tainted?: boolean; // 우승 시즌에 덮었던 일이 드러났다
+  give?: number; // 도민 환원 누적 (만원)
+  dome?: boolean; // 섬에 돔을 세웠다
 }
 export interface HofRecord {
   value: number;
@@ -73,6 +76,8 @@ export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string): Hof
     end,
     date,
     ...(c.history.some((h) => h.tainted) ? { tainted: true } : {}),
+    ...(giveTotal(core) > 0 ? { give: giveTotal(core) } : {}),
+    ...(domePaid(core) >= 3 ? { dome: true } : {}),
   };
   const i = hof.clubs.findIndex((x) => x.seed === core.seed);
   const clubs = i >= 0 ? hof.clubs.map((x, j) => (j === i ? row : x)) : [row, ...hof.clubs];

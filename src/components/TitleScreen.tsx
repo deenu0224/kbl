@@ -109,6 +109,11 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
                     <span className="truncate">순위 {c.ranks.join('-')}</span>
                     <span className="shrink-0">{c.date}</span>
                   </div>
+                  {(c.give || c.dome) && (
+                    <div className="text-hi/90" data-testid="hof-give">
+                      {[c.dome ? '섬에 돔을 세웠다' : '', c.give ? `도민 환원 누적 ${fmtMoney(c.give)}` : ''].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
                   {c.tainted && <div className="text-white/50">{SCANDAL_NEWS.tainted}</div>}
                 </div>
               ))

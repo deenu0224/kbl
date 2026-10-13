@@ -48,6 +48,7 @@ interface SeasonSnap {
   payroll: number;
   profit: number;
   name: string;
+  proj: Record<string, number>; // 왕조 프로젝트 상태 (시즌 말)
 }
 
 interface Run {
@@ -297,6 +298,7 @@ function runOne(bot: Bot, seed: number): Run {
         payroll: payroll(userTeam(c)),
         profit: h.profit,
         name: h.name ?? '',
+        proj: { ...(c.campaign.projects ?? {}) },
       });
       for (let k = 1; k <= 5; k++) if (run.reach[k] === null && c.campaign.stage >= k) run.reach[k] = s;
       if (run.champ === null && c.campaign.titles > 0) run.champ = s;
@@ -573,6 +575,24 @@ console.log(`passive  연고 이전 평균 시즌 ${overAvg('passive').toFixed(1
 console.log(`sensible 장당 평균 ${spanS.toFixed(2)}시즌 (목표 1.3~1.8) · 우승 ${champS.length}/${N_SEEDS} 중앙 시즌 ${champS.length ? median(champS).toFixed(1) : '—'} (목표 7~10) · 이전율 ${Math.round(overRate('sensible') * 100)}% (목표 <15%)`);
 console.log(`sensible 별 장당 평균 ${sStars.avg.toFixed(2)}개 (목표 1.0~1.5) · 3개 전부 ${Math.round(sStars.all3 * 100)}% (목표 <10%) · 시즌 말 평균 현금 최대 ${fmtMoney(maxCash)} (목표 ≤100억)`);
 console.log(`greedy   2장 도달 중앙 ${median(all.greedy.map((r) => r.reach[2]).filter((x): x is number => x !== null)).toFixed(1)} · 3장 도달률 ${Math.round((all.greedy.filter((r) => r.reach[3] !== null).length / N_SEEDS) * 100)}% · 이전율 ${Math.round(overRate('greedy') * 100)}% (목표 30%+)`);
+
+// 왕조 프로젝트: 구매 시즌 분포 (시즌 말 스냅샷 기준 — 구매는 그 전 스토브리그)
+{
+  const KEYS: [string, string, number][] = [['academy', '아카데미', 1], ['dome', '돔 설계', 1], ['dome', '돔 착공', 2], ['dome', '돔 완공', 3], ['museum', '기념관', 1], ['youth', '유소년 1', 1], ['youth', '유소년 4', 4], ['camp', '전지훈련', 1], ['give', '환원 5회(50억)', 5]];
+  console.log('\n── 왕조 프로젝트 (구매가 반영된 첫 시즌 말 · 우승 뒤 몇 시즌째) ──');
+  for (const b of ['sensible', 'greedy']) {
+    const rs = all[b].filter((r) => r.champ !== null);
+    console.log(`${b}: 우승 ${rs.length}/${all[b].length}런`);
+    if (!rs.length) continue;
+    for (const [k, label, n] of KEYS) {
+      const at = rs.map((r) => { const i = r.snaps.findIndex((x) => (x.proj[k] ?? 0) >= n); return i < 0 ? null : i + 1 - r.champ!; }).filter((x): x is number => x !== null);
+      console.log(`  ${label.padEnd(14)} ${at.length}/${rs.length}런 · 우승 뒤 ${at.length ? `평균 ${mean(at).toFixed(1)} (최소 ${Math.min(...at)} · 최대 ${Math.max(...at)})시즌` : '—'}`);
+    }
+    const last = rs.map((r) => r.snaps[r.snaps.length - 1].proj);
+    console.log(`  마지막 시즌: 도민 환원 평균 ${fmtMoney(mean(last.map((p) => (p.give ?? 0) * 100000)))} · 전지훈련 시즌 수는 매 시즌 재구매 · 돔 완공률 ${Math.round((last.filter((p) => (p.dome ?? 0) >= 3).length / rs.length) * 100)}%`);
+  }
+  console.log('sensible 시즌별 평균 현금: ' + Array.from({ length: N_SEASONS }, (_, s) => { const xs = all.sensible.map((r) => r.snaps[s]).filter((x): x is SeasonSnap => !!x); return xs.length ? `${s + 1}:${Math.round(mean(xs.map((x) => x.cash)) / 10000)}` : ''; }).filter(Boolean).join(' '));
+}
 
 const crashes = BOTS.flatMap((b) => all[b.name].filter((r) => r.crash).map((r) => `[${b.name}] ${r.crash}`));
 if (crashes.length) {
