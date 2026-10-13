@@ -8,6 +8,7 @@ import { TRAIN_MAX_AGE, advanceDay, marketSalary, nextSeason, rankOf } from '../
 import { AUDIT, FARM_CAP, activeRoster, farmRoster, farmUpkeep, opProfit, opsCost, payroll, userTeam } from '../src/game/economy';
 import { POST_DIVIDEND, STAGES, ensureObjectives } from '../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
+import { FARM_CARDS, FARM_COACH } from '../src/game/farm';
 import { closeBriefing, drawBriefing } from '../src/game/briefing';
 import { beginDraft, draftPick, draftSkip, isDraftDone } from '../src/game/draft';
 import { drawResign } from '../src/game/contract';
@@ -72,12 +73,31 @@ interface Run {
   crash: string | null;
 }
 
+// 2군 자동 운영·2군 사건 집계 (봇별)
+const FARM_T: Record<string, { seasons: number; cards: Record<string, number>; up: number; back: number; down: number; army: number }> = {};
+const farmTally = (name: string) => (FARM_T[name] ??= { seasons: 0, cards: {}, up: 0, back: 0, down: 0, army: 0 });
+process.on('exit', () => {
+  console.log('\n── 2군 자동 운영과 2군 사건 (시즌당) ──');
+  for (const [name, f] of Object.entries(FARM_T)) {
+    const n = Math.max(1, f.seasons);
+    const total = Object.values(f.cards).reduce((a, b) => a + b, 0);
+    console.log(`${name.padEnd(9)} 2군 사건 ${(total / n).toFixed(2)}장 [${FARM_CARDS.map((d) => `${d.id} ${((f.cards[d.id] ?? 0) / n).toFixed(2)}`).join(' · ')}] · 자동: 부상 대체 콜업 ${(f.up / n).toFixed(2)} · 복귀 ${(f.back / n).toFixed(2)} · 벤치 유망주 2군행 ${(f.down / n).toFixed(2)} · 입대 ${f.army}명 (${f.seasons}시즌)`);
+  }
+});
+
 function playSeason(bot: Bot, c0: Core, rng: Rng, acc: { farmSal: number; farmUp: number; ops: number; callups: number }): Core {
   let c = bot.preseason(c0);
   let wasFarm = new Set(farmRoster(userTeam(c)).map((p) => p.id));
   for (let guard = 0; (c.phase === 'season' || c.phase === 'post') && guard < 400; guard++) {
     if (c.campaign.event) {
+      const id = c.campaign.event.id.split('|')[0];
+      const a0 = c.campaign.away?.length ?? 0;
       c = resolveEvent(c, bot.event(c, c.campaign.event), rng).core;
+      if (id.startsWith('f-')) {
+        const f = farmTally(bot.name);
+        f.cards[id] = (f.cards[id] ?? 0) + 1;
+        f.army += Math.max(0, (c.campaign.away?.length ?? 0) - a0);
+      }
       continue;
     }
     if (c.campaign.briefing) {
@@ -95,8 +115,19 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, acc: { farmSal: number; farmUp
       acc.farmUp += farmUpkeep(t);
       acc.ops += opsCost(c);
     }
-    c = drawBriefing(maybeDrawEvent(advanceDay(c, rng).core, rng));
+    const a1 = c.campaign.away?.length ?? 0;
+    const day = advanceDay(c, rng);
+    const f = farmTally(bot.name);
+    f.army += Math.max(0, (day.core.campaign.away?.length ?? 0) - a1);
+    for (const n of day.report.notes) {
+      if (!n.startsWith(FARM_COACH)) continue;
+      if (n.includes('2군 복귀')) f.back++;
+      else if (n.includes('콜업')) f.up++;
+      else if (n.includes('2군행')) f.down++;
+    }
+    c = drawBriefing(maybeDrawEvent(day.core, rng));
   }
+  farmTally(bot.name).seasons++;
   return c;
 }
 
