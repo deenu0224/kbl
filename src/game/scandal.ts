@@ -76,7 +76,7 @@ const sgn = (v: number) => (v >= 0 ? `+${v}` : `−${-v}`);
 const pctTxt = (v: number) => `${Math.round(v * 100)}%`;
 const find = (core: Core, pid?: string) => (pid ? userTeam(core).roster.find((p) => p.id === pid) : undefined);
 const chairSays = (line: string) => `${CHARACTERS.chair.name} ${CHARACTERS.chair.title} — "${line}"`;
-const secretsN = (core: Core) => core.campaign.secrets?.length ?? 0;
+const secretsN = (core: Core) => (core.campaign.secrets ?? []).filter((x) => !x.unknown).length;
 const rowSecret = (core: Core) => rowInfo('말하지 않은 일', `${secretsN(core) + 1}건`, `${secretsN(core)}건`, 'bad');
 const DETECT_RISK = `매 시즌 결산에서 드러날 수 있음: 첫 시즌 ${pctTxt(SC.detect0)}, 해마다 +${Math.round(SC.detectStep * 100)}%p (상한 ${pctTxt(SC.detectMax)})`;
 
@@ -246,8 +246,8 @@ function removeMut(core: Core, p: Player, toFa: boolean): void {
   }
   fixLineup(t);
 }
-function addSecretMut(core: Core, kind: Kind, p: Player): void {
-  core.campaign.secrets = [...(core.campaign.secrets ?? []), { kind, pid: p.id, name: p.name, season: core.season }];
+function addSecretMut(core: Core, kind: Kind, p: Player, unknown = false): void {
+  core.campaign.secrets = [...(core.campaign.secrets ?? []), { kind, pid: p.id, name: p.name, season: core.season, ...(unknown ? { unknown: true } : {}) }];
 }
 /** 약점을 잡힌(또는 믿어 준) 선수의 다음 재계약·연봉 요구 */
 function leverMut(p: Player, d: number): void {
@@ -468,7 +468,7 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
         return `자체 조사 자료를 사무국에 넘겼습니다 — ${p.name} 영구 제명`;
       }
       if (i === 1) {
-        if (rng() < SC.trueRate) addSecretMut(c, 'fix', p);
+        if (rng() < SC.trueRate) addSecretMut(c, 'fix', p, true); // 유저는 사실인지 모른다
         else {
           leverMut(p, SC.loyal);
           c.campaign.fixClear = [...(c.campaign.fixClear ?? []), p.id];

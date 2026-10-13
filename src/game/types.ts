@@ -415,6 +415,7 @@ export interface Secret {
   pid: string;
   name: string;
   season: number;
+  unknown?: boolean; // 유저가 사실 여부를 모르는 건 ("선수 말을 믿는다"). 화면의 "말하지 않은 일" 건수에 넣지 않는다
 }
 /** 결산에서 드러난 일 한 건 (결산 화면의 빨간 섹션) */
 export interface Exposure {

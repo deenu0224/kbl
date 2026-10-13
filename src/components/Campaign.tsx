@@ -327,9 +327,9 @@ export function CampaignSheet() {
           {SCANDAL_NEWS.tainted}
         </div>
       )}
-      {(c.secrets?.length ?? 0) > 0 && (
+      {(c.secrets ?? []).some((x) => !x.unknown) && (
         <div className="mt-2 flex min-h-10 items-center justify-between gap-2 bg-ink/50 px-2 py-1.5 text-[12px] text-white/75 mob:text-[13px]" data-testid="secrets-line">
-          <span>말하지 않은 일 {c.secrets!.length}건</span>
+          <span>말하지 않은 일 {c.secrets!.filter((x) => !x.unknown).length}건</span>
           <Help topic="secrets" />
         </div>
       )}
