@@ -37,6 +37,11 @@ const done = (s: PostSeries) => s.winnerId !== null;
 export function startPostMut(core: Core): void {
   // 정규시즌과 포스트시즌 사이의 휴식: 연투 피로는 풀린다
   for (const t of core.teams) for (const p of t.roster) delete p.tired;
+  core.post = buildPost(core);
+}
+
+/** 지금 순위대로의 대진표 (시작 전 상태). 대진표 화면의 "지금 순위대로라면"도 이것을 쓴다 */
+export function buildPost(core: Pick<Core, 'teams' | 'userId'>): Postseason {
   const n = postTeams(core);
   const rounds = postRounds(core);
   const seeds = standings(core.teams)
@@ -56,7 +61,7 @@ export function startPostMut(core: Core): void {
   // 유저가 처음 나서는 라운드: 최하위 시드는 첫 라운드의 하위 시드로, 그 밖에는 자기 시드가 상위 시드인 라운드부터
   const ui = seeds.indexOf(core.userId);
   const userFinish: PostFinish = ui < 0 ? 'none' : rounds[Math.max(0, n - 2 - ui)];
-  core.post = { seeds, series, cur: 0, championId: null, userFinish };
+  return { seeds, series, cur: 0, championId: null, userFinish };
 }
 
 /** 정규시즌 직후 포스트시즌 생성 (순수) */

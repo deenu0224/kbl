@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Postseason, PostSeries, Team } from '../game/types';
 import { useStore, userMatch } from '../store';
-import { standings } from '../game/season';
+import { buildPost } from '../game/postseason';
 import { TeamDot } from './ui';
 
 const FORMAT: Record<number, string> = { 3: '3전 2선승', 5: '5전 3선승', 7: '7전 4선승' };
@@ -51,7 +51,7 @@ function SeriesBox({ s, prev, byId, seeds, userId, live }: { s: PostSeries; prev
     <div className="min-w-0 flex-1" style={{ boxShadow: live ? '0 0 0 1px #7fd3ff' : '0 0 0 1px #0f1420' }}>
       <div className="flex items-center justify-between bg-panel-2 px-1.5 py-[3px] text-[11px]">
         <span className={live ? 'text-sky' : 'text-white/75'}>{s.name}</span>
-        <span className="text-[10px] text-white/45">{FORMAT[s.bestOf] ?? `${s.bestOf}전`}</span>
+        <span className="text-[10px] text-white/45">{s.round === 'WC' ? '4위 1승 선취' : (FORMAT[s.bestOf] ?? `${s.bestOf}전`)}</span>
       </div>
       <Side team={s.hiId ? byId.get(s.hiId) : undefined} seed={s.hiId ? seeds.indexOf(s.hiId) + 1 : 0} wins={s.hiW} state={st(s.hiId)} me={s.hiId === userId} wait={wait} />
       <Side team={s.loId ? byId.get(s.loId) : undefined} seed={s.loId ? seeds.indexOf(s.loId) + 1 : 0} wins={s.loW} state={st(s.loId)} me={s.loId === userId} wait={wait} />
@@ -86,28 +86,9 @@ export default function Bracket({ wide = false }: { wide?: boolean }) {
 
   const view = useMemo<Postseason>(() => {
     if (post) return post;
-    const seeds = standings(teams)
-      .slice(0, 4)
-      .map((t) => t.id);
-    const mk = (round: PostSeries['round'], name: string, bestOf: number, hi: string | undefined, lo: string | null): PostSeries => ({
-      round,
-      name,
-      hiId: hi ?? null,
-      loId: lo,
-      bestOf,
-      hiW: 0,
-      loW: 0,
-      winnerId: null,
-      games: [],
-    });
-    return {
-      seeds,
-      series: [mk('SPO', '준플레이오프', 3, seeds[2], seeds[3] ?? null), mk('PO', '플레이오프', 5, seeds[1], null), mk('KS', '한국시리즈', 7, seeds[0], null)],
-      cur: -1,
-      championId: null,
-      userFinish: 'none',
-    };
-  }, [post, teams]);
+    // 구단 수에 따라 4팀 또는 5팀(와일드카드 결정전) 사다리 — 엔진과 같은 규칙으로 만든다
+    return { ...buildPost({ teams, userId }), cur: -1, userFinish: 'none' };
+  }, [post, teams, userId]);
 
   const champ = view.championId ? byId.get(view.championId) : undefined;
   return (
