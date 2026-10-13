@@ -4,7 +4,9 @@ import type { Core, Player } from '../src/game/types';
 import { mulberry32 } from '../src/game/rng';
 import { newCore } from '../src/game/generate';
 import { advanceDay, rankOf, signPlayer, upgradeFacility } from '../src/game/season';
-import { opProfit, payroll, previewDemand, signingBonus, userTeam } from '../src/game/economy';
+import { farmRoster, opProfit, payroll, previewDemand, signingBonus, userTeam } from '../src/game/economy';
+import { maybeDrawEvent, resolveEvent } from '../src/game/events';
+import { FARM_COACH } from '../src/game/farm';
 import { fmtMoney } from '../src/game/format';
 import { teamStrength } from '../src/game/ratings';
 import { SIM_TALLY } from '../src/game/sim';
@@ -222,6 +224,41 @@ console.log(
 console.log(
   `[개막 오더만 고친 무개입] 유저 순위 ${mean(kboBase.map((s) => s.rank)).toFixed(2)} · 손익 ${fmtMoney(mean(kboBase.map((s) => s.profit)))} (min ${fmtMoney(Math.min(...kboBase.map((s) => s.profit)))} / max ${fmtMoney(Math.max(...kboBase.map((s) => s.profit)))}) (목표 +8억~+18억) · 평균 관중 ${Math.round(mean(kboBase.map((s) => s.avgAtt)))} · 완전 방치 대비 손익 ${fmtMoney(mean(kboBase.map((s) => s.profit)) - mean(base.map((s) => s.profit)))}`,
 );
+// 유저 2군 초기 구성 (generate.genStartFarm) 과 첫 시즌의 2군 사건·자동 콜업
+{
+  const farms = Array.from({ length: N_SEEDS }, (_, i) => farmRoster(userTeam(newCore(i + 1))));
+  const all = farms.flat();
+  console.log(
+    `유저 2군 초기 구성: ${mean(farms.map((f) => f.length)).toFixed(1)}명 (타자 ${mean(farms.map((f) => f.filter((p) => p.kind === 'B').length)).toFixed(1)} · 투수 ${mean(farms.map((f) => f.filter((p) => p.kind === 'P').length)).toFixed(1)}) · 평균 나이 ${mean(all.map((p) => p.age)).toFixed(1)} · 평균 OVR ${mean(all.map((p) => p.ovr)).toFixed(1)} · 평균 잠재력 ${mean(all.map((p) => p.pot)).toFixed(1)} · 원석(잠재 78+) ${mean(farms.map((f) => f.filter((p) => p.pot >= 78).length)).toFixed(1)}명 · 연봉 합 ${fmtMoney(mean(farms.map((f) => f.reduce((s, p) => s + p.salary, 0))))}`,
+  );
+  // 사건 카드는 마지막 선택지로 넘긴다 (그 밖에는 무개입)
+  let cards = 0, up = 0, back = 0, down = 0, shuttle = 0, zero = 0;
+  for (let seed = 1; seed <= N_SEEDS; seed++) {
+    const rng = mulberry32(seed * 7919 + 13);
+    let c = newCore(seed);
+    let n = 0;
+    while (c.phase === 'season') {
+      c = maybeDrawEvent(c, rng);
+      if (c.campaign.event) {
+        if (c.campaign.event.id.startsWith('f-')) (cards++, n++);
+        c = resolveEvent(c, c.campaign.event.choices.length - 1, rng).core;
+      }
+      const { core: next, report } = advanceDay(c, rng);
+      for (const t of report.notes) {
+        if (!t.startsWith(FARM_COACH)) continue;
+        n++;
+        if (t.includes('2군 복귀')) back++;
+        else if (t.includes('콜업')) up++;
+        else if (t.includes('2군행')) down++;
+        else if (t.includes('불펜 교대')) shuttle++;
+      }
+      c = next;
+    }
+    if (!n) zero++;
+  }
+  const per = (v: number) => (v / N_SEEDS).toFixed(2);
+  console.log(`첫 시즌 2군 (시즌당 · 사건은 마지막 선택지, 그 밖에는 무개입): 2군 사건 ${per(cards)}장 · 자동 콜업 ${per(up)} · 대체 선수 복귀 ${per(back)} · 불펜 셔틀 ${per(shuttle)} · 벤치 유망주 2군행 ${per(down)} · 아무 일도 없던 시드 ${zero}/${N_SEEDS}`);
+}
 console.log('홈런왕:', base.map((s) => `${s.hrTopName} ${s.hrTop}`).join(' / '));
 console.log('최종 순위 예시(seed 1):', base[0].rankOrder);
 
