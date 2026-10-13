@@ -470,7 +470,10 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
           const p = byId.get(l.pid);
           if (!p) return null;
           const [x, y] = SPOT[l.pos];
-          return tile(p, POS_KO[l.pos], { row: rowOf.get(l.pos), off: offPos(p, l.pos), pan: 'none', className: 'absolute w-[31%] -translate-x-1/2 -translate-y-1/2', style: { left: `${x}%`, top: `${y}%` } });
+          const off = offPos(p, l.pos);
+          // 느낌표만으로는 뜻을 알 수 없다: 제 자리가 아니면 지금 자리(칸 위치로 보인다) 대신 원래 자리를 적는다
+          const sub = off ? <span className="text-hi" data-testid="off-from">원래 {POS_KO[p.pos]}</span> : POS_KO[l.pos];
+          return tile(p, sub, { row: rowOf.get(l.pos), off, pan: 'none', className: 'absolute w-[31%] -translate-x-1/2 -translate-y-1/2', style: { left: `${x}%`, top: `${y}%` } });
         })}
       </div>
       <div className="flex shrink-0 items-center justify-between px-0.5 pt-1 text-[13px] text-white/60">
