@@ -584,6 +584,7 @@ export function sendDown(core0: Core, pid: string): { core: Core; error?: string
   const p = t.roster.find((x) => x.id === pid)!;
   p.farm = true;
   delete p.tired;
+  delete p.subFor;
   if (core.phase === 'season') p.farmUntil = core.day + FARM_LOCK;
   fixLineup(t);
   addNews(core, `말소: ${p.name} 2군행${p.farmUntil ? ` (${FARM_LOCK}경기 뒤 재등록 가능)` : ''}`, 'info');

@@ -31,7 +31,7 @@ export const FARM_N = {
   readyWait: 24, // "한 달 더": 이 경기 수 뒤 다시 보고
   hypeAvg: 0.34, hypeAb: 60, hypeEra: 2.5, hypeOuts: 90, // 퓨처스 폭격 기준 (타율·타수 / 평균자책·아웃 수)
   hypeGap: 5, hypeSat: 4, hypeWaitSat: -3, hypeGames: 12,
-  hotAvg: 0.35, hotAb: 10, hotEra: 2.5, hotOuts: 9, // 대체 선수의 맹활약 기준 (콜업 이후)
+  hotAvg: 0.35, hotOps: 0.9, hotAb: 10, hotEra: 2.5, hotOuts: 9, // 대체 선수의 맹활약 기준 (콜업 이후)
   hotStar: 5, hotBump: 2, hotBackSat: -2,
   armyDay: 60, armyMin: 22, armyMax: 26, armySeasons: 2, armyLo: 0.3, armyHi: 0.5, armyAwayMax: 1,
   convPot: 68, convAge: 23, convGap: 5, convHolderAge: 28, convWeak: 8, convPen: 6, convGames: 40,
@@ -85,17 +85,23 @@ function altFor(t: Team, p: Player): Player | null {
   return cand.sort((a, b) => b.ovr - a.ovr)[0] ?? null;
 }
 
+const totalBases = (p: Player) => p.bat.h + p.bat.d2 + 2 * p.bat.d3 + 3 * p.bat.hr;
+
 /** 콜업 시점의 기록을 적어 둔다 (그 뒤 성적 = 지금 − 이 값). 시즌 메모 */
 export function markUpMut(core: Core, p: Player): void {
-  memoSet(core, `up-${p.id}`, [core.day, p.bat.h, p.bat.ab, p.pit.er, p.pit.outs].join(','));
+  memoSet(core, `up-${p.id}`, [core.day, p.bat.h, p.bat.ab, p.pit.er, p.pit.outs, p.bat.bb, totalBases(p)].join(','));
 }
 
 /** 이번 시즌 콜업된 뒤의 1군 성적. 콜업된 적이 없으면 null */
-export function sinceUp(core: Core, p: Player): { days: number; h: number; ab: number; er: number; outs: number } | null {
+export function sinceUp(core: Core, p: Player): { days: number; h: number; ab: number; er: number; outs: number; ops: number } | null {
   const v = memoGet(core, `up-${p.id}`);
   if (!v) return null;
-  const [d, h, ab, er, outs] = v.split(',').map(Number);
-  return { days: core.day - d, h: p.bat.h - h, ab: p.bat.ab - ab, er: p.pit.er - er, outs: p.pit.outs - outs };
+  const [d, h0, ab0, er, outs, bb0 = 0, tb0 = 0] = v.split(',').map(Number);
+  const h = p.bat.h - h0;
+  const ab = p.bat.ab - ab0;
+  const bb = p.bat.bb - bb0;
+  const ops = ab > 0 ? (h + bb) / (ab + bb) + (totalBases(p) - tb0) / ab : 0;
+  return { days: core.day - d, h, ab, er: p.pit.er - er, outs: p.pit.outs - outs, ops };
 }
 
 /** k 를 cur 의 자리에 세운다 (2군이면 등록도 함께) */
@@ -261,7 +267,7 @@ const pending = (core: Core): { sub: string; orig: string; day: number } | null 
 function isHot(core: Core, p: Player): boolean {
   const s = sinceUp(core, p);
   if (!s) return false;
-  return p.kind === 'B' ? s.ab >= F.hotAb && s.h / s.ab >= F.hotAvg : s.outs >= F.hotOuts && era9(s.er, s.outs) <= F.hotEra;
+  return p.kind === 'B' ? s.ab >= F.hotAb && (s.h / s.ab >= F.hotAvg || s.ops >= F.hotOps) : s.outs >= F.hotOuts && era9(s.er, s.outs) <= F.hotEra;
 }
 
 /** 부상으로 그 자리의 뎁스가 비었는가 */
@@ -489,7 +495,7 @@ export const FARM_CARDS: FarmCardDef[] = [
       const { sub, orig } = x;
       const s = sinceUp(c, sub)!;
       const vet = orig.age >= 32;
-      const stat = sub.kind === 'B' ? `${s.ab}타수 ${s.h}안타 ${fmtAvg(s.h, s.ab)}` : `${Math.floor(s.outs / 3)}이닝 평균자책 ${fmtEra(s.er, s.outs)}`;
+      const stat = sub.kind === 'B' ? `${s.ab}타수 ${s.h}안타 ${fmtAvg(s.h, s.ab)} · OPS ${s.ops.toFixed(3)}` : `${Math.floor(s.outs / 3)}이닝 평균자책 ${fmtEra(s.er, s.outs)}`;
       return mk(`f-sub|${orig.id}`, vet ? 'fSubVet' : 'fSub', {
         title: '대체 선수의 깜짝 활약',
         icon: '🔥',
