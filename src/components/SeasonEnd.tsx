@@ -138,10 +138,10 @@ export default function SeasonEnd() {
   return (
     <>
       <SeasonEndBody />
-      {/* 모바일은 MobileShell 이 시트로 띄운다 (두 번 그리지 않게) */}
-      {eventId && !mobile && (
+      {/* 결산 중의 사건 카드는 여기서만 그린다 (MobileShell 은 결산 중에는 그리지 않는다) */}
+      {eventId && (
         <div className="fixed inset-0 z-[60] font-pixel text-[12px]" data-testid="season-event">
-          <EventCardModal />
+          <EventCardModal sheet={mobile} />
         </div>
       )}
     </>
