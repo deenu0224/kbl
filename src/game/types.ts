@@ -64,6 +64,7 @@ export interface Player {
   farm?: boolean; // 2군(퓨처스) 소속. 없으면 1군 등록 (유저 구단만 쓴다)
   farmUntil?: number; // 2군으로 내려간 선수가 다시 1군에 등록될 수 있는 day (말소 후 10경기)
   farmStat?: FarmStat; // 이번 시즌 퓨처스 누적 기록
+  il?: boolean; // 부상자 명단(재활): 부상·징계로 말소된 선수. farm 과 함께 선다. 2군 정원·성장·콜업 후보에서 빠지고 farmUntil 까지 복귀할 수 없다
   svc?: number; // 보유 기간(서비스 타임)의 기준: 유저 팀에 드래프트로 입단해 데뷔한 시즌. 있으면 6시즌 동안 연봉이 시장가의 일부 (contract.ts)
   ask?: number; // FA 재계약 때 합의한 배율 (시장가 × 이 값. 유저 팀에 있는 동안 유지)
   away?: { until: number; kind: 'army' }; // 팀을 떠나 있는 선수 (입대). until 시즌 개막에 복귀. 로스터가 아니라 campaign.away 에 있다

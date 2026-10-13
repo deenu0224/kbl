@@ -162,11 +162,11 @@ export function depthChart(core: Core, rows: PosRow[] = positionReport(core)): D
       const bench = t.roster.filter((p) => p.kind === 'B' && !p.farm && !inLineup.has(p.id)).sort((a, b) => posScore(b, pos) - posScore(a, pos));
       slots = [...(starter ? [starter] : []), ...bench.slice(0, 2)].map((p, i) => ({ p, score: r1(posScore(p, pos)), starter: i === 0 && !!starter }));
       // 2군 후보: 그 자리가 본 포지션인 2군 최고 선수
-      const kid = t.roster.filter((p) => p.farm && p.pos === pos).sort((a, b) => b.ovr - a.ovr)[0];
+      const kid = t.roster.filter((p) => p.farm && !p.il && p.pos === pos).sort((a, b) => b.ovr - a.ovr)[0];
       if (kid) slots.push({ p: kid, score: r1(posScore(kid, pos)), starter: false, farm: true });
     }
     if (r.kind === 'P') {
-      const kid = t.roster.filter((p) => p.farm && p.pos === r.key).sort((a, b) => b.ovr - a.ovr)[0];
+      const kid = t.roster.filter((p) => p.farm && !p.il && p.pos === r.key).sort((a, b) => b.ovr - a.ovr)[0];
       if (kid) slots.push({ p: kid, score: kid.ovr, starter: false, farm: true });
     }
     return { key: r.key, label: r.label, thin: r.thin, backupAvg: r.backupAvg, slots };

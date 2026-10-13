@@ -8,7 +8,7 @@ import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_LIMIT, LOAN_RATE, LOAN_STEP, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, FORCED_SALE_RATE, RENEW_PREMIUM, RENEW_SEASONS,
-  BENCH_GROW, FARM_CAP, FARM_LOCK, SVC_YEARS, FARM_MAX, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
+  BENCH_GROW, FARM_CAP, FARM_LOCK, IL_MIN, SVC_YEARS, FARM_MAX, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
   awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingOpen, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
@@ -152,6 +152,7 @@ export function settleCash(core: Core, notes: string[]): void {
 export function growChance(core: Pick<Core, 'facilities'> & Partial<Pick<Core, 'campaign' | 'day'>>, t: Team, p: Player): number {
   if (p.age > TRAIN_MAX_AGE || p.ovr >= p.pot) return 0;
   // 2군 사건의 보정: 인스트럭터(2군 +%p) · 믿고 쓰는 선수(×)
+  if (p.farm && p.il) return 0; // 재활 중에는 자라지 않는다
   const fb = growBonus(core, p);
   const grow = Math.min(1, TRAIN_LV[core.facilities.training].grow * fb.mult);
   if (p.farm) return p.ovr >= FARM_CAP ? 0 : Math.min(1, farmGrow(core.facilities) + fb.add);
@@ -210,7 +211,7 @@ function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
   const camp = !!beatById(core, 'rookie-camp') && core.day < ROOKIE_CAMP_DAYS && memoGet(core, 'camp') === undefined;
   if (camp) memoSet(core, 'camp', 1);
   for (const p of t.roster) {
-    if (p.farm) farmWeekMut(p, rng);
+    if (p.farm && !p.il) farmWeekMut(p, rng);
     const keys = p.kind === 'B' ? BAT_KEYS : PIT_KEYS;
     const sure = camp && !!p.rookie && p.ovr < p.pot;
     // 2군은 실전으로 가장 빨리 자라고(OVR 상한), 1군 주전인 25세 이하가 그다음, 1군 벤치의 25세 이하는 썩는다
@@ -563,6 +564,7 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   delete p.ask;
   delete p.tired;
   delete p.farm;
+  delete p.il;
   delete p.farmUntil;
   delete p.farmStat;
   delete p.subFor;
@@ -585,14 +587,14 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   return { core };
 }
 
-/** 1군 → 2군. 내려간 선수는 FARM_LOCK 경기 동안 다시 등록할 수 없다 */
+/** 1군 → 2군. 내려간 선수는 FARM_LOCK 경기 동안 다시 등록할 수 없다. 부상·징계 중이면 부상자 명단(재활)으로: 2군 정원에 들지 않고, 나을 때까지(최소 IL_MIN 경기) 복귀할 수 없다 */
 export function sendDown(core0: Core, pid: string): { core: Core; error?: string } {
   const t0 = userTeam(core0);
   const p0 = t0.roster.find((p) => p.id === pid);
   if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
   if (p0.farm) return { core: core0, error: '이미 2군에 있습니다' };
-  if (p0.injury > 0) return { core: core0, error: '부상 중인 선수는 2군으로 내릴 수 없습니다' };
-  if (farmRoster(t0).length >= FARM_MAX) return { core: core0, error: `2군이 가득 찼습니다 (${FARM_MAX}명) — 2군에서 한 명을 올리거나 방출하세요` };
+  const il = p0.injury > 0;
+  if (!il && farmRoster(t0).length >= FARM_MAX) return { core: core0, error: `2군이 가득 찼습니다 (${FARM_MAX}명) — 2군에서 한 명을 올리거나 방출하세요` };
   const same = activeRoster(t0).filter((p) => p.kind === p0.kind).length;
   if (p0.kind === 'B' && same <= MIN_BATTERS) return { core: core0, error: `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다` };
   if (p0.kind === 'P' && same <= MIN_PITCHERS) return { core: core0, error: `1군 투수는 최소 ${MIN_PITCHERS}명이 필요합니다` };
@@ -602,11 +604,22 @@ export function sendDown(core0: Core, pid: string): { core: Core; error?: string
   p.farm = true;
   delete p.tired;
   delete p.subFor;
+  if (il) {
+    p.il = true;
+    if (core.phase === 'season') p.farmUntil = core.day + ilLock(p);
+    fixLineup(t);
+    addNews(core, `말소: ${p.name} ${p.ban ? '징계 말소' : '부상자 명단'}${p.farmUntil ? ` (${ilLock(p)}경기 뒤 복귀 가능)` : ''} — 1군 자리 +1`, 'info');
+    return { core };
+  }
+  delete p.il;
   if (core.phase === 'season') p.farmUntil = core.day + FARM_LOCK;
   fixLineup(t);
   addNews(core, `말소: ${p.name} 2군행${p.farmUntil ? ` (${FARM_LOCK}경기 뒤 재등록 가능)` : ''}`, 'info');
   return { core };
 }
+
+/** 부상자 명단에 올리면 복귀까지 걸리는 경기 수: 나을 때까지, 최소 IL_MIN */
+export const ilLock = (p: Pick<Player, 'injury'>): number => Math.max(IL_MIN, p.injury);
 
 /** 재등록까지 남은 경기 수 (0 = 지금 올릴 수 있다) */
 export function farmLockLeft(core: Pick<Core, 'day' | 'phase'>, p: Player): number {
@@ -620,17 +633,19 @@ export function callUp(core0: Core, pid: string): { core: Core; error?: string }
   if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
   if (!p0.farm) return { core: core0, error: '이미 1군에 있습니다' };
   const left = farmLockLeft(core0, p0);
-  if (left > 0) return { core: core0, error: `말소 후 ${FARM_LOCK}경기가 지나야 합니다 (${left}경기 남음)` };
+  if (left > 0) return { core: core0, error: p0.il ? `부상자 명단: ${left}경기 뒤 복귀할 수 있습니다` : `말소 후 ${FARM_LOCK}경기가 지나야 합니다 (${left}경기 남음)` };
   if (activeRoster(t0).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 누구를 내릴지 먼저 고르세요` };
   const core = structuredClone(core0);
   const t = userTeam(core);
   const p = t.roster.find((x) => x.id === pid)!;
+  const back = !!p.il;
   delete p.farm;
+  delete p.il;
   delete p.farmUntil;
   delete p.subFor;
-  markUpMut(core, p);
+  if (!back) markUpMut(core, p);
   const role = slotNewcomer(t, p);
-  addNews(core, `콜업: ${p.name} 1군 등록 (${role})`, 'good');
+  addNews(core, `${back ? '복귀' : '콜업'}: ${p.name} 1군 등록 (${role})`, 'good');
   return { core };
 }
 
@@ -817,7 +832,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
         nw.since = core.season;
         nw.svc = core.season; // 구단이 키우는 신인: 보유 기간 적용
       }
-      if (p.farm) nw.farm = true;
+      if (p.farm && (!p.il || activeRoster(t).length >= ROSTER_MAX)) nw.farm = true;
       return nw;
     });
     t.rec = recZero();
