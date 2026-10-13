@@ -28,9 +28,17 @@ const ok = (r: { core: Core; error?: string }, c: Core) => (r.error ? c : r.core
 // 왕조 프로젝트 (스토브리그): 현금이 (비용 + 여유) 이상이면 순서대로 산다. 큰 것(돔)이 남아 있으면 도민 환원은 미룬다
 export const PROJECT_RESERVE = 300000; // 30억
 function buyProjects(c0: Core, order: ProjectId[], give: boolean): Core {
-  // 시설(관중석)을 다 올리고 빚이 없을 때부터 — 돈을 버는 투자가 먼저다
-  if (!projectsOpen(c0) || c0.phase === 'over' || upgradeCost('seats', c0.facilities) !== null || c0.finance.debt > 0) return c0;
+  if (!projectsOpen(c0) || c0.phase === 'over') return c0;
   let c = c0;
+  // 빚부터 갚고, 관중석을 끝까지 올린다 (돔은 2층 스타디움 위에 짓는다)
+  while (c.finance.debt > 0 && c.finance.cash >= LOAN_STEP + PROJECT_RESERVE) {
+    const r = repay(c);
+    if (r.error) break;
+    c = r.core;
+  }
+  if (c.finance.debt > 0) return c;
+  const seat = upgradeCost('seats', c.facilities);
+  if (seat !== null && order.includes('dome') && c.finance.cash >= seat + PROJECT_RESERVE) c = ok(upgradeFacility(c, 'seats'), c);
   for (const id of order) {
     const pv = projectPreview(c, id);
     if (pv.done || pv.error || c.finance.cash < pv.cost + PROJECT_RESERVE) continue;

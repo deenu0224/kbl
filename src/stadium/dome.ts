@@ -155,8 +155,9 @@ export function drawDome(ctx: Ctx, stage: number | undefined, f: number): void {
     drawScaffold(ctx, 190, 98, 54, 24);
     drawScaffold(ctx, 396, 98, 54, 24);
     ctx.drawImage((cache.frame ??= buildDome(false)), 0, 0);
-    drawCrane(ctx, 78, 232, 112, 70, 1, f);
-    drawCrane(ctx, 560, 232, 96, 64, -1, f);
+    // 크레인은 외야석 뒤에 (폰의 확대된 홈 화면에서도 화면 안에 들어온다)
+    drawCrane(ctx, 216, 124, 84, 62, 1, f);
+    drawCrane(ctx, 424, 124, 70, 54, -1, f);
     return;
   }
   ctx.drawImage((cache.full ??= buildDome(true)), 0, 0);
