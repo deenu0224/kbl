@@ -16,9 +16,9 @@ export const BAILOUT_TRUST = 15; // 조합 특별 출자: 지지 −15, 부채�
 export const DEBT_OVER_TRUST = 8; // 한도 초과로 결산: 지지 −8
 export const DEBT_OVER_TRUST2 = 30; // 두 시즌 연속 한도 초과로 결산: 지지 −30
 // 빚더미 구단 여론 (구단이 8개보다 많은 리그 · docs/TEN_TEAMS.md 5단계): 시즌 결산 때 부채가 대출 한도의 at 이상이면 "빚더미 구단".
-//  · 첫 해(연속 grace 시즌까지)는 조합장 경고만, 그 다음 해부터 도민 지지 −trust (한도의 full 이상이면 −trustFull)
+//  · 첫 해(연속 grace 시즌까지)는 조합장 경고만, 그 다음 해부터 도민 지지 −trust (한도의 full 이상 — 한도를 거의 채웠으면 −trustFull)
 //  · 한도를 넘긴 결산은 기존 규칙(DEBT_OVER_TRUST)이 맡는다 — 여기서는 연속 수만 센다
-export const DEBT_MOOD = { on: true, at: 0.8, trust: 6, full: 1, trustFull: 10, grace: 1 };
+export const DEBT_MOOD = { on: true, at: 0.8, trust: 5, full: 0.95, trustFull: 10, grace: 1 };
 export interface DebtMood {
   pct: number; // 부채 / 한도 (%)
   limit: number;

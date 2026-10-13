@@ -807,6 +807,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
 
   // 경쟁균형세 (economy.ts LUX_TAX — 8구단 리그는 꺼짐): 연봉 총액이 상한을 넘은 만큼 제재금
   const lux = luxTax(core);
+  if (lux.on && leagueSize(core) > BASE_TEAMS) c.luxCap = lux.cap;
   if (lux.tax > 0) {
     core.finance.cash -= lux.tax;
     core.finance.ledger.upkeep += lux.tax;

@@ -100,7 +100,7 @@ export const AUDIT = { benchHalf: true, farmBatBig: true, svc: true, penGrow: tr
 // 구단이 8개보다 많은 리그는 LUX_TAX_BIG 으로 켠다 (docs/TEN_TEAMS.md 5단계): 상한은 "우리 구단을 뺀" 상위 3구단 평균 — 우리 연봉이 상한을 끌어올리지 않게
 export const LUX_TAX_ON = false;
 export const LUX_TAX = { on: LUX_TAX_ON, top: 3, capRate: 1.2, rate: 0.5 };
-export const LUX_TAX_BIG = { on: true, top: 3, capRate: 1.2, rate: 0.5 };
+export const LUX_TAX_BIG = { on: true, top: 3, capRate: 1.15, rate: 0.5, keep: true };
 export interface LuxTax { cap: number; payroll: number; tax: number; on?: boolean }
 /** 이 리그에 경쟁균형세가 있는가 */
 export function luxOn(core: Pick<Core, 'teams'>): boolean {
@@ -113,11 +113,12 @@ export function luxRule(core: Pick<Core, 'teams'>): string {
   return `${big ? '우리를 뺀 ' : ''}리그 연봉 상위 ${k.top}구단 평균의 ${Math.round(k.capRate * 100)}%`;
 }
 /** 경쟁균형세: 상한 · 유저 연봉 총액 · 낼 제재금 (꺼져 있으면 tax 0). add = 가정한 연봉 증가분(영입·재계약 미리 보기) */
-export function luxTax(core: Pick<Core, 'teams' | 'userId'>, add = 0): LuxTax {
+export function luxTax(core: Pick<Core, 'teams' | 'userId'> & Partial<Pick<Core, 'campaign'>>, add = 0): LuxTax {
   const big = leagueSize(core) > BASE_TEAMS;
   const k = big ? LUX_TAX_BIG : LUX_TAX;
   const pays = core.teams.filter((t) => !big || t.id !== core.userId).map(payroll).sort((a, b) => b - a).slice(0, k.top);
-  const cap = Math.round(((pays.reduce((s, v) => s + v, 0) / Math.max(1, pays.length)) * k.capRate) / 100) * 100;
+  // 10구단 리그의 상한은 내려가지 않는다 (campaign.luxCap = 지난 결산까지의 최고 상한) — 후반에 다른 구단 연봉이 줄어도 상한이 따라 내려가지 않게
+  const cap = Math.max(Math.round(((pays.reduce((s, v) => s + v, 0) / Math.max(1, pays.length)) * k.capRate) / 100) * 100, big && LUX_TAX_BIG.keep ? core.campaign?.luxCap ?? 0 : 0);
   const mine = payroll(core.teams.find((t) => t.id === core.userId) ?? { roster: [] } as unknown as Team) + add;
   return { cap, payroll: mine, tax: k.on ? Math.round((Math.max(0, mine - cap) * k.rate) / 100) * 100 : 0, on: k.on };
 }

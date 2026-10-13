@@ -7,11 +7,12 @@ import { BENCH_GROW, FARM_CAP, FARM_LOCK, farmMax, FOOD_LV, LOAN_STEP, LOAN_WARN
 import { FOREIGN_MAX } from './events';
 import { farmAutoOn, shuttleArms } from './farm';
 import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, callUp, farmLockLeft, farmStatText, growChance, sendDown, borrow, rankOf, releasePlayer, repay, setTicketPrice, signPlayer, upgradeFacility } from './season';
-import { RUNWAY_DANGER, runway, runwayAfter, runwayPieceOf, type Runway } from './runway';
+import { RUNWAY_DANGER, debtMoodText, runway, runwayAfter, runwayPieceOf, type Runway } from './runway';
+import { dayAt } from './league';
 import { isFranchise } from './franchise';
 import { PEN_OVER_KEY, applyFixes, bullpenLoad, orderIssues, ploc, pput, tiredFront, todayIssues } from './fixes';
 import { stageOf } from './campaign';
-import { memoGet, memoNum } from './memo';
+import { memoGet, memoNum, memoSet } from './memo';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import { CHARACTERS } from './story';
 
@@ -534,6 +535,20 @@ function cashMetric(core: Core, r: Runway): { n: number | null; label: string; s
   return sale ? { n: r.forcedSale, label: '한도 초과까지', sale } : { n: r.cashOut, label: '바닥까지', sale };
 }
 
+const MOOD_WARN_DAY = 54; // 빚더미 경고: 84경기 기준 이 경기째부터 (시즌 후반 — 남은 경기 안에 갚을 수 있을 때)
+const MOOD_WARN_KEY = 'moodWarn';
+/** 조합장의 빚더미 경고 (10구단 리그): 시즌 후반에 부채가 문턱을 넘은 채일 때 시즌에 한 번 */
+export function moodAlert(core: Core): string | null {
+  if (core.phase !== 'season' || core.day < dayAt(core, MOOD_WARN_DAY) || memoNum(core, MOOD_WARN_KEY) > 0) return null;
+  const m = debtMoodText(core);
+  if (!m) return null;
+  const left = core.schedule.length - core.day;
+  const pct = Math.round((core.finance.debt / loanLimit(core)) * 100);
+  return m.cut > 0
+    ? `빚이 한도의 ${pct}%입니다. 남은 ${left}경기를 이대로 마치면 도민 지지가 ${m.cut} 깎입니다. 조합원들 볼 낯이 없습니다.`
+    : `빚이 한도의 ${pct}%입니다. 남은 ${left}경기를 이대로 마치면 조합에서 말이 나옵니다. 내년에도 이러면 도민 지지가 깎입니다.`;
+}
+
 /** 조합장의 한 줄: 12경기 안에 금고가 비거나 부채가 한도를 넘을 때, 또는 부채가 한도의 절반을 넘었을 때 (한 줄로 통합) */
 export function cashAlert(core: Core): string | null {
   const r = runway(core);
@@ -547,6 +562,8 @@ export function cashAlert(core: Core): string | null {
       : `이대로면 ${r.forcedSale}경기 뒤에 빚이 한도를 넘습니다. 선수를 내줘야 합니다.`;
   }
   if (r.cashOut !== null && r.cashOut <= RUNWAY_DANGER) return `이대로면 ${r.cashOut}경기 뒤에 금고가 빕니다. 조합원들 볼 낯이 없습니다.`;
+  const mood = moodAlert(core);
+  if (mood) return mood;
   if (debt >= lim * LOAN_WARN) return `빚이 한도의 ${Math.round((debt / lim) * 100)}%입니다. 부채 ${fmtMoney(debt)} / 한도 ${fmtMoney(lim)} — 이자가 시즌당 ${fmtMoney(Math.round(loanInterest(core, debt)))}입니다.`;
   return null;
 }
@@ -840,8 +857,11 @@ export function drawBriefing(core0: Core): Core {
     core.campaign.briefMemo = { ...m, done: m.done.filter((d) => d.day >= core.day), snap: snapOf(core) };
     return core;
   }
+  // 빚더미 경고는 시즌에 한 번만 낸다 (다음 브리핑부터는 평소의 부채 한 줄)
+  const moodShown = !!b.alert && b.alert === moodAlert(core);
   core.campaign.briefing = b;
   core.campaign.briefMemo = { ...m, shown: (m.shown ?? 0) + b.offers.length, log: offeredLog(m, core.day, b) };
+  if (moodShown) memoSet(core, MOOD_WARN_KEY, core.day);
   return core;
 }
 

@@ -3,7 +3,7 @@
 import type { Core, EventCard, Player } from './types';
 import { clamp } from './rng';
 import { MIN_SALARY } from './ratings';
-import { AUDIT, MIN_BATTERS, MIN_PITCHERS, RESIGN_ASK_MAX, RESIGN_LEAVE_FANS, RESIGN_LEAVE_SAT, SVC_RATE, SVC_YEARS, activeRoster, userTeam } from './economy';
+import { AUDIT, MIN_BATTERS, MIN_PITCHERS, RESIGN_ASK_MAX, RESIGN_LEAVE_FANS, RESIGN_LEAVE_SAT, SVC_RATE, SVC_YEARS, activeRoster, luxTax, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { isFranchise } from './franchise';
 import { fixLineup } from './lineup';
@@ -112,6 +112,8 @@ export function resign(core0: Core, pid: string, accept: boolean): { core: Core;
 
 function resignCard(core: Core, p: Player): EventCard {
   const ask = resignAsk(core, p);
+  // 결과를 미리 말한다: 재계약하면 연봉 총액이 경쟁균형세 상한을 넘는가 (10구단 리그)
+  const lux = luxTax(core, ask.salary - p.salary);
   const fr = isFranchise(p, core.season);
   const blocked = leaveBlocked(core, p);
   return {
@@ -131,6 +133,7 @@ function resignCard(core: Core, p: Player): EventCard {
             rowInfo(`${p.name} 연봉`, fmtMoney(ask.salary), fmtMoney(p.salary), 'bad'),
             rowInfo('시장가 대비', `×${ask.mult.toFixed(2)} (시장가 ${fmtMoney(ask.market)})`),
             rowPayroll(core, ask.salary - p.salary),
+            ...(lux.tax > 0 ? [rowInfo('경쟁균형세', `상한 ${fmtMoney(lux.cap)} 초과 — 시즌 말 제재금 ${fmtMoney(lux.tax)} 예상`, undefined, 'bad' as const)] : []),
             rowInfo('FA 자격', '재계약 (잔류)', `${SVC_YEARS}시즌 채움`, 'good'),
           ],
           pids: [p.id],
