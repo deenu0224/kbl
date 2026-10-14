@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import LineScore, { useLineScoreOn } from '../LineScore';
 import { useStore, userMatch, useUserTeam } from '../../store';
 import { MobileActionBar, PreGame, useMatchActions } from '../BottomBar';
 import GameSummary from '../GameSummary';
@@ -191,6 +192,7 @@ function LiveLine() {
   const ev = useStore((s) => (s.playback ? (s.playback.report.result.events[s.playback.step] ?? null) : null));
   const userId = useStore((s) => s.userId);
   const report = useStore((s) => s.playback?.report ?? null);
+  const step = useStore((s) => s.playback?.step ?? 0);
   const team = useUserTeam();
   if (!ev) return null;
   if (ev.type === 'final' && report && clinchesTitle(report))
@@ -204,6 +206,11 @@ function LiveLine() {
     <div className="px-panel flex min-h-12 flex-1 flex-col justify-center px-3 py-1.5" data-testid="live-line">
       <span className={`font-pixel-lg text-[16px] leading-snug ${ev.type === 'injury' ? 'text-bad' : ev.teamId === userId ? 'text-hi' : 'text-white'}`}>{ev.text}</span>
       {ev.sub && <span className="text-[13px] text-white/60">{ev.sub}</span>}
+      {report && (
+        <div className="mt-1.5">
+          <LineScore report={report} step={step} />
+        </div>
+      )}
     </div>
   );
 }
@@ -273,6 +280,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
       </div>
     );
   }
+  const lineOn = useLineScoreOn();
   const home = tab === 'home';
   return (
     <div className="flex h-[calc(var(--dvh)*100)] flex-col gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
@@ -281,7 +289,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
         <>
           {!playback && <TripLine />}
           {/* 구장이 남는 높이를 채운다: 다음 경기·할 일 카드는 제 높이만큼만 */}
-          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[calc(var(--dvh)*34)] flex-1'}`} style={playback ? { height: 'min(calc(var(--dvh)*65), calc(calc(var(--dvh)*100) - 256px))' } : undefined} data-testid="stadium-box">
+          <div className={`relative w-full ${playback ? 'shrink-0' : 'min-h-[calc(var(--dvh)*34)] flex-1'}`} style={playback ? { height: `min(calc(var(--dvh)*65), calc(calc(var(--dvh)*100) - ${lineOn ? 330 : 256}px))` } : undefined} data-testid="stadium-box">
             <div className="absolute inset-0">
               <StadiumView pan />
             </div>

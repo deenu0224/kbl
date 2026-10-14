@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import LineScore from './LineScore';
 import type { FacilityKind, StadiumFx, StadiumScene } from '../game/types';
 import StadiumCanvas, { HOTSPOTS, STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
 import { useCore, useStore, useUserTeam, userMatch } from '../store';
@@ -9,7 +10,7 @@ import { usePostLine } from './Bracket';
 import EventCardModal from './EventCardModal';
 import GameSummary, { TeamTag } from './GameSummary';
 import { useIsMobile } from './layout/useLayout';
-import { fastFor, postViewOf, useUi } from './layout/uiStore';
+import { fastFor, useUi } from './layout/uiStore';
 import { uiZoom } from './layout/uiScale';
 import { awayFacilities, awayFanShare } from './layout/away';
 import { teamDef } from '../game/generate';
@@ -400,9 +401,6 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           )}
         </div>
 
-        {/* 가을야구 천천히 보기: 전광판이 이닝별 점수표로 넓어진다 */}
-        {report && !ceremony && <LineBoard report={report} step={step} />}
-
         {/* 전광판 위 가을야구 띠: 홈·원정 모두 라운드 이름 */}
         {autumnRound && !ceremony && (
           <div
@@ -572,102 +570,16 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   );
 
   if (pan) return <PanZoom fixed={<>{crowdChip}{facButtons}</>} onTagsOff={setTagsOff}>{body}</PanZoom>;
+  // 데스크톱: 가을야구 천천히 보기면 구장 아래에 이닝별 점수표 블록 (모바일은 라이브 줄에 들어간다)
+  const lineRoom = !mobile && !!report && !!report.post && !ceremony ? 64 : 0;
   return (
-    <div className="flex h-full w-full items-center justify-center" style={{ containerType: 'size' }}>
-      {body({ width: `min(100cqw, calc(100cqh * ${STADIUM_W} / ${STADIUM_H}))` })}
-    </div>
-  );
-}
-
-/**
- * 가을야구 천천히 보기 동안의 전광판: 이닝별 점수표. 재생 중인 장면까지의 점수로 칸을 채운다
- * (경기 종료 장면에서는 경기 결과의 이닝 기록 그대로). 실제 전광판보다 넓게 그려 폰에서도 읽히게 한다.
- */
-function LineBoard({ report, step }: { report: NonNullable<ReturnType<typeof useStore.getState>['playback']>['report']; step: number }) {
-  const seed = useStore((s) => s.seed);
-  const season = useStore((s) => s.season);
-  const teams = useStore((s) => s.teams);
-  const userId = useStore((s) => s.userId);
-  const slow = useUi((s) => postViewOf(s, { seed, season }) === 'slow');
-  if (!report.post || !slow) return null;
-  const res = report.result;
-  const evs = res.events.slice(0, step + 1);
-  const ev = evs[evs.length - 1];
-  const done = ev?.type === 'final';
-  const runs: [number[], number[]] = [[], []];
-  let cur = 1;
-  let half: 0 | 1 = 0;
-  if (done) {
-    runs[0] = [...res.line[0]];
-    runs[1] = [...res.line[1]];
-    cur = res.innings;
-    half = 1;
-  } else {
-    let pa = 0;
-    let ph = 0;
-    for (const e of evs) {
-      if (e.inning >= 1) {
-        cur = e.inning;
-        half = e.half;
-        runs[0][e.inning - 1] = (runs[0][e.inning - 1] ?? 0) + Math.max(0, e.away - pa);
-        runs[1][e.inning - 1] = (runs[1][e.inning - 1] ?? 0) + Math.max(0, e.home - ph);
-      }
-      pa = e.away;
-      ph = e.home;
-    }
-  }
-  const n = Math.max(9, cur, runs[0].length, runs[1].length);
-  const away = teams.find((t) => t.id === res.awayId);
-  const home = teams.find((t) => t.id === res.homeId);
-  const total = (side: 0 | 1) => (done ? (side === 0 ? res.away : res.home) : side === 0 ? (ev?.away ?? 0) : (ev?.home ?? 0));
-  // 그 이닝이 지났거나 진행 중이면 숫자(득점 없으면 0), 아직이면 빈칸. 끝난 경기의 9회말 공격이 없으면 x
-  const cell = (side: 0 | 1, i: number): string => {
-    const inn = i + 1;
-    const v = runs[side][i];
-    if (done) return v === undefined ? (side === 1 && inn <= res.innings ? 'x' : '') : String(v);
-    const reached = inn < cur || (inn === cur && (side === 0 || half === 1));
-    return reached ? String(v ?? 0) : '';
-  };
-  const row = (side: 0 | 1) => {
-    const t = side === 0 ? away : home;
-    const mine = t?.id === userId;
-    return (
-      <tr key={side}>
-        <td className="pr-[0.6cqw] text-left" style={{ color: mine ? '#ffffff' : '#b9c3e0' }}>{t?.id}</td>
-        {Array.from({ length: n }, (_, i) => {
-          const c = cell(side, i);
-          const live = !done && i + 1 === cur && (side === 0 ? half === 0 : half === 1);
-          return (
-            <td key={i} style={{ color: c && c !== '0' && c !== 'x' ? '#ffd84a' : '#8f9bbf', background: live ? 'rgba(127,211,255,.18)' : undefined }}>
-              {c}
-            </td>
-          );
-        })}
-        <td className="pl-[0.6cqw]" style={{ color: '#ffd84a' }}>{total(side)}</td>
-      </tr>
-    );
-  };
-  return (
-    <div
-      className="pointer-events-none absolute z-[3] flex flex-col items-center justify-center"
-      style={{ left: '22%', width: '56%', top: `${((HOTSPOTS.scoreboard.y - 6) / STADIUM_H) * 100}%`, background: 'rgba(15,20,32,.94)', boxShadow: '0 0 0 0.3cqw #2b3350', padding: '0.6cqw 1cqw' }}
-      data-testid="line-board"
-    >
-      <div className="w-full text-center" style={{ fontSize: '1.5cqw', color: '#7fd3ff' }}>
-        {done ? '경기 종료' : ev && ev.inning >= 1 ? `${ev.inning}회${ev.half === 0 ? '초' : '말'}` : '플레이볼'}
-      </div>
-      <table className="w-full border-collapse text-center font-pixel" style={{ fontSize: '2.1cqw', lineHeight: 1.25 }}>
-        <thead>
-          <tr style={{ color: '#6b7694', fontSize: '1.5cqw' }}>
-            <td />
-            {Array.from({ length: n }, (_, i) => (
-              <td key={i}>{i + 1}</td>
-            ))}
-            <td className="pl-[0.6cqw]">R</td>
-          </tr>
-        </thead>
-        <tbody>{[row(0), row(1)]}</tbody>
-      </table>
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1" style={{ containerType: 'size' }}>
+      {body({ width: `min(100cqw, calc((100cqh - ${lineRoom}px) * ${STADIUM_W} / ${STADIUM_H}))` })}
+      {lineRoom > 0 && report && (
+        <div style={{ width: `min(100cqw, calc((100cqh - ${lineRoom}px) * ${STADIUM_W} / ${STADIUM_H}))` }}>
+          <LineScore report={report} step={step} />
+        </div>
+      )}
     </div>
   );
 }
