@@ -1,5 +1,6 @@
 import type { Campaign, Core, Objective, SeasonRecord } from '../game/types';
 import { useCore, useStore } from '../store';
+import { exposeRisk } from '../game/scandal';
 import { STAGES, TRUST_MAX, flagForecast, objDisplay } from '../game/campaign';
 import { pastRanks, SCANDAL_NEWS, TITLE_YEARS_AGO } from '../game/story';
 import { inCellar, inPost } from '../game/league';
@@ -332,7 +333,9 @@ export function CampaignSheet() {
       )}
       {(c.secrets ?? []).some((x) => !x.unknown) && (
         <div className="mt-2 flex min-h-10 items-center justify-between gap-2 bg-ink/50 px-2 py-1.5 text-[12px] text-white/75 mob:text-[13px]" data-testid="secrets-line">
-          <span>말하지 않은 일 {c.secrets!.filter((x) => !x.unknown).length}건</span>
+          <span>
+            🤫 말하지 않은 일 {c.secrets!.filter((x) => !x.unknown).length}건 · <span className="text-[#f0a35a]" data-testid="secrets-risk">시즌 말 적발 위험 {Math.round((exposeRisk(core) ?? 0) * 100)}%</span>
+          </span>
           <Help topic="secrets" />
         </div>
       )}

@@ -254,6 +254,19 @@ export const SCREENS = [
   // 제재금이 보이는 승부조작 카드 「사무국의 전화」
   S('scandal-fix', 'fixcard', game()),
   S('scandal-fix-detail', 'fixcard', game(c('ev-more', { optional: true }))),
+  // 덮은 일이 따라다닌다: 기자 카드 · 상세 · 선수단 🤫 · 선수 카드 태그 · 캠페인·재무의 적발 위험 · 브리핑 징후 경고
+  S('scandal-press', 'pressCard', game()),
+  S('scandal-press-detail', 'pressCard', game(c('ev-more', { optional: true }))),
+  S('scandal-squad', 'secretQuiet', game(...SQUAD)),
+  S('scandal-playercard', 'secretQuiet', game(...SQUAD, 'css:[data-testid="squad-field"] [data-item]:has([data-testid="secret-tag"])')),
+  S('scandal-campaign', 'secretQuiet', game('캠페인', { scroll: 'bottom' })),
+  S('scandal-finance', 'secretQuiet', game(...CLUB, '재무')),
+  S('scandal-brief-warn', 'briefWarn', game()),
+  // 적발: 리그 사무국 긴급 발표 1건 · 2건(넘기기) · 결산의 한 줄 요약
+  S('scandal-exposure', 'exposed', game()),
+  S('scandal-exposure-2', 'exposed2', game()),
+  S('scandal-exposure-2b', 'exposed2', game('exposure-next')),
+  S('scandal-exposed-line', 'exposed2', game('exposure-next', 'exposure-next')),
   // 트레이드 제안 3유형 · 상세(전→후 표 · 비교) · 역제안 상세 · 역제안 결과
   S('trade-now', 'tradeNow', game()),
   S('trade-now-detail', 'tradeNow', game('ev-more')),
@@ -294,7 +307,7 @@ export const SCREENS = [
   S('ended-fail', 'endedFail', game()),
   S('ended-fail-bottom', 'endedFail', game({ scroll: 'bottom' })),
   // 덮은 일이 드러난 결산 (빨간 섹션)
-  S('ended-exposed', 'exposed', game()),
+  S('ended-exposed', 'exposed', game('exposure-next')),
   // 스토브리그: 결산 화면의 [이적 시장] → 이적 창구 · 스토브리그 트레이드 제안 카드
   S('ended-market', 'ended', game({ scroll: 'bottom' }, 'stove-market', { wait: 400 })),
   // 스토브리그 카드를 처리한 뒤(거절): [이적 시장]이 이적 창구를 연다

@@ -26,6 +26,8 @@ import { greedy, passive, sensible, type Bot } from '../bots';
 import { regDeadline } from '../../src/game/economy';
 import { ROSTER_MAX, activeRoster } from '../../src/game/economy';
 import { releaseAdvice } from '../../src/game/release';
+import { SC, SCANDAL_CARDS } from '../../src/game/scandal';
+import { SCANDAL_NEWS } from '../../src/game/story';
 
 /** 할 일 카드 맨 앞 3줄 안에 "방출 검토"가 있다 */
 const relTop = (c: Core) => todoList(c).slice(0, 3).some((t) => t.id.startsWith('rel-'));
@@ -450,6 +452,44 @@ for (const [name, file] of [['oldReal', 'sensible-3-s6mid'], ['oldRealPost', 'se
     found[name] = { core: raw.state, seed: raw.state.seed, bot: `옛 세이브 ${file}` };
   } catch {
     // 파일이 없으면 건너뛴다
+  }
+}
+
+// ── 덮은 일 (드물어서 기존 상태에 덮은 일을 얹어 만든다): 적발 2건 · 기자 카드 · 선수 🤫 · 브리핑 징후 경고 ──
+{
+  const ex = found.exposed;
+  if (ex) {
+    const c = structuredClone(ex.core);
+    const v = c.campaign.verdict!;
+    const one = v.exposures![0];
+    v.exposures = [one, { kind: 'fix', name: '고태풍', season: Math.max(1, c.season - 1), trust: SC.trust.fix, stars: 0, wins: SC.forfeit, fine: 150000, ban: 0, tainted: true, trustFrom: (one.trustFrom ?? 60) + one.trust, wFrom: 76, rank: [3, 5] }];
+    found.exposed2 = { core: c, seed: ex.seed, bot: `${ex.bot} +적발 1건` };
+  }
+  const q = found.farm;
+  if (q) {
+    const c = structuredClone(q.core);
+    const t = userTeam(c);
+    const p = t.roster.find((x) => x.id === t.lineup[0].pid)!;
+    c.campaign.secrets = [{ kind: 'dope', pid: p.id, name: p.name, season: Math.max(1, c.season - 1) }];
+    found.secretQuiet = { core: c, seed: q.seed, bot: `${q.bot} +덮은 일` };
+    const pc = structuredClone(c);
+    const def = SCANDAL_CARDS.find((d) => d.id === 'press')!;
+    const keep = { ...SC.press };
+    SC.press.from = SC.press.to = 0; // 그날이 왔다고 친다
+    pc.season = Math.max(2, pc.season);
+    const card = def.make(pc, mulberry32(1));
+    Object.assign(SC.press, keep);
+    if (card) {
+      pc.campaign.event = card;
+      found.pressCard = { core: pc, seed: q.seed, bot: `${q.bot} +기자 카드` };
+    }
+  }
+  const b = found.briefing;
+  if (b) {
+    const c = structuredClone(b.core);
+    const p = userTeam(c).roster.find((x) => x.kind === 'B' && !x.farm)!;
+    c.campaign.briefing = { ...c.campaign.briefing!, warn: { who: 'farm', line: SCANDAL_NEWS.dopeWarn(p.name) } };
+    found.briefWarn = { core: c, seed: b.seed, bot: `${b.bot} +징후 경고` };
   }
 }
 

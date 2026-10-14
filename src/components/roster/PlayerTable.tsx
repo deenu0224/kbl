@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { secretOf } from '../../game/scandal';
 import type { Player } from '../../game/types';
 import { FIELD_KEYS, PITCH_KEYS, VALUE_FAIR, canPlay, fitsKey, scoutRoom, signImpact, statusTags, valueGap, type PosKey, type PosRow, type SignImpact } from '../../game/analysis';
 import { faHeatMult, faSigned, signingBonusFor } from '../../game/economy';
@@ -294,6 +295,7 @@ export default function PlayerTable({
                       <span className={`block truncate ${rowAction ? 'w-[124px] shrink-0 mob:w-auto mob:max-w-[138px]' : ''} ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
                         {p.name}
                         {mine && p.farm && <span className="ml-1 text-[9px] text-sky mob:text-[13px]">2군</span>}
+                        {mine && secretOf(core, p.id) && <span className="ml-1 text-[11px] mob:text-[13px]" title="말하지 않은 일" data-testid="secret-tag">🤫</span>}
                         {mode !== 'roster' && needs(p) && (
                           <span className="ml-1 bg-bad px-1 text-[9px] text-ink mob:text-[13px]" data-testid="need-badge">
                             {mode === 'draft' ? '빈 뎁스' : '약점 보강'}

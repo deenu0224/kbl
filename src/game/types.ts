@@ -495,6 +495,11 @@ export interface Secret {
   name: string;
   season: number;
   unknown?: boolean; // 유저가 사실 여부를 모르는 건 ("선수 말을 믿는다"). 화면의 "말하지 않은 일" 건수에 넣지 않는다
+  press?: number; // 기자 카드가 이 일로 찾아온 횟수 (최대 SC.press.max)
+  pressSeason?: number; // 마지막으로 찾아온 시즌
+  heat?: number; // heatSeason 결산의 적발 위험 가감 (입막음 −, 모른 척 +)
+  heatSeason?: number;
+  hushAt?: number[]; // 입막음한 시즌들 (그 다음 시즌부터 기록이 남아 위험이 오른다)
 }
 /** 결산에서 드러난 일 한 건 (결산 화면의 빨간 섹션) */
 export interface Exposure {
@@ -507,6 +512,9 @@ export interface Exposure {
   fine: number; // 벌금
   ban: number; // 출장 정지 경기 수 (0 = 영구 제명)
   tainted: boolean; // 우승 시즌의 일이었다
+  trustFrom?: number; // 드러나기 직전 도민 지지 (발표 화면의 전 → 후)
+  wFrom?: number; // 몰수 전 승수
+  rank?: [number, number]; // 몰수 전 → 후 정규시즌 순위
 }
 // ───────── 주간 브리핑 (briefing.ts 가 만들고 해석한다) ─────────
 export type BriefAction =
@@ -558,6 +566,7 @@ export interface Briefing {
   offers: BriefOffer[];
   resultInfo?: BriefResult[]; // results 와 같은 순서의 상세
   alert?: string; // 조합장의 자금 경고 한 줄 (금고가 12경기 안에 빌 때만, 제안보다 위에)
+  warn?: { who: CharId; line: string }; // 스캔들 징후를 본 스태프의 한 줄 (scandal.ts scandalWarn. 시즌에 한 번, 노란색)
 }
 /** 실행한 제안 (다음 주 브리핑의 결과 줄을 만들 재료) */
 export interface BriefDone {
