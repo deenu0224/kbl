@@ -348,6 +348,41 @@ export interface SeasonRecord {
   cleared: boolean; // 그 시즌에 스테이지 메인 목표 달성
   name?: string; // 자동 명명된 시즌 이름 ("9월의 기적")
   tainted?: boolean; // 그해 덮었던 일이 뒤에 드러났다 (scandal.ts)
+  // ── 단장 점수·기록 카드 (gmscore.ts. 전부 optional: 장치가 생기기 전 기록에는 없다) ──
+  gm?: GmParts; // 단장 점수 세 갈래 (합 = 점수). 화면의 랭크는 이것으로 다시 정한다 (grade 는 옛 값 그대로 남는다)
+  scene?: GameScene; // 그 시즌 유저 경기의 가장 희귀한 장면
+  months?: number[]; // 정규시즌을 6구간(4~9월)으로 나눈 구간별 승률 (무 = 0.5)
+  streak?: number; // 정규시즌 최장 연승
+  gb?: number; // 1위와의 게임 차 (1위면 0)
+  foe?: VsRec; // 상대 전적이 가장 나쁜 팀 (천적)
+  prey?: VsRec; // 상대 전적이 가장 좋은 팀 (밥)
+  mvp?: SeasonMvp; // 우리 팀 올해의 선수
+  ps?: [string, number, number][]; // 가을야구 시리즈별 [라운드 'WC'|'SPO'|'PO'|'KS', 우리 승, 상대 승]
+  debt?: number; // 결산 때 부채 (다음 시즌 부채 증감의 기준)
+}
+
+/** 단장 점수 세 갈래: 성적 0~450 · 살림 0~300 · 민심 0~250 */
+export interface GmParts {
+  s: number;
+  p: number;
+  m: number;
+}
+/** 명장면: k = 희귀도 순위 (작을수록 희귀. 가을야구 장면은 같은 종류보다 0.5 앞) */
+export interface GameScene {
+  k: number;
+  text: string; // "라이거스전 9회말 7점 차 뒤집은 끝내기"
+}
+export interface VsRec {
+  name: string;
+  w: number;
+  l: number;
+  t: number;
+}
+export interface SeasonMvp {
+  name: string;
+  pos: string; // BatPos | PitchRole
+  line: string; // ".331 · 28홈런 · 97타점"
+  titles: string[]; // 리그 타이틀 ("홈런왕")
 }
 
 // 시즌 대본의 한 구간 (LEVEL_DESIGN 3절). label 이 있으면 일정표에 세계 안의 예보로 보인다.
@@ -444,6 +479,14 @@ export interface Campaign {
   debtHeavy?: number; // 부채가 한도의 80% 이상인 채 결산한 연속 시즌 수 (10구단 리그 · loan.ts DEBT_MOOD)
   fa?: { season: number; n: number; paid: number; extra: number }; // FA 계약금 누진 (10구단 리그 · economy.ts FA_HEAT): 그 시즌(결산 뒤 ~ 다음 결산)에 영입한 FA 수 · 낸 계약금 합 · 그중 배율로 더 낸 몫
   bailout?: number; // 조합 특별 출자를 받은 시즌 (시즌 1회)
+  diary?: SeasonDiary; // 이번 시즌 유저 경기 기록 (gmscore.ts — 상대 전적·명장면·개막 부채. 결산에서 SeasonRecord 로 옮긴다)
+}
+/** 시즌 중 유저 경기 기록 (season 이 지금 시즌과 다르면 새로 시작한다) */
+export interface SeasonDiary {
+  season: number;
+  vs: Record<string, [number, number, number]>; // 상대 teamId → [승, 패, 무] (정규시즌)
+  scene?: GameScene;
+  debt0?: number; // 기록을 시작한 날의 부채
 }
 /** 덮은 일 한 건 */
 export interface Secret {

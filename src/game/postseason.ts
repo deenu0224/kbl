@@ -1,4 +1,5 @@
 // 포스트시즌 (KBO 사다리식). 8구단 리그는 4팀, 10구단 리그는 와일드카드 결정전을 더한 5팀. docs/LEVEL_DESIGN.md 3절 · docs/TEN_TEAMS.md
+import { diaryMut } from './gmscore';
 import type { BatStats, BoxSide, Core, Crowd, DayReport, GameEvent, GameResult, KsBox, PitStats, PostFinish, PostRound, PostSeries, Postseason, Team } from './types';
 import { clamp, gauss, randInt, type Rng } from './rng';
 import { FOOD_LV, SEAT_LV, TRAIN_LV, loanInterest, MERCH_K, calcDemand, opsCost, rainFood, starPower, userTeam } from './economy';
@@ -314,6 +315,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
   const oppRuns = m.isHome ? res.away : res.home;
   const won = myRuns > oppRuns;
   const tie = myRuns === oppRuns; // 와일드카드 결정전만 (비기면 4위 통과)
+  diaryMut(core, res, m.isHome, s.round); // 기록 카드: 가을야구 명장면 (gmscore.ts)
   // 연투 패전: 전날 던진 투수가 오늘 패전투수가 됐다
   if (!won && res.lossP && (tiredBefore.get(res.lossP) ?? 0) >= 1) {
     memoAdd(core, 'b2bLoss');

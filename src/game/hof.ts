@@ -3,6 +3,8 @@ import type { LeagueAwards } from './leaders';
 import { domePaid, domeStage, giveTotal, projectFx } from './projects';
 import { SEAT_LV } from './economy';
 import { isFranchise } from './franchise';
+import { seasonView } from './gmscore';
+import type { CardFacts, GmShown } from '../share/shareData';
 
 /** 명예의 전당: 세이브와 독립된 기록 (localStorage 키 HOF_KEY). 전부 순수 함수 — 읽기·쓰기는 화면 쪽이 한다. */
 export const HOF_KEY = 'kbl-hof-v1';
@@ -29,6 +31,26 @@ export interface HofClub {
   seats?: string; // 구장 ("24,000석" · "돔구장 30,000석")
   trust?: number; // 도민 지지
   teams?: number; // 리그 구단 수 (없으면 8 — 10구단 체제 전의 기록)
+  best?: HofBest; // 단장 점수가 가장 높았던 시즌 (점수가 남은 시즌이 없으면 없다)
+  card?: CardFacts; // 구단 종료 시점의 기록 카드 칸 (공유 카드가 다시 그린다)
+  gm?: GmShown; // 구단 종료 시점의 카드 점수 줄
+}
+/** 구단의 최고 시즌: 단장 몇 시즌째 · 점수 · 랭크 */
+export interface HofBest {
+  nth: number;
+  score: number;
+  id: string;
+  name: string;
+}
+/** 점수가 남은 시즌 중 가장 높은 시즌 (같으면 먼저) */
+export function bestSeason(core: Pick<Core, 'campaign' | 'teams'>): HofBest | null {
+  const h = core.campaign.history ?? [];
+  let best: HofBest | null = null;
+  h.forEach((_, i) => {
+    const v = seasonView(h, i, core.teams.length);
+    if (v && (!best || v.score > best.score)) best = { nth: i + 1, score: v.score, id: v.rank.id, name: v.rank.name };
+  });
+  return best;
 }
 export interface HofRecord {
   value: number;
@@ -85,8 +107,9 @@ export function starName(core: Pick<Core, 'teams' | 'userId' | 'season'>): strin
 }
 
 /** 역대 구단 한 줄을 넣거나(같은 seed 면) 갱신한다 */
-export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string): Hof {
+export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string, extra: Pick<HofClub, 'card' | 'gm'> = {}): Hof {
   const c = core.campaign;
+  const best = bestSeason(core);
   const row: HofClub = {
     seed: core.seed,
     nick: nickOf(core),
@@ -105,6 +128,8 @@ export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string): Hof
     ...((c.retired ?? []).length ? { retired: (c.retired ?? []).map((r) => r.name) } : {}),
     seats: seatsLabel(core),
     trust: Math.round(c.trust),
+    ...(best ? { best } : {}),
+    ...extra,
   };
   const i = hof.clubs.findIndex((x) => x.seed === core.seed);
   const clubs = i >= 0 ? hof.clubs.map((x, j) => (j === i ? row : x)) : [row, ...hof.clubs];

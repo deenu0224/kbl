@@ -2,7 +2,7 @@
 // 올라갈 글·결과 주소·인텐트 주소·복사·시스템 공유 호출을 확인한다. 외부로는 아무것도 보내지 않는다.
 //   node scripts/screens/cards.mjs            (픽스처가 없으면 먼저 npm run screens)
 //   node scripts/screens/cards.mjs --og       (public/og.png 도 다시 만든다)
-// 산출물: screens-out/share/card-{season,champion,relocated}.png · share.json
+// 산출물: screens-out/share/card-{season,champion,relocated}.png · card-sparse.png(빈 칸이 많은 첫 시즌) · share.json
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,15 +58,36 @@ try {
       const data = sd.shareFromCore(core, kind);
       const blob = await makeCard(core, kind);
       const png = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(blob); });
+      // 빈 칸이 많은 첫 시즌: 명장면·천적·밥·가을야구가 없는 1시즌째 카드 (결산 픽스처에서 줄을 지워 만든다)
+      let sparse = null;
+      if (kind === 'season') {
+        const { renderCard, cardScene } = await import('/src/share/card.ts');
+        const f = data.rec.card;
+        const thin = { ...data, rec: { ...data.rec, seasons: 1, card: { nth: 1, name: '부임 첫해', w: f.w, l: f.l, t: f.t, rank: f.rank, gb: f.gb, months: f.months, streak: f.streak, mvp: f.mvp } } };
+        const b = await renderCard(thin, cardScene(core, kind));
+        sparse = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(b); });
+      }
+      const lines = (await import('/src/share/card.ts')).cardLines(data);
       const text = st.shareText(data);
       const noted = st.shareText(data, note);
       const longest = st.shareText(data, '가'.repeat(60));
-      return { data, text, noted, w: st.xWeight(text), wLong: st.xWeight(longest), x: st.xIntent(noted), threads: st.threadsIntent(noted), info: sd.codeInfo(data.code), png };
+      return { data, text, noted, w: st.xWeight(text), wLong: st.xWeight(longest), x: st.xIntent(noted), threads: st.threadsIntent(noted), info: sd.codeInfo(data.code), png, sparse, lines, gmLine: data.rec.gm ? sd.gmLineOf(data.rec.gm) : null };
     }, [kind, NOTE]);
     const out = resolve(OUT, `card-${kind}.png`);
     writeFileSync(out, Buffer.from(r.png.split(',')[1], 'base64'));
     const buf = readFileSync(out);
     check(buf.readUInt32BE(16) === 1080 && buf.readUInt32BE(20) === 1080, `${kind}: 기록 카드 1080×1080 (${Math.round(buf.length / 1024)}KB) → ${out}`);
+
+    if (r.sparse) {
+      const sp = resolve(OUT, 'card-sparse.png');
+      writeFileSync(sp, Buffer.from(r.sparse.split(',')[1], 'base64'));
+      check(readFileSync(sp).readUInt32BE(16) === 1080, `빈 칸이 많은 첫 시즌 카드 → ${sp}`);
+    }
+    // 카드의 줄: 단장 점수 한 줄 · 성적 · (엔딩) 단장 경력
+    check(!!r.gmLine && /^단장 (경력 )?(SS|S|A\+|A|B\+|B|C|D|F) · .+ · \d+점$/.test(r.gmLine), `${kind}: 단장 점수 줄 "${r.gmLine}"`);
+    check(!!r.lines.record, `${kind}: 성적 줄 "${r.lines.record}" ${r.lines.gb ?? ''}`);
+    check(kind === 'season' ? !r.lines.career : !!r.lines.career, `${kind}: 단장 경력 줄 ${r.lines.career ?? '(결산은 없음)'}`);
+    console.log(`  올해의 선수 ${r.lines.mvp?.join(' / ') ?? '(없음)'} · 줄 ${r.lines.marks.join(' | ') || '(명장면·천적·밥 없음)'} · ${r.lines.post ?? '(가을야구 없음)'}`);
 
     // 글·주소
     const { data } = r;

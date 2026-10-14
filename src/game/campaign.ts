@@ -3,7 +3,7 @@ import { josa } from './format';
 // 시즌 대본(일정 배치·구간 효과)은 script.ts, 이벤트 카드는 events.ts, 대사·문구는 story.ts.
 import type { Buff, CharId, Core, DayReport, HintTab, ObjKind, Objective, Player, PostFinish, SeasonRecord, SeasonVerdict, StadiumScene, Team } from './types';
 import { clamp, type Rng } from './rng';
-import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, debtMood, loanLimit, luxTax, salaryInflation, opProfit, payroll, revenueOf, userTeam } from './economy';
+import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, capacityOf, debtMood, loanLimit, luxTax, salaryInflation, opProfit, payroll, revenueOf, userTeam } from './economy';
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
 import { memoGet, memoNum, memoSet } from './memo';
@@ -11,6 +11,9 @@ import { BASE_TEAMS, leagueSize, postTeams, seasonGames } from './league';
 import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine, withTeam } from './story';
 import { beatById, startSeasonScriptMut, userHomeDays } from './script';
 import { exposeMut } from './scandal';
+import { foeAndPrey, gmScore, longestWin, monthsOf, seasonScene, startRankOf } from './gmscore';
+import { teamMvp } from './leaders';
+import { standings } from './season';
 import { GIVE_STAR, domeStage, giveTotal, openProjectsMut } from './projects';
 
 // ───────── 튜닝 테이블 ─────────
@@ -791,6 +794,43 @@ export function stopReason(core: Core, report: DayReport): string | null {
 // ───────── 결산 ─────────
 
 /** phase 'ended' 진입 시 한 번 실행 (mutate). */
+/** 결산 때 기록 카드·단장 점수 재료를 시즌 기록에 옮겨 적는다 (난수·게임 수치와 무관. gmscore.ts) */
+function seasonCardMut(core: Core, rec: SeasonRecord, results: number[], x: { luxTax: boolean; debtBad: boolean; stars: number }): void {
+  const c = core.campaign;
+  const teams = leagueSize(core);
+  const d = c.diary?.season === core.season ? c.diary : undefined;
+  const me = userTeam(core).rec;
+  const top = standings(core.teams)[0].rec;
+  const streak = longestWin(results);
+  const scene = seasonScene(d, streak);
+  const mvp = teamMvp(core);
+  const ps = (core.post?.series ?? [])
+    .filter((s) => (s.hiId === core.userId || s.loId === core.userId) && s.games.some((g) => g.homeId === core.userId || g.awayId === core.userId))
+    .map((s): [string, number, number] => (s.hiId === core.userId ? [s.round, s.hiW, s.loW] : [s.round, s.loW, s.hiW]));
+  rec.gm = gmScore(rec, {
+    teams,
+    startRank: startRankOf(c.history, teams),
+    debt0: d?.debt0 ?? c.history[c.history.length - 1]?.debt,
+    debt: core.finance.debt,
+    fill: rec.avgAtt / Math.max(1, capacityOf(core)),
+    sellouts: c.sellouts,
+    homeGames: core.attHistory.length,
+    luxTax: x.luxTax,
+    debtBad: x.debtBad,
+    trust: c.trust,
+    stars: x.stars,
+  });
+  Object.assign(rec, {
+    ...(scene ? { scene } : {}),
+    ...(results.length ? { months: monthsOf(results), streak } : {}),
+    gb: Math.max(0, (top.w - top.l - (me.w - me.l)) / 2),
+    ...(d ? foeAndPrey(core, d.vs) : {}),
+    ...(mvp ? { mvp } : {}),
+    ...(ps.length ? { ps } : {}),
+    debt: core.finance.debt,
+  });
+}
+
 export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
   const c = core.campaign;
   fillObjectivesMut(core, rng);
@@ -939,8 +979,10 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     cleared,
     ...(exposures.some((ex) => ex.tainted && ex.season === core.season) ? { tainted: true } : {}),
   };
+  const results = (memoGet(core, 'wl') ?? '').split('').map((ch) => (ch === 'W' ? 1 : ch === 'L' ? 0 : 0.5));
+  seasonCardMut(core, rec, results, { luxTax: lux.tax > 0, debtBad: !!debtOver || !!mood?.heavy, stars: newStars.length });
   rec.name = nameSeason(rec, {
-    results: (memoGet(core, 'wl') ?? '').split('').map((ch) => (ch === 'W' ? 1 : ch === 'L' ? 0 : 0.5)),
+    results,
     rainyAtt: rainyAvgAtt(core),
     sellouts: c.sellouts,
     prev: c.history,

@@ -19,6 +19,7 @@
     "deploy": "sh scripts/deploy.sh",
     "screens": "node scripts/screens/run.mjs",
     "bench": "tsx scripts/share/bench.ts",
+    "bench:rank": "tsx scripts/share/rank.ts",
     "share:pages": "node scripts/share/pages.mjs",
     "share:texts": "tsx scripts/share/texts.ts"
   },

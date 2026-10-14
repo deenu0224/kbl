@@ -153,6 +153,11 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
                     </div>
                     <ShareClubButton club={c} />
                   </div>
+                  {c.best && (
+                    <div className="text-white/75" data-testid="hof-best">
+                      최고 시즌 {c.best.nth}시즌째 · 단장 <span className="text-hi">{c.best.id}</span> · {c.best.name} · {c.best.score}점
+                    </div>
+                  )}
                   {(c.give || c.dome) && (
                     <div className="text-hi/90" data-testid="hof-give">
                       {[c.dome ? '섬에 돔을 세웠다' : '', c.give ? `도민 환원 누적 ${fmtMoney(c.give)}` : ''].filter(Boolean).join(' · ')}
