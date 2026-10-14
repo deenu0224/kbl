@@ -473,7 +473,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
         )}
 
         {/* 하이라이트 배너 */}
-        {report && ev && !ceremony && (
+        {report && ev && (
           <div className="pointer-events-none absolute inset-x-0 flex justify-center" style={{ top: '34%' }}>
             <div
               key={`${report.day}-${step}`}
@@ -495,14 +495,18 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                   textShadow: '0.3cqw 0.3cqw 0 #0f1420',
                 }}
               >
-                {tagged && (
+                {ceremony ? '한국시리즈 우승!' : tagged && (
                   <span className="mr-[0.4em] inline-block align-middle" style={{ textShadow: 'none' }}>
                     <TeamTag team={evTeam} mine={mineEv} size={fz(mobile, 1.9, 11)} />
                   </span>
                 )}
-                {ev.text}
+                {!ceremony && ev.text}
               </div>
-              {ev.sub && <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>}
+              {ceremony ? (
+                <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#fff', marginTop: '0.4cqw' }}>{ceremonySub(report, user)}</div>
+              ) : (
+                ev.sub && <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>
+              )}
             </div>
           </div>
         )}
@@ -560,4 +564,9 @@ function ChampionBoard({ text, k }: { text: string; k: number }) {
       </div>
     </div>
   );
+}
+
+/** 우승 확정 순간의 한 줄: "제주 탠저린즈 · 시리즈 4승 2패" */
+export function ceremonySub(report: { post?: { myW: number; oppW: number } }, team: { city: string; name: string }): string {
+  return `${team.city} ${team.name}${report.post ? ` · 시리즈 ${report.post.myW}승 ${report.post.oppW}패` : ''}`;
 }

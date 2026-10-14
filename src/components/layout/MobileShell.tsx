@@ -8,7 +8,8 @@ import { fmtMoney } from '../../game/format';
 import EventCardModal from '../EventCardModal';
 import OrderSheet from '../OrderSheet';
 import { FinanceTab, LeagueTab, NewsTab, StadiumTab, useHintTabs } from '../RightPanel';
-import StadiumView from '../StadiumView';
+import StadiumView, { ceremonySub } from '../StadiumView';
+import { clinchesTitle } from '../../game/postseason';
 import { MobileTopBar, RunwayWarn } from '../TopBar';
 import { CampaignChip } from '../Campaign';
 import { TodoCard, TodoLines } from '../Todo';
@@ -185,7 +186,16 @@ function TripLine() {
 function LiveLine() {
   const ev = useStore((s) => (s.playback ? (s.playback.report.result.events[s.playback.step] ?? null) : null));
   const userId = useStore((s) => s.userId);
+  const report = useStore((s) => s.playback?.report ?? null);
+  const team = useUserTeam();
   if (!ev) return null;
+  if (ev.type === 'final' && report && clinchesTitle(report))
+    return (
+      <div className="px-panel flex min-h-12 flex-1 flex-col justify-center px-3 py-1.5" data-testid="live-line">
+        <span className="font-pixel-lg text-[18px] leading-snug text-hi">한국시리즈 우승!</span>
+        <span className="text-[13px] text-white/80">{ceremonySub(report, team)}</span>
+      </div>
+    );
   return (
     <div className="px-panel flex min-h-12 flex-1 flex-col justify-center px-3 py-1.5" data-testid="live-line">
       <span className={`font-pixel-lg text-[16px] leading-snug ${ev.type === 'injury' ? 'text-bad' : ev.teamId === userId ? 'text-hi' : 'text-white'}`}>{ev.text}</span>
