@@ -9,7 +9,7 @@ import { usePostLine } from './Bracket';
 import EventCardModal from './EventCardModal';
 import GameSummary, { TeamTag } from './GameSummary';
 import { useIsMobile } from './layout/useLayout';
-import { useUi } from './layout/uiStore';
+import { fastFor, useUi } from './layout/uiStore';
 import { uiZoom } from './layout/uiScale';
 import { awayFacilities, awayFanShare } from './layout/away';
 import { teamDef } from '../game/generate';
@@ -43,21 +43,30 @@ const chip: CSSProperties = {
   lineHeight: 1.25,
 };
 
+/** 가을야구 천천히 보기: 장면 사이 간격 배율 */
+const SLOW_MULT = 1.35;
+
 /** 하이라이트 재생 드라이버: 이벤트마다 타이머 하나 (App 에서 한 번). cleanup 으로 지우므로 StrictMode 이중 실행에도 안전. */
 export function usePlaybackDriver(): void {
   const report = useStore((s) => s.playback?.report ?? null);
   const step = useStore((s) => s.playback?.step ?? 0);
   const stepPlayback = useStore((s) => s.stepPlayback);
-  const fast = useUi((s) => s.fast);
+  const seed = useStore((s) => s.seed);
+  const season = useStore((s) => s.season);
+  const isPost = !!report?.post;
+  // 가을야구 경기는 가을야구 보기 속도(천천히/빨리)가 설정의 '빠르게'보다 우선한다
+  const fast = useUi((s) => fastFor(s, { seed, season }, isPost));
+  const slow = isPost && !fast;
   const evType = report?.result.events[step]?.type;
   const ceremony = useCeremony();
   useEffect(() => {
     if (!report) return;
     if (ceremony && SHOT_FXT !== null) return; // 화면 검증: 세리머니를 멈춰 둔다
-    const ms = ceremony ? (fast ? CEREMONY_MS.fast : CEREMONY_MS.normal) : (evType === 'hr' || evType === 'walkoff' ? 2600 : 1800) * (fast ? 0.5 : 1);
+    const base = evType === 'hr' || evType === 'walkoff' ? 2600 : 1800;
+    const ms = ceremony ? (fast ? CEREMONY_MS.fast : CEREMONY_MS.normal) : base * (fast ? 0.5 : slow ? SLOW_MULT : 1);
     const id = window.setTimeout(stepPlayback, ms);
     return () => window.clearTimeout(id);
-  }, [report, step, evType, stepPlayback, fast, ceremony]);
+  }, [report, step, evType, stepPlayback, fast, slow, ceremony]);
 }
 
 /**
@@ -271,7 +280,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   // 득점 장면은 왼쪽 띠로 편을 가른다: 우리 팀 초록, 상대 빨강
   const scoreEv = ev?.type === 'hr' || ev?.type === 'score' || ev?.type === 'walkoff';
   const band = scoreEv ? `max(1.2cqw, 6px) solid ${mineEv ? '#6ee07a' : '#ff6b6b'}` : undefined;
-  const tagged = !!ev && ev.type !== 'start' && ev.type !== 'final';
+  const tagged = !!ev && ((ev.type !== 'start' && ev.type !== 'final') || !!ev.moment);
 
   // 관중 칩: 세로 폰(pan)에서는 캔버스가 아니라 구장 영역의 좌상단에 고정한다 (확대해도 잘리지 않게)
   const crowdChip = (
@@ -353,7 +362,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           ) : report && ev ? (
             <>
               <div style={{ fontSize: `${1.35 * k}cqw`, color: '#7fd3ff' }}>
-                {ev.type === 'final' ? '경기 종료' : ev.type === 'start' ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`}
+                {ev.type === 'final' ? '경기 종료' : ev.type === 'start' && !ev.moment ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`}
               </div>
               <div className="font-pixel-lg flex items-center" style={{ fontSize: `${2.6 * k}cqw`, gap: '0.8cqw' }}>
                 <span style={{ fontSize: '1.5cqw', color: awayTeam?.id === userId ? '#fff' : '#b9c3e0' }}>{awayTeam?.id}</span>

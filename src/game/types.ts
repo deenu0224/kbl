@@ -142,6 +142,8 @@ export interface GameEvent {
   home: number;
   rbi?: number;
   pid?: string;
+  seq?: number; // 경기 안의 순서 (천천히 보기에서 장면을 끼워 넣을 때 쓴다)
+  moment?: 'k' | 'dp' | 'hold' | 'run'; // 천천히 보기에서만 보이는 장면: 득점권 삼진 · 병살 위기 탈출 · 득점권 무실점 이닝 종료 · 작은 득점 ('run' 말고는 type 'start' 로 둔다: 구장 효과·효과음이 없다)
 }
 
 export interface GameResult {
@@ -162,6 +164,7 @@ export interface GameResult {
   errs?: [{ pid: string; name: string; pos: string }[], { pid: string; name: string; pos: string }[]]; // [원정, 홈] 실책한 야수
   box?: [BoxSide, BoxSide]; // [원정, 홈] 선수별 기록 (유저 경기만)
   pitOrder?: [string[], string[]]; // [원정, 홈] 투수 등판 순서 pid (유저 경기만. 경기 기록의 투수 줄 순서)
+  more?: GameEvent[]; // 하이라이트에 들지 못한 장면 (유저 경기만. 가을야구 천천히 보기가 events 사이에 끼워 넣는다. 난수를 쓰지 않고 기록만 한다)
 }
 
 /** 한 경기의 선수별 기록 */

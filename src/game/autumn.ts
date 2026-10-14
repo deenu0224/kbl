@@ -1,5 +1,5 @@
 // 가을야구 화면 문구: 정규시즌 마감 화면 · 상단 바의 시리즈 한 줄 · 상대가 올라온 길. 순수 함수 (난수를 쓰지 않는다)
-import type { Core, PostSeries, Team } from './types';
+import type { Core, GameEvent, GameResult, PostSeries, Team } from './types';
 import { postTeams } from './league';
 import { standings } from './season';
 import { roundDef } from './postseason';
@@ -181,4 +181,26 @@ export function climbLine(core: Pick<Core, 'post' | 'teams'>, teamId: string): s
   }
   const played = post.series.reduce((a, s) => a + s.games.filter((g) => g.homeId === teamId || g.awayId === teamId).length, 0);
   return `${name} — ${path[0].round === 'WC' ? '와일드카드' : path[0].name}부터 올라옴 · 가을야구 ${played + 1}경기째`;
+}
+
+/** 천천히 보기의 최대 장면 수 (시작·종료 포함) */
+export const SLOW_MAX_EVENTS = 20;
+
+/**
+ * 천천히 보기: 하이라이트 사이에 시뮬이 기록해 둔 장면(result.more)을 경기 순서대로 끼워 넣는다.
+ * 시작 장면은 맨 앞, 부상·연장 결승점·종료는 맨 뒤 그대로. 넘치면 늦은 이닝의 장면부터 남긴다
+ */
+export function slowEvents(result: Pick<GameResult, 'events' | 'more'>): GameEvent[] {
+  const evs = result.events;
+  const more = result.more ?? [];
+  if (!more.length || evs.length < 2) return evs;
+  const room = Math.max(0, SLOW_MAX_EVENTS - evs.length);
+  const add = more
+    .slice()
+    .sort((a, b) => b.inning - a.inning || (b.seq ?? 0) - (a.seq ?? 0))
+    .slice(0, room);
+  const mid = evs.slice(1).filter((e) => e.seq !== undefined);
+  const tail = evs.slice(1).filter((e) => e.seq === undefined);
+  const body = [...mid, ...add].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  return [evs[0], ...body, ...tail];
 }

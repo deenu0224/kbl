@@ -1,7 +1,7 @@
 import { useStore, userMatch } from '../store';
 import { usePostLine } from './Bracket';
 import { EventReopen } from './EventCardModal';
-import { chanceKey, useUi } from './layout/uiStore';
+import { chanceKey, postViewKey, postViewOf, useUi, type PostView } from './layout/uiStore';
 import { useWinChance } from './useWinChance';
 import { TeamDot, dowOf, isNightDay } from './ui';
 
@@ -61,6 +61,34 @@ export function PreGame({ short = false }: { short?: boolean }) {
     >
       {short ? '승리 확률' : '오늘 승리 확률'} <span className="text-[13px] text-hi underline decoration-dotted underline-offset-2 mob:text-[15px]">{pct === null ? '—' : `${pct}%`}</span>
     </button>
+  );
+}
+
+/** 가을야구 보기 속도: [천천히] 장면 더 많이·더 길게 / [빨리] 설정의 '빠르게'와 같다. 시즌 동안 기억 (처음엔 천천히) */
+export function PostViewToggle({ className = '', compact = false }: { className?: string; compact?: boolean }) {
+  const seed = useStore((s) => s.seed);
+  const season = useStore((s) => s.season);
+  const v = useUi((s) => postViewOf(s, { seed, season }));
+  const setV = useUi((s) => s.setPostView);
+  const btn = (id: PostView, label: string, hint: string) => (
+    <button
+      type="button"
+      className={`px-btn whitespace-nowrap !px-2 ${compact ? 'min-h-11 short:min-h-10 flex-1 text-[13px] leading-tight' : 'min-h-8 text-[11px]'} ${v === id ? 'gold' : ''}`}
+      aria-pressed={v === id}
+      title={hint}
+      data-testid={`postview-${id}`}
+      onClick={() => setV(postViewKey({ seed, season }), id)}
+    >
+      {label}
+      {compact && <span className="block text-[10px] text-white/55">보기</span>}
+    </button>
+  );
+  return (
+    <span className={`flex shrink-0 items-center gap-1 ${className}`} data-testid="postview" role="group" aria-label="가을야구 보기 속도">
+      {!compact && <span className="whitespace-nowrap text-[10px] text-white/50">가을야구 보기</span>}
+      {btn('slow', '천천히', '득점 말고도 위기 장면까지, 장면을 길게')}
+      {btn('fast', '빨리', '하이라이트만 빠르게')}
+    </span>
   );
 }
 
@@ -131,6 +159,7 @@ export default function BottomBar() {
       >
         초기 화면
       </button>
+      {inPost && next && <PostViewToggle />}
       <PlayButton className="!px-8 !py-1.5 text-[14px]" opener={opener} off={off} />
       {!inPost && (
         <button className="px-btn !py-1.5" disabled={bulkOff} title={bulkReason} onClick={() => simDays(6)}>
@@ -153,7 +182,7 @@ function LiveScore() {
   const ev = report.result.events[step];
   const away = teams.find((t) => t.id === report.result.awayId);
   const home = teams.find((t) => t.id === report.result.homeId);
-  const inning = !ev ? '' : ev.type === 'final' ? '경기 종료' : ev.type === 'start' ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`;
+  const inning = !ev ? '' : ev.type === 'final' ? '경기 종료' : ev.type === 'start' && !ev.moment ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`;
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
       <span className="shrink-0 text-[11px] text-sky">{inning}</span>
@@ -207,6 +236,7 @@ export function MobileActionBar({ bare = false }: { bare?: boolean } = {}) {
     <>
       <DraftReturn className="min-h-11 short:min-h-10 flex-[2] text-[14px]" />
       <PlayButton className="min-h-11 short:min-h-10 flex-[3] text-[15px]" opener={opener} off={off} />
+      {inPost && next && <PostViewToggle compact className="flex-[2]" />}
       {!inPost && (
         <button className="px-btn min-h-11 short:min-h-10 flex-1 text-[13px] leading-tight" disabled={bulkOff} onClick={() => simDays(6)}>
           1주

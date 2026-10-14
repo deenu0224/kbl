@@ -19,6 +19,14 @@ function hadSave(): boolean {
   }
 }
 const FAST_KEY = 'kbl-fast-v1';
+/** 이번 시즌의 가을야구 보기 속도 (선택하지 않았으면 천천히) */
+export function postViewOf(st: { postView: { at: string; v: PostView } | null }, core: { seed: number; season: number }): PostView {
+  return st.postView?.at === postViewKey(core) ? st.postView.v : 'slow';
+}
+/** 이 경기 하이라이트를 빠르게 넘기는가: 가을야구 경기는 가을야구 보기 속도, 그 밖에는 설정의 '빠르게' */
+export function fastFor(st: { fast: boolean; postView: { at: string; v: PostView } | null }, core: { seed: number; season: number }, post: boolean): boolean {
+  return post ? postViewOf(st, core) === 'fast' : st.fast;
+}
 function loadFast(): boolean {
   try {
     return localStorage.getItem(FAST_KEY) === '1';
@@ -27,6 +35,20 @@ function loadFast(): boolean {
   }
 }
 export type LeagueSub = 'table' | 'leaders' | 'bracket';
+
+/** 가을야구 보기 속도: 천천히(장면 더 많이·더 길게) / 빨리(설정의 '빠르게'와 같다). 시즌마다 처음엔 천천히 */
+export type PostView = 'slow' | 'fast';
+const POSTVIEW_KEY = 'kbl-postview-v1';
+function loadPostView(): { at: string; v: PostView } | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(POSTVIEW_KEY) ?? 'null');
+    return v && typeof v.at === 'string' && (v.v === 'slow' || v.v === 'fast') ? v : null;
+  } catch {
+    return null;
+  }
+}
+/** 시즌 열쇠 (리그 시드 + 시즌): 이 열쇠가 바뀌면 선택이 처음(천천히)으로 돌아간다 */
+export const postViewKey = (s: { seed: number; season: number }) => `${s.seed}/${s.season}`;
 
 export type TipId = 'market' | 'stadium' | 'finance';
 export const chanceKey = (s: { seed: number; season: number; phase: string; day: number }) => `${s.seed}/${s.season}/${s.phase}/${s.day}`;
@@ -92,6 +114,8 @@ interface UiState {
   setEventHidden(id: string | null): void;
   setDraftPeek(v: boolean): void;
   setOrderOpen(v: boolean): void;
+  postView: { at: string; v: PostView } | null; // 가을야구 보기 속도 (시즌 열쇠와 함께 저장)
+  setPostView(at: string, v: PostView): void;
   autumnOpen: boolean; // 정규시즌 마감 화면을 다시 열었다 (리그 탭 대진표의 [정규시즌 마감 다시 보기])
   setAutumnOpen(v: boolean): void;
 }
@@ -125,6 +149,15 @@ export const useUi = create<UiState>()((set) => ({
   draftPeek: false,
   orderOpen: true,
   autumnOpen: false,
+  postView: loadPostView(),
+  setPostView: (at, v) => {
+    try {
+      localStorage.setItem(POSTVIEW_KEY, JSON.stringify({ at, v }));
+    } catch {
+      /* 이번 세션만 */
+    }
+    set({ postView: { at, v } });
+  },
   setAutumnOpen: (autumnOpen) => set({ autumnOpen }),
   orderBase: null,
   orderEdit: null,
