@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.11.0',
+    date: '2026-10-14',
+    title: '원정 경기에도 수입이',
+    notes: [
+      '입장 수입을 KBO처럼 홈 72 : 원정 28로 나눕니다. 원정 경기에서도 상대 구장 입장 수입의 몫이 들어와요.',
+      '상대 구단 구장도 시즌이 지나면 커집니다. 원정 구장 모습도 같이 바뀌어요.',
+      '한국시리즈 우승이 확정되는 경기는 건너뛰어도 우승 세리머니를 보여 줍니다. 헹가래도 생겼어요.',
+    ],
+  },
+  {
     version: '0.10.3',
     date: '2026-10-14',
     title: '도전과제 알림 고침',
