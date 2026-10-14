@@ -104,7 +104,7 @@ function rankAt(core: Core, t: Team, key: PosKey): number {
 }
 const isKey = (pos: string): pos is PosKey => (KEYS as string[]).includes(pos);
 const starterIds = (t: Team) => new Set([...t.lineup.map((s) => s.pid), ...t.rotation, ...(t.closer ? [t.closer] : [])]);
-const movable = (p: Player) => p.injury === 0 && !p.ban && !p.armyDue && !p.subFor && !p.rookie;
+export const movable = (p: Player) => p.injury === 0 && !p.ban && !p.armyDue && !p.subFor && !p.rookie;
 export const isProspect = (p: Player) => p.age <= TR.prospectAge && p.pot - p.ovr >= TR.prospectGap;
 
 /** 우리의 필요: 리그 5위 이하인 포지션을 약한 순서로 (없으면 순위가 낮은 순서 전부) */
