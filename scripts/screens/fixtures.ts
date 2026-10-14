@@ -24,6 +24,7 @@ import { todoList } from '../../src/game/todo';
 import { emptyHof, recordClub, seatsLabel, HOF_KEY, SAVE_VERSION } from '../../src/game/hof';
 import { greedy, passive, sensible, type Bot } from '../bots';
 import { regDeadline } from '../../src/game/economy';
+import { teamDef } from '../../src/game/generate';
 import { ROSTER_MAX, activeRoster } from '../../src/game/economy';
 import { releaseAdvice } from '../../src/game/release';
 import { SC, SCANDAL_CARDS } from '../../src/game/scandal';
@@ -52,6 +53,11 @@ type Pred = (c: Core) => boolean;
 const quiet: Pred = (c) => !c.campaign.event && !c.campaign.briefing;
 const inSeason: Pred = (c) => c.phase === 'season' && c.day < c.schedule.length;
 const nextIsHome = (c: Core) => c.schedule[c.day]?.some((m) => m.homeId === c.userId) ?? false;
+/** 다음 경기가 원정이고 상대가 개막 때 작은 구장(13,000석)인 구단 — 상대 구장 성장을 시즌 초·후반으로 견준다 */
+const awaySmall = (c: Core) => {
+  const m = c.schedule[c.day]?.find((x) => x.awayId === c.userId);
+  return !!m && (teamDef(m.homeId)?.tier ?? 99) < 58;
+};
 const lastWasHome = (c: Core) => c.day > 0 && (c.schedule[c.day - 1]?.some((m) => m.homeId === c.userId) ?? false);
 const stageName = (c: Core) => STAGES[Math.min(c.campaign.stage, STAGES.length - 1)].name;
 const endingNow: Pred = (c) => {
@@ -63,6 +69,8 @@ const endingNow: Pred = (c) => {
 const WANT: Record<string, Pred> = {
   opened: (c) => inSeason(c) && c.season === 1 && c.day === 1 && quiet(c),
   away: (c) => inSeason(c) && c.day >= 3 && quiet(c) && !nextIsHome(c),
+  awayEarly: (c) => inSeason(c) && c.season === 1 && c.day >= 3 && quiet(c) && awaySmall(c),
+  awayLate: (c) => inSeason(c) && c.season >= 9 && c.day >= 3 && quiet(c) && awaySmall(c),
   injury: (c) => {
     if (!inSeason(c) || !quiet(c) || c.day < 2) return false;
     const t = userTeam(c);
