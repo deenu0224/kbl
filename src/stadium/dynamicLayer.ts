@@ -28,6 +28,10 @@ import {
   fenceTopY,
   gateX,
   hash2,
+  SEAT_SPEC,
+  DUG_T0,
+  DUG_T1,
+  clampLv,
   standToWorld,
   standingSpots,
   type Pt,
@@ -505,6 +509,69 @@ function drawTitleWall(ctx: Ctx, scene: StadiumScene): void {
     }
     R(ctx, x0 - 1, fenceTopY(x0) - 3, 1, 13, '#0f1420');
     R(ctx, x1, fenceTopY(x1) - 3, 1, 13, '#0f1420');
+  }
+}
+
+// ───────── 가을야구 장식 ─────────
+
+/** 가을 깃발줄 색: 주황 · 갈색 · 노랑 · 적갈색 (팀 색과 상관없이 가을빛) */
+const AUTUMN_FLAGS = ['#fbf3dc', '#c8642a', '#ffd84a', '#6b3a1a', '#f0a35a'];
+
+/** 두 점 사이에 처진 줄을 걸고 삼각 깃발을 단다. 바람에 깃발 끝이 1px 흔들린다 */
+function bunting(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, sag: number, f: number, seed: number): void {
+  const n = Math.max(2, Math.round(Math.abs(x1 - x0) / 7));
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    const x = Math.round(x0 + (x1 - x0) * u);
+    const y = Math.round(y0 + (y1 - y0) * u + sag * 4 * u * (1 - u));
+    R(ctx, x, y, 1, 1, '#3a2a1c');
+    if (i === 0 || i === n) continue;
+    const c = AUTUMN_FLAGS[(i + seed) % AUTUMN_FLAGS.length];
+    const w = ((f >> 3) + i + seed) % 5 === 0 ? 1 : 0;
+    // 아래로 뾰족한 5×4 삼각 깃발: 어두운 테두리로 관중석 색과 떼어 낸다
+    R(ctx, x - 3, y, 7, 1, '#3a2a1c');
+    R(ctx, x - 2, y + 1, 5, 1, c);
+    R(ctx, x - 2, y + 2, 5, 1, c);
+    R(ctx, x - 1 + w, y + 3, 3, 1, c);
+    R(ctx, x + w, y + 4, 1, 1, c);
+    R(ctx, x - 3, y + 1, 1, 2, '#3a2a1c');
+    R(ctx, x + 3, y + 1, 1, 2, '#3a2a1c');
+    R(ctx, x + w, y + 5, 1, 1, '#3a2a1c');
+  }
+}
+
+/** 포스트시즌의 홈 구장: 외야 펜스 위와 내야 관중석 앞 벽에 가을 깃발줄. 우승 현수막·대형 현수막보다 위(펜스 꼭대기 위)에 건다 */
+function drawAutumn(ctx: Ctx, scene: StadiumScene, f: number): void {
+  if (!scene.autumn) return;
+  // 외야 펜스: 기둥 사이마다 한 칸씩 처진 줄
+  const posts: number[] = [];
+  for (let x = 44; x <= 596; x += 46) posts.push(x);
+  for (let i = 0; i + 1 < posts.length; i++) {
+    const a = posts[i];
+    const b = posts[i + 1];
+    const ya = fenceTopY(a) - 15;
+    const yb = fenceTopY(b) - 15;
+    R(ctx, a, ya, 1, 15, '#5b4630');
+    if (i + 2 === posts.length) R(ctx, b, yb, 1, 15, '#5b4630');
+    bunting(ctx, a, ya, b, yb, 4, f, i);
+  }
+  // 내야 관중석 앞 벽: 덕아웃을 피해 양쪽 두 구간
+  const len = SEAT_SPEC[clampLv(scene.facilities.seats)].len;
+  for (const side of [-1, 1] as const) {
+    const spans: [number, number][] = [
+      [6, DUG_T0 - 2],
+      [DUG_T1 + 2, len - 4],
+    ];
+    spans.forEach(([t0, t1], k) => {
+      if (t1 - t0 < 12) return;
+      const p0 = standToWorld(side, 0.6, t0);
+      const p1 = standToWorld(side, 0.6, t1);
+      const x0 = Math.round(HX + p0.x);
+      const x1 = Math.round(HX + p1.x);
+      const y0 = Math.round(HY + p0.y * YK - 7);
+      const y1 = Math.round(HY + p1.y * YK - 7);
+      bunting(ctx, x0, y0, x1, y1, 2, f, k + (side > 0 ? 2 : 0));
+    });
   }
 }
 
@@ -1308,6 +1375,7 @@ export function drawFrame(inp: FrameInput): void {
   if (scene.oldBanner !== false) drawOldFan(ctx, L, scene, f);
   drawGate(ctx, L, scene, t, f);
   ctx.drawImage(L.over, 0, 0);
+  drawAutumn(ctx, scene, f);
   for (let i = 0; i < L.flags.length; i++) {
     flag(ctx, L.flags[i].x, L.flags[i].y, i % 3 === 1 ? scene.homeColor2 : scene.homeColor, f, i);
   }

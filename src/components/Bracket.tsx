@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Postseason, PostSeries, Team } from '../game/types';
 import { useStore, userMatch } from '../store';
 import { buildPost } from '../game/postseason';
-import { climbLine, climbPath, firstSeries, roundShortName } from '../game/autumn';
+import { climbLine, climbPath, firstSeries, roundShortName, seriesStatus } from '../game/autumn';
 import { useUi } from './layout/uiStore';
 import { TeamDot } from './ui';
 import Help from './Help';
@@ -36,6 +36,28 @@ export function usePostLine(): { name: string; gameNo: number; myW: number; oppW
     const score = seriesScore(s, userId);
     return { name: m.name, gameNo: m.gameNo, myW, oppW, score, text: `${m.name} ${m.gameNo}차전 · ${score}` };
   }, [phase, post, schedule, userId]);
+}
+
+/**
+ * 상단 바의 가을야구 줄: { head: "와일드카드 결정전 1차전 vs 판다스", status: "우리 1승 0패(1승 안고 시작)" }.
+ * 시리즈가 끝나면 postMatch 가 다음 라운드를 가리키므로 저절로 다음 상대가 된다. 포스트시즌이 아니면 null
+ */
+export function useAutumnLine(): { head: string; status: string; text: string } | null {
+  const phase = useStore((s) => s.phase);
+  const post = useStore((s) => s.post);
+  const teams = useStore((s) => s.teams);
+  const userId = useStore((s) => s.userId);
+  const schedule = useStore((s) => s.schedule);
+  return useMemo(() => {
+    if (phase !== 'post' || !post) return null;
+    const m = userMatch({ schedule, userId, phase, post }, 0);
+    const s = post.series[post.cur];
+    if (!m || !s || !m.name || !m.gameNo) return null;
+    const opp = teams.find((t) => t.id === m.oppId);
+    const head = `${m.name} ${m.gameNo}차전 vs ${opp?.name ?? m.oppId}`;
+    const status = seriesStatus(s, userId);
+    return { head, status, text: `가을야구 · ${head} · ${status}` };
+  }, [phase, post, teams, userId, schedule]);
 }
 
 /** 와일드카드 결정전의 승수 칸: 2칸 중 채운 칸 = 승수. 안고 시작한 1승은 하늘색, 경기로 딴 승은 노란색 */

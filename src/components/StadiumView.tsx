@@ -18,7 +18,7 @@ import { defendingChamp } from '../game/campaign';
 import { SHOT_FXT, reducedMotion } from '../stadium/shotMode';
 import { CEREMONY_MS } from '../stadium/ceremony';
 import { TITLE_WALL_SPANS } from '../stadium/dynamicLayer';
-import { fenceTopY } from '../stadium/geometry';
+import { SB_FRAME, fenceTopY } from '../stadium/geometry';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
 
 const KINDS: FacilityKind[] = ['seats', 'food', 'training'];
@@ -187,6 +187,9 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const gateCrowd = report ? (report.isHome ? report.crowd : null) : crowd;
   const gateQueue = gateCrowd ? Math.max(0, Math.min(1, gateCrowd.turnedAway / Math.max(1, gateCrowd.capacity))) : 0;
   const extras = useMemo(() => sceneExtras(core), [core]);
+  // 가을야구: 포스트시즌 동안(그리고 포스트시즌 경기의 재생·요약 동안) 구장이 가을 옷을 입는다. 전광판 위에는 라운드 이름
+  const autumnRound = shownRep?.post?.name ?? (phase === 'post' ? (postLine?.name ?? null) : null);
+  const autumn = !!autumnRound;
   const ceremony = useCeremony();
   const defending = useMemo(() => defendingChamp(core), [core]);
 
@@ -250,8 +253,9 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
       fxKey,
       ...extras,
       gateQueue, // 재생 중에는 그 경기의 줄
+      autumn: autumn || undefined, // 가을야구 동안 우리 홈 구장의 깃발줄
     };
-  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras, away, awayRep, fans, oppId]);
+  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras, away, awayRep, fans, oppId, autumn]);
   const titleWall = away ? [] : (scene.titleWall ?? []);
 
   const star = useMemo(() => user.roster.reduce<(typeof user.roster)[number] | null>((a, p) => (!a || p.star > a.star ? p : a), null), [user.roster]);
@@ -386,6 +390,27 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             </div>
           )}
         </div>
+
+        {/* 전광판 위 가을야구 띠: 홈·원정 모두 라운드 이름 */}
+        {autumnRound && !ceremony && (
+          <div
+            className="pointer-events-none absolute flex items-center justify-center overflow-hidden whitespace-nowrap font-pixel-lg"
+            data-testid="autumn-board"
+            style={{
+              left: `${(SB_FRAME.x / STADIUM_W) * 100}%`,
+              width: `${(SB_FRAME.w / STADIUM_W) * 100}%`,
+              top: `${((SB_FRAME.y - 13) / STADIUM_H) * 100}%`,
+              height: `${(11 / STADIUM_H) * 100}%`,
+              fontSize: `${1.25 * k}cqw`,
+              lineHeight: 1,
+              color: '#1b2233',
+              background: '#f0a35a',
+              boxShadow: '0 0 0 0.25cqw #6b3a1a',
+            }}
+          >
+            🍂 가을야구 · {autumnRound}
+          </div>
+        )}
 
         {/* 외야 펜스의 우승 현수막 글자 */}
         {titleWall.length > 0 &&
