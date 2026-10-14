@@ -160,7 +160,7 @@ export default function ShareSheet({ data, scene, club = false, onClose }: { dat
 }
 
 /** 결산·엔딩·연고 이전 화면의 [공유] 버튼 (누르면 그 순간의 세이브로 시트를 연다) */
-export function ShareButton({ kind, className = '' }: { kind: ShareKind; className?: string }) {
+export function ShareButton({ kind, className = '', label = '공유' }: { kind: ShareKind; className?: string; label?: string }) {
   const [sheet, setSheet] = useState<{ data: ShareData; scene: StadiumScene } | null>(null);
   return (
     <>
@@ -172,7 +172,7 @@ export function ShareButton({ kind, className = '' }: { kind: ShareKind; classNa
           setSheet({ data: shareFromCore(core, kind), scene: cardScene(core, kind) });
         }}
       >
-        공유
+        {label}
       </button>
       {sheet && <ShareSheet data={sheet.data} scene={sheet.scene} onClose={() => setSheet(null)} />}
     </>

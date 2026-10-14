@@ -298,6 +298,13 @@ export interface Postseason {
   cur: number; // 진행 중인 시리즈 인덱스 (series.length = 전부 종료)
   championId: string | null;
   userFinish: PostFinish;
+  ksBox?: KsBox; // 한국시리즈 동안 유저 팀 선수별 누적 (시리즈 MVP 용. 옛 세이브에는 없다)
+}
+
+/** 한국시리즈 유저 팀 선수별 누적 기록 (pid → 기록) */
+export interface KsBox {
+  bat: Record<string, { name: string; pos: string; ab: number; h: number; hr: number; rbi: number; bb: number; r: number }>;
+  pit: Record<string, { name: string; outs: number; h: number; er: number; so: number; w: number; sv: number }>;
 }
 
 export type ObjKind =

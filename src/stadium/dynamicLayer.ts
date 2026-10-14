@@ -627,6 +627,23 @@ function flag(ctx: Ctx, x: number, y: number, c: string, f: number, seed: number
 // 우승 깃발 한 장: 12×22. 폰(디오라마 폭 390px)에서도 한 덩어리로 읽히는 크기
 const BANNER_W = 12;
 
+/** 우승 깃발 천 한 장(12×23, 깃봉 꼭지 포함). (x, y) = 천의 좌상단. wave = 아랫단이 1px 밀린 펄럭임 (결산 화면의 큰 깃발도 이 그림을 키워 쓴다) */
+export function pennant(ctx: Ctx, x: number, y: number, color: string, wave: number): void {
+  const W = BANNER_W;
+  const w = wave;
+  R(ctx, x - 2, y - 3, 3, 2, PAL.gold);
+  R(ctx, x - 1, y - 1, W + 2, 13, 'rgba(15,20,32,0.55)');
+  R(ctx, x, y, W, 11, PAL.gold);
+  R(ctx, x + w, y + 11, W, 9, PAL.gold);
+  R(ctx, x, y + 3, W, 4, color);
+  R(ctx, x + 5 + w, y + 11, 2, 4, '#ffffff');
+  R(ctx, x + 3 + w, y + 12, 6, 2, '#ffffff');
+  R(ctx, x + w, y + 20, 4, 3, PAL.gold);
+  R(ctx, x + 8 + w, y + 20, 4, 3, PAL.gold);
+  R(ctx, x + W - 1, y, 1, 11, '#e0b020');
+  R(ctx, x + W - 1 + w, y + 11, 1, 9, '#e0b020');
+}
+
 function drawBanners(ctx: Ctx, scene: StadiumScene, f: number): void {
   const old = scene.oldBanner === true;
   const slots = old ? BANNER_X_NEW : BANNER_X;
@@ -635,19 +652,8 @@ function drawBanners(ctx: Ctx, scene: StadiumScene, f: number): void {
   for (let i = 0; i < n; i++) {
     const x = slots[i] + 1;
     const y = BANNER_Y;
-    const w = ((f >> 2) + i) & 1;
     R(ctx, x - 1, y - 2, 1, 62, PAL.steelDk);
-    R(ctx, x - 2, y - 3, 3, 2, PAL.gold);
-    R(ctx, x - 1, y - 1, W + 2, 13, 'rgba(15,20,32,0.55)');
-    R(ctx, x, y, W, 11, PAL.gold);
-    R(ctx, x + w, y + 11, W, 9, PAL.gold);
-    R(ctx, x, y + 3, W, 4, scene.homeColor);
-    R(ctx, x + 5 + w, y + 11, 2, 4, '#ffffff');
-    R(ctx, x + 3 + w, y + 12, 6, 2, '#ffffff');
-    R(ctx, x + w, y + 20, 4, 3, PAL.gold);
-    R(ctx, x + 8 + w, y + 20, 4, 3, PAL.gold);
-    R(ctx, x + W - 1, y, 1, 11, '#e0b020');
-    R(ctx, x + W - 1 + w, y + 11, 1, 9, '#e0b020');
+    pennant(ctx, x, y, scene.homeColor, ((f >> 2) + i) & 1);
   }
   if (!old) return;
   if (n === 0) {

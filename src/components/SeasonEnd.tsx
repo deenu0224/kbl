@@ -19,6 +19,7 @@ import { PostLegend, cutShadow, rankTone } from './ui';
 import { postTeams } from '../game/league';
 import { Flag, POST_KO, StageTrail, silhouette, stageName } from './Campaign';
 import EndingScene from './EndingScene';
+import ChampionHero from './ChampionHero';
 import { ShareButton } from './ShareSheet';
 import EventCardModal from './EventCardModal';
 import { useIsMobile } from './layout/useLayout';
@@ -208,7 +209,10 @@ function SeasonEndBody() {
       style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="px-panel px-scroll flex max-h-full w-full max-w-[1100px] flex-col overflow-y-auto p-4 mob:p-3">
-        {/* 머리 */}
+        {/* 머리: 우승한 시즌은 전용 머리 (큰 우승기 · N년 만의 우승 · 시리즈 MVP · 공유) */}
+        {finish === 'champion' ? (
+          <ChampionHero core={core} team={team} rank={rank} />
+        ) : (
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] text-sky">
@@ -219,7 +223,7 @@ function SeasonEndBody() {
             </div>
             <div className="mt-0.5 text-[13px]">
               최종 <span className="font-pixel-lg text-[18px] text-hi">{rank}위</span> · {recText(team.rec)} · 승률 {fmtPct(team.rec.w, team.rec.l)}
-              {finish !== 'none' && <span className="ml-2 whitespace-nowrap text-hi">{finish === 'champion' ? '한국시리즈 우승' : finish === 'KS' ? '한국시리즈 준우승' : finish === 'WC' ? '와일드카드 탈락' : wcPassed && finish === 'SPO' ? '와일드카드 통과' : `${POST_KO[finish]} 진출`}</span>}
+              {finish !== 'none' && <span className="ml-2 whitespace-nowrap text-hi">{finish === 'KS' ? '한국시리즈 준우승' : finish === 'WC' ? '와일드카드 탈락' : wcPassed && finish === 'SPO' ? '와일드카드 통과' : `${POST_KO[finish]} 진출`}</span>}
             </div>
           </div>
           <div
@@ -229,6 +233,7 @@ function SeasonEndBody() {
             {grade}
           </div>
         </div>
+        )}
 
         {v?.debtOver && (
           <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="debt-over">
@@ -479,7 +484,7 @@ function SeasonEndBody() {
           >
             {armNew ? '초기 화면으로 나가기' : '초기 화면'}
           </button>
-          <ShareButton kind="season" className="mob:!px-2.5" />
+          {finish !== 'champion' && <ShareButton kind="season" className="mob:!px-2.5" />}
           {/* 스토브리그: 재계약·트레이드 제안 카드를 먼저 처리하고, 그 뒤에 이적 창구가 열린다 */}
           <button
             className="px-btn min-h-11 whitespace-nowrap !px-4 !py-2 text-[13px] mob:!px-2.5"
