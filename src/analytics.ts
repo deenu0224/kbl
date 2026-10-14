@@ -52,6 +52,7 @@ const trackOnce = (name: string) => {
 
 export function initAnalytics() {
   send(location.pathname, false);
+  track(`ver-${__APP_VERSION__}`); // 어느 버전으로 들어왔는지 (업데이트 전후 비교)
   if (new URLSearchParams(location.search).has('from')) track('from-share'); // 공유 글을 타고 온 방문
   // 진행 지표: 첫 경기 · 시즌 결산 · 장 도달 · 연고 이전. 화면 코드에 흩지 않고 상태 변화로 센다
   let prev = useStore.getState();

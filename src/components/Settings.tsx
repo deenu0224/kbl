@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react';
+import { openWhatsNew } from './WhatsNew';
+import { APP_VERSION } from '../releaseNotes';
 import { getVolume, isMuted, setMuted, setVolume, play } from '../audio/sfx';
 import { getBgmVolume, isBgmMuted, setBgmMuted, setBgmVolume } from '../audio/bgm';
 import { exportSave, importSave } from '../game/hof';
@@ -205,6 +207,12 @@ export default function Settings() {
             </div>
           </>
         )}
+        <Title>버전</Title>
+        <Row label={`v${APP_VERSION}`}>
+          <button className="px-btn min-h-10 text-[13px]" data-testid="settings-news" onClick={() => openWhatsNew('all')}>
+            업데이트 소식 보기
+          </button>
+        </Row>
         <Title>세이브</Title>
         <div className="flex flex-col gap-1.5 bg-panel-2 p-2" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
           <div className="flex flex-wrap gap-2">

@@ -1,4 +1,5 @@
 import { SCANDAL_NEWS } from '../game/story';
+import { VersionBadge } from './WhatsNew';
 import { DONATE_URL, FEEDBACK_URL, gmCount, track, type GmCount } from '../analytics';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { StadiumScene } from '../game/types';
@@ -361,6 +362,9 @@ export default function TitleScreen() {
                   ☕ 재미있었다면 — 개발자에게 커피 한 잔
                 </a>
               )}
+              <div className="flex justify-center">
+                <VersionBadge />
+              </div>
             </div>
           )}
         </div>

@@ -1,4 +1,5 @@
 import { useLayoutEffect } from 'react';
+import WhatsNew from './components/WhatsNew';
 import { useStore } from './store';
 import TopBar from './components/TopBar';
 import LeftPanel from './components/LeftPanel';
@@ -62,6 +63,7 @@ export default function App() {
         <TitleScreen />
         <Achievements />
         <Settings />
+        <WhatsNew />
       </>
     );
   }
@@ -75,6 +77,7 @@ export default function App() {
         <CampaignSheet />
         <PhaseScreens />
         <Settings />
+        <WhatsNew />
         <Achievements />
         <Toast />
         <AchvToast />
@@ -103,6 +106,7 @@ export default function App() {
       <BottomBar />
       <TransferDesk />
       <Settings />
+      <WhatsNew />
       <BriefingSheet />
       <CampaignSheet />
       <PhaseScreens />

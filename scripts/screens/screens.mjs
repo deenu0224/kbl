@@ -76,6 +76,7 @@ export const SCREENS = [
   S('title-nick-typed', null, [c('new-game'), { fill: 'nick-input', text: '한라 오렌지스' }]),
   S('title-overwrite', 'opened', st(['new-game'])),
   S('title-settings', null, st(['open-settings'])),
+  S('whats-new', null, st(['version-badge'])),
   S('title-hof', 'over', st(['open-hof'])),
   S('title-hof-empty', null, st(['open-hof'])),
   // 공유 링크(?from=유형)로 연 초기 화면: 세이브 없음 · 있음
