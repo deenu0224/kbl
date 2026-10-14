@@ -1,4 +1,4 @@
-import type { Core } from './types';
+import type { Core, PostFinish } from './types';
 import type { LeagueAwards } from './leaders';
 import { domePaid, domeStage, giveTotal, projectFx } from './projects';
 import { SEAT_LV } from './economy';
@@ -34,6 +34,19 @@ export interface HofClub {
   best?: HofBest; // 단장 점수가 가장 높았던 시즌 (점수가 남은 시즌이 없으면 없다)
   card?: CardFacts; // 구단 종료 시점의 기록 카드 칸 (공유 카드가 다시 그린다)
   gm?: GmShown; // 구단 종료 시점의 카드 점수 줄
+  hist?: HofSeason[]; // 시즌별 한 줄 (상세 보기. 이 칸이 생기기 전 기록에는 없다 — ranks 만 보인다)
+}
+/** 명예의 전당 상세의 시즌 한 줄 */
+export interface HofSeason {
+  s: number; // 시즌 번호
+  r: number; // 순위
+  w: number;
+  l: number;
+  t: number;
+  post: PostFinish;
+  att: number; // 평균 관중
+  profit: number; // 영업손익 (만원)
+  name?: string; // 시즌 이름
 }
 /** 구단의 최고 시즌: 단장 몇 시즌째 · 점수 · 랭크 */
 export interface HofBest {
@@ -56,6 +69,7 @@ export interface HofRecord {
   value: number;
   nick: string;
   season: number;
+  seed?: number; // 그 기록을 낸 구단 (상세 보기 연결. 옛 기록에는 없다 — 별칭으로 찾는다)
 }
 export type HofRecordKey = 'wins' | 'pct' | 'avgAtt' | 'profit';
 export const HOF_RECORD_KO: Record<HofRecordKey, string> = { wins: '시즌 최다승', pct: '시즌 최고 승률', avgAtt: '최다 평균 관중', profit: '최다 영업 흑자' };
@@ -129,6 +143,7 @@ export function recordClub(hof: Hof, core: Core, end: HofEnd, date: string, extr
     seats: seatsLabel(core),
     trust: Math.round(c.trust),
     ...(best ? { best } : {}),
+    hist: c.history.map((h) => ({ s: h.season, r: h.rank, w: h.w, l: h.l, t: h.t, post: h.post, att: Math.round(h.avgAtt), profit: h.profit, ...(h.name ? { name: h.name } : {}) })),
     ...extra,
   };
   const i = hof.clubs.findIndex((x) => x.seed === core.seed);
@@ -145,7 +160,7 @@ export function syncHof(hof: Hof, core: Core): Hof {
     if (!Number.isFinite(value) || value <= 0) return;
     const cur = records[k];
     if (cur && cur.value >= value) return;
-    records[k] = { value, nick, season };
+    records[k] = { value, nick, season, seed: core.seed };
     dirty = true;
   };
   for (const h of core.campaign.history ?? []) {
@@ -215,4 +230,10 @@ export function importSave(text: string): { core: Core; version: number } | { er
   if (miss.length) return { error: `세이브가 손상됐습니다 (빠진 항목: ${miss.join(', ')})` };
   if (!Array.isArray(st.teams) || !st.teams.length || !Array.isArray(st.schedule) || !st.teams.some((t) => t.id === st.userId)) return { error: '세이브가 손상됐습니다 (구단 정보)' };
   return { core: st as Core, version: obj.version };
+}
+
+/** 기록·선수 줄이 가리키는 구단 (seed 가 있으면 그것, 없으면 그 시즌을 치른 같은 별칭의 구단) */
+export function clubOf(hof: Hof, seed: number | undefined, nick: string, season: number): HofClub | null {
+  if (seed !== undefined) return hof.clubs.find((c) => c.seed === seed) ?? null;
+  return hof.clubs.find((c) => c.nick === nick && c.seasons >= season) ?? null;
 }

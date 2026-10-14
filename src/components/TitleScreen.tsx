@@ -3,7 +3,8 @@ import { VersionBadge } from './WhatsNew';
 import { DONATE_URL, FEEDBACK_URL, gmCount, track, type GmCount } from '../analytics';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { StadiumScene } from '../game/types';
-import { HOF_END_KO, HOF_RECORD_KO, hofWorthy, type HofRecordKey } from '../game/hof';
+import { HOF_END_KO, HOF_RECORD_KO, clubOf, hofWorthy, type HofClub, type HofRecordKey } from '../game/hof';
+import { HofDetail } from './HofDetail';
 import { TEAM_DEFS, USER_ID } from '../game/generate';
 import { fmtInt, fmtMoney } from '../game/format';
 import { rankOf } from '../game/season';
@@ -111,6 +112,12 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
   const hof = useHof((s) => s.hof);
   const empty = !hof.clubs.length && !hof.players.length && !Object.keys(hof.records).length;
   const H = ({ children }: { children: string }) => <div className="mt-4 mb-1 text-[13px] text-sky">{children}</div>;
+  const [open, setOpen] = useState<{ club: HofClub; season?: number } | null>(null);
+  // 같은 별칭의 구단이 여럿이면 1기·2기 (목록은 최신이 위 — 아래에 남은 같은 이름 수로 기수를 센다)
+  const genOf = (c: HofClub): number | undefined => {
+    const i = hof.clubs.indexOf(c);
+    return hof.clubs.filter((x) => x.nick === c.nick).length > 1 && i >= 0 ? hof.clubs.slice(i).filter((x) => x.nick === c.nick).length : undefined;
+  };
   return (
     <div className="fixed inset-0 z-[70] flex flex-col bg-[#141a29] font-pixel text-[13px]" style={safe} data-testid="hof">
       <div className="flex shrink-0 items-center justify-between">
@@ -133,7 +140,7 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
             <H>역대 구단</H>
             {hof.clubs.length ? (
               hof.clubs.map((c, i) => (
-                <div key={c.seed} className="mb-1 min-h-12 bg-panel px-2 py-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="hof-club">
+                <div key={c.seed} className="mb-1 min-h-12 cursor-pointer bg-panel px-2 py-1.5 active:bg-white/5" style={{ boxShadow: '0 0 0 1px #0f1420' }} onClick={() => setOpen({ club: c })} data-testid="hof-club">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-pixel-lg truncate text-[16px]" style={{ color: DEF.color }}>
                       {DEF.city} {c.nick}
@@ -156,7 +163,9 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
                         <span className="shrink-0">{c.date}</span>
                       </div>
                     </div>
-                    <ShareClubButton club={c} />
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <ShareClubButton club={c} />
+                    </span>
                   </div>
                   {c.best && (
                     <div className="text-white/75" data-testid="hof-best">
@@ -177,8 +186,15 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
             <H>기록</H>
             {(Object.keys(HOF_RECORD_KO) as HofRecordKey[]).map((k) => {
               const r = hof.records[k];
+              const club = r ? clubOf(hof, r.seed, r.nick, r.season) : null;
               return (
-                <div key={k} className="mb-1 flex min-h-12 items-center justify-between gap-2 bg-panel px-2" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+                <div
+                  key={k}
+                  className={`mb-1 flex min-h-12 items-center justify-between gap-2 bg-panel px-2 ${club ? 'cursor-pointer active:bg-white/5' : ''}`}
+                  style={{ boxShadow: '0 0 0 1px #0f1420' }}
+                  onClick={club && r ? () => setOpen({ club, season: r.season }) : undefined}
+                  data-testid="hof-record"
+                >
                   <span className="text-white/70">{HOF_RECORD_KO[k]}</span>
                   {r ? (
                     <span className="text-right">
@@ -195,8 +211,16 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
             })}
             <H>선수</H>
             {hof.players.length ? (
-              hof.players.map((p, i) => (
-                <div key={i} className="mb-1 flex min-h-12 items-center justify-between gap-2 bg-panel px-2" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+              hof.players.map((p, i) => {
+                const club = clubOf(hof, p.seed, p.nick, p.season);
+                return (
+                <div
+                  key={i}
+                  className={`mb-1 flex min-h-12 items-center justify-between gap-2 bg-panel px-2 ${club ? 'cursor-pointer active:bg-white/5' : ''}`}
+                  style={{ boxShadow: '0 0 0 1px #0f1420' }}
+                  onClick={club ? () => setOpen({ club, season: p.season }) : undefined}
+                  data-testid="hof-player"
+                >
                   <span className="min-w-0 truncate">
                     <span className={p.kind === 'retired' ? 'text-hi' : 'text-sky'}>{PLAYER_KO[p.kind]}</span> <span className="text-[15px]">{p.name}</span>
                     {p.note && <span className="ml-1 text-white/50">{p.note}</span>}
@@ -205,13 +229,15 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
                     {p.nick} {p.season}시즌
                   </span>
                 </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-white/45">영구결번·MVP·신인왕이 나오면 여기에 남습니다</div>
             )}
           </>
         )}
       </div>
+      {open && <HofDetail club={open.club} gen={genOf(open.club)} season={open.season} onClose={() => setOpen(null)} />}
     </div>
   );
 }

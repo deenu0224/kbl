@@ -79,6 +79,8 @@ export const SCREENS = [
   S('whats-new', null, st(['version-badge'])),
   S('title-hof', 'over', st(['open-hof'])),
   S('title-hof-empty', null, st(['open-hof'])),
+  S('title-hof-detail', 'over', st(['open-hof', 'hof-club'])),
+  S('title-hof-record', 'over', st(['open-hof', 'hof-record'])),
   // 공유 링크(?from=유형)로 연 초기 화면: 세이브 없음 · 있음
   S('title-from', null, [], { query: '?from=w6' }),
   S('title-from-over', null, [], { query: '?from=x4' }),
