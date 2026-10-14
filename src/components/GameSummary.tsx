@@ -382,10 +382,10 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
   const t = rs.length - w - l;
   const sum = rs.reduce(
     (a, r) => {
-      (Object.keys(a) as (keyof DayReport['money'])[]).forEach((k) => (a[k] += r.money[k]));
+      (Object.keys(a) as (keyof typeof a)[]).forEach((k) => (a[k] += r.money[k] ?? 0));
       return a;
     },
-    { ticket: 0, food: 0, merch: 0, league: 0, salary: 0, upkeep: 0, interest: 0, net: 0 },
+    { ticket: 0, awayGate: 0, food: 0, merch: 0, league: 0, salary: 0, upkeep: 0, interest: 0, net: 0 },
   );
   const homes = rs.filter((r) => r.crowd);
   const att = homes.reduce((a, r) => a + (r.crowd?.attendance ?? 0), 0);

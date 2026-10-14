@@ -384,5 +384,5 @@ export function previewDemand(core: Core): number {
 
 /** 영업 손익 (시설 투자 제외) */
 export function opProfit(l: Ledger): number {
-  return l.ticket + l.food + l.merch + l.league + l.sales - l.salary - l.upkeep - l.interest - l.signing;
+  return l.ticket + (l.awayGate ?? 0) + l.food + l.merch + l.league + l.sales - l.salary - l.upkeep - l.interest - l.signing;
 }

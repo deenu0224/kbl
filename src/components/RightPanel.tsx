@@ -437,28 +437,30 @@ const EXPENSE: [keyof Ledger, string][] = [
   ['facility', '시설투자'],
 ];
 
+const lv = (l: Ledger, k: keyof Ledger) => l[k] ?? 0; // awayGate 는 옛 세이브에 없다
+
 export function ledgerTotals(l: Ledger) {
-  const income = INCOME.reduce((a, [k]) => a + l[k], 0);
-  const expense = EXPENSE.reduce((a, [k]) => a + l[k], 0);
+  const income = INCOME.reduce((a, [k]) => a + lv(l, k), 0);
+  const expense = EXPENSE.reduce((a, [k]) => a + lv(l, k), 0);
   return { income, expense, net: income - expense };
 }
 
 export function LedgerBars({ ledger }: { ledger: Ledger }) {
   const { income, expense, net } = ledgerTotals(ledger);
-  const max = Math.max(1, ...INCOME.map(([k]) => ledger[k]), ...EXPENSE.map(([k]) => ledger[k]));
+  const max = Math.max(1, ...INCOME.map(([k]) => lv(ledger, k)), ...EXPENSE.map(([k]) => lv(ledger, k)));
   return (
     <div className="flex flex-col gap-[3px]">
       <div className="flex justify-between text-[10px] text-good">
         <span>수입</span>
         <span>+{fmtMoney(income)}</span>
       </div>
-      {INCOME.map(([k, label]) => (ledger[k] > 0 || k !== 'sales' ? <MoneyBar key={k} label={label} text={fmtMoney(ledger[k])} ratio={ledger[k] / max} color="#6ee07a" /> : null))}
+      {INCOME.map(([k, label]) => (lv(ledger, k) > 0 || k !== 'sales' ? <MoneyBar key={k} label={label} text={fmtMoney(lv(ledger, k))} ratio={lv(ledger, k) / max} color="#6ee07a" /> : null))}
       <div className="mt-1 flex justify-between text-[10px] text-bad">
         <span>지출</span>
         <span>-{fmtMoney(expense)}</span>
       </div>
       {EXPENSE.map(([k, label]) => (
-        <MoneyBar key={k} label={label} text={fmtMoney(ledger[k])} ratio={ledger[k] / max} color="#ff6b6b" />
+        <MoneyBar key={k} label={label} text={fmtMoney(lv(ledger, k))} ratio={lv(ledger, k) / max} color="#ff6b6b" />
       ))}
       <div className="mt-1 flex items-center justify-between bg-ink/70 px-1.5 py-1 text-[12px]">
         <span>시즌 손익</span>
