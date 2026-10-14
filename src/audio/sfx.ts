@@ -1,9 +1,10 @@
 /** Asset-free, lazily initialized stadium chiptunes. All timings are seconds. */
+import { CEREMONY_MS, CHAMP_POPS } from '../stadium/ceremony';
 export type SfxName =
   | 'click' | 'tab' | 'error' | 'coin' | 'buy' | 'build'
   | 'playball' | 'hit' | 'homerun' | 'cheer' | 'groan'
   | 'win' | 'lose' | 'walkoff' | 'injury' | 'event'
-  | 'achievement' | 'champion';
+  | 'achievement' | 'champion' | 'crown' | 'crownShort';
 
 type Wave = 'square' | 'triangle';
 type Note = readonly [frequency: number, duration: number, wave: Wave];
@@ -78,7 +79,28 @@ const melodies = {
     [E * 2, 0.36, 'square'], [D * 2, 0.18, 'triangle'],
     [HIGH_C, 0.18, 'square'], [B, 0.18, 'triangle'], [A, 0.18, 'triangle'],
     [G, 0.18, 'square'], [HIGH_C, 0.8, 'square']],
+  // 우승 확정 순간의 팡파르 (약 3.5초): 셋잇단 부름 → 도약 → 길게 맺음
+  crown: [[G, 0.12, 'square'], [G, 0.12, 'square'], [G, 0.12, 'square'],
+    [HIGH_C, 0.5, 'square'], [E * 2, 0.25, 'square'], [D * 2, 0.12, 'square'],
+    [E * 2, 0.12, 'square'], [G * 2, 0.6, 'square'], [A * 2, 0.2, 'triangle'],
+    [G * 2, 0.2, 'square'], [E * 2, 0.2, 'square'], [HIGH_C * 2, 1, 'square']],
+  crownShort: [],
 } as const satisfies Record<SfxName, Sequence>;
+
+/** 폭죽 한 발: 올라가는 휘파람 + 터지는 소리 (at = 터지는 시각) */
+function firework(audio: AudioEngine, at: number): void {
+  const up = audio.context.createOscillator();
+  const gain = envelope(audio, at - 0.28, 0.26, 0.05, 0.2);
+  up.type = 'triangle';
+  up.frequency.setValueAtTime(900, at - 0.28);
+  up.frequency.exponentialRampToValueAtTime(2400, at - 0.03);
+  up.connect(gain);
+  up.onended = () => { up.disconnect(); gain.disconnect(); };
+  up.start(at - 0.28);
+  up.stop(at - 0.02);
+  noiseBurst(audio, at, 0.5, 1800, 0.3);
+  tone(audio, 70, 0.22, 'triangle', at, 0.25);
+}
 
 function getEngine(): AudioEngine | undefined {
   if (engine && engine.context.state !== 'closed') return engine;
@@ -253,6 +275,16 @@ function schedule(audio: AudioEngine, name: SfxName): void {
       tone(audio, C / 2, 0.85, 'triangle', start, 0.15);
       tone(audio, 369.99, 0.7, 'triangle', start + 0.15, 0.15);
       break;
+    case 'crown':
+    case 'crownShort': {
+      // 팡파르 + 관중 함성 + 그림과 같은 박자의 폭죽 (짧은 세리머니에서는 그 안에 터지는 것만)
+      const end = name === 'crown' ? CEREMONY_MS.normal : CEREMONY_MS.fast;
+      sequence(audio, melodies.crown, start, 0.17);
+      sequence(audio, melodies.crown, start, 0.12, 0.5);
+      noiseBurst(audio, start, 3.2, 900, 0.18, true);
+      for (const t of CHAMP_POPS) if (t * 1000 < end - 300) firework(audio, start + t);
+      break;
+    }
     case 'champion':
       sequence(audio, melodies.champion, start);
       sequence(audio, melodies.champion, start, 0.15, 0.5);
@@ -270,6 +302,8 @@ export function play(name: SfxName): void {
   const previous = lastPlayed.get(name);
   if (previous !== undefined && now - previous < 50) return;
   lastPlayed.set(name, now);
+  // 우승 팡파르는 그 순간에만 의미가 있다: 오디오가 잠겨 있으면(iOS) 나중에 풀릴 때 뒤늦게 울리지 않게 생략
+  if ((name === 'crown' || name === 'crownShort') && audio.context.state !== 'running') return;
   const perform = (): void => {
     if (muted || volume === 0 || audio.context.state !== 'running') return;
     try { schedule(audio, name); } catch { /* Audio failure must not interrupt UI. */ }

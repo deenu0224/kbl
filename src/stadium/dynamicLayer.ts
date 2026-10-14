@@ -35,6 +35,7 @@ import {
 } from './geometry';
 import { CAR_COLORS, FAN_EXTRA, FIREWORK_COLORS, PAL, col, lum, mix, shade } from './palette';
 import type { StaticLayers } from './staticLayer';
+import { CHAMP_POPS } from './ceremony';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -939,8 +940,6 @@ function confetti(ctx: Ctx, fxT: number, key: number): void {
   }
 }
 
-/** 전광판 위로 터지는 우승 폭죽의 시각(초). 효과음(sfx.ts CHAMP_POPS)과 같은 박자 */
-export const CHAMP_POPS = [0.55, 1.2, 1.9, 2.7, 3.6, 4.5, 5.5, 6.4];
 const CHAMP_CONFETTI = 120; // 폰에서도 프레임이 버티는 상한
 
 /** 팀 색 색종이: 관중석(원정이면 원정 응원석)에서 흩날려 떨어진다 */

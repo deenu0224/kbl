@@ -16,6 +16,7 @@ import { teamDef } from '../game/generate';
 import { clinchesTitle } from '../game/postseason';
 import { defendingChamp } from '../game/campaign';
 import { SHOT_FXT, reducedMotion } from '../stadium/shotMode';
+import { CEREMONY_MS } from '../stadium/ceremony';
 import { TITLE_WALL_SPANS } from '../stadium/dynamicLayer';
 import { fenceTopY } from '../stadium/geometry';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
@@ -130,9 +131,6 @@ function PanZoom({ children, fixed, onTagsOff }: { children: (style: CSSProperti
     </div>
   );
 }
-
-/** 우승 세리머니 길이(ms): 하이라이트 "빠르게"면 짧게 */
-export const CEREMONY_MS = { normal: 7000, fast: 3000 };
 
 /** 지금 재생 중인 장면이 한국시리즈 우승 확정 세리머니인가 */
 function useCeremony(): boolean {

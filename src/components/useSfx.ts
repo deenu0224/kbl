@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { play as playSfx, unlock, type SfxName } from '../audio/sfx';
 import { duckBgm } from '../audio/bgm';
 import { useStore } from '../store';
+import { useUi } from './layout/uiStore';
+import { clinchesTitle } from '../game/postseason';
 
 /**
  * 효과음 연결 (App 에서 한 번).
@@ -10,7 +12,7 @@ import { useStore } from '../store';
  * - 게임 사건(영입·증축·하이라이트·승패·이벤트 카드·결산)은 스토어 변화를 보고 재생
  */
 // 긴 효과음이 나는 동안은 배경음악을 낮춘다 (초)
-const LONG: Partial<Record<SfxName, number>> = { homerun: 1.6, walkoff: 2.4, win: 1.8, lose: 1.8, champion: 3.6, achievement: 1.6 };
+const LONG: Partial<Record<SfxName, number>> = { homerun: 1.6, walkoff: 2.4, win: 1.8, lose: 1.8, champion: 3.6, achievement: 1.6, crown: 6.8, crownShort: 3 };
 function play(name: SfxName): void {
   playSfx(name);
   const d = LONG[name];
@@ -53,6 +55,7 @@ export function useSfx(): void {
         else if (ev?.type === 'score') play(mine ? 'hit' : 'groan');
         else if (ev?.type === 'walkoff') play(mine ? 'walkoff' : 'groan');
         else if (ev?.type === 'injury') play('injury');
+        else if (ev?.type === 'final' && clinchesTitle(pb.report)) play(useUi.getState().fast ? 'crownShort' : 'crown');
         else if (ev?.type === 'final') play(pb.report.won === false ? 'lose' : pb.report.won ? 'win' : 'click');
       }
       // 하이라이트 없이 끝난 경기 / 일괄 진행
