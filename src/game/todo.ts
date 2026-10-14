@@ -9,6 +9,7 @@ import { coachShuttles, injuryNotice, remedies } from './remedy';
 import { farmAutoOn, rehabReady, shuttleArms } from './farm';
 import { runway, runwayAlert } from './runway';
 import { releaseTodo } from './release';
+import { PAY_TODO_LAST, PAY_TODO_LOSS, nextSeasonForecast, signedMoney } from './payforecast';
 
 export type TodoTab = 'home' | 'roster' | 'transfer' | 'league' | 'club';
 export type TodoAction = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad' | 'release';
@@ -90,6 +91,12 @@ export function todoList(core: Core): Todo[] {
   // 확인 항목: 창구를 열어 봤거나 방출을 담으면 그 시즌 · 그 상황 동안 다시 올리지 않는다 (id 에 시즌·상황이 들어 있다)
   const rel = releaseTodo(core);
   if (rel) out.push({ id: rel.id, tab: 'transfer', hint: 'market', icon: '−', tone: 'warn', action: 'release', dismissible: true, text: rel.text });
+
+  // 내년 적자 예상: 시즌 마지막 10경기 안 · 연봉 재평가 뒤 영업손익이 −5억 이하 (확인 항목 — 열어 보면 그 시즌 다시 올리지 않는다)
+  if (core.phase === 'season' && left <= PAY_TODO_LAST) {
+    const f = nextSeasonForecast(core);
+    if (f.profit <= PAY_TODO_LOSS) out.push({ id: `pay-${core.season}`, tab: 'club', hint: 'finance', icon: '₩', tone: 'warn', action: 'finance', dismissible: true, text: `내년 적자 예상 ${signedMoney(f.profit)} — 방출·재계약 검토` });
+  }
 
   // 스카우트 팀장의 명단 (아직 시장에 남아 있는 사람만)
   const list = memoGet(core, 'scoutList');
