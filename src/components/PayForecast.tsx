@@ -1,9 +1,9 @@
 // 내년 살림 미리보기 (game/payforecast.ts): 결산 화면의 블록과 시즌 후반 재무 탭의 한 줄
+import Fold from './Fold';
 import { useMemo } from 'react';
 import type { Core } from '../game/types';
 import { nextSeasonForecast, payParts, raiseWhyText, signedMoney } from '../game/payforecast';
 import { fmtMoney } from '../game/format';
-import { CHARACTERS, PAY_FORECAST_LINE } from '../game/story';
 import { useStore } from '../store';
 import { openDesk } from './roster/transferUi';
 import Help from './Help';
@@ -31,16 +31,6 @@ export function PayForecastBlock({ core }: { core: Core }) {
       {head}
       {loss && (
         <>
-          {parts.length > 0 && <div className="mt-0.5 text-white/65">{parts.join(' · ')}</div>}
-          <div className="mt-0.5 text-white/65">
-            2군 {f.farmN.now}명 → {f.farmN.next}명 · 수입 {fmtMoney(f.income)} (이번 시즌 그대로) · 유지·운영 {fmtMoney(f.upkeep)}
-            {f.interest > 0 && ` · 이자 ${fmtMoney(f.interest)}`}
-          </div>
-          {f.fa.n > 0 && (
-            <div className="mt-0.5 text-white/65">
-              FA 자격 {f.fa.n}명 — 재계약하면 위 예상 그대로, 보내면 연봉 총액 −{fmtMoney(f.fa.salary)}
-            </div>
-          )}
           {f.lux && f.lux.tax > 0 && (
             <div className="mt-0.5 text-bad">
               경쟁균형세 상한 {fmtMoney(f.lux.cap)} 초과 — 제재금 {fmtMoney(f.lux.tax)} 예상
@@ -59,10 +49,22 @@ export function PayForecastBlock({ core }: { core: Core }) {
               ))}
             </div>
           )}
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <span className="min-w-[200px] flex-1 text-white/60">
-              {CHARACTERS.chair.name} {CHARACTERS.chair.title} — “{PAY_FORECAST_LINE}”
-            </span>
+          {/* 이유별 증감·2군·수입·FA 는 접어 둔다 (글이 많으면 안 읽는다) */}
+          <Fold label="자세히" className="mt-1">
+            <div className="text-white/65">
+                {parts.length > 0 && <div className="mt-0.5 text-white/65">{parts.join(' · ')}</div>}
+                <div className="mt-0.5 text-white/65">
+                  2군 {f.farmN.now}명 → {f.farmN.next}명 · 수입 {fmtMoney(f.income)} (이번 시즌 그대로) · 유지·운영 {fmtMoney(f.upkeep)}
+                  {f.interest > 0 && ` · 이자 ${fmtMoney(f.interest)}`}
+                </div>
+                {f.fa.n > 0 && (
+                  <div className="mt-0.5 text-white/65">
+                    FA 자격 {f.fa.n}명 — 재계약하면 위 예상 그대로, 보내면 연봉 총액 −{fmtMoney(f.fa.salary)}
+                  </div>
+                )}
+            </div>
+          </Fold>
+          <div className="mt-1.5 flex justify-end">
             <button
               className="px-btn min-h-11 shrink-0 whitespace-nowrap"
               data-testid="pay-release"
