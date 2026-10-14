@@ -30,7 +30,7 @@ import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season
 import { deadlinesSoon } from '../game/economy';
 import { RUNWAY_DANGER, borrowMoodText, debtMoodText, luxLine, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import { teamStrength } from '../game/ratings';
-import Bracket from './Bracket';
+import Bracket, { OppClimb } from './Bracket';
 import Standings from './Standings';
 import { postTeams, seasonGames } from '../game/league';
 import Leaders from './Leaders';
@@ -87,6 +87,7 @@ export function LeagueTab() {
       {sub === 'leaders' && <Leaders />}
       {sub === 'bracket' && (
         <div className="mt-2">
+          <OppClimb className="mb-1.5 bg-ink/40 px-1.5 py-1" />
           <Bracket path reopen />
         </div>
       )}
@@ -94,6 +95,7 @@ export function LeagueTab() {
         <>
       {phase === 'post' && post && (
         <div className="mt-2">
+          <OppClimb className="mb-1.5 bg-ink/40 px-1.5 py-1" />
           <Bracket />
         </div>
       )}

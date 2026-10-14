@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Postseason, PostSeries, Team } from '../game/types';
 import { useStore, userMatch } from '../store';
 import { buildPost } from '../game/postseason';
-import { firstSeries } from '../game/autumn';
+import { climbLine, climbPath, firstSeries, roundShortName } from '../game/autumn';
 import { useUi } from './layout/uiStore';
 import { TeamDot } from './ui';
 import Help from './Help';
@@ -180,3 +180,47 @@ export default function Bracket({ wide = false, path = false, reopen = false }: 
 }
 
 export const roundShort = (r: string) => SHORT[r] ?? r;
+
+/**
+ * 다음 상대가 가을야구에서 지나온 길 (작은 토너먼트 그림): 한 줄 요약 + 라운드 칸
+ * "와일드카드 판다스 2:0 앵커스 → 준PO 판다스 3:1 매직스 → PO 판다스 vs 우리". 포스트시즌이 아니면 그리지 않는다
+ */
+export function OppClimb({ className = '', chips = true }: { className?: string; chips?: boolean }) {
+  const phase = useStore((s) => s.phase);
+  const post = useStore((s) => s.post);
+  const teams = useStore((s) => s.teams);
+  const userId = useStore((s) => s.userId);
+  const schedule = useStore((s) => s.schedule);
+  const data = useMemo(() => {
+    if (phase !== 'post' || !post) return null;
+    const m = userMatch({ schedule, userId, phase, post }, 0);
+    if (!m) return null;
+    const core = { post, teams };
+    return { m, line: climbLine(core, m.oppId), path: climbPath(core, m.oppId), opp: teams.find((t) => t.id === m.oppId) };
+  }, [phase, post, teams, userId, schedule]);
+  if (!data?.line) return null;
+  const { m, path, opp } = data;
+  return (
+    <div className={`min-w-0 text-[11px] leading-snug mob:text-[12px] ${className}`} data-testid="opp-climb">
+      <div className="truncate text-white/75">{data.line}</div>
+      {chips && path.length > 0 && (
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-[3px]" data-testid="opp-climb-path">
+          {path.map((p) => (
+            <span key={p.round} className="flex items-center gap-1">
+              <span className="whitespace-nowrap bg-ink/70 px-1 py-[1px]" style={{ boxShadow: 'inset 0 -2px 0 #47557f' }}>
+                <span className="text-sky">{p.short}</span> {p.winner} <span className="text-hi">{p.w}:{p.l}</span>
+                {p.ties ? <span className="text-white/50">({p.ties}무)</span> : null} <span className="text-white/45">{p.loser}</span>
+              </span>
+              <span aria-hidden className="text-white/40">
+                →
+              </span>
+            </span>
+          ))}
+          <span className="whitespace-nowrap bg-hi/15 px-1 py-[1px] text-hi" style={{ boxShadow: 'inset 0 -2px 0 #ffd84a' }}>
+            <span className="text-sky">{m.round ? roundShortName(m.round) : ''}</span> {opp?.name} vs 우리
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}

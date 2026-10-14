@@ -323,6 +323,8 @@ export const SCREENS = [
   S('autumn-go', 'introWc', game('autumn-go', { wait: 400 })),
   S('autumn-reopen', 'post', game('리그', '대진표', 'autumn-reopen')),
   S('po-from-wc-bracket', 'poFromWc', game('리그', '대진표')),
+  S('po-from-wc-home', 'poFromWc', game()),
+  S('po-from-wc-table', 'poFromWc', game('리그')),
 
   // ── 포스트시즌
   S('post-home', 'post', game()),

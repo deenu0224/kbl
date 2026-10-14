@@ -174,6 +174,6 @@ export function climbLine(core: Pick<Core, 'post' | 'teams'>, teamId: string): s
   const name = t ? `${t.city} ${t.name}` : teamId;
   const seed = post.seeds.indexOf(teamId) + 1;
   if (!path.length) return seed > 0 ? `${name} — 정규시즌 ${seed}위로 기다림` : null;
-  const played = path.reduce((a, p) => a + p.games, 0);
+  const played = post.series.reduce((a, s) => a + s.games.filter((g) => g.homeId === teamId || g.awayId === teamId).length, 0);
   return `${name} — ${path[0].name}부터 올라옴 · 가을야구 ${played + 1}경기째`;
 }
