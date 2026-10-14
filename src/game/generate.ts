@@ -140,7 +140,7 @@ export function recZero(): TeamRecord {
   return { w: 0, l: 0, t: 0, rs: 0, ra: 0, streak: 0, last10: [] };
 }
 export function ledgerZero(): Ledger {
-  return { ticket: 0, food: 0, merch: 0, league: 0, sales: 0, salary: 0, upkeep: 0, interest: 0, signing: 0, facility: 0 };
+  return { ticket: 0, awayGate: 0, food: 0, merch: 0, league: 0, sales: 0, salary: 0, upkeep: 0, interest: 0, signing: 0, facility: 0 };
 }
 
 // ── 능력치 ──

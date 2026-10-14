@@ -36,10 +36,12 @@ function RankMove({ before, after }: { before: number; after: number }) {
 }
 
 function MoneyBlock({ m, netLabel = '오늘 순익' }: { m: DayReport['money']; netLabel?: string }) {
-  const max = Math.max(1, m.ticket, m.food, m.merch, m.league, m.salary, m.upkeep, m.interest);
+  const away = m.awayGate ?? 0;
+  const max = Math.max(1, m.ticket, away, m.food, m.merch, m.league, m.salary, m.upkeep, m.interest);
   return (
     <div className="flex flex-col gap-[3px]">
-      <MoneyBar label="입장" text={`+${fmtMoney(m.ticket)}`} ratio={m.ticket / max} color="#6ee07a" />
+      {(m.ticket > 0 || !away) && <MoneyBar label="입장" text={`+${fmtMoney(m.ticket)}`} ratio={m.ticket / max} color="#6ee07a" />}
+      {away > 0 && <MoneyBar label="원정 몫" text={`+${fmtMoney(away)}`} ratio={away / max} color="#6ee07a" />}
       <MoneyBar label="매점" text={`+${fmtMoney(m.food)}`} ratio={m.food / max} color="#6ee07a" />
       <MoneyBar label="굿즈" text={`+${fmtMoney(m.merch)}`} ratio={m.merch / max} color="#6ee07a" />
       <MoneyBar label="분배금" text={`+${fmtMoney(m.league)}`} ratio={m.league / max} color="#6ee07a" />
@@ -363,7 +365,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
               )}
             </>
           ) : (
-            <div className="text-[10px] text-white/45">원정 경기 (입장·매점 수입 없음)</div>
+            <div className="text-[10px] text-white/45">원정 경기 (매점 수입 없음)</div>
           )}
         </div>
         <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
@@ -382,10 +384,10 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
   const t = rs.length - w - l;
   const sum = rs.reduce(
     (a, r) => {
-      (Object.keys(a) as (keyof DayReport['money'])[]).forEach((k) => (a[k] += r.money[k]));
+      (Object.keys(a) as (keyof typeof a)[]).forEach((k) => (a[k] += r.money[k] ?? 0));
       return a;
     },
-    { ticket: 0, food: 0, merch: 0, league: 0, salary: 0, upkeep: 0, interest: 0, net: 0 },
+    { ticket: 0, awayGate: 0, food: 0, merch: 0, league: 0, salary: 0, upkeep: 0, interest: 0, net: 0 },
   );
   const homes = rs.filter((r) => r.crowd);
   const att = homes.reduce((a, r) => a + (r.crowd?.attendance ?? 0), 0);

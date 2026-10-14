@@ -8,6 +8,7 @@ import { addNews, playGame, rankOf, rollWeather, settleCash, standings } from '.
 import { activeBuffs, concludeMut, hintMut, refreshProgressMut, tickBuffs } from './campaign';
 import { memoAdd } from './memo';
 import { perGame, postRounds, postTeams } from './league';
+import { HOME_GATE, awayGate } from './gate';
 
 // ── 튜닝 상수 ──
 // 진출 팀 수와 라운드 순서는 구단 수에서 유도한다 (league.ts postTeams·postRounds): 8구단 4팀 [SPO, PO, KS], 10구단 5팀 [WC, SPO, PO, KS]
@@ -333,16 +334,19 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
 
   // ── 재정 (연봉·분배금 없음, 유지비·이자는 정산) ──
   const att = crowd ? crowd.attendance : 0;
-  const ticket = Math.round(att * f.ticketPrice * TICKET_MULT * fx.ticket);
+  const ticket = Math.round(att * f.ticketPrice * TICKET_MULT * fx.ticket * HOME_GATE);
+  // 원정: 상대 구장 입장 수입(같은 가을야구 배율)의 28%
+  const awayG = m.isHome ? 0 : awayGate(core, opp.id, rankOf(core.teams, opp.id), POST_DOW, { demand: DEMAND_MULT[m.round], price: TICKET_MULT }).share;
   const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather, core)) : 0;
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (m.isHome ? 1.4 : 0.6) * fx.merch);
   const upkeep =
     (m.isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep : 0) +
     Math.round(perGame(core, TRAIN_LV[core.facilities.training].upkeep + opsCost(core)));
   const interest = Math.round(loanInterest(core, f.debt) / core.schedule.length);
-  const net = ticket + food + merch - upkeep - interest;
+  const net = ticket + awayG + food + merch - upkeep - interest;
   f.cash += net;
   f.ledger.ticket += ticket;
+  if (awayG) f.ledger.awayGate = (f.ledger.awayGate ?? 0) + awayG;
   f.ledger.food += food;
   f.ledger.merch += merch;
   f.ledger.upkeep += upkeep;
@@ -373,7 +377,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
     won,
     night: true,
     crowd,
-    money: { ticket, food, merch, league: 0, salary: 0, upkeep, interest, net },
+    money: { ticket, ...(m.isHome ? {} : { awayGate: awayG }), food, merch, league: 0, salary: 0, upkeep, interest, net },
     rankBefore: rank,
     rankAfter: rank,
     others: [],

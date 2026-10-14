@@ -248,14 +248,14 @@ for (const bot of BOTS) {
   console.log(`\n━━━ [${bot.name}] ━━━`);
 
   console.log('── 수입 / 지출 (억) · 영업손익 = 수입 − 지출(시설 투자·보상 제외) ──');
-  const w1 = [4, 4, 6, 6, 6, 6, 6, 6, 2, 7, 7, 7, 7, 7, 6, 6, 7, 2, 7, 7];
-  console.log(row(['시즌', '생존', '입장', '매점', '굿즈', '분배', '배당', '보상', '|', '1군연봉', '2군연봉', '2군운영', '시설유지', '운영비', '이자', '계약금', '시설투자', '|', '영업손익', '말현금'], w1));
+  const w1 = [4, 4, 6, 6, 6, 6, 6, 6, 6, 2, 7, 7, 7, 7, 7, 6, 6, 7, 2, 7, 7];
+  console.log(row(['시즌', '생존', '입장', '원정몫', '매점', '굿즈', '분배', '배당', '보상', '|', '1군연봉', '2군연봉', '2군운영', '시설유지', '운영비', '이자', '계약금', '시설투자', '|', '영업손익', '말현금'], w1));
   for (const s of seasons) {
     console.log(
       row(
         [
           s + 1, at(s).length,
-          eok(m(s, (x) => x.L.ticket)), eok(m(s, (x) => x.L.food)), eok(m(s, (x) => x.L.merch)), eok(m(s, (x) => x.L.league - x.dividend)), eok(m(s, (x) => x.dividend)), eok(m(s, (x) => x.reward)), '|',
+          eok(m(s, (x) => x.L.ticket)), eok(m(s, (x) => x.L.awayGate ?? 0)), eok(m(s, (x) => x.L.food)), eok(m(s, (x) => x.L.merch)), eok(m(s, (x) => x.L.league - x.dividend)), eok(m(s, (x) => x.dividend)), eok(m(s, (x) => x.reward)), '|',
           eok(m(s, (x) => x.L.salary - x.farmSal)), eok(m(s, (x) => x.farmSal)), eok(m(s, (x) => x.farmUp)), eok(m(s, (x) => x.L.upkeep - x.farmUp - x.ops)), eok(m(s, (x) => x.ops)), eok(m(s, (x) => x.L.interest)), eok(m(s, (x) => x.L.signing)), eok(m(s, (x) => x.L.facility)), '|',
           eok(m(s, (x) => opProfit(x.L))), eok(m(s, (x) => x.cash)),
         ],
@@ -266,7 +266,7 @@ for (const bot of BOTS) {
   // 비중 (전 시즌 합)
   const allS = runs.flatMap((r) => r.snaps);
   const sum = (f: (x: Snap) => number) => allS.reduce((a, x) => a + f(x), 0);
-  const inc: [string, number][] = [['입장', sum((x) => x.L.ticket)], ['매점', sum((x) => x.L.food)], ['굿즈', sum((x) => x.L.merch)], ['분배금', sum((x) => x.L.league - x.dividend)], ['배당', sum((x) => x.dividend)], ['보상', sum((x) => x.reward)]];
+  const inc: [string, number][] = [['입장', sum((x) => x.L.ticket)], ['원정 몫', sum((x) => x.L.awayGate ?? 0)], ['매점', sum((x) => x.L.food)], ['굿즈', sum((x) => x.L.merch)], ['분배금', sum((x) => x.L.league - x.dividend)], ['배당', sum((x) => x.dividend)], ['보상', sum((x) => x.reward)]];
   const exp: [string, number][] = [['1군 연봉', sum((x) => x.L.salary - x.farmSal)], ['2군 연봉', sum((x) => x.farmSal)], ['2군 운영비', sum((x) => x.farmUp)], ['시설 유지비', sum((x) => x.L.upkeep - x.farmUp - x.ops)], ['운영비', sum((x) => x.ops)], ['이자', sum((x) => x.L.interest)], ['계약금', sum((x) => x.L.signing)], ['시설 투자', sum((x) => x.L.facility)]];
   const share = (xs: [string, number][]) => {
     const tot = xs.reduce((a, x) => a + x[1], 0) || 1;

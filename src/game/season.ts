@@ -27,6 +27,7 @@ import { tradeTickMut } from './trade';
 import { svcSalary, svcYearAt } from './contract';
 import { farmDailyMut, subEnqueueMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
 import { perGame, rankUnits } from './league';
+import { HOME_GATE, awayGate } from './gate';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -342,6 +343,10 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const notes: string[] = [];
   const rankBefore = rankOf(core.teams, core.userId);
   const games = core.schedule[day];
+  const oppRankBefore = (() => {
+    const m = games.find((g) => g.homeId === core.userId || g.awayId === core.userId);
+    return m && m.awayId === core.userId ? rankOf(core.teams, m.homeId) : 0;
+  })();
   const mine = games.find((g) => g.homeId === core.userId || g.awayId === core.userId);
   if (!mine) throw new Error('유저 구단의 경기가 없는 날입니다');
   const isHome = mine.homeId === core.userId;
@@ -415,7 +420,9 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const rankNow = rankOf(core.teams, core.userId);
   const price = f.ticketPrice;
   const att = crowd ? crowd.attendance : 0;
-  const ticket = Math.round(att * price * fx.ticket);
+  const ticket = Math.round(att * price * fx.ticket * HOME_GATE);
+  // 원정: 상대 구장 입장 수입의 28% (결정적 추정 — 난수 없음. 순위는 경기 전)
+  const awayG = isHome ? 0 : awayGate(core, opp.id, oppRankBefore, dow).share;
   const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather, core)) : 0;
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
   const league = Math.round(perGame(core, leagueShare(core, rankNow) * leagueMult(core)));
@@ -424,10 +431,11 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep + projectFx(core).upkeep : 0) +
     Math.round(perGame(core, TRAIN_LV[core.facilities.training].upkeep + farmUpkeep(user) + opsCost(core)));
   const interest = Math.round(loanInterest(core, f.debt) / core.schedule.length);
-  const net = ticket + food + merch + league - salary - upkeep - interest;
+  const net = ticket + awayG + food + merch + league - salary - upkeep - interest;
   f.cash += net;
   const L = f.ledger;
   L.ticket += ticket;
+  if (awayG) L.awayGate = (L.awayGate ?? 0) + awayG;
   L.food += food;
   L.merch += merch;
   L.league += league;
@@ -516,7 +524,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     won,
     night,
     crowd,
-    money: { ticket, food, merch, league, salary, upkeep, interest, net },
+    money: { ticket, ...(isHome ? {} : { awayGate: awayG }), food, merch, league, salary, upkeep, interest, net },
     rankBefore,
     rankAfter,
     others,

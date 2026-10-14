@@ -196,7 +196,8 @@ export interface Crowd {
 
 // 시즌 누적 장부 (전부 양수로 기록)
 export interface Ledger {
-  ticket: number;
+  ticket: number; // 홈경기 입장 수입 (우리 몫 72%)
+  awayGate?: number; // 원정 입장 몫: 상대 구장 입장 수입의 28% (옛 세이브에는 없다)
   food: number;
   merch: number;
   league: number; // 중계권·스폰서 분배금
@@ -233,7 +234,8 @@ export interface DayReport {
   night: boolean; // 평일 야간 경기
   crowd: Crowd | null; // 홈경기만
   money: {
-    ticket: number;
+    ticket: number; // 홈경기 입장 수입 (우리 몫 72%)
+    awayGate?: number; // 원정 입장 몫 (원정경기만)
     food: number;
     merch: number;
     league: number;

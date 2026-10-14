@@ -16,6 +16,7 @@ import { subBestIdx } from '../src/game/subpick';
 import { buyEthics, ethicsCost, scandalOpen } from '../src/game/scandal';
 import { parseOffer, toggleBlock, tradeOpen, tradePreview, tradeValue } from '../src/game/trade';
 import { NEW_GAME } from '../src/game/generate';
+import { HOME_GATE, awayGate } from '../src/game/gate';
 
 // TEAMS=8 → 원년 8구단 리그로 돌린다 (기존 세이브 점검용). 기본은 새 게임과 같은 10구단
 if (process.env.TEAMS) NEW_GAME.teams = Number(process.env.TEAMS);
@@ -152,7 +153,10 @@ function expectedMargin(c: Core): number {
   const t = userTeam(c);
   const att = Math.min(capacityOf(c), previewDemand(c) * 1.08);
   const G = c.schedule.length || 84; // 시즌 경기 수 (경기당 분배금·고정비는 시즌 합계가 84경기 기준과 같다)
-  const gate = 42 * att * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend);
+  // 입장 수입: 홈 72% + 원정 몫(상대 구장 입장 수입 28% · 리그 중간 순위·금요일급 요일로 어림)
+  const others = c.teams.filter((x) => x.id !== c.userId);
+  const awayEach = others.reduce((sum, x) => sum + awayGate(c, x.id, Math.ceil(c.teams.length / 2), 3).share, 0) / Math.max(1, others.length);
+  const gate = 42 * att * (c.finance.ticketPrice * HOME_GATE + FOOD_LV[c.facilities.food].spend) + (G - 42) * awayEach;
   const league = 84 * (leagueShare(c, c.teams.length) + 3 * LEAGUE_PER_RANK);
   const merch = G * c.fans * MERCH_K * (starPower(t, c.season) / 100);
   const fixed = 42 * (SEAT_LV[c.facilities.seats].upkeep + FOOD_LV[c.facilities.food].upkeep) + 84 * (TRAIN_LV[c.facilities.training].upkeep + opsCost(c)) + c.finance.debt * 0.08;

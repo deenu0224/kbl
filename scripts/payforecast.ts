@@ -70,7 +70,7 @@ function runOne(bot: Bot, seed: number, out: Pair[]): void {
     if (pending && c.day < c.schedule.length) pending = null; // 시즌 도중에 끝난 캠페인(이전·해임)은 장부가 반쪽이라 뺀다
     if (pending) {
       const div = POST_DIVIDEND[c.post?.userFinish ?? 'none'] ?? 0;
-      out.push({ ...pending, ledActive: L.salary - acc.farmSal, profitRaw: opProfit(L), profitAdj: opProfit(L) - div - L.sales + L.signing, inc: L.ticket + L.food + L.merch + L.league - div, upk: L.upkeep, int: L.interest, sal: L.salary });
+      out.push({ ...pending, ledActive: L.salary - acc.farmSal, profitRaw: opProfit(L), profitAdj: opProfit(L) - div - L.sales + L.signing, inc: L.ticket + (L.awayGate ?? 0) + L.food + L.merch + L.league - div, upk: L.upkeep, int: L.interest, sal: L.salary });
       pending = null;
     }
     if (c.phase === 'over' || s > N_SEASONS) break;

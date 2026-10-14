@@ -51,7 +51,7 @@ export function loanInterest(core: Pick<Core, 'campaign'>, debt: number): number
 export function overLimit(core: Pick<Core, 'campaign' | 'finance'>): boolean {
   return core.finance.debt > loanLimit(core);
 }
-/** 매출: 입장 + 매점 + 굿즈 + 분배금 */
+/** 매출: 입장(원정 몫 포함) + 매점 + 굿즈 + 분배금 */
 export function revenueOf(l: Ledger): number {
-  return l.ticket + l.food + l.merch + l.league;
+  return l.ticket + (l.awayGate ?? 0) + l.food + l.merch + l.league;
 }

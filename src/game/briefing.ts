@@ -16,6 +16,7 @@ import { memoGet, memoNum, memoSet } from './memo';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import { CHARACTERS } from './story';
 import { markScandalWarnMut, scandalWarn } from './scandal';
+import { HOME_GATE } from './gate';
 
 export const BRIEF_EVERY = 6; // 경기
 export const BRIEF_MAX = 2; // 한 번에 내는 제안 수
@@ -218,7 +219,7 @@ function marketingOffer(core: Core): Cand | null {
   const price = core.finance.ticketPrice;
   const perGame = (c: Core) => {
     const att = Math.min(capacityOf(c), previewDemand(c));
-    return { att, income: Math.round(att * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend)) };
+    return { att, income: Math.round(att * (c.finance.ticketPrice * HOME_GATE + FOOD_LV[c.facilities.food].spend)) };
   };
   const now = perGame(core);
   const passGate = (a: { att: number; income: number }, b: { att: number; income: number }) => b.income - a.income >= a.income * MIN_GATE_INCOME || b.att - a.att >= a.att * MIN_GATE_ATT;
@@ -607,7 +608,7 @@ function rescueOffer(core: Core, m: BriefMemo): Cand | null {
     );
   }
   // 티켓값: 홈경기당 수입이 늘어나는 쪽으로 0.2 만
-  const income = (c: Core) => Math.min(capacityOf(c), previewDemand(c)) * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend);
+  const income = (c: Core) => Math.min(capacityOf(c), previewDemand(c)) * (c.finance.ticketPrice * HOME_GATE + FOOD_LV[c.facilities.food].spend);
   const share = homeLeft(core) / Math.max(1, gamesLeft(core));
   for (const d of [0.2, -0.2]) {
     const next = setTicketPrice(core, core.finance.ticketPrice + d);

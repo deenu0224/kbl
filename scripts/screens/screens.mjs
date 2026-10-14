@@ -142,8 +142,6 @@ export const SCREENS = [
   S('rel-stove', 'relStove', game(...STOVE_DESK, RSORT, RSORT, RSORT)),
   // 내년 살림 미리보기 (payforecast.ts): 결산의 블록(적자·흑자) · [이적 시장(방출 후보순)] · 시즌 후반 재무 탭 한 줄과 도움말 · 할 일과 조치 시트
   S('ended-pay-loss', 'endedPayLoss', game('css:[data-testid="pay-forecast"] > div')),
-  S('ended-pay-chair', 'endedPayLoss', game('css:[data-testid="pay-forecast"] > div:last-child > span')),
-  S('ended-pay-desk', 'endedPayLoss', game('pay-release', c('선택', { nth: 1, optional: true }), { wait: 300 }, c('pay-release', { optional: true }), { wait: 300 })),
   S('ended-pay-gain', 'endedPayGain', game('css:[data-testid="pay-forecast"] > div')),
   S('club-finance-pay', 'payLate', game(...CLUB, '재무')),
   S('club-finance-pay-help', 'payLate', game(...CLUB, '재무', 'css:[data-testid="pay-forecast-line"] button')),
@@ -299,6 +297,8 @@ export const SCREENS = [
   S('summary', 'season3', game(...SUMMARY)),
   S('summary-box', 'season3', game(...SUMMARY, '자세히: 이닝별', { scroll: 'bottom' })),
   S('summary-more', 'season3', game(...SUMMARY, '자세히: 이닝별')),
+  // 원정 경기 요약의 오늘의 정산: 입장 대신 원정 몫 (상대 구장 입장 수입의 28%)
+  S('summary-away', 'away', game(...SUMMARY, '자세히: 이닝별', { scroll: 'bottom' })),
   S('summary-opener', 'fresh', game('order-submit', { wait: 600 }, c('▶ 경기 진행', { optional: true }), { wait: 600 }, c('건너뛰기 ▶▶', { optional: true }), { wait: 500 })),
   S('week', 'opened', game('1주', { wait: 1500 })),
 

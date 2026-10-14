@@ -1,22 +1,7 @@
-import type { Core, Facilities } from '../../game/types';
-import { teamDef } from '../../game/generate';
+import type { Core } from '../../game/types';
 
-/**
- * 원정 응원단 크기 (0~1, 관중석에서 차지하는 몫).
- * 팬 수에 완만하게 비례: 팬 5천 → 0.03, 3만 → 0.2 (그 사이는 직선), 상한 0.3.
- *   share = clamp(0.03 + (fans − 5000) × 0.17 / 25000, 0.01, 0.3)
- */
-export function awayFanShare(fans: number): number {
-  const v = 0.03 + ((fans - 5000) * 0.17) / 25000;
-  return Math.max(0.01, Math.min(0.3, v));
-}
-
-/** 상대 구장의 시설 단계: 구단 전력 tier 에서 유도한 고정값 (관중석 2~4) */
-export function awayFacilities(teamId: string): Facilities {
-  const tier = teamDef(teamId)?.tier ?? 57;
-  const seats = tier >= 61 ? 4 : tier >= 58 ? 3 : 2;
-  return { seats, food: seats - 1, training: seats - 1 };
-}
+// 원정 응원단·상대 구장 시설은 원정 입장 몫 모델(game/gate.ts)과 같이 쓴다
+export { awayFacilities, awayFanShare } from '../../game/gate';
 
 export interface TripInfo {
   home: boolean;
