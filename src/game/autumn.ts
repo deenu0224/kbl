@@ -48,7 +48,8 @@ export function firstMatchLines(core: Pick<Core, 'post' | 'userId' | 'teams'>): 
   const def = roundDef(s.round);
   const oppId = hi ? s.loId : s.hiId;
   const prev = post.series[idx - 1];
-  const head = oppId ? `${s.name} vs ${teamName(core, oppId)}` : `${s.name} 직행`;
+  const opp = oppId ? core.teams.find((t) => t.id === oppId) : undefined;
+  const head = oppId ? `${s.name} vs ${opp ? `${opp.city} ${opp.name}` : oppId}` : `${s.name} 직행`;
   const rule: string[] = [];
   if (!oppId && prev) rule.push(`상대는 ${prev.name} 승자`);
   if (def.hiLead) {

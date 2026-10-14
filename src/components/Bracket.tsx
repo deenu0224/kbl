@@ -149,12 +149,12 @@ export default function Bracket({ wide = false, path = false, reopen = false }: 
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-white/45 mob:text-[12px]">
-        <span>{post ? `가을야구 ${view.seeds.length}팀` : '지금 순위대로라면'}</span>
-        {first && <span className="text-[#f0a35a]">▲ 우리 길</span>}
+        <span className="whitespace-nowrap">{post ? `가을야구 ${view.seeds.length}팀` : '지금 순위대로라면'}</span>
+        {first && <span className="whitespace-nowrap text-[#f0a35a]">▲ 우리 길</span>}
         <span className="ml-auto flex items-center gap-1">
           {reopen && post && (
-            <button className="px-btn min-h-8 !px-1.5 text-[11px] mob:text-[12px]" data-testid="autumn-reopen" onClick={() => useUi.getState().setAutumnOpen(true)}>
-              정규시즌 마감 다시 보기
+            <button className="px-btn min-h-8 whitespace-nowrap !px-1.5 text-[11px] mob:text-[12px]" data-testid="autumn-reopen" onClick={() => useUi.getState().setAutumnOpen(true)}>
+              정규시즌 마감
             </button>
           )}
           <Help topic="postseason" />
