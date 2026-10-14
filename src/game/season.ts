@@ -8,9 +8,9 @@ import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import { projectFx, projectSeasonOpenMut } from './projects';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_STEP, OVER_LIMIT_ERR, loanInterest, loanLimit, overLimit, farmMax, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
-  LEAGUE_BASE, LEAGUE_PER_FAN, LEAGUE_PER_RANK, MERCH_K, RENEW_PREMIUM, RENEW_SEASONS,
+  MERCH_K, leagueShare, RENEW_PREMIUM, RENEW_SEASONS,
   BENCH_GROW, FARM_CAP, FARM_LOCK, IL_MIN, SVC_YEARS, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
-  awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingOpen, starPower, upgradeCost, userTeam,
+  awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingBonusFor, faHeatOn, faHeatWhy, faSigned, faSeason, FA_HEAT, signingOpen, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
 import { activeBuffs, fillObjectivesMut, hintMut, refreshProgressMut, resetSeasonCampaignMut, tickBuffs } from './campaign';
@@ -25,6 +25,7 @@ import { leagueMult, scandalTickMut } from './scandal';
 import { tradeTickMut } from './trade';
 import { svcSalary, svcYearAt } from './contract';
 import { farmDailyMut, subEnqueueMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
+import { perGame, rankUnits } from './league';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -415,13 +416,11 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const ticket = Math.round(att * price * fx.ticket);
   const food = crowd ? Math.round(att * FOOD_LV[core.facilities.food].spend * fx.food * rainFood(core.facilities, crowd.weather, core)) : 0;
   const merch = Math.round(core.fans * MERCH_K * (starPower(user, core.season) / 100) * (isHome ? 1.4 : 0.6) * fx.merch);
-  const league = Math.round((LEAGUE_BASE + core.fans * LEAGUE_PER_FAN + (core.teams.length - rankNow) * LEAGUE_PER_RANK) * leagueMult(core));
+  const league = Math.round(perGame(core, leagueShare(core, rankNow) * leagueMult(core)));
   const salary = Math.round(payroll(user) / core.schedule.length);
   const upkeep =
     (isHome ? SEAT_LV[core.facilities.seats].upkeep + FOOD_LV[core.facilities.food].upkeep + fx.upkeep + projectFx(core).upkeep : 0) +
-    TRAIN_LV[core.facilities.training].upkeep +
-    farmUpkeep(user) +
-    opsCost(core);
+    Math.round(perGame(core, TRAIN_LV[core.facilities.training].upkeep + farmUpkeep(user) + opsCost(core)));
   const interest = Math.round(loanInterest(core, f.debt) / core.schedule.length);
   const net = ticket + food + merch + league - salary - upkeep - interest;
   f.cash += net;
@@ -535,8 +534,8 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
     return { core: core0, error: `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다` };
   }
   if (overLimit(core0)) return { core: core0, error: OVER_LIMIT_ERR };
-  const bonus = signingBonus(fa);
-  if (core0.finance.cash < bonus) return { core: core0, error: `계약금이 부족합니다 (필요 ${fmtMoney(bonus)})` };
+  const bonus = signingBonusFor(core0, fa);
+  if (core0.finance.cash < bonus) return { core: core0, error: `계약금이 부족합니다 (필요 ${fmtMoney(bonus)}${faHeatWhy(core0) ? ` — ${faHeatWhy(core0)}` : ''})` };
 
   const core = structuredClone(core0);
   const t = userTeam(core);
@@ -544,6 +543,12 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
   core.freeAgents = core.freeAgents.filter((x) => x.id !== pid);
   core.finance.cash -= bonus;
   core.finance.ledger.signing += bonus;
+  if (faHeatOn(core)) {
+    const n = faSigned(core);
+    if (FA_HEAT.pay > 0) p.salary = Math.round((p.salary * (1 + FA_HEAT.pay * n)) / 100) * 100;
+    const prev = n > 0 ? core.campaign.fa : undefined;
+    core.campaign.fa = { season: faSeason(core), n: n + 1, paid: (prev?.paid ?? 0) + bonus, extra: (prev?.extra ?? 0) + bonus - signingBonus(fa) };
+  }
   p.since = core.season;
   t.roster.push(p);
   const role = slotNewcomer(t, p);
@@ -871,9 +876,9 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   // 지난 시즌 남은 FA 로 AI 스토브리그 → 새 FA 시장
   for (const p of core.freeAgents) develop(p, rng, core.season);
   aiStoveLeague(core, rng, ctx);
-  core.freeAgents = genFreeAgents(ctx);
+  core.freeAgents = genFreeAgents(ctx, core.teams.length);
   for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
-  core.schedule = buildSchedule(core.teams.map((t) => t.id), rng);
+  core.schedule = buildSchedule(core.teams.map((t) => t.id), rng, core.userId);
   core.crowd = null; // 관중 칩·게이트 줄은 개막 전으로
   core.finance.ledger = ledgerZero();
   core.attHistory = [];
@@ -920,7 +925,7 @@ export function seasonAwards(core: Core): {
   const profit = opProfit(core.finance.ledger);
   const cap = SEAT_LV[core.facilities.seats].cap;
   const avgAtt = core.attHistory.length ? core.attHistory.reduce((s, v) => s + v, 0) / core.attHistory.length : 0;
-  let pts = core.teams.length + 1 - rank;
+  let pts = Math.round(rankUnits(core, rank)) + 1; // 8구단 눈금 (1위 8점 ~ 꼴찌 1점)
   pts += profit >= 150000 ? 2 : profit >= 50000 ? 1 : profit < -150000 ? -2 : profit < 0 ? -1 : 0;
   if (avgAtt / cap >= 0.9) pts += 1;
   const grade = pts >= 9 ? 'S' : pts >= 7 ? 'A' : pts >= 4 ? 'B' : pts >= 2 ? 'C' : 'D';

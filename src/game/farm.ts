@@ -16,6 +16,7 @@ import { CARD_LINES, CHARACTERS, FARM_COACH_LINE } from './story';
 import { POS_NAME } from './script';
 import { addNews, marketSalary } from './season';
 import { hintMut } from './campaign';
+import { dayAt } from './league';
 import { svcSalary, svcYearAt } from './contract';
 import { batZero, pitZero } from './generate';
 import { rowCash, rowInfo, rowOvr, rowPayroll, rowSat, type Row } from './eventRows';
@@ -76,6 +77,12 @@ export function subEnqueueMut(core: Core, pids: string[]): void {
 
 /** 부상자가 돌아왔다: 대체 선수가 맡던 칸을 원래 주인에게 돌려준다 (mutate). 유저가 그 사이 편성을 바꿨으면 건드리지 않는다 */
 function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player, force = false): void {
+  restoreSlotStep(core, t, orig, sub, force);
+  // 넘겨받은 단계(via)를 되돌린 뒤 바깥 단계가 조건에 걸려 멈추면, 그사이 명단에 오른(2군·재활) 선수가 편성에 남는다 — 그 칸은 정리한다
+  const placed = [...t.lineup.map((x) => x.pid), ...t.rotation, ...t.bullpen, ...(t.closer ? [t.closer] : [])];
+  if (placed.some((id) => t.roster.find((x) => x.id === id)?.farm)) fixLineup(t);
+}
+function restoreSlotStep(core: Core, t: Team, orig: Player, sub: Player, force: boolean): void {
   const v = memoGet(core, subSlotKey(orig.id));
   if (!v) return;
   memoSet(core, subSlotKey(orig.id), '');
@@ -84,7 +91,7 @@ function restoreSlotMut(core: Core, t: Team, orig: Player, sub: Player, force = 
   // 대체 선수도 다쳐 그 칸을 다른 선수가 넘겨받았으면(subHandoverMut), 그 단계부터 되돌린 뒤 원래 주인을 세운다
   const mid = via ? t.roster.find((x) => x.id === via) : undefined;
   if (mid) {
-    restoreSlotMut(core, t, mid, sub, true);
+    restoreSlotStep(core, t, mid, sub, true);
     if (k === 'L' ? t.lineup.some((x) => x.pid === mid.id) : k === 'R' ? t.rotation.includes(mid.id) : k === 'C' ? t.closer === mid.id : t.bullpen.slice(0, 2).includes(mid.id)) sub = mid;
   }
   if (k === 'L') {
@@ -255,6 +262,9 @@ const say = (core: Core, notes: string[], text: string, tone: 'good' | 'bad' | '
   notes.push(text);
   addNews(core, text, tone);
 };
+
+/** p 를 2군으로 내려도 1군 최소 인원(타자·투수)이 지켜지는가 — 대체 선수를 돌려보내는 사이에 다른 선수가 빠졌으면(입대·방출·트레이드) 벤치에 남긴다 */
+const spareOnActive = (t: Team, p: Player): boolean => activeRoster(t).filter((x) => x.kind === p.kind).length > (p.kind === 'B' ? MIN_BATTERS : MIN_PITCHERS);
 
 /** 최소 인원이 깨지면 2군에서 채운다 */
 function refillMinMut(core: Core, notes: string[]): void {
@@ -485,7 +495,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
       say(core, notes, `${p.name}, ${posKo(p.pos)} 수비가 몸에 붙었습니다 (오버롤 ${p.ovr})`, 'good');
     }
   }
-  if (core.day >= F.armyDay) {
+  if (core.day >= dayAt(core, F.armyDay)) {
     for (const p of t.roster.filter((x) => x.armyDue !== undefined && x.armyDue <= core.season)) enlistMut(core, p, notes);
   }
   // 불펜 과부하가 이어진 경기 수 (하루 쉬면 하나 줄어든다 — 'arm' 사건과 브리핑이 읽는다)
@@ -541,7 +551,7 @@ export function farmDailyMut(core: Core, notes: string[]): void {
     }
     if (asked && pend!.day === core.day) continue;
     if (orig) restoreSlotMut(core, t, orig, p);
-    if (farmRoster(t).length >= farmMax(core)) {
+    if (farmRoster(t).length >= farmMax(core) || !spareOnActive(t, p)) {
       delete p.subFor;
       continue;
     }
@@ -715,7 +725,7 @@ function subCase(core: Core): { sub: Player; orig: Player } | null {
 
 /** B4: 입대 통지 대상 (시즌당 1명) 과 그가 주전일 때의 전력 손실(OVR) */
 export function armyCase(core: Core): { p: Player; loss: number; alt: Player | null } | null {
-  if (core.day < F.armyDay || memoGet(core, 'army') || (core.campaign.away?.length ?? 0) >= F.armyAwayMax) return null;
+  if (core.day < dayAt(core, F.armyDay) || memoGet(core, 'army') || (core.campaign.away?.length ?? 0) >= F.armyAwayMax) return null;
   const t = userTeam(core);
   const p = t.roster
     .filter((x) => !x.foreign && x.age >= F.armyMin && x.age <= F.armyMax && !x.served && x.armyDue === undefined && x.injury === 0 && !x.subFor)
@@ -763,7 +773,7 @@ export function painCase(core: Core): { p: Player; alt: Player | null; text: str
 }
 
 // 인스트럭터 후보: 지난겨울 유니폼을 벗은 영구결번 또는 스타성 50+ 은퇴 선수 (campaign.alumni)
-const coachCase = (core: Core) => (core.day < F.coachDay ? [...(core.campaign.alumni ?? []), ...(core.campaign.retired ?? [])].filter((r) => r.season === core.season - 1).slice(-1)[0] ?? null : null);
+const coachCase = (core: Core) => (core.day < dayAt(core, F.coachDay) ? [...(core.campaign.alumni ?? []), ...(core.campaign.retired ?? [])].filter((r) => r.season === core.season - 1).slice(-1)[0] ?? null : null);
 
 /** 올리는 선택지의 공통 처리: (가득이면 한 명 내리고) k 를 cur 자리에 */
 function swapUpMut(core: Core, k: Player, cur: Player | undefined, downId: string | undefined): void {
@@ -843,6 +853,10 @@ export const FARM_CARDS: FarmCardDef[] = [
       if (farmRoster(t).length >= farmMax(c)) {
         delete sub.subFor;
         return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로 — 2군이 가득해 ${josa(sub.name, '은', '는')} 벤치에 남습니다`;
+      }
+      if (!spareOnActive(t, sub)) {
+        delete sub.subFor;
+        return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로 — 1군 인원이 모자라 ${josa(sub.name, '은', '는')} 벤치에 남습니다`;
       }
       demoteMut(c, t, sub, false);
       return `${josa(orig?.name ?? '주전', '이', '가')} 원래 자리로, ${josa(sub.name, '은', '는')} 2군으로 돌아갔습니다`;
@@ -1138,10 +1152,10 @@ export const FARM_CARDS: FarmCardDef[] = [
           },
           {
             label: '한 시즌 미룬다',
-            desc: `올해는 그대로 · 내년 ${F.armyDay}경기 뒤 입대`,
+            desc: `올해는 그대로 · 내년 ${dayAt(c, F.armyDay)}경기 뒤 입대`,
             detail: {
               rows: [
-                rowInfo('이탈', `내년 ${F.armyDay}경기 뒤 (미룰 수 없음)`, undefined, 'bad'),
+                rowInfo('이탈', `내년 ${dayAt(c, F.armyDay)}경기 뒤 (미룰 수 없음)`, undefined, 'bad'),
                 rowInfo('복귀', `${back + 1}시즌 개막 (${p.age + 1 + F.armySeasons}세)`),
                 rowPayroll(c, 0),
                 rowInfo('올해 1군 전력', '변화 없음'),

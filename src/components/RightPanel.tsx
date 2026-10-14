@@ -28,9 +28,11 @@ import {
 } from '../game/economy';
 import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season';
 import { deadlinesSoon } from '../game/economy';
-import { RUNWAY_DANGER, runway, runwayPath, runwayPieceOf } from '../game/runway';
+import { RUNWAY_DANGER, borrowMoodText, debtMoodText, luxLine, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import { teamStrength } from '../game/ratings';
 import Bracket from './Bracket';
+import { PostLegend, cutShadow, rankTone } from './ui';
+import { postTeams, seasonGames } from '../game/league';
 import Leaders from './Leaders';
 import { useUi, type LeagueSub } from './layout/uiStore';
 import { Badge, Bar, Chips, FAC_KO, MiniBars, MoneyBar, SectionTitle, TabBar, TeamDot, TONE_CLASS, dowOf, fmtPct, isNightDay } from './ui';
@@ -74,10 +76,10 @@ export function LeagueTab() {
         ? []
         : (beats ?? [])
             .filter((b) => !!b.label && b.to >= day && b.from < schedule.length)
-            .concat(deadlinesSoon({ phase, day }).map((d) => ({ id: `dl-${d.id}`, part: 'mid' as const, from: d.day, to: d.day, label: d.label, icon: d.icon })))
+            .concat(deadlinesSoon({ phase, day, schedule }).map((d) => ({ id: `dl-${d.id}`, part: 'mid' as const, from: d.day, to: d.day, label: d.label, icon: d.icon })))
             .sort((a, b) => a.from - b.from)
             .slice(0, 3),
-    [beats, day, phase, schedule.length],
+    [beats, day, phase, schedule],
   );
 
   return (
@@ -96,9 +98,9 @@ export function LeagueTab() {
           <Bracket />
         </div>
       )}
-      <SectionTitle>순위표</SectionTitle>
+      <SectionTitle right={<Help topic="postseason" />}>순위표</SectionTitle>
       <div className="flex px-1 text-[9px] text-white/40 mob:text-[13px]">
-        <span className="w-5" />
+        <span className="w-6" />
         <span className="flex-1">구단</span>
         <span className="w-14 text-center">승-패</span>
         <span className="w-9 text-right">승차</span>
@@ -110,9 +112,10 @@ export function LeagueTab() {
           <div
             key={t.id}
             className={`flex items-center px-1 py-[3px] text-[11px] mob:py-1 mob:text-[13px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
-            style={me ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
+            style={cutShadow(me, i + 1 === postTeams({ teams }))}
+            data-testid="standing-row"
           >
-            <span className={`w-5 ${i < 4 ? 'text-good' : 'text-white/50'}`}>{i + 1}</span>
+            <span className={`w-6 ${rankTone({ teams }, i + 1)}`}>{i + 1}</span>
             <span className="flex min-w-0 flex-1 items-center gap-1">
               <TeamDot team={t} />
               <span className="truncate">{t.name}</span>
@@ -124,6 +127,7 @@ export function LeagueTab() {
           </div>
         );
       })}
+      <PostLegend teams={teams} />
       <Fold label="자세히: 승률 · 최근 10경기 · 타구장 결과" className="mt-1" testid="fold-league">
         {table.map((t) => (
           <div key={t.id} className="flex items-center px-1 py-[3px] text-[11px] mob:text-[13px]">
@@ -501,7 +505,7 @@ export function FinanceTab() {
   const repay = useStore((s) => s.repay);
   const team = useUserTeam();
   const pay = payroll(team);
-  const games = useStore((s) => s.schedule.length) || 84;
+  const games = useStore((s) => seasonGames(s));
 
   const core = useCore();
   const limit = loanLimit(core);
@@ -522,13 +526,21 @@ export function FinanceTab() {
     const r = borrowLoan(core);
     return r.error ? null : runwayPieceOf(core, r.core);
   }, [core]);
+  // 결과를 미리 말한다 (10구단 리그): 빚더미 구단 여론 · 경쟁균형세
+  const mood = debtMoodText(core);
+  const loanMood = borrowMoodText(core, LOAN_STEP);
+  const lux = luxLine(core);
 
   return (
     <div className="px-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
       <div className="-mx-1.5 -mt-1.5 mb-1.5 empty:hidden">
         <FirstTip id="finance" />
       </div>
-      {debtRatio >= LOAN_DANGER && (
+      {mood ? (
+        <div className={`mb-1.5 px-1.5 py-1 text-[11px] mob:text-[13px] ${mood.cut > 0 ? 'bg-bad/25 text-bad' : 'bg-[#f0a35a]/20 text-[#f0a35a]'}`} data-testid="debt-mood">
+          {mood.text}
+        </div>
+      ) : debtRatio >= LOAN_DANGER && (
         <div className="mb-1.5 bg-bad/25 px-1.5 py-1 text-[11px] text-bad mob:text-[13px]" data-testid="debt-danger">
           {over ? `부채가 한도를 넘었습니다 — 영입·투자·대출이 막히고 선수를 보내야 합니다` : `부채가 한도의 ${Math.round(debtRatio * 100)}% — 한도를 넘으면 선수를 보내야 합니다`}
         </div>
@@ -574,6 +586,12 @@ export function FinanceTab() {
           <div className="absolute -top-0.5 h-3 w-0.5 bg-white" style={{ left: `${(1 / DEBT_BAR_MAX) * 100}%` }} />
         </div>
       </div>
+      {lux && (
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] mob:text-[13px]" data-testid="lux-line">
+          <span className={`min-w-0 flex-1 ${lux.over ? 'text-bad' : 'text-white/75'}`}>{lux.text}</span>
+          <Help topic="luxtax" />
+        </div>
+      )}
       {inSeason && !over && rw.forcedSale !== null && rw.forcedSale <= RUNWAY_DANGER && (
         <div className="mb-1.5 bg-bad/20 px-1.5 py-1 text-[11px] text-bad mob:text-[13px]" data-testid="forced-line">
           한도 초과까지 {rw.forcedSale}경기 — 넘으면 선수를 보내야 합니다
@@ -617,6 +635,7 @@ export function FinanceTab() {
           <div className="mt-0.5 text-[11px] text-white" data-testid="loan-effect">
             +{fmtMoney(LOAN_STEP)} 대출: 이자 시즌당 {fmtMoney(interest)} → {fmtMoney(interest + stepInterest)}
             {loanPiece && <span className="text-hi" data-testid="runway-piece"> · {loanPiece}</span>}
+            {loanMood && <div className="text-bad" data-testid="loan-mood">{loanMood}</div>}
           </div>
         )}
         <div className="mt-1.5 flex gap-2">
@@ -657,7 +676,7 @@ export function FinanceTab() {
       )}
 
       <SectionTitle>현금 추이</SectionTitle>
-      <MiniBars values={cashHistory.slice(-84)} ghost={inSeason ? ghost : []} height={56} color={(v) => (v < 0 ? '#ff6b6b' : '#ffd84a')} />
+      <MiniBars values={cashHistory.slice(-games)} ghost={inSeason ? ghost : []} height={56} color={(v) => (v < 0 ? '#ff6b6b' : '#ffd84a')} />
       {inSeason && ghost.length > 0 && (
         <div className="mt-0.5 flex justify-between text-[9px] text-white/40 mob:text-[13px]">
           <span>지금까지</span>

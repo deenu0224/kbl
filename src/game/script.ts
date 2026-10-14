@@ -10,10 +10,12 @@ import { addNews, standings } from './season';
 import { shiftOvr } from './draft';
 import { hintMut } from './campaign';
 import { memoSet } from './memo';
+import { blockDayAt, dayAt, postTeams, SERIES_LEN } from './league';
 import { NEWS, openingLine } from './story';
 
 // ───────── 튜닝 상수 ─────────
 
+// 아래 세 값은 84경기 기준이다. 실제 값은 midDay(core)·dayAt(core, …) — 시즌 길이에 비례한다
 export const MID_DAY = 42; // 중간 점검 (이 경기 수를 치른 직후)
 export const JEON_FIX_DAY = 42; // 전 구간의 순위 연동 일정을 확정하는 시점
 export const GYEOL_FIX_DAY = 60; // 결 구간의 순위 연동 일정을 확정하는 시점
@@ -22,7 +24,9 @@ export const RAIN_BASE = 0.15; // 평소 비 확률
 export const RAIN_RAINY = 0.6; // 장마 구간 비 확률
 export const JETLAG_GAMES = 6; // 원정 연속 이 경기 수 뒤 첫 홈경기
 export const JETLAG_FOCUS = -2; // 그 경기의 팀 컨디션
-const SERIES = 3;
+const SERIES = SERIES_LEN;
+/** 이 리그의 중간 점검일 (84경기 리그 42, 81경기 리그 41) */
+export const midDay = (core: { schedule: unknown[] }): number => dayAt(core, MID_DAY);
 const OPENING_SUNNY = 3; // 개막 홈 3연전은 날씨 맑음 고정
 const KI_BLOCKS = 4; // 0장 기 구간: 첫 12경기(3연전 4번)
 const FA_DROUGHT_PRICE = 1.3; // 2장: 준척 FA 몸값
@@ -48,13 +52,23 @@ const SERIES_BEATS: Record<string, SeriesWant> = {
   'home-stand': { rank: null, venue: 'home' },
 };
 
-const B = (id: string, part: Beat['part'], from: number, to: number, label?: string, icon?: string): Beat => ({
+const B0 = (id: string, part: Beat['part'], from: number, to: number, label?: string, icon?: string): Beat => ({
   id, part, from, to, ...(label ? { label } : {}), ...(icon ? { icon } : {}),
 });
 
 /** 이번 시즌의 대본. 장마다 기·승·(중간 점검)·전·결. */
-export function buildBeats(stage: number, _core: Core, rng: Rng): Beat[] {
-  const mid = B('midcheck', 'mid', MID_DAY, MID_DAY);
+export function buildBeats(stage: number, core: Core, rng: Rng): Beat[] {
+  // 아래 숫자는 84경기 기준이다. 실제 구간은 시즌 길이에 비례해 옮긴다 (84경기 리그에서는 그대로):
+  // 기 구간(첫 12경기)과 승 구간의 시작은 그대로, 승 구간의 끝은 중간 점검 전날, 나머지는 3연전 경계에 맞춰 환산하고 길이는 유지한다.
+  const M = midDay(core);
+  const at = (d: number) => blockDayAt(core, d);
+  const B = (id: string, part: Beat['part'], from: number, to: number, label?: string, icon?: string): Beat => {
+    if (part === 'ki') return B0(id, part, from, to, label, icon);
+    if (part === 'seung' && to === MID_DAY - 1) return B0(id, part, from, M - 1, label, icon);
+    const f = at(from);
+    return B0(id, part, f, f + (to - from), label, icon);
+  };
+  const mid = B0('midcheck', 'mid', M, M);
   switch (stage) {
     case 0:
       return [
@@ -176,7 +190,9 @@ function opponentOrder(core: Core, rank: Rank, projected: boolean): string[] {
   const others = all.map((t, i) => ({ id: t.id, pos: i + 1 })).filter((x) => x.id !== core.userId);
   if (rank === 'top') return others.map((x) => x.id);
   if (rank === 'bottom') return others.reverse().map((x) => x.id);
-  return others.sort((a, b) => Math.abs(a.pos - 4.5) - Math.abs(b.pos - 4.5)).map((x) => x.id);
+  // 가을야구 막차 선(8구단 4·5위 사이, 10구단 5·6위 사이)에 가까운 순
+  const cut = postTeams(core) + 0.5;
+  return others.sort((a, b) => Math.abs(a.pos - cut) - Math.abs(b.pos - cut)).map((x) => x.id);
 }
 
 /**
@@ -386,7 +402,7 @@ export function scriptTickMut(core: Core, rng: Rng): void {
   for (const b of c.beats) {
     const want = SERIES_BEATS[b.id];
     // 순위 연동 6연전 확정
-    if (want?.rank && ((b.part === 'jeon' && d === JEON_FIX_DAY) || (b.part === 'gyeol' && d === GYEOL_FIX_DAY))) {
+    if (want?.rank && ((b.part === 'jeon' && d === dayAt(core, JEON_FIX_DAY)) || (b.part === 'gyeol' && d === dayAt(core, GYEOL_FIX_DAY)))) {
       const opp = arrangeSeries(core, b, false);
       if (b.label && opp.length === 2) addNews(core, NEWS.fixture(b.label, name(opp[0]), name(opp[1])), 'info');
     }

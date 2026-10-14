@@ -1,5 +1,5 @@
 // 가상 단장 분포: 봇 4종(passive·sensible·greedy·off-verb)으로 시드 N개 × 15시즌을 돌려 src/share/bench.json 을 만든다.
-// 실행: npm run bench  (인자: 시드 수, 시즌 수 → npx tsx scripts/share/bench.ts 60 15)
+// 실행: npm run bench  (인자: 시드 수, 시즌 수 → npx tsx scripts/share/bench.ts 60 15). 새 게임과 같은 10구단 리그로 돌고, 표에 구단 수(teams)를 적는다. 원년 8구단 표(src/share/bench8.json)는 TEAMS=8 npm run bench
 // 공유 카드의 "상위 n%"(src/share/bench.ts percentile)가 이 표를 읽는다. 순수 함수만 사용 — 스토어 미사용.
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Core } from '../../src/game/types';
 import { mulberry32, type Rng } from '../../src/game/rng';
-import { newCore } from '../../src/game/generate';
+import { NEW_GAME, newCore } from '../../src/game/generate';
 import { advanceDay, nextSeason } from '../../src/game/season';
 import { ensureObjectives } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
@@ -80,6 +80,7 @@ export interface BenchTable {
   over: number[]; // over[s-1] = s 시즌째에 연고 이전된 단장 수
   /** progress[s-1] = s 시즌 종료 시점의 [도달한 장, 최고 순위, 단장 수] (연고 이전된 단장은 장 -1) */
   progress: [number, number, number][][];
+  teams?: number; // 표를 만든 리그의 구단 수
 }
 
 interface RunRow {
@@ -95,7 +96,7 @@ function runBot(bot: Bot, nSeeds: number, nSeasons: number): { runs: RunRow[]; c
   let crash = 0;
   for (let seed = 1; seed <= nSeeds; seed++) {
     const run: RunRow = { bot: bot.name, champ: 0, over: 0, rows: [] };
-    let best = 8;
+    let best = NEW_GAME.teams; // 꼴찌에서 시작
     try {
       simulate(bot, seed, nSeasons, (c, s) => {
         best = Math.min(best, c.campaign.history[c.campaign.history.length - 1].rank);
@@ -143,7 +144,7 @@ async function main() {
   );
   const runs = parts.flatMap((p) => p.runs);
   const crash = parts.reduce((a, p) => a + p.crash, 0);
-  const t: BenchTable = { n: runs.length, seasons: N_SEASONS, champ: Array(N_SEASONS).fill(0), over: Array(N_SEASONS).fill(0), progress: [] };
+  const t: BenchTable = { n: runs.length, seasons: N_SEASONS, teams: NEW_GAME.teams, champ: Array(N_SEASONS).fill(0), over: Array(N_SEASONS).fill(0), progress: [] };
   const prog: Map<string, number>[] = Array.from({ length: N_SEASONS }, () => new Map());
   for (const run of runs) {
     if (run.champ) t.champ[run.champ - 1]++;
@@ -155,7 +156,8 @@ async function main() {
     }
   }
   t.progress = prog.map((m) => [...m.entries()].map(([k, n]) => [...k.split(',').map(Number), n] as [number, number, number]).sort((a, b) => b[0] - a[0] || a[1] - b[1]));
-  const out = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/share/bench.json');
+  // 10구단(새 게임) 표는 bench.json, 원년 8구단 표(TEAMS=8 npm run bench)는 bench8.json — src/share/bench.ts benchFor 가 기록의 구단 수로 고른다
+  const out = resolve(dirname(fileURLToPath(import.meta.url)), `../../src/share/${NEW_GAME.teams <= 8 ? 'bench8' : 'bench'}.json`);
   writeFileSync(out, JSON.stringify(t) + '\n');
   const cum = (xs: number[]) => xs.map(((a) => (x: number) => (a += x))(0));
   console.log(`\n가상 단장 ${t.n}명 × ${N_SEASONS}시즌 (실패 ${crash}) → ${out}`);

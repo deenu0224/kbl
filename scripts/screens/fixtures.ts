@@ -2,18 +2,19 @@
 // 필요한 상태를 만나는 순간의 Core 를 zustand persist 형식({ state, version })으로 떠 둔다.
 // 실행: npx tsx scripts/screens/fixtures.ts  →  screens-out/fixtures/*.json (+ index.json)
 import { fixedStarters } from '../../src/game/campaign';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Core } from '../../src/game/types';
 import { mulberry32, type Rng } from '../../src/game/rng';
 import { newCore } from '../../src/game/generate';
-import { advanceDay, nextSeason } from '../../src/game/season';
+import { advanceDay, nextSeason, rankOf, signPlayer, standings } from '../../src/game/season';
 import { farmRoster, loanLimit, rehabRoster, userTeam } from '../../src/game/economy';
 import { ensureObjectives, STAGES } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
 import { drawStoveTrade, tradeOpen } from '../../src/game/trade';
 import { closeBriefing, drawBriefing } from '../../src/game/briefing';
+import { faSigned, luxTax } from '../../src/game/economy';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../../src/game/draft';
 import { drawResign } from '../../src/game/contract';
 import { postMatch } from '../../src/game/postseason';
@@ -22,6 +23,7 @@ import { bullpenLoad } from '../../src/game/fixes';
 import { todoList } from '../../src/game/todo';
 import { emptyHof, recordClub, seatsLabel, HOF_KEY, SAVE_VERSION } from '../../src/game/hof';
 import { greedy, passive, sensible, type Bot } from '../bots';
+import { regDeadline } from '../../src/game/economy';
 
 const OUT = resolve(dirname(fileURLToPath(import.meta.url)), '../../screens-out/fixtures');
 const SEED_MAX = 200; // 시드를 바꿔 가며 찾는 상한
@@ -71,6 +73,12 @@ const WANT: Record<string, Pred> = {
   debtOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && c.finance.debt > loanLimit(c), // 개막일(0일)은 개막전 오더 화면이라 하단 탭이 없다
   debtSale: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('debtsale'),
   endedDebt: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.debtOver,
+  // 10구단 5단계: 빚더미 구단(첫 해 경고 / 지지 감소) · 경쟁균형세를 낸 결산 · 조합장의 빚더미 브리핑
+  endedMoodWarn: (c) => c.phase === 'ended' && !c.campaign.event && c.campaign.verdict?.debtMood?.trust === 0,
+  endedMood: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.verdict?.debtMood?.trust ?? 0) < 0 && !endingNow(c),
+  endedLux: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.luxTax,
+  briefMood: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing?.alert?.includes('이대로 마치면'),
+  luxOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && luxTax(c).tax > 0,
   academy: (c) => inSeason(c) && quiet(c) && (c.campaign.projects?.academy ?? 0) > 0 && c.day >= 5,
   domeDone: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.projects?.dome ?? 0) >= 3 && seatsLabel(c).startsWith('돔구장'),
   midcheck: (c) => !!c.campaign.event && c.campaign.event.id.startsWith('midcheck'),
@@ -108,7 +116,7 @@ const WANT: Record<string, Pred> = {
   // 스토브리그의 트레이드 제안 카드 · 마감 예고(트레이드 마감 6경기 전) · 등록 마감 뒤
   stoveTrade: (c) => c.phase === 'ended' && !!c.campaign.event && c.campaign.event.id.startsWith('trade'),
   deadlineSoon: (c) => inSeason(c) && quiet(c) && c.day >= 49 && c.day <= 52,
-  regClosed: (c) => inSeason(c) && quiet(c) && c.day >= 73 && c.day < c.schedule.length - 2,
+  regClosed: (c) => inSeason(c) && quiet(c) && c.day >= regDeadline(c) + 1 && c.day < c.schedule.length - 2,
   tradeWindow: (c) => inSeason(c) && quiet(c) && tradeOpen(c) && c.season >= 2 && nextIsHome(c),
   dynasty: (c) => inSeason(c) && stageName(c) === '왕조' && c.day >= 20 && quiet(c) && nextIsHome(c),
 };
@@ -200,6 +208,16 @@ outer: for (let seed = 1; seed <= SEED_MAX; seed++) {
 
 // 2군 자동 운영을 끈 부상 세이브: 선수 카드의 [부상자 명단으로] · 조치 시트의 "부상자 명단으로"
 if (found.injury) found.injuryManual = { ...found.injury, core: { ...structuredClone(found.injury.core), campaign: { ...structuredClone(found.injury.core.campaign), farmAuto: false, eventsSeen: found.injury.core.campaign.eventsSeen.filter((x) => !x.startsWith('~subdone-')) } } }; // 카드에서 고르지 않은 부상 (할 일에 뜬다)
+// FA 계약금 누진: 이번 시즌에 FA 를 이미 2명 영입한 뒤 (영입 시장·선수 카드·요약의 계약금에 배율이 보인다)
+if (found.season3) {
+  let core = structuredClone(found.season3.core);
+  core.finance.cash = Math.max(core.finance.cash, 300000);
+  for (const p of core.freeAgents.filter((x) => !x.foreign).sort((a, b) => a.salary - b.salary).slice(0, 2)) {
+    const r = signPlayer(core, p.id);
+    if (!r.error) core = r.core;
+  }
+  if (faSigned(core) >= 2) found.faHeat = { ...found.season3, core };
+}
 // 왕조 프로젝트: 왕조 장 픽스처에서 돔 단계만 바꿔 만든다 (봇이 12시즌 안에 돔까지 가지 못한다)
 const hofOf: Record<string, string> = {};
 if (found.dynasty) {
@@ -214,6 +232,115 @@ if (found.dynasty) {
     const name = n === 0 ? 'projects' : `dome${n}`;
     found[name] = { ...found.dynasty, core };
     if (n === 3) hofOf[name] = JSON.stringify(recordClub(emptyHof(), core, 'champion', '2026-10-13'));
+  }
+}
+
+// ── 10구단: 와일드카드 결정전 (봇이 4·5위로 시즌을 마치는 일이 드물어 마지막 경기 직전의 순위를 고쳐서 만든다) ──
+/** 사건·브리핑을 넘기며 하루 진행 */
+function stepDay(c0: Core, rng: Rng): Core {
+  let c = c0;
+  for (let g = 0; g < 20 && (c.campaign.event || c.campaign.briefing); g++) c = c.campaign.event ? resolveEvent(c, sensible.event(c, c.campaign.event), rng).core : closeBriefing(c);
+  return drawBriefing(maybeDrawEvent(advanceDay(c, rng).core, rng));
+}
+/** 정규시즌 마지막 경기 전의 세이브에서 유저 구단을 정확히 rank 위로 만든다 (다른 구단의 전적을 빌려 온다). 안 되면 null */
+function forceRank(c0: Core, rank: number): Core | null {
+  const c = structuredClone(c0);
+  const others = standings(c.teams).filter((t) => t.id !== c.userId);
+  const above = others[rank - 2]?.rec;
+  const below = others[rank - 1]?.rec;
+  if (!above || !below) return null;
+  const me = c.teams.find((t) => t.id === c.userId)!;
+  const games = me.rec.w + me.rec.l + me.rec.t;
+  // 바로 아래 구단보다 2승 많게 (마지막 경기 결과와 무관하게 순위가 유지되도록 위와의 간격도 본다)
+  const w = Math.min(below.w + 2, above.w - 2);
+  if (w < below.w + 2) return null;
+  me.rec = { ...me.rec, w, l: games - w - me.rec.t, last10: [1, 0, 1, 1, 0, 1, 0, 1, 1, 0], streak: -1 };
+  return rankOf(c.teams, c.userId) === rank ? c : null;
+}
+const lastDay: Pred = (c) => c.phase === 'season' && c.day === c.schedule.length - 1 && quiet(c);
+function wildcardFixtures(): void {
+  for (let seed = 1; seed <= 12 && !(found.wcHi && found.wcLo && found.wcOut && found.wcTie && found.wcMid); seed++) {
+    const rng = mulberry32(seed * 7919 + 101);
+    let c = sensible.preseason(ensureObjectives(newCore(seed), rng));
+    for (let g = 0; g < 400 && c.phase === 'season' && !lastDay(c); g++) {
+      if (!c.campaign.event && !c.campaign.briefing) c = sensible.daily(c);
+      c = stepDay(c, rng);
+    }
+    if (!lastDay(c)) continue;
+    for (const rank of [4, 5]) {
+      const base = forceRank(c, rank);
+      if (!base) continue;
+      for (let k = 0; k < 8; k++) {
+        const r2 = mulberry32(seed * 31 + rank * 7 + k);
+        let p: Core;
+        try {
+          p = stepDay(base, r2);
+        } catch {
+          continue;
+        }
+        const s0 = p.post?.series[0];
+        if (p.phase !== 'post' || !p.post || s0?.round !== 'WC' || rankOf(p.teams, p.userId) !== rank) continue;
+        const name = rank === 4 ? 'wcHi' : 'wcLo';
+        if (!found[name] && quiet(p)) found[name] = { core: structuredClone(p), seed, bot: `forced ${rank}위` };
+        // 무승부로 4위가 통과한 뒤: 엔진이 남기는 상태(무승부 한 경기 · 4위 승수 그대로 1 · 다음 라운드의 하위 시드로)를 그대로 만든다
+        if (rank === 4 && !found.wcTie && quiet(p)) {
+          const t = structuredClone(p);
+          const w = t.post!.series[0];
+          w.games = [{ homeId: w.hiId!, awayId: w.loId!, home: 3, away: 3 }];
+          w.winnerId = w.hiId;
+          t.post!.series[1].loId = w.hiId;
+          t.post!.cur = 1;
+          t.post!.userFinish = t.post!.series[1].round;
+          found.wcTie = { core: t, seed, bot: 'forced 4위 무승부' };
+        }
+        // 한 경기씩 치르며: 1승 1패로 2차전을 앞둔 날 · 와일드카드에서 떨어진 결산
+        for (let g = 0; g < 4 && p.phase === 'post'; g++) {
+          try {
+            p = stepDay(p, r2);
+          } catch {
+            break;
+          }
+          const w = p.post?.series[0];
+          if (!found.wcMid && p.phase === 'post' && w && !w.winnerId && w.games.length === 1 && quiet(p)) found.wcMid = { core: structuredClone(p), seed, bot: `forced ${rank}위` };
+          if (!found.wcOut && p.phase === 'ended' && p.post?.userFinish === 'WC' && !p.campaign.event && !endingNow(p)) found.wcOut = { core: structuredClone(p), seed, bot: `forced ${rank}위` };
+        }
+      }
+    }
+  }
+}
+wildcardFixtures();
+
+// ── 8구단 세이브 (10구단 체제 전에 시작한 게임): 구단 8개 · 84경기. 시즌 중 + 포스트시즌(4팀 사다리) ──
+{
+  const rng = mulberry32(8 * 7919 + 101);
+  let c = sensible.preseason(ensureObjectives(newCore(8, { teams: 8 }), rng));
+  for (let g = 0; g < 400 && c.phase === 'season'; g++) {
+    if (!found.eight && c.day >= 40 && quiet(c) && nextIsHome(c)) found.eight = { core: structuredClone(c), seed: 8, bot: '8구단' };
+    if (lastDay(c)) break;
+    if (!c.campaign.event && !c.campaign.briefing) c = sensible.daily(c);
+    c = stepDay(c, rng);
+  }
+  const base = lastDay(c) ? forceRank(c, 4) : null;
+  if (base) {
+    const p = stepDay(base, rng);
+    if (p.phase === 'post' && quiet(p)) found.eightPost = { core: structuredClone(p), seed: 8, bot: '8구단 forced 4위' };
+  }
+  // 옛 세이브처럼: 구단 이름은 그때 이름 그대로 (세이브는 migrate 로 이름·id 를 바꾸지 않는다)
+  const OLD: Record<string, [string, string]> = { SEL: ['서울', '스카이라인즈'], HAN: ['한강', '그리폰즈'], BUS: ['부산', '씨호크스'], DGU: ['대구', '썬더킹스'], GWJ: ['광주', '레드폭스'], DJN: ['대전', '팰컨스'] };
+  for (const k of ['eight', 'eightPost']) {
+    const f = found[k];
+    if (!f) continue;
+    for (const t of f.core.teams) if (OLD[t.id]) [t.city, t.name] = OLD[t.id];
+  }
+}
+
+// ── 진짜 옛 세이브: 10구단 이전 코드(dc7f9fe)로 저장한 파일을 손대지 않고 그대로 넣는다 (scripts/fixtures-old — npm run oldsave 와 같은 파일) ──
+for (const [name, file] of [['oldReal', 'sensible-3-s6mid'], ['oldRealPost', 'sensible-1-post']] as const) {
+  try {
+    const raw = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures-old', `${file}.json`), 'utf8')) as { state: Core };
+    found[name] = { core: raw.state, seed: raw.state.seed, bot: `옛 세이브 ${file}` };
+  } catch {
+    // 파일이 없으면 건너뛴다
   }
 }
 

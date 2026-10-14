@@ -12,7 +12,7 @@ import { useIsMobile } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
 import { uiZoom } from './layout/uiScale';
 import { awayFacilities, awayFanShare } from './layout/away';
-import { TEAM_DEFS } from '../game/generate';
+import { teamDef } from '../game/generate';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
 
 const KINDS: FacilityKind[] = ['seats', 'food', 'training'];
@@ -177,7 +177,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
     let fx: StadiumFx = { kind: 'none' };
     let fxKey = 0;
     let homeBatting = false;
-    if (away) fill = Math.min(0.95, 0.45 + 0.5 * (TEAM_DEFS.find((d) => d.id === oppId)?.pop ?? 0.6));
+    if (away) fill = Math.min(0.95, 0.45 + 0.5 * (teamDef(oppId)?.pop ?? 0.6));
     if (report) {
       if (!away) fill = report.isHome && report.crowd ? Math.min(1, report.crowd.attendance / Math.max(1, report.crowd.capacity)) : idleFill * 0.15;
       fxKey = (report.day + 1) * 100 + step;
@@ -350,7 +350,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                 vs {opp.name}
               </div>
               <div style={{ fontSize: `${1.25 * k}cqw`, color: '#fff' }}>
-                {next.isHome ? '홈' : '원정'} · {postLine ? `${postLine.myW}승 ${postLine.oppW}패` : `${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`}
+                {next.isHome ? '홈' : '원정'} · {postLine ? postLine.score : `${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`}
               </div>
             </>
           ) : (

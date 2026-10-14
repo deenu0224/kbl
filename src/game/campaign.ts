@@ -3,10 +3,11 @@ import { josa } from './format';
 // 시즌 대본(일정 배치·구간 효과)은 script.ts, 이벤트 카드는 events.ts, 대사·문구는 story.ts.
 import type { Buff, CharId, Core, DayReport, HintTab, ObjKind, Objective, Player, PostFinish, SeasonRecord, SeasonVerdict, StadiumScene, Team } from './types';
 import { clamp, type Rng } from './rng';
-import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, loanLimit, luxTax, opProfit, payroll, revenueOf, userTeam } from './economy';
+import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, debtMood, loanLimit, luxTax, salaryInflation, opProfit, payroll, revenueOf, userTeam } from './economy';
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
 import { memoGet, memoNum, memoSet } from './memo';
+import { BASE_TEAMS, leagueSize, postTeams, seasonGames } from './league';
 import { ENDING, NEWS, TRUST_LABEL, endingText, nameSeason, verdictLine, withTeam } from './story';
 import { beatById, startSeasonScriptMut, userHomeDays } from './script';
 import { exposeMut } from './scandal';
@@ -24,10 +25,11 @@ export const MID_FAIL_TRUST = 5; // 중간 점검에서 출자를 받고 깃발 
 export const MID_UP_FAIL_TRUST = 12; // 목표 상향을 약속하고 깃발 실패 시 추가 감소
 export const MID_UP_MULT = 2; // 목표 상향 약속 성공 시 깃발 지원금 배율
 // 포스트시즌 배당금 (유저 최종 도달 지점별, ledger.league 합산)
-export const POST_DIVIDEND: Record<PostFinish, number> = { none: 0, SPO: 30000, PO: 60000, KS: 120000, champion: 250000 };
-export const POST_LEVEL: Record<PostFinish, number> = { none: 0, SPO: 1, PO: 2, KS: 3, champion: 4 };
+// WC(와일드카드 탈락) 값은 준PO 탈락의 절반~3분의 2 로 확정: 배당 50% · 위로 60% · 재계약 프리미엄 67%(economy.ts) · 관중 수요 가산 60%(postseason.ts). 깃발 단계(POST_LEVEL)는 준PO 와 같은 1 = "포스트시즌 진출"
+export const POST_DIVIDEND: Record<PostFinish, number> = { none: 0, WC: 15000, SPO: 30000, PO: 60000, KS: 120000, champion: 250000 };
+export const POST_LEVEL: Record<PostFinish, number> = { none: 0, WC: 1, SPO: 1, PO: 2, KS: 3, champion: 4 };
 // 깃발은 놓쳤어도 가을야구를 한 시즌은 섬이 덜 등을 돌린다 (깃발 실패 감소분을 이만큼 덜어 준다)
-export const POST_CONSOLE: Record<PostFinish, number> = { none: 0, SPO: 5, PO: 8, KS: 12, champion: 12 };
+export const POST_CONSOLE: Record<PostFinish, number> = { none: 0, WC: 3, SPO: 5, PO: 8, KS: 12, champion: 12 };
 export const DRAFT_PREFIX = 'dr'; // 드래프트 출신 선수 id 접두 (draft.ts 의 DRAFT_ID_PREFIX 와 같다)
 
 interface ObjSpec {
@@ -142,6 +144,40 @@ export const STAGES: StageDef[] = [
     midCash: 40000,
   },
 ];
+
+// ───────── 구단 수별 장 목표 (docs/TEN_TEAMS.md 3단계) ─────────
+// STAGES 는 원년 8구단 리그의 값이다. 구단이 더 많은 리그에서 뜻이 달라지는 목표만 여기서 덮어쓴다 (8구단 세이브는 STAGES 그대로).
+
+const FAIL_TRUST_0_BIG = 20; // 0장 깃발 실패 시 도민 지지 감소 (구단이 8개보다 많은 리그)
+const RAINY_ATT_BIG = 6800; // 1장 별 "장마 구간 홈 평균 관중" (구단이 8개보다 많은 리그)
+const ERA_RANK_8 = 2; // 3장 별 "팀 평균자책점 리그 n위 이내"의 8구단 기준
+const stageCache = new Map<number, StageDef[]>();
+
+function stagesFor(teams: number): StageDef[] {
+  if (teams <= BASE_TEAMS) return STAGES;
+  let out = stageCache.get(teams);
+  if (!out) {
+    out = STAGES.map((st) => ({ ...st, main: { ...st.main }, stars: st.stars.map((x) => ({ ...x })) as StageDef['stars'] }));
+    // 0장 깃발 = 탈꼴찌 (10구단 9위 이내)
+    out[0].main.target = teams - 1;
+    // 꼴찌를 못 벗어난 시즌의 벌을 키운다: 방치하면 세 시즌(60 → 40 → 20 → 0)에 연고 이전 (8구단은 15 — 네 시즌)
+    out[0].failTrust = FAIL_TRUST_0_BIG;
+    // 3장 별: 리그 n위는 구단 수 비율로 (8팀의 2위 ≈ 10팀의 3위)
+    const era = Math.round((ERA_RANK_8 * teams) / BASE_TEAMS);
+    out[3].stars[0] = { ...out[3].stars[0], target: era, text: `팀 평균자책점 리그 ${era}위 이내` };
+    // 1장 별: 장마 구간 관중은 깃발과 같은 눈금으로 (8구단 6,500명은 깃발을 딴 런이 거의 다 땄다)
+    out[1].stars[1] = { ...out[1].stars[1], target: RAINY_ATT_BIG, text: `장마 구간 홈 평균 관중 ${fmtInt(RAINY_ATT_BIG)}명` };
+    // 2장 별: 깃발(포스트시즌 진출)이 와일드카드만큼 쉬워진 몫을 별이 진다 — 젊은 주전으로 와일드카드를 넘어 준플레이오프까지 (STAR_EVAL needSpo)
+    out[2].stars[0] = { ...out[2].stars[0], text: '25세 이하 주전 7명으로 준플레이오프 진출' };
+    stageCache.set(teams, out);
+  }
+  return out;
+}
+
+/** 이 리그(구단 수)의 장 정의 */
+export function stageFor(core: Pick<Core, 'teams'>, stage: number): StageDef {
+  return stagesFor(leagueSize(core))[clamp(stage, 0, STAGES.length - 1)];
+}
 
 const POST_TEXT = ['', '포스트시즌 진출', '플레이오프 진출', '한국시리즈 진출', '한국시리즈 우승'];
 
@@ -296,11 +332,19 @@ export function unfixMut(core: Core, pid: string): void {
 // ───────── 지표 ─────────
 
 export function stageOf(core: Core): StageDef {
-  return STAGES[clamp(core.campaign.stage, 0, STAGES.length - 1)];
+  return stageFor(core, core.campaign.stage);
 }
 
 export function postLevel(core: Core): number {
   return core.post ? POST_LEVEL[core.post.userFinish] : 0;
+}
+
+/** 별의 전제(깃발·가을야구·준플레이오프)가 지금 충족됐는가. cleared = 깃발 달성 여부 */
+function starPremise(core: Core, ev: StarEval | undefined, cleared: boolean): boolean {
+  if (ev?.needFlag && !cleared) return false;
+  if (ev?.needPost && postLevel(core) < 1) return false;
+  if (ev?.needSpo && postTeams(core) >= 5 && (postLevel(core) < 1 || core.post?.userFinish === 'WC')) return false;
+  return true;
 }
 
 function avgAtt(core: Core): number {
@@ -371,6 +415,7 @@ interface StarEval {
   value: (core: Core) => number;
   needFlag?: boolean; // 깃발을 달성해야 인정
   needPost?: boolean; // 포스트시즌에 나가야 인정
+  needSpo?: boolean; // 와일드카드가 있는 리그에서는 준플레이오프(와일드카드 통과 또는 3위 이내)까지 가야 인정
 }
 
 /** 별 조건 평가기. ObjKind 로 표현 안 되는 조건은 Objective.id 로 분기한다. */
@@ -384,7 +429,7 @@ export const STAR_EVAL: Record<string, StarEval> = {
   's1-2': { value: (c) => rainyAvgAtt(c) ?? 0 },
   's1-3': { value: (c) => opProfit(c.finance.ledger) },
   // 2장
-  's2-1': { value: (c) => starters(userTeam(c)).filter((p) => p.age <= 25).length },
+  's2-1': { value: (c) => starters(userTeam(c)).filter((p) => p.age <= 25).length, needSpo: true },
   's2-2': { value: (c) => memoNum(c, 'grow') },
   's2-3': { value: (c) => userTeam(c).roster.filter((p) => p.id.startsWith(DRAFT_PREFIX) && (p.bat.pa >= 260 || p.pit.outs >= 270)).length },
   // 3장
@@ -491,11 +536,14 @@ export function objDisplay(core: Core, o: Objective): ObjDisplay {
       target = t <= 0 ? '무차입' : `${fmtMoney(t)} 이하`;
       ratio = v <= t ? 1 : Math.max(t, 1) / v;
       break;
-    case 'post':
-      cur = POST_SHORT[v] ?? `${v}`;
-      target = POST_SHORT[t] ?? `${t}`;
+    case 'post': {
+      // 와일드카드가 있는 리그의 1단계는 "포스트시즌 진출"(와일드카드 포함)이다
+      const short = (lv: number) => (lv === 1 && postTeams(core) >= 5 ? '가을야구' : (POST_SHORT[lv] ?? `${lv}`));
+      cur = short(v);
+      target = short(t);
       ratio = v / Math.max(1, t);
       break;
+    }
     case 'losses':
       cur = `${v}패`;
       target = `${t}패`;
@@ -544,6 +592,8 @@ export function objDisplay(core: Core, o: Objective): ObjDisplay {
     met = !!main && objDisplay(core, main).met;
   }
   if (met && ev?.needPost) met = postLevel(core) >= 1;
+  // 준플레이오프가 전제인 별: 포스트시즌 전에는 3위 이내(직행권)일 때만 충족 중으로 본다
+  if (met && ev?.needSpo && postTeams(core) >= 5) met = core.post ? starPremise(core, ev, true) : rankOf(core.teams, core.userId) <= postTeams(core) - 2;
   ratio = clamp(Number.isFinite(ratio) ? ratio : 0, 0, 1);
   return { cur, target, ratio: met ? 1 : Math.min(ratio, 0.97), met };
 }
@@ -565,7 +615,7 @@ export function fillObjectivesMut(core: Core, rng: Rng): void {
   const c = core.campaign;
   if (!c.objectives.length) {
     const stage = clamp(c.stage, 0, STAGES.length - 1);
-    const st = STAGES[stage];
+    const st = stageFor(core, stage);
     const have = new Set(c.achievements);
     const main: Objective = {
       id: `s${stage}-main`,
@@ -622,7 +672,7 @@ export function flagOnTrack(core: Core): boolean {
     case 'rank':
       return rank <= st.main.target;
     case 'post':
-      return rank <= (st.main.target >= 3 ? 2 : 4);
+      return rank <= (st.main.target >= 3 ? 2 : postTeams(core));
     default:
       return objMet(st.main.kind, st.main.target, objValue(core, st.main.kind));
   }
@@ -653,7 +703,7 @@ export function flagForecast(core: Core): { text: string; ok: boolean } {
       return { text: `지금 페이스: ${pace} · ${rank}위 예상 · 깃발 ${target}위 이내 ${mark(ok)}`, ok };
     }
     case 'post': {
-      const need = target >= 3 ? 2 : 4;
+      const need = target >= 3 ? 2 : postTeams(core);
       const ok = rank <= need;
       return { text: `지금 페이스: ${pace} · ${rank}위 예상 · ${objText(kind, target)}은 ${need}위 이내부터 ${mark(ok)}`, ok };
     }
@@ -755,8 +805,9 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
   const exposures = exposeMut(core, rng, finish === 'champion');
   for (const ex of exposures) trust += ex.trust;
 
-  // 경쟁균형세 (economy.ts LUX_TAX — 기본 꺼짐): 연봉 총액이 상한을 넘은 만큼 제재금
+  // 경쟁균형세 (economy.ts LUX_TAX — 8구단 리그는 꺼짐): 연봉 총액이 상한을 넘은 만큼 제재금
   const lux = luxTax(core);
+  if (lux.on && leagueSize(core) > BASE_TEAMS) c.luxCap = Math.round(lux.cap / salaryInflation(core.season));
   if (lux.tax > 0) {
     core.finance.cash -= lux.tax;
     core.finance.ledger.upkeep += lux.tax;
@@ -779,7 +830,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
       continue;
     }
     const ev = STAR_EVAL[o.id];
-    const ok = objMet(o.kind, o.target, o.progress) && (!ev?.needFlag || cleared) && (!ev?.needPost || postLevel(core) >= 1);
+    const ok = objMet(o.kind, o.target, o.progress) && starPremise(core, ev, cleared);
     o.state = ok && !exposures.length ? 'done' : 'failed';
     if (!ok) continue;
     if (exposures.length) {
@@ -803,7 +854,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     let stage = c.stage;
     let jumps = 0;
     for (;;) {
-      const st = STAGES[stage];
+      const st = stageFor(core, stage);
       cashReward += st.reward.cash * (jumps === 0 && mid === 'up' ? MID_UP_MULT : 1);
       trust += st.reward.trust;
       jumps++;
@@ -819,7 +870,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
       if (stage < STAGES.length - 1) stage++;
       else break;
       if (jumps >= MAX_JUMP || stage >= STAGES.length - 1) break;
-      const nx = STAGES[stage].main;
+      const nx = stageFor(core, stage).main;
       if (!objMet(nx.kind, nx.target, objValue(core, nx.kind))) break;
       addNews(core, `월반! 「${STAGES[stage].name}」의 깃발까지 이미 닿았습니다`, 'good');
     }
@@ -848,6 +899,17 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     debtOver = { debt: core.finance.debt, limit, streak: c.debtOver, trust: -d };
     addNews(core, `${c.debtOver >= 2 ? '두 시즌 연속 ' : ''}부채 한도 초과로 결산 — 부채 ${fmtMoney(core.finance.debt)} / 한도 ${fmtMoney(limit)} · ${TRUST_LABEL} −${d}`, 'bad');
   } else delete c.debtOver;
+  // 빚더미 구단 여론 (10구단 리그 · loan.ts DEBT_MOOD): 한도의 80% 이상을 안고 결산 — 첫 해는 조합장 경고, 다음 해부터 지지가 깎인다. 한도 초과는 위 규칙이 맡는다
+  const mood = debtMood(core, core.finance.debt);
+  let moodV: SeasonVerdict['debtMood'];
+  if (mood?.heavy) {
+    c.debtHeavy = mood.streak;
+    if (!debtOver) {
+      trust -= mood.trust;
+      moodV = { debt: core.finance.debt, limit, streak: mood.streak, trust: -mood.trust };
+      addNews(core, mood.trust > 0 ? NEWS.debtMood(fmtMoney(core.finance.debt), mood.pct, mood.streak, mood.trust) : NEWS.debtMoodWarn(fmtMoney(core.finance.debt), mood.pct, mood.next), 'bad');
+    }
+  } else delete c.debtHeavy;
   c.prevRevenue = revenueOf(core.finance.ledger);
   c.trust = clamp(Math.round(trust), 0, TRUST_MAX);
 
@@ -873,6 +935,9 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     prev: c.history,
     dealt: !!c.dealt,
     titlesBefore,
+    teams: leagueSize(core),
+    games: seasonGames(core),
+    postTeams: postTeams(core),
   });
   c.history.push(rec);
 
@@ -891,6 +956,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     ...(exposures.length ? { exposures } : {}),
     ...(lux.tax > 0 ? { luxTax: lux } : {}),
     ...(debtOver ? { debtOver } : {}),
+    ...(moodV ? { debtMood: moodV } : {}),
   };
   c.verdict = verdict;
   const st = STAGES[stageBefore];

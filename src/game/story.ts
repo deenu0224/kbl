@@ -22,8 +22,12 @@ export const CHARACTERS: Record<CharId, Character> = {
   player: { id: 'player', name: '', title: '선수', seed: 0, trait: '관련 선수 본인 (이름은 카드의 pid 로)' },
 };
 
-/** 부임 전 다섯 시즌의 순위 (구단사 순위열 앞에 흐리게 붙는다) */
-export const PAST_RANKS = [8, 8, 7, 8, 8];
+/** 부임 전 다섯 시즌의 순위 (구단사 순위열 앞에 흐리게 붙는다): 꼴찌-꼴찌-한 칸 위-꼴찌-꼴찌. 8구단 8-8-7-8-8, 10구단 10-10-9-10-10 */
+const PAST_FROM_LAST = [0, 0, 1, 0, 0];
+const NEW_TEAMS = 10; // 새 게임의 구단 수 (generate.ts LEAGUE_TEAMS 와 같다 — 순환 import 를 피해 여기 적는다)
+export const pastRanks = (teams: number = NEW_TEAMS): number[] => PAST_FROM_LAST.map((d) => teams - d);
+/** 새 게임(10구단) 기준의 부임 전 순위. 세이브를 읽는 화면은 pastRanks(구단 수)를 쓴다 */
+export const PAST_RANKS = pastRanks();
 /** 바랜 깃발의 우승이 몇 시즌 전이었는지 */
 export const TITLE_YEARS_AGO = 31;
 
@@ -35,11 +39,12 @@ export const TRUST_LABEL = '도민 지지';
 export const OVER_LABEL = '연고 이전';
 
 /** 새 게임 첫 뉴스 (위가 최신). 부임 기사 + 지난 다섯 시즌 순위 */
-export const PREMISE_NEWS: string[] = [
+export const premiseNews = (teams: number = NEW_TEAMS): string[] => [
   `감귤 조합, ${TITLE_YEARS_AGO}년 전 우승 멤버를 새 단장으로 선임 — "귤밭에서 다시 야구장으로"`,
   `리그, 관중·성적 미달 구단 연고 이전 심사 착수… 육지의 한 도시가 신축 돔구장을 내걸었다`,
-  `도민 구단 제주 {team}, 지난 다섯 시즌 ${PAST_RANKS.join('-')}위. 낡은 구장엔 바랜 우승 깃발 하나`,
+  `도민 구단 제주 {team}, 지난 다섯 시즌 ${pastRanks(teams).join('-')}위. 낡은 구장엔 바랜 우승 깃발 하나`,
 ];
+export const PREMISE_NEWS: string[] = premiseNews();
 
 export const NEWS = {
   seasonOpen: (season: number) => `시즌 ${season} 개막 — 연봉이 재산정되고 새 FA 시장이 열렸습니다`,
@@ -58,6 +63,14 @@ export const NEWS = {
   scoutList: (pos: string) => `스카우트 팀장의 명단 도착 — ${pos} 후보 3명이 영입 시장에 올라왔습니다`,
   forecast: (label: string, inGames: number) => `예보: ${inGames}경기 뒤 「${label}」`,
   fixture: (label: string, a: string, b: string) => `잔여 일정 확정 — 「${label}」 상대는 ${a}, ${b}`,
+  debtMoodWarn: (debt: string, pct: number, next: number) => `조합장의 경고 — 부채 ${debt}(대출 한도의 ${pct}%)를 안고 결산했습니다. 다음 시즌에도 이대로면 ${TRUST_LABEL} −${next}`,
+  debtMood: (debt: string, pct: number, streak: number, cut: number) => `빚더미 구단 — 부채 ${debt}(대출 한도의 ${pct}%)를 ${streak}시즌째 안고 결산 · ${TRUST_LABEL} −${cut}`,
+};
+
+/** 빚더미 구단(loan.ts DEBT_MOOD)에 대한 조합장의 한 줄 */
+export const DEBT_MOOD_LINE = {
+  warn: '빚으로 굴리는 구단이라는 말이 조합에 돕니다. 올해는 제가 막았습니다만, 내년엔 장담 못 합니다.',
+  cut: '귤 판 돈으로 이자를 갚는다고들 수군거립니다. 저도 더는 드릴 말씀이 없습니다.',
 };
 
 /** 스캔들(scandal.ts)의 뉴스와 조합장의 한 줄. 건조하게 사실만 */
@@ -214,7 +227,13 @@ export interface SeasonCtx {
   prev: SeasonRecord[]; // 이전 시즌 기록
   dealt: boolean;
   titlesBefore: number; // 이 시즌 전까지의 우승 횟수
+  teams?: number; // 구단 수 (없으면 8 — 옛 호출)
+  games?: number; // 시즌 경기 수 (없으면 84)
+  postTeams?: number; // 포스트시즌 진출 팀 수 (없으면 4)
 }
+const nT = (x: SeasonCtx) => x.teams ?? 8;
+const nPost = (x: SeasonCtx) => x.postTeams ?? 4;
+const gAt = (x: SeasonCtx, d84: number) => Math.round((d84 * (x.games ?? 84)) / 84); // 84경기 기준 경기 수를 이 시즌 길이로
 
 const pctOf = (xs: number[]) => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0.5);
 function longest(xs: number[], v: number): number {
@@ -240,32 +259,32 @@ export const SEASON_NAME_RULES: NameRule[] = [
   { name: '한 걸음이 모자랐던 가을', test: (r) => r.post === 'KS' },
   { name: '처음 맞은 가을', test: (r, x) => r.post !== 'none' && x.prev.every((p) => p.post === 'none') },
   { name: '9월의 기적', test: (_r, x) => x.results.length >= 24 && x.results.slice(-12).filter((v) => v === 1).length >= 9 },
-  { name: '봄에만 강했던 해', test: (_r, x) => x.results.length >= 60 && pctOf(x.results.slice(0, 42)) - pctOf(x.results.slice(42)) >= 0.15 },
-  { name: '여름에 깨어난 해', test: (_r, x) => x.results.length >= 60 && pctOf(x.results.slice(42)) - pctOf(x.results.slice(0, 42)) >= 0.15 },
+  { name: '봄에만 강했던 해', test: (_r, x) => x.results.length >= gAt(x, 60) && pctOf(x.results.slice(0, gAt(x, 42))) - pctOf(x.results.slice(gAt(x, 42))) >= 0.15 },
+  { name: '여름에 깨어난 해', test: (_r, x) => x.results.length >= gAt(x, 60) && pctOf(x.results.slice(gAt(x, 42))) - pctOf(x.results.slice(0, gAt(x, 42))) >= 0.15 },
   { name: '장마에 무너진 해', test: (r, x) => x.rainyAtt !== null && r.avgAtt > 0 && x.rainyAtt < r.avgAtt * 0.75 },
-  { name: '가을 문턱에서 멈춘 해', test: (r, x) => r.rank >= 5 && r.rank <= 6 && x.results.slice(-12).filter((v) => v === 1).length <= 3 },
-  { name: '가을 냄새를 맡은 해', test: (r) => r.post === 'SPO' || r.post === 'PO' },
-  { name: '끝이 안 보이던 해', test: (r, x) => r.rank === 8 && x.prev.slice(-2).length === 2 && x.prev.slice(-2).every((p) => p.rank === 8) },
+  { name: '가을 문턱에서 멈춘 해', test: (r, x) => r.rank >= nPost(x) + 1 && r.rank <= nPost(x) + 2 && x.results.slice(-12).filter((v) => v === 1).length <= 3 },
+  { name: '가을 냄새를 맡은 해', test: (r) => r.post === 'WC' || r.post === 'SPO' || r.post === 'PO' },
+  { name: '끝이 안 보이던 해', test: (r, x) => r.rank >= nT(x) && x.prev.slice(-2).length === 2 && x.prev.slice(-2).every((p) => p.rank >= nT(x)) },
   { name: '달라진 팀의 해', test: (r, x) => x.prev.length > 0 && x.prev[x.prev.length - 1].rank - r.rank >= 3 },
-  { name: '꼴찌를 벗어난 해', test: (r, x) => r.rank <= 7 && (x.prev.length ? x.prev[x.prev.length - 1].rank === 8 : r.rank <= 6) },
+  { name: '꼴찌를 벗어난 해', test: (r, x) => r.rank < nT(x) && (x.prev.length ? x.prev[x.prev.length - 1].rank >= nT(x) : r.rank <= nT(x) - 2) },
   { name: '주황 물결의 해', test: (_r, x) => x.sellouts >= 25 },
   { name: '긴 연패의 해', test: (_r, x) => longest(x.results, 0) >= 9 },
   { name: '연승 바람이 분 해', test: (_r, x) => longest(x.results, 1) >= 8 },
-  { name: '한 끗이 모자랐던 해', test: (r) => r.rank === 5 },
+  { name: '한 끗이 모자랐던 해', test: (r, x) => r.rank === nPost(x) + 1 },
   { name: '허리띠를 졸라맨 해', test: (r) => r.profit < 0 },
   { name: '부임 첫해', test: (_r, x) => x.prev.length === 0 },
-  { name: '바닥을 친 해', test: (r) => r.rank === 8 },
+  { name: '바닥을 친 해', test: (r, x) => r.rank >= nT(x) },
 ];
 
 /** 시즌 결과에 이름을 붙인다 (결산 때 호출) */
 export function nameSeason(r: SeasonRecord, x: SeasonCtx): string {
   for (const rule of SEASON_NAME_RULES) if (rule.test(r, x)) return rule.name;
-  return r.rank <= 4 ? '위를 보던 해' : '버틴 해';
+  return r.rank <= nPost(x) ? '위를 보던 해' : '버틴 해';
 }
 
-/** 구단사 순위열 "8-8-7-5-3-1" (부임 전 순위 포함 여부 선택) */
-export function rankLine(history: SeasonRecord[], withPast = false): string {
-  return [...(withPast ? PAST_RANKS : []), ...history.map((h) => h.rank)].join('-');
+/** 구단사 순위열 "10-10-9-7-5-3-1" (부임 전 순위 포함 여부 선택) */
+export function rankLine(history: SeasonRecord[], withPast = false, teams: number = NEW_TEAMS): string {
+  return [...(withPast ? pastRanks(teams) : []), ...history.map((h) => h.rank)].join('-');
 }
 
 /** 문구의 {team} 자리에 유저가 정한 별칭을 넣는다 */

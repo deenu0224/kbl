@@ -11,12 +11,14 @@ import { standings } from './season';
 import { addNews } from './season';
 import { activeBuffs } from './campaign';
 import { YOUTH_POT, YOUTH_TAG, projectFx } from './projects';
+import { perLeague } from './league';
 
 // ── 튜닝 상수 ──
 // 뉴스용 포지션 이름 (script.ts 의 POS_NAME 과 같은 표기. 순환 참조를 피해 따로 둔다)
 const POS_KO_NEWS: Record<string, string> = { SP: '선발', RP: '불펜', CP: '마무리', C: '포수', '1B': '1루수', '2B': '2루수', '3B': '3루수', SS: '유격수', LF: '좌익수', CF: '중견수', RF: '우익수', DH: '지명타자' };
 
-export const DRAFT_POOL = 28;
+export const DRAFT_POOL = 28; // 8구단 기준 (지명 24 + 여유 4). 실제 풀은 draftPool(core) — 구단 수에 비례 (10구단 35)
+export const draftPool = (core: Pick<Core, 'teams'>): number => perLeague(core, DRAFT_POOL);
 export const DRAFT_ROUNDS = 3;
 export const DRAFT_BONUS = [15000, 8000, 4000]; // 라운드별 계약금 (만원)
 const POOL_BAT_SHARE = 0.52; // 풀 중 타자 비율
@@ -92,7 +94,7 @@ function genPool(core: Core, rng: Rng): Player[] {
   const pool: Player[] = [];
   const pj = projectFx(core);
   const noise = (core.campaign.analyst ? ANALYST_NOISE : SCOUT_NOISE) * pj.scout; // 육성 아카데미: 오차 절반
-  for (let i = 0; i < DRAFT_POOL; i++) pool.push(genProspect(ctx, rng, quality, noise));
+  for (let i = 0; i < draftPool(core); i++) pool.push(genProspect(ctx, rng, quality, noise));
   if (pj.youth > 0) {
     // 유소년 구장 기부: 제주 출신 고졸 유망주 1명 (회차마다 잠재력 기대값↑)
     const p = genPlayer(ctx, rng() < POOL_BAT_SHARE ? pick(rng, BAT_POS) : pick(rng, PIT_POS), 50, { age: 19, tag: YOUTH_TAG });
@@ -188,7 +190,7 @@ export function beginDraft(core0: Core, rng: Rng): { core: Core; error?: string 
   for (let r = 0; r < DRAFT_ROUNDS; r++) order.push(...rev);
   core.draft = { pool: genPool(core, rng), order, pick: 0, log: [], mine: [] };
   core.phase = 'draft';
-  addNews(core, `신인 드래프트 개막 — 유망주 ${DRAFT_POOL}명, ${DRAFT_ROUNDS}라운드`, 'info');
+  addNews(core, `신인 드래프트 개막 — 유망주 ${draftPool(core)}명, ${DRAFT_ROUNDS}라운드`, 'info');
   const out = farmAutoOn(core) && farmRoster(userTeam(core)).length >= farmMax(core) ? farmCutCandidate(core) : null;
   if (out) addNews(core, `2군 코치: 2군이 가득합니다 — 지명하면 ${out.name}(${out.age}세 · 오버롤 ${out.ovr})부터 방출합니다`, 'info');
   runAi(core, rng);

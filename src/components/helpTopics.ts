@@ -1,6 +1,7 @@
 // "?" 버튼 뒤의 설명. 한 주제에 3~5줄, 한 줄에 한 문장. 숫자는 실제 규칙 값만.
-import { BAILOUT_TRUST, DEBT_OVER_TRUST, DEBT_OVER_TRUST2, DEBT_SALE_RATE, FARM_CAP, FARM_LOCK, FARM_MAX, FARM_MAX_ACADEMY, LOAN_LIMIT, LOAN_RATE, LOAN_RATE_HI, LOAN_REV_SHARE, LOAN_TIER, ROSTER_MAX, SVC_YEARS, loanInterest, loanLimit } from '../game/economy';
+import { BAILOUT_TRUST, DEBT_MOOD, FA_HEAT, faHeatLine, faHeatMult, LUX_TAX_BIG, debtMood, luxTax, DEBT_OVER_TRUST, DEBT_OVER_TRUST2, DEBT_SALE_RATE, FARM_CAP, FARM_LOCK, FARM_MAX, FARM_MAX_ACADEMY, LOAN_LIMIT, LOAN_RATE, LOAN_RATE_HI, LOAN_REV_SHARE, LOAN_TIER, ROSTER_MAX, SVC_YEARS, loanInterest, loanLimit } from '../game/economy';
 import type { Core } from '../game/types';
+import { leagueSize, postTeams, seasonGames } from '../game/league';
 import { TRUST_MAX, TRUST_START } from '../game/campaign';
 import { RUNWAY_DANGER, RUNWAY_SHOW } from '../game/runway';
 import { VALUE_FAIR } from '../game/analysis';
@@ -18,6 +19,8 @@ export type HelpTopic =
   | 'flag'
   | 'runway'
   | 'debt'
+  | 'luxtax'
+  | 'faheat'
   | 'fatigue'
   | 'penStyle'
   | 'farm'
@@ -27,9 +30,26 @@ export type HelpTopic =
   | 'demand'
   | 'ethics'
   | 'secrets'
-  | 'projects';
+  | 'projects'
+  | 'postseason';
 
 export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: Core) => string[]) }> = {
+  postseason: {
+    title: '가을야구',
+    lines: (core: Core) => {
+      const n = postTeams(core);
+      const head = `${leagueSize(core)}개 구단이 ${seasonGames(core)}경기를 치르고, 정규시즌 ${n}위까지 가을야구에 나갑니다.`;
+      const ladder = '아래 순위부터 한 계단씩 올라갑니다: 준플레이오프(3전 2선승) → 플레이오프(5전 3선승) → 한국시리즈(7전 4선승).';
+      if (n < 5) return [head, ladder, '순위가 높은 팀이 홈경기를 더 많이 치릅니다.', '포스트시즌에는 무승부가 없습니다.'];
+      return [
+        head,
+        `와일드카드 결정전: ${n - 1}위와 ${n}위가 ${n - 1}위 구장에서만 최대 2경기를 치릅니다. ${n - 1}위는 1승을 안고 시작해서 한 번 이기거나 비기면 통과하고, ${n}위는 두 경기를 모두 이겨야 합니다.`,
+        ladder,
+        '순위가 높은 팀이 홈경기를 더 많이 치릅니다.',
+        '무승부는 와일드카드 결정전에만 있고, 그 뒤로는 승부가 날 때까지 연장합니다.',
+      ];
+    },
+  },
   projects: {
     title: '왕조 프로젝트',
     lines: [
@@ -82,6 +102,35 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: 
         '금고가 비면 모자란 돈은 긴급 대출이 되어 부채에 더해집니다.',
         `한도를 넘으면 영입·시설·프로젝트·대출이 막히고, 경기 뒤마다 선수 한 명을 보냅니다 (대금 = 시장 연봉의 ${pct(DEBT_SALE_RATE)}%). 보낼 선수가 없으면 조합 특별 출자(도민 지지 −${BAILOUT_TRUST}, 시즌 1회).`,
         `한도를 넘긴 채 결산하면 도민 지지 −${DEBT_OVER_TRUST}, 두 시즌 연속이면 −${DEBT_OVER_TRUST2}.`,
+        ...(debtMood(core, 0)
+          ? [`빚더미 구단: 부채가 한도의 ${pct(DEBT_MOOD.at)}% 이상인 채 결산하면 첫 해는 조합장 경고, 다음 해부터 연속으로 그러면 도민 지지 −${DEBT_MOOD.trust} (한도를 꽉 채웠으면 −${DEBT_MOOD.trustFull}). 한 번이라도 ${pct(DEBT_MOOD.at)}% 아래로 결산하면 처음으로 돌아갑니다.`]
+          : []),
+      ];
+    },
+  },
+  luxtax: {
+    title: '경쟁균형세',
+    lines: (core: Core) => {
+      const l = luxTax(core);
+      const k = LUX_TAX_BIG;
+      return [
+        `연봉 총액이 상한을 넘으면 넘은 금액의 ${Math.round(k.rate * 100)}%를 시즌 결산 때 제재금으로 냅니다.`,
+        `상한 ${fmtMoney(l.cap)} — 우리를 뺀 리그 연봉 상위 ${k.top}구단 평균의 ${Math.round(k.capRate * 100)}%. 한 번 오른 상한은 내려가지 않고, 해마다 리그 연봉 인상률만큼 오릅니다.`,
+        `지금 연봉 총액 ${fmtMoney(l.payroll)} — ${l.tax > 0 ? `이대로 시즌을 마치면 제재금 ${fmtMoney(l.tax)}` : `상한까지 ${fmtMoney(l.cap - l.payroll)} 남았습니다`}.`,
+        '결산 시점의 연봉 총액으로 계산합니다. 영입·재계약 전에 예상 제재금이 함께 나옵니다.',
+      ];
+    },
+  },
+  faheat: {
+    title: '달아오르는 FA 시장',
+    lines: (core: Core) => {
+      const up = (n: number) => `+${Math.round((faHeatMult(n) - 1) * 100)}%`;
+      return [
+        '같은 시즌에 FA 를 거듭 영입하면 계약금이 오릅니다. 에이전트들이 제주가 급하다는 것을 알기 때문입니다.',
+        `두 번째 영입 ${up(1)} · 세 번째 ${up(2)} · 네 번째 ${up(3)} · 다섯 번째 ${up(4)}, 그 뒤로는 한 명마다 ${Math.round(FA_HEAT.step * 100)}%p 씩 더 오릅니다. 연봉은 그대로입니다.`,
+        '시즌 결산이 끝나면 다시 0명부터 셉니다. 스토브리그의 영입은 다음 시즌 몫입니다.',
+        '외국인을 포함해 영입 시장에서 데려오는 모든 선수를 셉니다. 드래프트·트레이드·콜업·재계약은 세지 않습니다.',
+        faHeatLine(core) ?? '이 리그에는 적용되지 않습니다.',
       ];
     },
   },
@@ -123,7 +172,7 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: 
   },
   posRank: {
     title: '포지션 순위',
-    lines: ['그 자리 주전을 리그 8개 구단과 비교한 순위입니다.', '1~2위는 초록, 아래 세 순위는 빨강입니다.', '빨간 테두리는 우리 팀에서 가장 약한 두 자리입니다.', '칸을 누르면 그 자리의 주전·백업과 영입 후보가 보입니다.'],
+    lines: (core: Core) => [`그 자리 주전을 리그 ${leagueSize(core)}개 구단과 비교한 순위입니다.`, '1~2위는 초록, 아래 세 순위는 빨강입니다.', '빨간 테두리는 우리 팀에서 가장 약한 두 자리입니다.', '칸을 누르면 그 자리의 주전·백업과 영입 후보가 보입니다.'],
   },
   demand: { title: '관중 수요', lines: ['오고 싶어 하는 사람 수입니다.', '좌석보다 많으면 매진이고, 못 들어온 팬은 발길을 돌립니다.', '표값을 올리면 줄어듭니다.', '관중석을 늘리면 그만큼 더 받을 수 있습니다.'] },
 };

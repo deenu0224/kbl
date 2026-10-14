@@ -1,5 +1,5 @@
 import type { Core, Facilities } from '../../game/types';
-import { TEAM_DEFS } from '../../game/generate';
+import { teamDef } from '../../game/generate';
 
 /**
  * 원정 응원단 크기 (0~1, 관중석에서 차지하는 몫).
@@ -13,7 +13,7 @@ export function awayFanShare(fans: number): number {
 
 /** 상대 구장의 시설 단계: 구단 전력 tier 에서 유도한 고정값 (관중석 2~4) */
 export function awayFacilities(teamId: string): Facilities {
-  const tier = TEAM_DEFS.find((d) => d.id === teamId)?.tier ?? 57;
+  const tier = teamDef(teamId)?.tier ?? 57;
   const seats = tier >= 61 ? 4 : tier >= 58 ? 3 : 2;
   return { seats, food: seats - 1, training: seats - 1 };
 }

@@ -1,7 +1,8 @@
 import type { Campaign, Core, Objective, SeasonRecord } from '../game/types';
 import { useCore, useStore } from '../store';
 import { STAGES, TRUST_MAX, flagForecast, objDisplay } from '../game/campaign';
-import { PAST_RANKS, SCANDAL_NEWS, TITLE_YEARS_AGO } from '../game/story';
+import { pastRanks, SCANDAL_NEWS, TITLE_YEARS_AGO } from '../game/story';
+import { inCellar, inPost } from '../game/league';
 import { useState } from 'react';
 import { fmtInt } from '../game/format';
 import Fold from './Fold';
@@ -17,7 +18,7 @@ export const stageLabel = (i: number): string => `${i + 1}장 · ${stageName(i)}
 /** 아직 닿지 않은 장의 이름은 실루엣으로만 */
 export const silhouette = (i: number): string => '█'.repeat(Math.max(3, Math.min(8, [...stageName(i)].filter((c) => c !== ' ').length)));
 
-export const POST_KO: Record<SeasonRecord['post'], string> = { none: '', SPO: '준플레이오프', PO: '플레이오프', KS: '준우승', champion: '우승' };
+export const POST_KO: Record<SeasonRecord['post'], string> = { none: '', WC: '와일드카드', SPO: '준플레이오프', PO: '플레이오프', KS: '준우승', champion: '우승' };
 
 const trustColor = (v: number) => (v >= 50 ? '#6ee07a' : v >= 25 ? '#ffd84a' : '#ff6b6b');
 
@@ -62,15 +63,16 @@ export function TrustGauge({ trust, w = 40, h = 5 }: { trust: number; w?: number
   );
 }
 
-/** 구단사 순위열: 부임 전은 흐리게, 이후는 이어 붙인다 ("8-8-7-8-8-7-5") */
+/** 구단사 순위열: 부임 전은 흐리게, 이후는 이어 붙인다 ("10-10-9-10-10-9-6") */
 export function RankString({ history, size = 16 }: { history: SeasonRecord[]; size?: number }) {
+  const teams = useStore((s) => s.teams);
   return (
     <span className="font-pixel-lg" style={{ fontSize: size, lineHeight: 1.2, wordBreak: 'break-all' }}>
-      <span className="text-white/30">{PAST_RANKS.join('-')}</span>
+      <span className="text-white/30">{pastRanks(teams.length).join('-')}</span>
       {history.map((h) => (
         <span key={h.season}>
           <span className="text-white/30">-</span>
-          <span className={h.post === 'champion' ? 'text-hi' : h.rank <= 4 ? 'text-good' : h.rank >= 7 ? 'text-bad' : 'text-white'}>{h.rank}</span>
+          <span className={h.post === 'champion' ? 'text-hi' : inPost({ teams }, h.rank) ? 'text-good' : inCellar({ teams }, h.rank) ? 'text-bad' : 'text-white'}>{h.rank}</span>
         </span>
       ))}
     </span>
@@ -217,6 +219,7 @@ export function StageTrail({ stage, revealNext = false }: { stage: number; revea
 
 /** 구단사: 순위열 + 시즌별 한 줄 */
 export function Chronicle({ history, rankSize = 18 }: { history: SeasonRecord[]; rankSize?: number }) {
+  const teams = useStore((s) => s.teams);
   return (
     <>
       <div className="bg-ink/50 px-2 py-1.5">
@@ -228,7 +231,7 @@ export function Chronicle({ history, rankSize = 18 }: { history: SeasonRecord[];
         .map((h) => (
           <div key={h.season} className="flex items-baseline gap-1.5 px-2 py-[3px] text-[11px] odd:bg-white/4 mob:text-[13px]">
             <span className="w-11 shrink-0 text-white/50">{h.season}시즌</span>
-            <span className={`w-7 shrink-0 ${h.rank <= 4 ? 'text-good' : h.rank >= 7 ? 'text-bad' : ''}`}>{h.rank}위</span>
+            <span className={`w-7 shrink-0 ${inPost({ teams }, h.rank) ? 'text-good' : inCellar({ teams }, h.rank) ? 'text-bad' : ''}`}>{h.rank}위</span>
             <span className="shrink-0 text-white/65">{recText(h)}</span>
             {h.post !== 'none' && <span className={`shrink-0 ${h.post === 'champion' ? 'text-hi' : 'text-sky'}`}>{POST_KO[h.post]}</span>}
             {h.name && <span className="min-w-0 flex-1 truncate text-right text-white/85">「{h.name}」</span>}

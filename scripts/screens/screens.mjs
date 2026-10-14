@@ -112,9 +112,10 @@ export const SCREENS = [
   S('home-cashlow', 'cashlow', game()),
   S('home-season3', 'season3', game()),
   S('home-dynasty', 'dynasty', game()),
-  S('fac-seats', 'season3', game(m('fac-fixed-seats'), d('fac-seats'))),
-  S('fac-food', 'season3', game(m('fac-fixed-food'), d('fac-food'))),
-  S('fac-training', 'season3', game(m('fac-fixed-training'), d('fac-training'))),
+  // 세로 폰: 구장이 확대돼 시설 태그가 화면 밖이면 하단 고정 버튼, 아니면 태그 (할 일 줄 수에 따라 달라진다)
+  S('fac-seats', 'season3', game(m('fac-fixed-seats', { optional: true }), m('fac-seats', { optional: true }), d('fac-seats'))),
+  S('fac-food', 'season3', game(m('fac-fixed-food', { optional: true }), m('fac-food', { optional: true }), d('fac-food'))),
+  S('fac-training', 'season3', game(m('fac-fixed-training', { optional: true }), m('fac-training', { optional: true }), d('fac-training'))),
   S('ticket', 'season3', game(m('crowd-chip'), d('구장'))),
   S('menu', 'season3', game('m-top'), { only: 'mobile' }),
   S('campaign', 'season3', game('캠페인')),
@@ -173,6 +174,11 @@ export const SCREENS = [
   S('desk-added', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }))),
   S('desk-summary', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), m('sum-toggle'))),
   S('desk-squad', 'season3', game(...DESK, m('side-squad'))),
+  // FA 계약금 누진: 이번 시즌 FA 2명 영입 뒤
+  S('desk-heat', 'faHeat', game(...DESK)),
+  S('desk-heat-table', 'faHeat', game(...DESK, 'view-toggle')),
+  S('desk-heat-card', 'faHeat', game(...DESK, 'css:[data-testid="browser-market"] [data-testid="player-list"] > * button')),
+  S('desk-heat-summary', 'faHeat', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), m('sum-toggle'))),
 
   // ── 리그
   S('league-table', 'season3', game('리그')),
@@ -191,6 +197,11 @@ export const SCREENS = [
   S('event-debtsale', 'debtSale', game()),
   S('event-debtsale-detail', 'debtSale', game(c('ev-more', { optional: true }))),
   S('ended-debtover', 'endedDebt', game()),
+  S('ended-debtmood-warn', 'endedMoodWarn', game()),
+  S('ended-debtmood', 'endedMood', game()),
+  S('ended-luxtax', 'endedLux', game()),
+  S('briefing-debtmood', 'briefMood', game()),
+  S('club-finance-luxover', 'luxOver', game(...CLUB, '재무')),
   S('academy-farm', 'academy', game(...SQUAD, 'squad-farm-toggle')),
   S('share-dome', 'domeDone', game({ scroll: 'bottom' }, 'share-open', { wait: 900 })),
   S('club-stadium', 'season3', game(...CLUB, '구장')),
@@ -283,6 +294,35 @@ export const SCREENS = [
   // ── 포스트시즌
   S('post-home', 'post', game()),
   S('post-bracket', 'post', game('리그', '대진표')),
+  // 10구단 와일드카드 결정전: 4위(1승 안고 시작) · 5위(2연승 필요) · 1승 1패 · 무승부 통과 · 탈락 결산
+  S('wc-hi-home', 'wcHi', game()),
+  S('wc-hi-bracket', 'wcHi', game('리그', '대진표')),
+  S('wc-hi-table', 'wcHi', game('리그')),
+  S('wc-help', 'wcHi', game('리그', '대진표', '가을야구 설명')),
+  S('eight-help', 'eight', game('리그', '대진표', '가을야구 설명')),
+  S('wc-lo-home', 'wcLo', game()),
+  S('wc-lo-bracket', 'wcLo', game('리그', '대진표')),
+  S('wc-lo-summary', 'wcLo', game(...SUMMARY)),
+  S('wc-mid-bracket', 'wcMid', game('리그', '대진표')),
+  S('wc-tie-bracket', 'wcTie', game('리그', '대진표')),
+  S('wc-out', 'wcOut', game()),
+  S('wc-out-bracket', 'wcOut', game({ wait: 2500 }, 'fold-bracket', { wait: 500 })),
+  S('wc-out-ledger', 'wcOut', game({ wait: 2500 }, 'fold-ledger', { wait: 500 }, { scroll: 'bottom' })),
+  // 8구단 세이브(10구단 체제 전의 게임): 홈 · 순위표 · 대진표(4팀) · 포스트시즌
+  S('eight-home', 'eight', game()),
+  S('eight-table', 'eight', game('리그')),
+  S('eight-more', 'eight', game('리그', '자세히: 승률')),
+  S('eight-bracket', 'eight', game('리그', '대진표')),
+  S('eight-club', 'eight', game(...CLUB)),
+  S('eight-summary', 'eight', game(...SUMMARY)),
+  S('eight-post-bracket', 'eightPost', game('리그', '대진표')),
+  // 진짜 옛 세이브 (옛 코드로 저장한 파일 그대로)
+  S('old-home', 'oldReal', game()),
+  S('old-table', 'oldReal', game('리그')),
+  S('old-bracket', 'oldReal', game('리그', '대진표')),
+  S('old-club', 'oldReal', game(...CLUB)),
+  S('old-post-home', 'oldRealPost', game()),
+  S('old-post-bracket', 'oldRealPost', game('리그', '대진표')),
 
   // ── 도전과제: 초기 화면에서 연 목록(달성 일부 · 빈 저장) · 게임 안에서 연 목록 · 범주 탭 · 필터 · 달성 알림
   S('achv-title', 'opened', st(['open-achv']), { ui: ACHV_UI }),

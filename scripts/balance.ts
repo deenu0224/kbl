@@ -2,7 +2,8 @@
 // 실행: npm run balance  (인자로 시드 개수 지정 가능: npx tsx scripts/balance.ts 12)
 import type { Core, Player } from '../src/game/types';
 import { mulberry32 } from '../src/game/rng';
-import { newCore } from '../src/game/generate';
+import { NEW_GAME, newCore } from '../src/game/generate';
+import { gamesFor } from '../src/game/league';
 import { advanceDay, rankOf, signPlayer, upgradeFacility } from '../src/game/season';
 import { farmRoster, opProfit, payroll, previewDemand, signingBonus, userTeam } from '../src/game/economy';
 import { maybeDrawEvent, resolveEvent } from '../src/game/events';
@@ -12,11 +13,17 @@ import { teamStrength } from '../src/game/ratings';
 import { SIM_TALLY } from '../src/game/sim';
 import { autoLineup } from '../src/game/lineup';
 import { ensureObjectives } from '../src/game/campaign';
-import { KBO_AVG, scaleToSeason, scaleToTeams } from '../src/game/kbo';
+import { KBO_AVG, scaleToSeason as scaleSeason0, scaleToTeams as scaleTeams0 } from '../src/game/kbo';
 import { batLeaders, pitLeaders, qualPA } from '../src/game/leaders';
 
 const N_SEEDS = Number(process.argv[2]) || 16;
-const QUAL_PA = 260; // 규정타석 (84경기 × 3.1)
+// TEAMS=8 → 원년 8구단·84경기 리그로 잰다 (기본은 새 게임과 같은 10구단·81경기)
+if (process.env.TEAMS) NEW_GAME.teams = Number(process.env.TEAMS);
+const L_TEAMS = NEW_GAME.teams;
+const L_GAMES = gamesFor(L_TEAMS);
+const scaleToSeason = (v: number) => scaleSeason0(v, L_GAMES);
+const scaleToTeams = (v: number) => scaleTeams0(v, L_TEAMS);
+const QUAL_PA = Math.floor(L_GAMES * 3.1); // 규정타석 (시즌 경기 수 × 3.1)
 
 interface Summary {
   avg: number;
@@ -213,7 +220,7 @@ for (let seed = 1; seed <= N_SEEDS; seed++) {
     `${pad(seed, 4)} | ${f3(s.avg)} ${s.era.toFixed(2)} ${s.rpg.toFixed(2)} | ${pad(s.hrTop, 3)} ${pad(s.n300, 5)} ${pad(s.n340, 5)} ${pad(f3(s.avgTop), 8)} ${pad(s.winsTop, 4)} ${pad(s.svTop, 6)} ${pad(s.ties, 2)} | ${pad(s.rank, 3)}위 ${pad(s.rec, 9)} | ${pad(fmtMoney(s.profit), 7)} ${pad(fmtMoney(s.payroll), 8)} | ${pad(Math.round(s.avgAtt), 8)} ${pad(s.sellouts, 4)} ${pad(s.turnedAway, 8)} | ${pad(s.fans, 5)} ${s.fanSat.toFixed(0)}`,
   );
 }
-console.log('---- 평균 (목표: AVG .265~.275 / ERA 4.2~4.8 / R/G 4.6~5.2 / HR1 20~27 / 순위 7~8 / 손익 +8억~+18억 — 손익은 아래 [개막 오더만 고친 무개입] 기준, 이 줄은 완전 방치)');
+console.log(`---- 평균 (목표: AVG .265~.275 / ERA 4.2~4.8 / R/G 4.6~5.2 / HR1 20~27 / 순위 ${L_TEAMS - 1}~${L_TEAMS} / 손익 +8억~+18억 — 손익은 아래 [개막 오더만 고친 무개입] 기준, 이 줄은 완전 방치)`);
 console.log(
   `AVG ${f3(mean(base.map((s) => s.avg)))} · ERA ${mean(base.map((s) => s.era)).toFixed(2)} · R/G ${mean(base.map((s) => s.rpg)).toFixed(2)} · HR1 ${mean(base.map((s) => s.hrTop)).toFixed(1)} · .300+ ${mean(base.map((s) => s.n300)).toFixed(1)}명 · .340+ ${mean(base.map((s) => s.n340)).toFixed(1)}명`,
 );
@@ -264,7 +271,7 @@ console.log('홈런왕:', base.map((s) => `${s.hrTopName} ${s.hrTop}`).join(' / 
 console.log('최종 순위 예시(seed 1):', base[0].rankOrder);
 
 // ── KBO 실제 vs 시뮬 ──
-// 비율 지표 ±5%, 타이틀 규모 ±15% (84경기·8구단 환산). '참고' 행은 판정에서 제외.
+// 비율 지표 ±5%, 타이틀 규모 ±15% (시즌 길이·구단 수 환산). '참고' 행은 판정에서 제외.
 type Cmp = { key: string; label: string; kbo: number; tol: number | null; fmt: (v: number) => string };
 const T = KBO_AVG.titles;
 const r3 = (v: number) => v.toFixed(3);
@@ -299,7 +306,7 @@ const CMP: { group: string; rows: Cmp[] }[] = [
     ],
   },
   {
-    group: '타이틀 규모 (84경기 환산, ±15% · 타율 1위는 비율이라 ±5%)',
+    group: `타이틀 규모 (${L_GAMES}경기·${L_TEAMS}구단 환산, ±15% · 타율 1위는 비율이라 ±5%)`,
     rows: [
       { key: 'avgTop', label: '타율 1위', kbo: T.avgTop, tol: RATE, fmt: r3 },
       { key: 'hrTop', label: '홈런 1위', kbo: scaleToSeason(T.hrTop), tol: TITLE, fmt: r1 },

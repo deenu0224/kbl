@@ -3,7 +3,8 @@ import { TRUST_LABEL } from '../game/story';
 import Sheet from './layout/Sheet';
 import { ProjectsSection } from './RightPanel';
 import { exposureLines } from '../game/scandal';
-import { CHARACTERS, SCANDAL_NEWS } from '../game/story';
+import { CHARACTERS, DEBT_MOOD_LINE, SCANDAL_NEWS } from '../game/story';
+import { luxRule } from '../game/economy';
 import Fold from './Fold';
 import { useUi } from './layout/uiStore';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -14,6 +15,8 @@ import { rankOf, seasonAwards, standings } from '../game/season';
 import { STAGES, TRUST_MAX, objDisplay } from '../game/campaign';
 import { leagueAwards, type LeaderRow } from '../game/leaders';
 import Bracket from './Bracket';
+import { PostLegend, cutShadow, rankTone } from './ui';
+import { postTeams } from '../game/league';
 import { Flag, POST_KO, StageTrail, silhouette, stageName } from './Campaign';
 import EndingScene from './EndingScene';
 import { ShareButton } from './ShareSheet';
@@ -192,6 +195,8 @@ function SeasonEndBody() {
   const stageAfter = v?.stageAfter ?? c.stage;
   const advanced = stageAfter > stageBefore;
   const finish = core.post?.userFinish ?? 'none';
+  // 와일드카드 결정전을 치러 이겼는가 (userFinish 'WC' = 결정전에서 탈락)
+  const wcPassed = !!core.post?.series.some((s) => s.round === 'WC' && s.winnerId === core.userId);
   // 이 결산에서 처음 엔딩 조건을 넘었는가
   const endingNow = !!v?.cleared && !!c.ending && STAGES.slice(stageBefore, Math.max(stageAfter, stageBefore + 1)).some((s) => s.ending);
 
@@ -214,7 +219,7 @@ function SeasonEndBody() {
             </div>
             <div className="mt-0.5 text-[13px]">
               최종 <span className="font-pixel-lg text-[18px] text-hi">{rank}위</span> · {recText(team.rec)} · 승률 {fmtPct(team.rec.w, team.rec.l)}
-              {finish !== 'none' && <span className="ml-2 whitespace-nowrap text-hi">{finish === 'champion' ? '한국시리즈 우승' : finish === 'KS' ? '한국시리즈 준우승' : `${POST_KO[finish]} 진출`}</span>}
+              {finish !== 'none' && <span className="ml-2 whitespace-nowrap text-hi">{finish === 'champion' ? '한국시리즈 우승' : finish === 'KS' ? '한국시리즈 준우승' : finish === 'WC' ? '와일드카드 탈락' : wcPassed && finish === 'SPO' ? '와일드카드 통과' : `${POST_KO[finish]} 진출`}</span>}
             </div>
           </div>
           <div
@@ -231,10 +236,17 @@ function SeasonEndBody() {
             <span className="text-white/70"> · 부채 {fmtMoney(v.debtOver.debt)} / 한도 {fmtMoney(v.debtOver.limit)}{v.debtOver.streak < 2 ? ' · 다음 시즌에도 넘기면 −30' : ''}</span>
           </div>
         )}
+        {v?.debtMood && (
+          <div className={`mt-3 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px] ${v.debtMood.trust < 0 ? 'bg-bad/15' : 'bg-[#f0a35a]/15'}`} data-testid="end-debtmood">
+            <span className={v.debtMood.trust < 0 ? 'text-bad' : 'text-[#f0a35a]'}>{v.debtMood.trust < 0 ? `빚더미 구단 — ${TRUST_LABEL} ${v.debtMood.trust}` : '빚더미 구단 — 조합장 경고'}</span>
+            <span className="text-white/70"> · 부채 {fmtMoney(v.debtMood.debt)} / 대출 한도 {fmtMoney(v.debtMood.limit)} ({Math.round((v.debtMood.debt / v.debtMood.limit) * 100)}%){v.debtMood.trust < 0 ? ` · ${v.debtMood.streak}시즌째` : ' · 다음 시즌에도 이대로면 지지가 깎입니다'}</span>
+            <div className="mt-0.5 text-white/60">{CHARACTERS.chair.name} {CHARACTERS.chair.title} — “{v.debtMood.trust < 0 ? DEBT_MOOD_LINE.cut : DEBT_MOOD_LINE.warn}”</div>
+          </div>
+        )}
         {v?.luxTax && (
           <div className="mt-3 bg-bad/15 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px]" data-testid="lux-tax">
-            <span className="text-bad">경쟁균형세 −{fmtMoney(v.luxTax.tax)}</span>
-            <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} (리그 상위 3구단 평균의 120%)</span>
+            <span className="text-bad">경쟁균형세 제재금 −{fmtMoney(v.luxTax.tax)}</span>
+            <span className="text-white/70"> · 연봉 총액 {fmtMoney(v.luxTax.payroll)} · 상한 {fmtMoney(v.luxTax.cap)} ({luxRule(core)})</span>
           </div>
         )}
         {/* 왕조 프로젝트: 스토브리그에는 이 화면에서만 열 수 있다 (전지훈련·돔 다음 단계) */}
@@ -396,9 +408,9 @@ function SeasonEndBody() {
                 <div
                   key={t.id}
                   className={`flex items-center gap-1.5 px-1.5 py-1 text-[12px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
-                  style={me ? { boxShadow: 'inset 2px 0 0 #ffd84a' } : undefined}
+                  style={cutShadow(me, i + 1 === postTeams(core))}
                 >
-                  <span className={`w-4 ${i < 4 ? 'text-good' : 'text-white/50'}`}>{i + 1}</span>
+                  <span className={`w-5 ${rankTone(core, i + 1)}`}>{i + 1}</span>
                   <TeamDot team={t} />
                   <span className="min-w-0 flex-1 truncate">
                     {t.city} {t.name}
@@ -411,11 +423,17 @@ function SeasonEndBody() {
                 </div>
               );
             })}
+            <PostLegend teams={core.teams} />
           </div>
 
           <div>
             <Title>손익 결산</Title>
             <LedgerBars ledger={core.finance.ledger} />
+            {v?.luxTax && (
+              <div className="mt-1 text-[11px] text-bad mob:text-[13px]" data-testid="ledger-lux">
+                경쟁균형세 제재금 −{fmtMoney(v.luxTax.tax)} (유지비에 포함)
+              </div>
+            )}
             <div className="mt-1 flex justify-between text-[11px] text-white/70">
               <span>
                 보유 현금 <span className="text-hi">{fmtMoney(core.finance.cash)}</span>

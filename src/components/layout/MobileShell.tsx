@@ -122,7 +122,7 @@ function ThinMenu() {
   );
 }
 
-/** 홈이 아닌 탭의 얇은 한 줄: 구단 색 점 · "다음: 홈 vs 팰컨스 · 44%" · 현금 (가로 폰은 ≡ 메뉴까지) */
+/** 홈이 아닌 탭의 얇은 한 줄: 구단 색 점 · "다음: 홈 vs 호크스 · 44%" · 현금 (가로 폰은 ≡ 메뉴까지) */
 function ThinBar({ menu = false }: { menu?: boolean }) {
   const team = useUserTeam();
   const cash = useStore((s) => s.finance.cash);
@@ -152,7 +152,7 @@ function ThinBar({ menu = false }: { menu?: boolean }) {
   );
 }
 
-/** 홈 상단의 일정 한 줄: "✈ 원정 중 · 팰컨스 3연전 2차전 · 귀항까지 4경기" / "🏠 홈 3연전 1차전" */
+/** 홈 상단의 일정 한 줄: "✈ 원정 중 · 호크스 3연전 2차전 · 귀항까지 4경기" / "🏠 홈 3연전 1차전" */
 function TripLine() {
   const schedule = useStore((s) => s.schedule);
   const userId = useStore((s) => s.userId);

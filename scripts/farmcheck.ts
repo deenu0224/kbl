@@ -13,6 +13,7 @@ import { drawResign } from '../src/game/contract';
 import { farmAutoOn, setFarmAuto, subQueue } from '../src/game/farm';
 import { memoGet } from '../src/game/memo';
 import { BOTS, type Bot } from './bots';
+import { rosterCheck } from './invariants';
 
 const N_SEEDS = Number(process.argv[2]) || 12;
 const N_SEASONS = Number(process.argv[3]) || 6;
@@ -35,47 +36,12 @@ let curSeed = 0;
 
 function check(c: Core, where: string, strict = true): void {
   const t = userTeam(c);
-  const ids = t.roster.map((p) => p.id);
-  const fail = (m: string) => bad.push(`seed${curSeed} s${c.season} d${c.day} ${where}: ${m}`);
-  if (new Set(ids).size !== ids.length) fail('로스터 중복');
-  const act = activeRoster(t);
-  maxAct = Math.max(maxAct, act.length);
+  maxAct = Math.max(maxAct, activeRoster(t).length);
   maxFarm = Math.max(maxFarm, farmRoster(t).length);
   maxRehab = Math.max(maxRehab, rehabRoster(t).length);
-  if (act.length > ROSTER_MAX) fail(`1군 ${act.length}명`);
-  if (farmRoster(t).length > FARM_MAX + (strict ? 0 : 1)) fail(`2군 ${farmRoster(t).length}명 (재활 제외)`);
-  if (strict) {
-    const nb = act.filter((p) => p.kind === 'B').length;
-    if (nb < MIN_BATTERS) fail(`1군 타자 ${nb}명`);
-    if (act.length - nb < MIN_PITCHERS) fail(`1군 투수 ${act.length - nb}명`);
-  }
-  const auto = farmAutoOn(c);
-  const b3 = (memoGet(c, 'b3') ?? '').split('|');
-  for (const p of t.roster) {
-    if (p.away) fail(`${p.name}: 입대 중인데 로스터에 있음`);
-    if (p.il && !p.farm) fail(`${p.name}: 1군인데 재활 표시`);
-    if (p.farm && p.subFor) fail(`${p.name}: 2군인데 subFor`);
-    if (p.subFor) {
-      const o = t.roster.find((x) => x.id === p.subFor);
-      if (!o) fail(`${p.name}: subFor 대상 없음`);
-      // 대상이 다 나아 1군에 있으면 대체 선수는 그날 정리된다 (예외: 오늘 사건 B3 로 물었다 · 대체 선수 본인이 부상)
-      else if (auto && strict && o.injury === 0 && !o.il && p.injury === 0 && !(b3[0] === p.id && Number(b3[2]) === c.day)) fail(`${p.name}: subFor 대상(${o.name})이 건강한데 정리 안 됨`);
-    }
-    if (!Number.isFinite(p.ovr) || p.def > 99 || (p.kind === 'B' && p.def < 20)) fail(`${p.name}: 능력치 이상`);
-  }
-  for (const p of c.campaign.away ?? []) {
-    if (!p.away) fail(`${p.name}: away 목록인데 표시 없음`);
-    if (ids.includes(p.id)) fail(`${p.name}: 입대 선수가 로스터에도 있음`);
-  }
-  const inLu = t.lineup.map((s) => s.pid);
-  for (const id of [...inLu, ...t.rotation, ...t.bullpen, ...(t.closer ? [t.closer] : [])]) {
-    const p = t.roster.find((x) => x.id === id);
-    if (!p) fail(`편성에 없는 선수 ${id}`);
-    else if (p.il) fail(`${p.name}: 재활 중인데 편성에 있음`);
-    else if (p.farm) fail(`${p.name}: 2군인데 편성에 있음`);
-    else if (p.ban && strict) banInOrder++;
-  }
-  if (!Number.isFinite(payroll(t))) fail('연봉 총액 이상');
+  const r = rosterCheck(c, strict);
+  banInOrder += r.ban;
+  for (const m of r.msgs) bad.push(`seed${curSeed} s${c.season} d${c.day} ${where}: ${m}`);
 }
 
 /** 경기 뒤: 재활 명단의 드나듦을 세고, 다 나은 선수가 명단에 묵는지 본다 */

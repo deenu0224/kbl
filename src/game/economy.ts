@@ -1,9 +1,10 @@
 import type { Core, Facilities, FacilityKind, Ledger, Player, Team, Weather } from './types';
 import { clamp } from './rng';
-import { GAMES } from './schedule';
+import { BASE_TEAMS, dayAt, leagueSize, rankUnits, seasonGames } from './league';
 import { activeBuffs } from './campaign';
 import { isFranchise } from './franchise';
 import { projectFx } from './projects';
+import { fmtMoney } from './format';
 
 // ── 시설 단계 (cost = 그 단계로 올리는 비용, upkeep = 만원/경기) ──
 export const SEAT_LV: { cap: number; cost: number; upkeep: number; name: string; desc: string }[] = [
@@ -32,25 +33,31 @@ export const TRAIN_LV: { grow: number; inj: number; cost: number; upkeep: number
 
 export * from './loan';
 export const ROSTER_MAX = 28; // 1군 등록 정원
+// 아래 두 마감은 84경기 기준값이다. 실제 마감일은 tradeDeadline(core)·regDeadline(core) — 시즌 길이에 비례한다 (league.ts dayAt)
 export const TRADE_DEADLINE = 54; // 트레이드 마감: 이 경기 수를 치른 뒤에는 트레이드 제안·시장 등록 불가 (스토브리그에 다시 열린다)
 export const DEADLINE_WARN = 6; // 마감 이 경기 전부터 일정표 예보·할 일에 올린다
 export const REG_DEADLINE = 72; // 선수 등록 마감: 이 경기 수를 치른 뒤와 포스트시즌에는 외부 영입 불가 (1군·2군 이동은 가능)
 
+type Cal = Pick<Core, 'phase' | 'day' | 'schedule'>;
+/** 이 리그의 트레이드 마감일 (84경기 리그 54, 81경기 리그 52) */
+export const tradeDeadline = (core: { schedule: unknown[] }): number => dayAt(core, TRADE_DEADLINE);
+/** 이 리그의 선수 등록 마감일 (84경기 리그 72, 81경기 리그 69) */
+export const regDeadline = (core: { schedule: unknown[] }): number => dayAt(core, REG_DEADLINE);
 /** 지금 외부 영입(FA·트레이드)이 가능한가. 스토브리그(결산~드래프트)에는 다시 열린다 */
-export function signingOpen(core: Pick<Core, 'phase' | 'day'>): boolean {
+export function signingOpen(core: Cal): boolean {
   if (core.phase === 'post') return false;
-  if (core.phase === 'season') return core.day < REG_DEADLINE;
+  if (core.phase === 'season') return core.day < regDeadline(core);
   return true;
 }
 /** 외부 영입이 닫힌 사유 (열려 있으면 null) */
-export function signingClosedWhy(core: Pick<Core, 'phase' | 'day'>): string | null {
+export function signingClosedWhy(core: Cal): string | null {
   if (signingOpen(core)) return null;
-  return core.phase === 'post' ? '포스트시즌 — 선수 등록 마감 (스토브리그에 다시 열립니다)' : `선수 등록 마감 (${REG_DEADLINE}경기) — 스토브리그에 다시 열립니다`;
+  return core.phase === 'post' ? '포스트시즌 — 선수 등록 마감 (스토브리그에 다시 열립니다)' : `선수 등록 마감 (${regDeadline(core)}경기) — 스토브리그에 다시 열립니다`;
 }
 /** 트레이드 시장에 선수를 내놓을 수 없는 사유 (열려 있으면 null). 마감 전과 스토브리그에는 열려 있다 */
-export function blockClosedWhy(core: Pick<Core, 'phase' | 'day'>): string | null {
+export function blockClosedWhy(core: Cal): string | null {
   if (core.phase === 'post') return '포스트시즌 — 트레이드 마감 (스토브리그에 다시 열립니다)';
-  if (core.phase === 'season' && core.day >= TRADE_DEADLINE) return `트레이드 마감 (${TRADE_DEADLINE}경기) — 스토브리그에 다시 열립니다`;
+  if (core.phase === 'season' && core.day >= tradeDeadline(core)) return `트레이드 마감 (${tradeDeadline(core)}경기) — 스토브리그에 다시 열립니다`;
   return null;
 }
 export interface Deadline {
@@ -61,11 +68,11 @@ export interface Deadline {
   icon: string;
 }
 /** 다가온 마감 (정규시즌, 마감 DEADLINE_WARN 경기 전부터 마감 전까지). 일정표 예보와 할 일이 같이 쓴다 */
-export function deadlinesSoon(core: Pick<Core, 'phase' | 'day'>): Deadline[] {
+export function deadlinesSoon(core: Cal): Deadline[] {
   if (core.phase !== 'season') return [];
   const all: Deadline[] = [
-    { id: 'trade', day: TRADE_DEADLINE, left: TRADE_DEADLINE - core.day, label: '트레이드 마감', icon: '🔄' },
-    { id: 'reg', day: REG_DEADLINE, left: REG_DEADLINE - core.day, label: '선수 등록 마감', icon: '📋' },
+    { id: 'trade', day: tradeDeadline(core), left: tradeDeadline(core) - core.day, label: '트레이드 마감', icon: '🔄' },
+    { id: 'reg', day: regDeadline(core), left: regDeadline(core) - core.day, label: '선수 등록 마감', icon: '📋' },
   ];
   return all.filter((d) => d.left > 0 && d.left <= DEADLINE_WARN);
 }
@@ -90,15 +97,34 @@ export const RESIGN_LEAVE_SAT = -8;
 // 감사용 스위치 (scripts/economy.ts 가 하나씩 끄고 재실행한다. 게임에서는 전부 켜 둔다)
 export const AUDIT = { benchHalf: true, farmBatBig: true, svc: true, penGrow: true, farmUpkeep: -1 };
 // 경쟁균형세(샐러리캡 · KBO 규정): 연봉 총액이 상한(리그 연봉 상위 3구단 평균 × capRate)을 넘으면 초과분 × rate 를 시즌 말 제재금으로 낸다.
-// 기본값은 꺼 둔다 (LUX_TAX_ON). 스크립트는 환경 변수 LUX=1 로 LUX_TAX.on 을 켜고 잰다
+// 8구단 리그는 꺼 둔다 (LUX_TAX_ON. 스크립트는 환경 변수 LUX=1 로 LUX_TAX.on 을 켜고 잰다).
+// 구단이 8개보다 많은 리그는 LUX_TAX_BIG 으로 켠다 (docs/TEN_TEAMS.md 5단계): 상한은 "우리 구단을 뺀" 상위 3구단 평균 — 우리 연봉이 상한을 끌어올리지 않게
 export const LUX_TAX_ON = false;
 export const LUX_TAX = { on: LUX_TAX_ON, top: 3, capRate: 1.2, rate: 0.5 };
-/** 경쟁균형세: 상한 · 유저 연봉 총액 · 낼 제재금 (꺼져 있으면 tax 0) */
-export function luxTax(core: Pick<Core, 'teams' | 'userId'>): { cap: number; payroll: number; tax: number } {
-  const pays = core.teams.map(payroll).sort((a, b) => b - a).slice(0, LUX_TAX.top);
-  const cap = Math.round(((pays.reduce((s, v) => s + v, 0) / Math.max(1, pays.length)) * LUX_TAX.capRate) / 100) * 100;
-  const mine = payroll(core.teams.find((t) => t.id === core.userId) ?? { roster: [] } as unknown as Team);
-  return { cap, payroll: mine, tax: LUX_TAX.on ? Math.round((Math.max(0, mine - cap) * LUX_TAX.rate) / 100) * 100 : 0 };
+export const LUX_TAX_BIG = { on: true, top: 3, capRate: 1.1, rate: 0.5, keep: true };
+export interface LuxTax { cap: number; payroll: number; tax: number; on?: boolean }
+/** 이 리그에 경쟁균형세가 있는가 */
+export function luxOn(core: Pick<Core, 'teams'>): boolean {
+  return leagueSize(core) > BASE_TEAMS ? LUX_TAX_BIG.on : LUX_TAX.on;
+}
+/** 상한을 정하는 규칙 한 줄 ("우리를 뺀 리그 상위 3구단 평균의 120%") */
+export function luxRule(core: Pick<Core, 'teams'>): string {
+  const big = leagueSize(core) > BASE_TEAMS;
+  const k = big ? LUX_TAX_BIG : LUX_TAX;
+  return `${big ? '우리를 뺀 ' : ''}리그 연봉 상위 ${k.top}구단 평균의 ${Math.round(k.capRate * 100)}%${big && LUX_TAX_BIG.keep ? ' · 내려가지 않는다' : ''}`;
+}
+/** 경쟁균형세: 상한 · 유저 연봉 총액 · 낼 제재금 (꺼져 있으면 tax 0). add = 가정한 연봉 증가분(영입·재계약 미리 보기) */
+export function luxTax(core: Pick<Core, 'teams' | 'userId'> & Partial<Pick<Core, 'campaign' | 'season'>>, add = 0): LuxTax {
+  const big = leagueSize(core) > BASE_TEAMS;
+  const k = big ? LUX_TAX_BIG : LUX_TAX;
+  const pays = core.teams.filter((t) => !big || t.id !== core.userId).map(payroll).sort((a, b) => b - a).slice(0, k.top);
+  // 10구단 리그의 상한은 내려가지 않고, 해마다 리그 연봉 인상률만큼 오른다 (campaign.luxCap = 지난 결산까지의 최고 상한을 시즌 1 물가로 적은 값)
+  //  — 후반에 다른 구단 연봉이 줄어도 상한이 따라 내려가지 않게. 선수 연봉은 해마다 오르는데(SALARY_INFLATION) 상한만 멈춰 있지 않게
+  const now = Math.round(((pays.reduce((s, v) => s + v, 0) / Math.max(1, pays.length)) * k.capRate) / 100) * 100;
+  const kept = big && LUX_TAX_BIG.keep ? Math.round(((core.campaign?.luxCap ?? 0) * salaryInflation(core.season ?? 1)) / 100) * 100 : 0;
+  const cap = Math.max(now, kept);
+  const mine = payroll(core.teams.find((t) => t.id === core.userId) ?? { roster: [] } as unknown as Team) + add;
+  return { cap, payroll: mine, tax: k.on ? Math.round((Math.max(0, mine - cap) * k.rate) / 100) * 100 : 0, on: k.on };
 }
 export const MIN_BATTERS = 10;
 export const MIN_PITCHERS = 8;
@@ -129,11 +155,21 @@ export const OPS_FAN_CAP = 24000; // 운영비가 따라 커지는 팬 규모의
 export const SALARY_INFLATION = 0.07; // 리그 연봉 인플레 (시즌당, 스타급일수록 크게 — season.ts develop)
 export const SALARY_INFLATION_MAX = 0.8;
 // 재계약 프리미엄: 가을야구를 한 팀의 선수는 비싸진다. 최근 RENEW_SEASONS 시즌의 성적별 가산을 더한다 (유저 구단 연봉에만)
-export const RENEW_PREMIUM: Record<string, number> = { none: 0, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.1 };
+export const RENEW_PREMIUM: Record<string, number> = { none: 0, WC: 0.02, SPO: 0.03, PO: 0.05, KS: 0.08, champion: 0.1 };
 export const RENEW_SEASONS = 2; // 3시즌 합산(최대 +36%)은 왕조 팀의 연봉을 시즌마다 40억씩 올렸다 — 2시즌(최대 +20%)
 export const LEAGUE_BASE = 2400; // 리그 분배금·스폰서 기본 (만원/경기)
 export const LEAGUE_PER_FAN = 0.04;
 export const LEAGUE_PER_RANK = 45; // 순위 한 계단당
+// 구단이 8개보다 많은 리그의 분배: 균등 몫이 크고 팬 비례 몫이 작다 (docs/TEN_TEAMS.md 3단계).
+// 팬 5,000 에서 경기당 +200(시즌 +1.7억 — 개막 오더만 고친 무개입의 손익을 +8억 위로), 팬 25,000 에서 8구단과 같아지고 그 위로는 적다
+export const LEAGUE_BASE_BIG = 2650;
+export const LEAGUE_PER_FAN_BIG = 0.03;
+
+/** 리그 분배금·스폰서: 84경기 기준 경기당 금액 (만원). 정산에서는 perGame·징계 배율을 곱한다 */
+export function leagueShare(core: Pick<Core, 'teams' | 'fans'>, rank: number): number {
+  const big = leagueSize(core) > BASE_TEAMS;
+  return (big ? LEAGUE_BASE_BIG : LEAGUE_BASE) + core.fans * (big ? LEAGUE_PER_FAN_BIG : LEAGUE_PER_FAN) + rankUnits(core, rank) * LEAGUE_PER_RANK;
+}
 export const MERCH_K = 0.03; // 팬 1명 × 스타합/100 당 (만원/경기)
 export const RAIN_FOOD = 0.8;
 export const SIGN_BONUS_RATE = 0.25;
@@ -180,12 +216,62 @@ export function payroll(t: Team): number {
   return t.roster.reduce((s, p) => s + p.salary, 0);
 }
 
+/** 기본 계약금 (배율을 걸기 전). 실제로 낼 돈은 signingBonusFor */
 export function signingBonus(p: Player): number {
   return Math.round(p.salary * SIGN_BONUS_RATE);
 }
 
+// FA 계약금 누진 (10구단 리그 · docs/TEN_TEAMS.md 6단계): 같은 시즌에 FA 를 영입할수록 계약금이 오른다.
+// mult[n] = 이번 시즌에 이미 n명을 영입한 뒤의 배율. 표를 넘어가면 한 명마다 step 씩 더 오른다.
+// 한 시즌 = 결산 뒤(스토브리그)부터 다음 결산까지 — 스토브리그의 영입은 다음 시즌 몫이다.
+// pay 는 측정용 대안(영입 선수의 연봉에도 n × pay 를 건다). 게임에서는 0
+export const FA_HEAT = { on: true, mult: [1, 1.5, 2.5, 4, 6], step: 2, pay: 0 };
+type HeatCore = Pick<Core, 'teams'> & Partial<Pick<Core, 'campaign' | 'season' | 'phase'>>;
+/** 이 리그에 계약금 누진이 있는가 (8구단 옛 세이브에는 없다) */
+export function faHeatOn(core: Pick<Core, 'teams'>): boolean {
+  return FA_HEAT.on && leagueSize(core) > BASE_TEAMS;
+}
+/** 지금의 영입이 속하는 시즌 (결산 뒤 스토브리그·드래프트 중이면 다음 시즌) */
+export function faSeason(core: Partial<Pick<Core, 'season' | 'phase'>>): number {
+  return (core.season ?? 1) + (core.phase === 'ended' || core.phase === 'draft' ? 1 : 0);
+}
+/** 이번 시즌에 이미 영입한 FA 수 (누진이 없는 리그는 0) */
+export function faSigned(core: HeatCore): number {
+  const fa = core.campaign?.fa;
+  return faHeatOn(core) && fa && fa.season === faSeason(core) ? fa.n : 0;
+}
+/** 이미 n명을 영입한 뒤의 계약금 배율 */
+export function faHeatMult(n: number): number {
+  const m = FA_HEAT.mult;
+  return n < m.length ? m[Math.max(0, n)] : m[m.length - 1] + (n - m.length + 1) * FA_HEAT.step;
+}
+/** 실제로 낼 계약금. ahead = 이 선수보다 먼저 영입할(바구니에 먼저 담은) FA 수 */
+export function signingBonusFor(core: HeatCore, p: Player, ahead = 0): number {
+  return faHeatOn(core) ? Math.round(p.salary * SIGN_BONUS_RATE * faHeatMult(faSigned(core) + ahead)) : signingBonus(p);
+}
+/** 계약금 옆에 적는 이유 ("이번 시즌 3번째 영입 · +60%"). 배율이 안 걸렸으면 '' */
+export function faHeatWhy(core: HeatCore, ahead = 0): string {
+  if (!faHeatOn(core)) return '';
+  const n = faSigned(core) + ahead;
+  const up = Math.round((faHeatMult(n) - 1) * 100);
+  return up > 0 ? `이번 시즌 ${n + 1}번째 영입 · +${up}%` : '';
+}
+/** "계약금 2.4억 (이번 시즌 3번째 영입 · +60%)" — 실제로 낼 금액과, 배율이 걸렸으면 그 이유 */
+export function bonusText(core: HeatCore, p: Player, ahead = 0): string {
+  const why = faHeatWhy(core, ahead);
+  return `계약금 ${fmtMoney(signingBonusFor(core, p, ahead))}${why ? ` (${why})` : ''}`;
+}
+/** 영입 시장 맨 위의 한 줄 (누진이 없는 리그는 null) */
+export function faHeatLine(core: HeatCore, ahead = 0): string | null {
+  if (!faHeatOn(core)) return null;
+  const n = faSigned(core) + ahead;
+  const up = Math.round((faHeatMult(n) - 1) * 100);
+  const nextUp = Math.round((faHeatMult(n + 1) - 1) * 100);
+  return n === 0 ? `이번 시즌 첫 FA 영입 — 두 번째부터 계약금이 오릅니다 (+${nextUp}%)` : `이번 시즌 FA 영입 ${n}명 · 다음 영입 계약금 +${up}%`;
+}
+
 export function releaseCost(p: Player, core: Core): number {
-  const total = core.schedule.length || GAMES;
+  const total = seasonGames(core);
   const remain = clamp((total - core.day) / total, 0, 1);
   return Math.round(p.salary * remain * RELEASE_RATE);
 }
