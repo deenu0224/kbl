@@ -4,13 +4,10 @@ import { useMemo } from 'react';
 import type { Core } from '../game/types';
 import { nextSeasonForecast, payParts, raiseWhyText, signedMoney } from '../game/payforecast';
 import { fmtMoney } from '../game/format';
-import { useStore } from '../store';
-import { openDesk } from './roster/transferUi';
 import Help from './Help';
 
-/** 결산 화면: 연봉 총액 예상과 이유별 증감 · 내년 영업손익 예상 · 가장 많이 오르는 3명 · 적자면 조합장 한 줄과 [이적 시장(방출 후보순)] */
+/** 결산 화면: 연봉 총액 예상과 이유별 증감 · 내년 영업손익 예상 · 가장 많이 오르는 3명 (이적 시장은 결산 아래 버튼으로) */
 export function PayForecastBlock({ core }: { core: Core }) {
-  const stoveCards = useStore((s) => s.stoveCards);
   const f = useMemo(() => nextSeasonForecast(core), [core]);
   const diff = f.next.total - f.now.total;
   const loss = f.profit < 0;
@@ -64,17 +61,6 @@ export function PayForecastBlock({ core }: { core: Core }) {
                 )}
             </div>
           </Fold>
-          <div className="mt-1.5 flex justify-end">
-            <button
-              className="px-btn min-h-11 shrink-0 whitespace-nowrap"
-              data-testid="pay-release"
-              onClick={() => {
-                if (!stoveCards()) openDesk({ side: 'squad', sort: 'release' });
-              }}
-            >
-              이적 시장 (방출 후보순)
-            </button>
-          </div>
         </>
       )}
     </div>

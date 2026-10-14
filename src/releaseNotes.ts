@@ -12,6 +12,15 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.10.1',
+    date: '2026-10-14',
+    title: '내년 살림 미리보기',
+    notes: [
+      '시즌 결산에 내년 연봉 총액과 영업손익 예상이 나옵니다. 연봉이 많이 오를 선수 3명도 같이 보여 줘요.',
+      '방출 추천이 조금 더 자주 뜹니다.',
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-10-14',
     title: '10구단 리그와 가을야구',
