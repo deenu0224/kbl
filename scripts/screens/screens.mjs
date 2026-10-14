@@ -299,6 +299,8 @@ export const SCREENS = [
   S('summary', 'season3', game(...SUMMARY)),
   S('summary-box', 'season3', game(...SUMMARY, '자세히: 이닝별', { scroll: 'bottom' })),
   S('summary-more', 'season3', game(...SUMMARY, '자세히: 이닝별')),
+  // 원정 경기 요약의 오늘의 정산: 입장 대신 원정 몫 (상대 구장 입장 수입의 28%)
+  S('summary-away', 'away', game(...SUMMARY, '자세히: 이닝별', { scroll: 'bottom' })),
   S('summary-opener', 'fresh', game('order-submit', { wait: 600 }, c('▶ 경기 진행', { optional: true }), { wait: 600 }, c('건너뛰기 ▶▶', { optional: true }), { wait: 500 })),
   S('week', 'opened', game('1주', { wait: 1500 })),
 

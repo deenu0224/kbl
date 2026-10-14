@@ -539,7 +539,7 @@ function beatKind(todoId: string): string {
 /** 예보의 영향 한 줄 */
 function beatImpact(core: Core, kind: string): string {
   if (kind === 'rainy') return hasRoof(core.facilities) ? `장마: 지붕이 있어 비 오는 날 관중 −${pct(1 - RAIN_ROOF)}` : `장마: 지붕 없는 구장은 비 오는 날 관중 −${pct(1 - WEATHER_MULT.rain)}`;
-  if (kind === 'road-trip') return `원정 연전: 그동안 입장 수입 없음 · 현금 ${fmtMoney(core.finance.cash)}`;
+  if (kind === 'road-trip') return `원정 연전: 입장 수입은 원정 몫(28%)만 · 현금 ${fmtMoney(core.finance.cash)}`;
   if (kind === 'home-stand') return `홈 연전: 예상 관중 ${fmtInt(previewDemand(core))}명 / 좌석 ${fmtInt(capacityOf(core))}석`;
   if (kind.startsWith('rivals')) return '순위가 붙은 팀과의 연전: 한 경기가 두 경기 몫';
   return '일정에 이름 붙은 구간이 다가온다';

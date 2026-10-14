@@ -17,8 +17,9 @@ export const AWAY_FILL_BASE = 0.3;
 export const AWAY_FILL_POP = 0.45;
 export const AWAY_RANK_SPREAD = 0.2; // 1위 ×1.1 ~ 꼴찌 ×0.9
 export const AWAY_FAN_PULL = 0.5; // 우리 원정 응원단 몫의 절반만큼 상대 관중이 는다
-// 원정 날씨는 뽑지 않는다: 맑음 60 · 흐림 25 · 비 15(상대 구장은 지붕 있는 셈 치지 않는다)의 평균
-export const AWAY_WEATHER = 0.6 * WEATHER_MULT.sunny + 0.25 * WEATHER_MULT.cloudy + 0.15 * WEATHER_MULT.rain;
+// 원정 날씨는 뽑지 않는다: 맑음 60 · 흐림 25 · 비 15(상대 구장은 지붕 있는 셈 치지 않는다)의 평균.
+// 함수로 둔다 — economy.ts 와 순환 import 라 모듈 로드 시점에는 WEATHER_MULT 가 아직 없을 수 있다
+export const awayWeather = (): number => 0.6 * WEATHER_MULT.sunny + 0.25 * WEATHER_MULT.cloudy + 0.15 * WEATHER_MULT.rain;
 
 /**
  * 원정 응원단 크기 (0~1, 관중석에서 차지하는 몫).
@@ -52,7 +53,7 @@ export function awayGate(core: Pick<Core, 'teams' | 'fans'>, oppId: string, oppR
   const pop = core.teams.find((t) => t.id === oppId)?.pop ?? teamDef(oppId)?.pop ?? 0.6;
   const n = Math.max(2, leagueSize(core));
   const rankF = 1 + AWAY_RANK_SPREAD * (0.5 - (Math.min(n, Math.max(1, oppRank)) - 1) / (n - 1));
-  const fill = (AWAY_FILL_BASE + AWAY_FILL_POP * pop) * rankF * DOW_MULT[dow % DOW_MULT.length] * AWAY_WEATHER * (1 + awayFanShare(core.fans) * AWAY_FAN_PULL) * (mult.demand ?? 1);
+  const fill = (AWAY_FILL_BASE + AWAY_FILL_POP * pop) * rankF * DOW_MULT[dow % DOW_MULT.length] * awayWeather() * (1 + awayFanShare(core.fans) * AWAY_FAN_PULL) * (mult.demand ?? 1);
   const attendance = Math.round(cap * Math.min(1, fill));
   const gross = Math.round(attendance * START_PRICE * (mult.price ?? 1));
   return { attendance, gross, share: Math.round(gross * AWAY_GATE) };

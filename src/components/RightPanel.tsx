@@ -425,7 +425,7 @@ export function StadiumTab({ part }: { part?: 'ticket' | FacilityKind } = {}) {
 
 const INCOME: [keyof Ledger, string][] = [
   ['ticket', '입장'],
-  ['awayGate', '원정 입장'],
+  ['awayGate', '원정 몫'],
   ['food', '매점'],
   ['merch', '굿즈'],
   ['league', '분배금'],

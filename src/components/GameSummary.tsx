@@ -41,7 +41,7 @@ function MoneyBlock({ m, netLabel = '오늘 순익' }: { m: DayReport['money']; 
   return (
     <div className="flex flex-col gap-[3px]">
       {(m.ticket > 0 || !away) && <MoneyBar label="입장" text={`+${fmtMoney(m.ticket)}`} ratio={m.ticket / max} color="#6ee07a" />}
-      {away > 0 && <MoneyBar label="원정 입장" text={`+${fmtMoney(away)}`} ratio={away / max} color="#6ee07a" />}
+      {away > 0 && <MoneyBar label="원정 몫" text={`+${fmtMoney(away)}`} ratio={away / max} color="#6ee07a" />}
       <MoneyBar label="매점" text={`+${fmtMoney(m.food)}`} ratio={m.food / max} color="#6ee07a" />
       <MoneyBar label="굿즈" text={`+${fmtMoney(m.merch)}`} ratio={m.merch / max} color="#6ee07a" />
       <MoneyBar label="분배금" text={`+${fmtMoney(m.league)}`} ratio={m.league / max} color="#6ee07a" />
@@ -365,7 +365,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
               )}
             </>
           ) : (
-            <div className="text-[10px] text-white/45">원정 경기 (입장·매점 수입 없음)</div>
+            <div className="text-[10px] text-white/45">원정 경기 (매점 수입 없음)</div>
           )}
         </div>
         <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
