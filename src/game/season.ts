@@ -26,7 +26,7 @@ import { leagueMult, scandalTickMut } from './scandal';
 import { tradeTickMut } from './trade';
 import { svcSalary, svcYearAt } from './contract';
 import { farmDailyMut, subEnqueueMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
-import { perGame, rankUnits } from './league';
+import { dayAt, perGame, rankUnits } from './league';
 import { HOME_GATE, awayGate } from './gate';
 
 // ── 밸런스 상수 ──
@@ -745,6 +745,65 @@ export function renewPremium(core: Pick<Core, 'campaign'>): number {
 }
 
 /** 나이 +1 과 그에 따른 성장/노쇠, 기록 리셋 */
+// ── 연속 우승 보정: 우승 후유증(우리 팀) · 타도 제주(상위 AI 구단) ──
+export const DYN = {
+  hangFocus: -2, // 우승 다음 시즌 개막 집중력: 연속 우승 1회당
+  hangMax: -4,
+  hangGames: 12, // 개막부터 이 경기 수 (84경기 기준)
+  ageFrom: 31, // 2연패부터 이 나이 이상 1군 선수는 능력치가 (연속 우승 − 1)만큼 더 떨어진다 (최대 ageMax)
+  ageStreak: 2,
+  ageMax: 2,
+  rivalStreak: 2, // 이 연속 우승부터 상위 AI 구단이 새 FA 시장의 대어를 먼저 데려간다
+  rivalMax: 3, // 데려가는 구단 수 = min(연속 우승, 이 값)
+  rivalMore: 3, // 이 연속 우승부터 구단마다 2명
+};
+
+/** 지난 시즌까지 이어진 연속 우승 횟수 */
+export function titleStreak(core: Pick<Core, 'campaign'>): number {
+  const h = core.campaign.history;
+  let n = 0;
+  for (let i = h.length - 1; i >= 0 && h[i].post === 'champion'; i--) n++;
+  return n;
+}
+
+/** AI 구단 정원 초과 → 남는 쪽(타자/투수)의 최하위부터 방출 */
+function trimAiMut(t: Team): void {
+  while (t.roster.length > AI_ROSTER) {
+    const nb = t.roster.filter((p) => p.kind === 'B').length;
+    const np = t.roster.length - nb;
+    const kind: 'B' | 'P' = nb - AI_ROSTER_B >= np - (AI_ROSTER - AI_ROSTER_B) ? 'B' : 'P';
+    if ((kind === 'B' && nb <= MIN_BATTERS) || (kind === 'P' && np <= MIN_PITCHERS)) break;
+    const worst = t.roster.filter((p) => p.kind === kind).sort((a, b) => a.ovr - b.ovr || b.age - a.age)[0];
+    t.roster = t.roster.filter((p) => p.id !== worst.id);
+  }
+}
+
+/** 주전(타선) 또는 선발·마무리 중 최저 오버롤 */
+function weakestOf(t: Team, kind: 'B' | 'P'): number {
+  const ids = kind === 'B' ? t.lineup.map((s) => s.pid) : [...t.rotation, ...(t.closer ? [t.closer] : [])];
+  const ovrs = t.roster.filter((p) => ids.includes(p.id)).map((p) => p.ovr);
+  return ovrs.length ? Math.min(...ovrs) : 0;
+}
+
+/** 타도 제주: 상위 AI 구단이 새 FA 시장에서 가장 좋은 선수를 먼저 데려간다 (전력 tier 제한 없음, mutate) */
+function rivalSigningsMut(core: Core, rivalIds: string[], each: number): void {
+  for (let k = 0; k < each; k++) {
+    for (const id of rivalIds) {
+      const t = core.teams.find((x) => x.id === id);
+      if (!t) continue;
+      const foreign = t.roster.filter((p) => p.foreign).length;
+      const pool = core.freeAgents.slice().sort((a, b) => b.ovr - a.ovr);
+      const p = pool.find((x) => (!x.foreign || foreign < FOREIGN_MAX) && x.ovr >= weakestOf(t, x.kind) + AI_SIGN_MARGIN);
+      if (!p) continue;
+      core.freeAgents = core.freeAgents.filter((x) => x.id !== p.id);
+      t.roster.push(p);
+      trimAiMut(t);
+      autoLineup(t);
+      addNews(core, `⚔️ 타도 제주: ${t.name}, FA 최대어 ${p.name}(${POS_NAME[p.pos] ?? p.pos} 오버롤 ${p.ovr}) 영입`, 'bad');
+    }
+  }
+}
+
 function develop(p: Player, rng: Rng, season: number): void {
   const ovr0 = p.ovr;
   p.age++;
@@ -780,11 +839,7 @@ function aiStoveLeague(core: Core, rng: Rng, ctx: Parameters<typeof genPlayer>[0
     const n = AI_SIGN_MIN + (rng() < AI_SIGN_EXTRA ? 1 : 0);
     for (let k = 0; k < n; k++) {
       const foreign = t.roster.filter((p) => p.foreign).length;
-      const weakest = (kind: 'B' | 'P') => {
-        const ids = kind === 'B' ? t.lineup.map((s) => s.pid) : [...t.rotation, ...(t.closer ? [t.closer] : [])];
-        const ovrs = t.roster.filter((p) => ids.includes(p.id)).map((p) => p.ovr);
-        return ovrs.length ? Math.min(...ovrs) : 0;
-      };
+      const weakest = (kind: 'B' | 'P') => weakestOf(t, kind);
       // 전력 tier 에 맞게: 주전 평균보다 크게 뛰어난 대어는 데려가지 않는다
       const tier = teamStrength(t) + AI_SIGN_TIER;
       const i = pool.findIndex((p) => (!p.foreign || foreign < FOREIGN_MAX) && p.ovr >= weakest(p.kind) + AI_SIGN_MARGIN && p.ovr <= tier);
@@ -800,15 +855,7 @@ function aiStoveLeague(core: Core, rng: Rng, ctx: Parameters<typeof genPlayer>[0
       const p = i >= 0 ? pool.splice(i, 1)[0] : genPlayer(ctx, 'RP', 50, { age: randInt(rng, 20, 24), tag: '신인' });
       t.roster.push(p);
     }
-    // 정원 초과 → 남는 쪽(타자/투수)의 최하위부터 방출
-    while (t.roster.length > AI_ROSTER) {
-      const nb = t.roster.filter((p) => p.kind === 'B').length;
-      const np = t.roster.length - nb;
-      const kind: 'B' | 'P' = nb - AI_ROSTER_B >= np - (AI_ROSTER - AI_ROSTER_B) ? 'B' : 'P';
-      if ((kind === 'B' && nb <= MIN_BATTERS) || (kind === 'P' && np <= MIN_PITCHERS)) break;
-      const worst = t.roster.filter((p) => p.kind === kind).sort((a, b) => a.ovr - b.ovr || b.age - a.age)[0];
-      t.roster = t.roster.filter((p) => p.id !== worst.id);
-    }
+    trimAiMut(t);
     autoLineup(t);
   }
 }
@@ -828,6 +875,9 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   const ctx = makeCtx(rng, `s${core.season}-`, names);
   const retired: string[] = [];
   const premium = renewPremium(core);
+  const streak = titleStreak(core);
+  // 타도 제주: 지난 시즌 순위로 상위 AI 구단 (기록을 지우기 전에 고른다)
+  const rivals = streak >= DYN.rivalStreak ? standings(core.teams).filter((t) => t.id !== core.userId).slice(0, Math.min(streak, DYN.rivalMax)).map((t) => t.id) : [];
   for (const t of core.teams) {
     t.roster = t.roster.map((p) => {
       if (drafted.has(p.id)) {
@@ -851,6 +901,14 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       const alumnus = t.id === core.userId && p.star >= ALUMNI_STAR && p.age >= ALUMNI_AGE - 1;
       const ban = p.ban;
       develop(p, rng, core.season);
+      // 우승 후유증: 2연패부터 30대 1군 선수의 노쇠가 조금 빠르다
+      if (t.id === core.userId && streak >= DYN.ageStreak && p.age >= DYN.ageFrom && !p.farm) {
+        for (let n = 0; n < Math.min(DYN.ageMax, streak - 1); n++) {
+          const k = pick(rng, p.kind === 'B' ? BAT_KEYS : PIT_KEYS);
+          p[k] = clamp(p[k] - 1, 20, 99);
+        }
+        p.ovr = calcOvr(p);
+      }
       if (ban) p.injury = ban; // 징계는 시즌을 넘겨 이월된다
       if (t.id === core.userId) {
         // 보유 기간 안의 드래프트 출신은 시장가의 일부만 받는다. FA 자격을 얻고도 재계약 카드를 거치지 않았으면 시장가로 자동 재계약
@@ -890,6 +948,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   aiStoveLeague(core, rng, ctx);
   core.freeAgents = genFreeAgents(ctx, core.teams.length);
   for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
+  rivalSigningsMut(core, rivals, streak >= DYN.rivalMore ? 2 : 1);
   core.schedule = buildSchedule(core.teams.map((t) => t.id), rng, core.userId);
   core.crowd = null; // 관중 칩·게이트 줄은 개막 전으로
   core.finance.ledger = ledgerZero();
@@ -902,6 +961,12 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   addNews(core, NEWS.seasonOpen(core.season), 'info');
   projectSeasonOpenMut(core);
   resetSeasonCampaignMut(core, rng);
+  // 우승 후유증: 개막 몇 경기 집중력 저하 (연속 우승 수만큼)
+  if (streak > 0) {
+    const v = Math.max(DYN.hangMax, DYN.hangFocus * streak);
+    core.campaign.buffs.push({ kind: 'focus', value: v, until: dayAt(core, DYN.hangGames), label: `우승 후유증 (집중력 ${v})` });
+    addNews(core, `우승 후유증 — 개막 ${dayAt(core, DYN.hangGames)}경기 집중력 ${v}`, 'bad');
+  }
   return core;
 }
 
