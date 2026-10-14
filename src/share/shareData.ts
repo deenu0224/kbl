@@ -7,7 +7,12 @@ import { nickOf, seatsLabel, starName, type HofClub } from '../game/hof';
 export { seatsLabel, starName };
 import { pastRanks, TRUST_LABEL } from '../game/story';
 import { postTeamsFor } from '../game/league';
-import type { Core, PostFinish, SeasonRecord } from '../game/types';
+import type { Core, GameScene, GmParts, PostFinish, SeasonMvp, SeasonRecord, VsRec } from '../game/types';
+import { careerRank, careerScore, gmScore, gmTotal, longestWin, monthsOf, RANKS, seasonRank, startRankOf } from '../game/gmscore';
+import { teamMvp } from '../game/leaders';
+import { standings } from '../game/season';
+import { capacityOf, userTeam } from '../game/economy';
+import { memoGet } from '../game/memo';
 import { percentile, type Percentile } from './bench';
 import { SHARE_BASE } from './config';
 
@@ -40,6 +45,36 @@ export interface ShareRecord {
   retired: string[]; // 영구결번
   seats: string | null; // "24,000석"
   exposed: number; // 덮은 일이 드러난 횟수
+  card?: CardFacts; // 기록 카드의 야구 기록 (없으면 그 줄들을 뺀다 — 옛 명예의 전당 기록)
+  gm?: GmShown; // 카드·글의 단장 점수 한 줄 (결산 = 그 시즌 점수, 엔딩 = 경력 점수)
+}
+
+/** 카드·글에 보이는 단장 점수 */
+export interface GmShown {
+  score: number;
+  id: string; // 랭크 'A+'
+  name: string; // '우승 청부사'
+  career: boolean; // 경력 점수인가
+  parts?: GmParts; // 시즌 점수의 세 갈래 (결산 도움말)
+}
+
+/** 기록 카드의 야구 기록 (그 시즌 하나 + 엔딩이면 경력 합계) */
+export interface CardFacts {
+  nth: number; // 단장 몇 시즌째
+  name?: string; // 시즌 이름
+  w: number;
+  l: number;
+  t: number;
+  rank: number;
+  gb?: number;
+  months?: number[];
+  streak?: number;
+  mvp?: SeasonMvp;
+  scene?: GameScene;
+  foe?: VsRec;
+  prey?: VsRec;
+  ps?: [string, number, number][];
+  career?: { seasons: number; titles: number; w: number; l: number; t: number };
 }
 
 export interface ShareData {
@@ -198,8 +233,78 @@ export function recordFromCore(core: Core, kind: ShareKind): ShareRecord {
     retired: (c.retired ?? []).map((r) => r.name),
     seats: seatsLabel(core),
     exposed: c.exposed ?? 0,
+    ...cardOf(core, kind),
   };
 }
+
+const wlResults = (core: Core): number[] => (memoGet(core, 'wl') ?? '').split('').map((ch) => (ch === 'W' ? 1 : ch === 'L' ? 0 : 0.5));
+
+/**
+ * 지금 세이브 → 카드의 기록과 단장 점수. 마지막 시즌 기록을 쓰고, 기록 장치가 생기기 전에 결산한 시즌이면
+ * (결산 직후라 선수 기록·순위표가 아직 그 시즌 것일 때만) 지금 세이브에서 다시 계산해 채운다
+ */
+export function cardOf(core: Core, kind: ShareKind): Pick<ShareRecord, 'card' | 'gm'> {
+  const h = core.campaign.history ?? [];
+  const last = h[h.length - 1];
+  if (!last) return {};
+  const teams = core.teams.length;
+  const live = last.season === core.season && (core.phase === 'ended' || core.phase === 'over');
+  const r: SeasonRecord = { ...last };
+  if (live) {
+    const results = wlResults(core);
+    const me = userTeam(core).rec;
+    const top = standings(core.teams)[0].rec;
+    if (!r.months && results.length) Object.assign(r, { months: monthsOf(results), streak: longestWin(results) });
+    if (r.gb === undefined) r.gb = Math.max(0, (top.w - top.l - (me.w - me.l)) / 2);
+    if (!r.mvp) r.mvp = teamMvp(core) ?? undefined;
+    if (!r.gm) {
+      const v = core.campaign.verdict;
+      r.gm = gmScore(r, {
+        teams,
+        startRank: startRankOf(h.slice(0, -1), teams),
+        fill: r.avgAtt / Math.max(1, capacityOf(core)),
+        sellouts: core.campaign.sellouts,
+        homeGames: core.attHistory.length,
+        luxTax: !!v?.luxTax,
+        debtBad: !!v?.debtOver || !!v?.debtMood,
+        trust: core.campaign.trust,
+        stars: v?.newAchievements.length ?? 0,
+      });
+    }
+  }
+  const sum = (k: 'w' | 'l' | 't') => h.reduce((a, x) => a + x[k], 0);
+  const ending = kind !== 'season';
+  const card: CardFacts = {
+    nth: h.length,
+    ...(r.name ? { name: r.name } : {}),
+    w: r.w,
+    l: r.l,
+    t: r.t,
+    rank: r.rank,
+    ...(r.gb !== undefined ? { gb: r.gb } : {}),
+    ...(r.months ? { months: r.months, streak: r.streak } : {}),
+    ...(r.mvp ? { mvp: r.mvp } : {}),
+    ...(r.scene ? { scene: r.scene } : {}),
+    ...(r.foe ? { foe: r.foe } : {}),
+    ...(r.prey ? { prey: r.prey } : {}),
+    ...(r.ps ? { ps: r.ps } : {}),
+    ...(ending ? { career: { seasons: h.length, titles: core.campaign.titles, w: sum('w'), l: sum('l'), t: sum('t') } } : {}),
+  };
+  const hh = h.map((x, i) => (i === h.length - 1 ? r : x));
+  let gm: GmShown | undefined;
+  if (ending) {
+    const sc = careerScore(hh);
+    if (sc !== null) gm = { score: sc, ...pickRank(careerRank(sc, teams)), career: true };
+  } else if (r.gm) {
+    const sc = gmTotal(r.gm);
+    gm = { score: sc, ...pickRank(seasonRank(sc, h.length, teams)), career: false, parts: r.gm };
+  }
+  return { card, ...(gm ? { gm } : {}) };
+}
+const pickRank = (r: (typeof RANKS)[number]) => ({ id: r.id, name: r.name });
+
+/** "단장 A · 명단장 · 742점" */
+export const gmLineOf = (g: GmShown): string => `${g.career ? '단장 경력 ' : '단장 '}${g.id} · ${g.name} · ${g.score}점`;
 
 /** 명예의 전당의 역대 구단 한 줄 (순위·우승 횟수·별만 남아 있다) */
 export function recordFromClub(club: HofClub): ShareRecord {
@@ -227,6 +332,8 @@ export function recordFromClub(club: HofClub): ShareRecord {
     retired: club.retired ?? [],
     seats: club.seats ?? null,
     exposed: club.tainted ? 1 : 0,
+    ...(club.card ? { card: club.card } : {}),
+    ...(club.gm ? { gm: club.gm } : {}),
   };
 }
 
@@ -271,20 +378,6 @@ const BEST_KO: Record<PostFinish, string> = { none: '', WC: '와일드카드 결
 export function bestLine(r: ShareRecord): string {
   if (r.champs.length > 1) return `한국시리즈 우승 ${r.champs.length}회`;
   return BEST_KO[r.bestPost] || `정규시즌 ${Math.min(teamsOf(r), ...r.ranks)}위`;
-}
-
-export const tookOver = (r: Pick<ShareRecord, 'teams'>): string => `5년간 ${pastRanks(teamsOf(r)).join('-')}위`;
-
-/** 카드의 항목 6칸 */
-export function cardItems(r: ShareRecord): { label: string; value: string }[] {
-  return [
-    { label: '맡았을 때', value: tookOver(r) },
-    { label: '최고 성적', value: bestLine(r) },
-    { label: r.retired.length ? '영구결번' : '간판스타', value: r.retired[0] ?? r.star ?? '—' },
-    { label: '구장', value: r.seats ?? '—' },
-    { label: '모은 별', value: `★ ${r.stars}/${STARS_MAX}` },
-    { label: TRUST_LABEL, value: r.trust === null ? '—' : String(r.trust) },
-  ];
 }
 
 /** 공유 화면의 제목 */

@@ -4,6 +4,7 @@ import type { Core } from '../game/types';
 import { HOF_KEY, emptyHof, parseHof, recordAwards, recordClub, syncHof, hofWorthy, type Hof, type HofEnd } from '../game/hof';
 import { leagueAwards } from '../game/leaders';
 import { pickCore, useStore } from '../store';
+import { cardOf } from '../share/shareData';
 
 function load(): Hof {
   try {
@@ -33,7 +34,8 @@ export function hofCloseClub(core: Core, end: HofEnd): void {
   if (!hofWorthy(core)) return;
   const hof = useHof.getState().hof;
   const prev = hof.clubs.find((c) => c.seed === core.seed);
-  put(recordClub(syncHof(hof, core), core, end === 'abandoned' && prev ? prev.end : end, today()));
+  const kept = end === 'abandoned' && prev ? prev.end : end;
+  put(recordClub(syncHof(hof, core), core, kept, today(), cardOf(core, kept === 'champion' ? 'champion' : kept === 'relocated' ? 'relocated' : 'season')));
 }
 
 export function clearHof(): void {
