@@ -125,11 +125,16 @@ export function AchvToast() {
   const busy = useStore((s) => !!s.playback || !!s.summary);
   const onTitle = useUi((s) => s.screen === 'title');
   const hold = busy || onTitle;
+  // 한 묶음은 한 번만 보여 준다: 떠 있는 동안 경기 진행 등으로 가려지면 그 묶음은 버린다
+  // (전에는 타이머만 지우고 묶음을 남겨 둬서, 요약을 닫을 때마다 같은 알림이 처음부터 다시 떴다)
   useEffect(() => {
     if (!batch || hold) return;
     play('achievement');
     const id = window.setTimeout(shift, SHOW_MS);
-    return () => window.clearTimeout(id);
+    return () => {
+      window.clearTimeout(id);
+      if (useAchv.getState().queue[0] === batch) shift();
+    };
   }, [batch, hold, shift]);
   if (!batch || hold) return null;
   const d = BY_ID.get(batch[0]);
