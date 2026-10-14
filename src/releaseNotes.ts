@@ -12,6 +12,15 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.12.1',
+    date: '2026-10-15',
+    title: '메이저리그의 부름',
+    notes: [
+      '오래 함께한 젊은 핵심 선수에게 메이저리그 구단이 손을 내밉니다. 보내 주면 이적료로 빚부터 갚아요.',
+      '떠난 선수가 몇 시즌 뒤 섬으로 돌아오고 싶다고 할 때도 있습니다.',
+    ],
+  },
+  {
     version: '0.12.0',
     date: '2026-10-14',
     title: '빚을 덜 기회',
