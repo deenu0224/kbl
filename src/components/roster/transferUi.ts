@@ -11,8 +11,9 @@ interface TransferUi {
   side: DeskSide; // 모바일에서 보이는 목록
   pos: PosKey | 'weak' | null; // 영입 시장을 이 포지션으로 걸러서 연다
   nonce: number; // 열 때마다 바뀐다 (표의 필터를 새로 잡는다)
+  sort: 'release' | null; // 우리 선수단을 이 정렬로 연다 (할 일 "방출 검토")
   /** 창구를 연다. add 를 주면 그 선수를 담은 채로, pos 를 주면 영입 시장을 그 자리로 걸러서 */
-  openDesk(o?: { side?: DeskSide; pos?: PosKey | 'weak' | null; add?: [BasketKind, string][] }): void;
+  openDesk(o?: { side?: DeskSide; pos?: PosKey | 'weak' | null; add?: [BasketKind, string][]; sort?: 'release' }): void;
   close(): void;
   toggle(kind: BasketKind, pid: string): void; // 담기 / 다시 누르면 빼기 (한 선수는 한 칸에만)
   put(kind: BasketKind, pid: string): void;
@@ -42,12 +43,13 @@ export const useTransferUi = create<TransferUi>()((set) => ({
   side: 'market',
   pos: null,
   nonce: 0,
+  sort: null,
   openDesk: (o = {}) =>
     set((s) => {
       let basket = prune(s.basket);
       for (const [k, pid] of o.add ?? []) basket = { ...without(basket, pid), [k]: [...without(basket, pid)[k], pid] };
       const first = o.add?.[0]?.[0];
-      return { open: true, basket, side: o.side ?? (first ? (first === 'sign' ? 'market' : 'squad') : s.side), pos: o.pos ?? null, nonce: s.nonce + 1 };
+      return { open: true, basket, side: o.side ?? (first ? (first === 'sign' ? 'market' : 'squad') : s.side), pos: o.pos ?? null, sort: o.sort ?? null, nonce: s.nonce + 1 };
     }),
   close: () => set({ open: false }),
   toggle: (kind, pid) =>

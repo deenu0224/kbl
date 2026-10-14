@@ -8,8 +8,8 @@ import { useIsMobile } from '../layout/useLayout';
 import PlayerTable, { type TableMode } from './PlayerTable';
 
 type Kind = 'all' | 'B' | 'P';
-type SortId = 'ovr' | 'salary' | 'age' | 'scout';
-const SORT_KO: Record<SortId, string> = { ovr: '오버롤', salary: '연봉', age: '나이', scout: '등급' };
+type SortId = 'ovr' | 'salary' | 'age' | 'scout' | 'extra';
+const SORT_KO: Record<Exclude<SortId, 'extra'>, string> = { ovr: '오버롤', salary: '연봉', age: '나이', scout: '등급' };
 const BAT_POS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 const PIT_POS = ['SP', 'RP', 'CP'] as const;
 const SCOUT_ORDER: Record<string, number> = { A: 4, B: 3, C: 2, D: 1 };
@@ -42,7 +42,10 @@ export default function PlayerBrowser({
   band,
   pinned,
   note,
+  badge,
   chips,
+  extraSort,
+  initExtra = false,
 }: {
   mode: TableMode;
   players: Player[];
@@ -54,25 +57,28 @@ export default function PlayerBrowser({
   band?: (p: Player) => { color: string; bg: string } | undefined;
   pinned?: string[]; // OVR 정렬일 때 맨 위에 올릴 선수 (스카우트 명단)
   note?: (p: Player) => ReactNode; // 이름 옆 작은 표시
+  badge?: (p: Player) => ReactNode; // 이름 바로 옆의 작은 칩 (이름이 먼저 줄어든다 — 칩은 잘리지 않는다)
   chips?: ReactNode; // 목록의 전체/타자/투수 칩 대신 쓸 필터 칩 (명단: 전체/1군/2군/타자/투수)
+  extraSort?: { label: string; val: (p: Player) => number }; // 정렬 순환에 넣는 정렬 하나 (작을수록 위. 우리 선수단: 방출 후보순)
+  initExtra?: boolean; // 그 정렬로 시작한다
 }) {
   // 특정 포지션으로 걸러서 열렸으면 그 필터를 가진 표로 시작한다
   const [table, setTable] = useState(!!initPos && initPos !== 'weak');
   const [kind, setKind] = useState<Kind>(initPos && initPos !== 'weak' ? (PITCH_KEYS.includes(initPos as 'SP') ? 'P' : 'B') : 'all');
   const [weak, setWeak] = useState(initPos === 'weak');
   const [posF, setPosF] = useState<string | null>(null); // 포지션 필터 (타자·투수를 고른 뒤 둘째 줄에서)
-  const sorts: SortId[] = mode === 'draft' ? ['ovr', 'scout', 'age'] : ['ovr', 'salary', 'age'];
-  const [sort, setSort] = useState<SortId>('ovr');
+  const sorts: SortId[] = [...(mode === 'draft' ? (['ovr', 'scout', 'age'] as const) : (['ovr', 'salary', 'age'] as const)), ...(extraSort ? (['extra'] as const) : [])];
+  const [sort, setSort] = useState<SortId>(initExtra && extraSort ? 'extra' : 'ovr');
   const draft = mode === 'draft';
   const two = useIsMobile() && mode === 'roster' && !!rowAction;
   const needKeys = useMemo(() => (draft ? rows.filter((r) => r.thin && r.key !== 'DH') : rows.filter((r) => r.weak)).map((r) => r.key), [rows, draft]);
   const list = useMemo(() => {
     const pin = (p: Player) => (sort === 'ovr' && pinned?.includes(p.id) ? pinned.indexOf(p.id) - 99 : 0);
-    const val = (p: Player) => (sort === 'salary' ? -p.salary : sort === 'age' ? p.age : sort === 'scout' ? -(SCOUT_ORDER[p.scout ?? ''] ?? 0) : -p.ovr);
+    const val = (p: Player) => (sort === 'extra' && extraSort ? extraSort.val(p) : sort === 'salary' ? -p.salary : sort === 'age' ? p.age : sort === 'scout' ? -(SCOUT_ORDER[p.scout ?? ''] ?? 0) : -p.ovr);
     return players
       .filter((p) => (kind === 'all' || p.kind === kind) && (!posF || kind === 'all' || p.pos === posF) && (!weak || needKeys.some((k) => fitsKey(p, k))))
       .sort((a, b) => pin(a) - pin(b) || val(a) - val(b) || b.ovr - a.ovr);
-  }, [players, kind, posF, weak, needKeys, sort, pinned]);
+  }, [players, kind, posF, weak, needKeys, sort, pinned, extraSort]);
 
   const toggle = (
     <button data-sfx="tab" data-testid="view-toggle" onClick={() => setTable((v) => !v)} className="shrink-0 cursor-pointer whitespace-nowrap bg-ink px-1.5 py-0.5 text-[10px] text-sky mob:min-h-9 mob:px-2.5 mob:text-[13px]">
@@ -110,7 +116,7 @@ export default function PlayerBrowser({
         )}
         <span className="mx-0.5 h-4 w-px shrink-0 bg-white/20" />
         <Chip on={false} onClick={() => setSort(sorts[(sorts.indexOf(sort) + 1) % sorts.length])} testid="list-sort">
-          {SORT_KO[sort]}순 ⇅
+          {sort === 'extra' && extraSort ? extraSort.label : `${SORT_KO[sort as Exclude<SortId, 'extra'>]}순`} ⇅
         </Chip>
         </div>
         {toggle}
@@ -145,7 +151,10 @@ export default function PlayerBrowser({
                 {two ? (
                   // 좁은 화면의 우리 선수단: 줄 버튼이 많아 이름이 잘리므로 두 줄로 (이름 / 역할 · 연봉)
                   <span className="min-w-0 flex-1 leading-tight">
-                    <span className={`block truncate ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
+                    <span className="flex min-w-0 items-center gap-1">
+                      <span className={`min-w-0 truncate ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
+                      {badge?.(p)}
+                    </span>
                     <span className="block truncate text-[13px] text-white/55">
                       {p.farm && <span className="text-sky">2군</span>}
                       {note?.(p)}
@@ -159,6 +168,7 @@ export default function PlayerBrowser({
                   {mode === 'roster' && p.farm && <span className="ml-1 text-[10px] text-sky mob:text-[13px]">2군</span>}
                   {note?.(p)}
                 </span>
+                {badge?.(p)}
                 <span className="shrink-0 whitespace-nowrap text-[11px] text-white/60 mob:text-[13px]">{p.age}세</span>
                   </>
                 )}
