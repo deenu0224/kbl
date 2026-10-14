@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
+import { Compare } from './EventDetail';
 import { play } from '../audio/sfx';
 import { openDesk } from './roster/transferUi';
-import type { BriefDetail, BriefOffer, BriefResult, Player } from '../game/types';
+import type { BriefDetail, BriefOffer, BriefResult } from '../game/types';
 import { PART_LABELS } from '../game/briefing';
 import { flagForecast } from '../game/campaign';
 import { CHARACTERS } from '../game/story';
 import { findPlayer, useCore, useStore, useUserTeam } from '../store';
 import PlayerCard from './PlayerCard';
-import { Bar, ratingColor } from './ui';
 import { Flag } from './Campaign';
 import PixelFace from './PixelFace';
 import { useIsMobile } from './layout/useLayout';
@@ -105,45 +105,6 @@ function OfferCard({ o, onOpen }: { o: BriefOffer; onOpen: () => void }) {
 
 // ───────── 상세 시트 ─────────
 
-const B_STATS: [keyof Player, string][] = [['ovr', '종합'], ['con', '컨택'], ['pow', '파워'], ['eye', '선구'], ['spd', '주력'], ['def', '수비'], ['pot', '잠재']];
-const P_STATS: [keyof Player, string][] = [['ovr', '종합'], ['stf', '구위'], ['ctl', '제구'], ['sta', '체력'], ['pot', '잠재']];
-
-/** 들어오는 선수 vs 밀려나는 주전: 능력치마다 막대 2줄 */
-function Compare({ a, b }: { a: Player; b: Player }) {
-  const line = (v: number, name: string, hi: boolean) => (
-    <div className="flex items-center gap-1.5 text-[11px] leading-none">
-      <span className={`w-14 shrink-0 truncate ${hi ? 'text-white' : 'text-white/55'}`}>{name}</span>
-      <Bar ratio={(v - 15) / 85} color={ratingColor(v)} h={7} />
-      <span className="w-5 shrink-0 text-right" style={{ color: ratingColor(v) }}>
-        {v}
-      </span>
-    </div>
-  );
-  return (
-    <div className="bg-ink/55 p-2" data-testid="detail-compare">
-      <div className="mb-1 text-[11px] text-sky">
-        ▸ {a.name}(위) vs 지금 주전 {b.name}(아래)
-      </div>
-      <div className="flex flex-col gap-1.5">
-        {(a.kind === 'B' ? B_STATS : P_STATS).map(([k, label]) => {
-          const va = a[k] as number;
-          const vb = b[k] as number;
-          return (
-            <div key={k} className="flex items-center gap-1.5">
-              <span className="w-8 shrink-0 text-[11px] text-white/60">{label}</span>
-              <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
-                {line(va, a.name, true)}
-                {line(vb, b.name, false)}
-              </div>
-              <span className={`w-7 shrink-0 text-right text-[11px] ${va > vb ? 'text-good' : va < vb ? 'text-bad' : 'text-white/45'}`}>{va === vb ? '=' : `${va > vb ? '+' : '−'}${Math.abs(va - vb)}`}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 /** 전력 4칸 전 → 후 (cols 가 3개면 실행 전 · 예상 · 지금) */
 function PartsTable({ cols }: { cols: { label: string; v: number[] }[] }) {
   const base = cols[0].v;
@@ -189,7 +150,12 @@ function DetailBody({ d }: { d: BriefDetail }) {
   return (
     <>
       {p && <PlayerCard player={p} team={mine ? team : undefined} />}
-      {p && vs && <Compare a={p} b={vs} />}
+      {p && vs && (
+        <div data-testid="detail-compare">
+          <div className="bg-ink/55 px-2 pt-2 text-[13px] text-sky">▸ 들어오는 선수(왼쪽) vs 지금 주전(오른쪽)</div>
+          <Compare a={p} b={vs} />
+        </div>
+      )}
       {d.shifts && (
         <div className="bg-ink/55 p-2" data-testid="detail-shifts">
           <div className="mb-1 text-[11px] text-sky">▸ 바뀌는 자리</div>

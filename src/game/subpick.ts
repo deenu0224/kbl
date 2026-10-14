@@ -162,7 +162,7 @@ export function makeSubCard(core: Core, inj: Player): EventCard | null {
           ...(pl.type === 'callup' ? [rowInfo(pl.x.name, '1군', '2군', 'good'), rowInfo('1군 자리', pl.out ? `${pl.out.name} 2군행` : '빈자리 사용', undefined, pl.out ? 'bad' : 'info')] : []),
         ],
         pids: [inj.id, pl.x.id, ...(pl.mover ? [pl.mover.id] : []), ...(pl.out ? [pl.out.id] : [])],
-        compare: [inj.id, pl.x.id] as [string, string],
+        compare: [pl.x.id, inj.id] as [string, string], // 왼쪽이 들어오는 선수 (다른 카드와 같은 순서)
         lasts: `${inj.name} 복귀까지 (${inj.injury}경기)`,
       },
     };
@@ -171,7 +171,7 @@ export function makeSubCard(core: Core, inj: Player): EventCard | null {
   choices.push({
     label: '감독에게 맡긴다',
     desc: `감독 선택: ${m.name}${m.up ? (m.up.name === m.name ? ' 콜업' : ` · ${m.up.name} 콜업`) : ''}`,
-    detail: { rows: [...partRows(before, m.parts), rowInfo(roleKo(role), m.name, `${inj.name} ${inj.ovr}`)], pids: m.pids, ...(m.pids[1] ? { compare: [inj.id, m.pids[1]] as [string, string] } : {}), lasts: `${inj.name} 복귀까지 (${inj.injury}경기)` },
+    detail: { rows: [...partRows(before, m.parts), rowInfo(roleKo(role), m.name, `${inj.name} ${inj.ovr}`)], pids: m.pids, ...(m.pids[1] ? { compare: [m.pids[1], inj.id] as [string, string] } : {}), lasts: `${inj.name} 복귀까지 (${inj.injury}경기)` },
   });
   return {
     id: `sub|${inj.id}`,

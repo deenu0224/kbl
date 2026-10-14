@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fmtAvg, fmtEra, fmtIp } from '../game/format';
 import type { EventCard, Player } from "../game/types";
 import { findPlayer, useStore } from "../store";
 import PlayerCard from "./PlayerCard";
@@ -23,8 +24,17 @@ const P_STATS: [keyof Player, string][] = [
 ];
 const TONE = { good: "text-good", bad: "text-bad", info: "text-white" };
 
-/** 두 선수의 능력치를 나란히 (왼쪽 a, 오른쪽 b, 가운데 차이) */
-function Compare({ a, b }: { a: Player; b: Player }) {
+/** 이번 시즌 기록 비교 줄: [항목, 왼쪽, 오른쪽]. 타자끼리·투수끼리만 (섞이면 경기 수만) */
+function seasonRows(a: Player, b: Player): [string, string, string][] {
+  const bat = (p: Player): string[] => (p.bat.pa ? [`${p.bat.g}`, fmtAvg(p.bat.h, p.bat.ab), `${p.bat.hr}`, `${p.bat.rbi}`, `${p.bat.sb}`] : ['-', '-', '-', '-', '-']);
+  const pit = (p: Player): string[] => (p.pit.outs ? [`${p.pit.g}`, fmtEra(p.pit.er, p.pit.outs), `${p.pit.w}승 ${p.pit.l}패${p.pit.sv ? ` ${p.pit.sv}세` : ''}`, fmtIp(p.pit.outs), `${p.pit.so}`] : ['-', '-', '-', '-', '-']);
+  if (a.kind === 'B' && b.kind === 'B') return ['경기', '타율', '홈런', '타점', '도루'].map((l, i) => [l, bat(a)[i], bat(b)[i]]);
+  if (a.kind === 'P' && b.kind === 'P') return ['경기', '평균자책점', '승패', '이닝', '탈삼진'].map((l, i) => [l, pit(a)[i], pit(b)[i]]);
+  return [['경기', `${a.kind === 'B' ? a.bat.g : a.pit.g}`, `${b.kind === 'B' ? b.bat.g : b.pit.g}`]];
+}
+
+/** 두 선수의 능력치를 나란히 (왼쪽 a = 들어오는 선수, 오른쪽 b = 지금 선수, 가운데는 a 기준 차이). 주간 브리핑 상세도 쓴다 */
+export function Compare({ a, b }: { a: Player; b: Player }) {
   const cell = (v: number, right: boolean) => (
     <div
       className={`flex min-w-0 flex-1 items-center gap-1.5 ${right ? "flex-row-reverse" : ""}`}
@@ -89,6 +99,17 @@ function Compare({ a, b }: { a: Player; b: Player }) {
             </div>
           );
         })}
+      </div>
+      {/* 이번 시즌 기록도 같은 줄 순서로 나란히 */}
+      <div className="mt-2 border-t border-white/10 pt-1.5 text-[13px] leading-none" data-testid="ev-compare-season">
+        <div className="mb-1 text-center text-[12px] text-sky">이번 시즌</div>
+        {seasonRows(a, b).map(([label, la, lb]) => (
+          <div key={label} className="flex items-center gap-1 py-[3px]">
+            <span className="min-w-0 flex-1 truncate text-white/90">{la}</span>
+            <span className="w-16 shrink-0 text-center text-[12px] text-white/60">{label}</span>
+            <span className="min-w-0 flex-1 truncate text-right text-white/90">{lb}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
