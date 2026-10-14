@@ -8,9 +8,10 @@ import { memoGet, memoNum } from './memo';
 import { coachShuttles, injuryNotice, remedies } from './remedy';
 import { farmAutoOn, rehabReady, shuttleArms } from './farm';
 import { runway, runwayAlert } from './runway';
+import { releaseTodo } from './release';
 
 export type TodoTab = 'home' | 'roster' | 'transfer' | 'league' | 'club';
-export type TodoAction = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad';
+export type TodoAction = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad' | 'release';
 
 export interface Todo {
   id: string;
@@ -84,6 +85,11 @@ export function todoList(core: Core): Todo[] {
     const fa = t.roster.filter((p) => (svcYear(core, p) ?? 0) >= SVC_YEARS).sort((a, b) => b.ovr - a.ovr);
     if (fa.length) out.push({ id: `fa-${core.season}`, tab: 'roster', hint: 'lineup', icon: '✎', tone: 'info', action: 'squad', dismissible: true, text: `시즌 뒤 재계약 대기: ${names(fa)}` });
   }
+
+  // 방출 검토: 1군·2군이 꽉 찼거나 · 자금 경고 · 개막 전 · 경쟁균형세 초과 예상이고 추천이 1명 이상일 때.
+  // 확인 항목: 창구를 열어 봤거나 방출을 담으면 그 시즌 · 그 상황 동안 다시 올리지 않는다 (id 에 시즌·상황이 들어 있다)
+  const rel = releaseTodo(core);
+  if (rel) out.push({ id: rel.id, tab: 'transfer', hint: 'market', icon: '−', tone: 'warn', action: 'release', dismissible: true, text: rel.text });
 
   // 스카우트 팀장의 명단 (아직 시장에 남아 있는 사람만)
   const list = memoGet(core, 'scoutList');

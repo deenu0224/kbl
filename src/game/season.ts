@@ -735,6 +735,7 @@ export function renewPremium(core: Pick<Core, 'campaign'>): number {
 
 /** 나이 +1 과 그에 따른 성장/노쇠, 기록 리셋 */
 function develop(p: Player, rng: Rng, season: number): void {
+  const ovr0 = p.ovr;
   p.age++;
   delete p.tired;
   delete p.apps;
@@ -754,7 +755,7 @@ function develop(p: Player, rng: Rng, season: number): void {
   p.star = clamp(Math.round(p.star * 0.75 + (baseStar(p.ovr) + 6) * 0.25), 0, 100);
   p.injury = 0;
   // 뛴 기록이 있으면 지난 시즌 기록으로 옮겨 적는다 (선수 카드)
-  if (p.bat.pa > 0 || p.pit.outs > 0) p.prev = { season: season - 1, bat: p.bat, pit: p.pit };
+  if (p.bat.pa > 0 || p.pit.outs > 0) p.prev = { season: season - 1, bat: p.bat, pit: p.pit, ovr: ovr0 };
   p.bat = batZero();
   p.pit = pitZero();
 }

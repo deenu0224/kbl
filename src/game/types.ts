@@ -70,7 +70,7 @@ export interface Player {
   away?: { until: number; kind: 'army' }; // 팀을 떠나 있는 선수 (입대). until 시즌 개막에 복귀. 로스터가 아니라 campaign.away 에 있다
   served?: boolean; // 군 복무를 마쳤거나 입대한 선수 (입대 통지 대상에서 빠진다)
   armyDue?: number; // 입대를 미룬 선수: 이 시즌 60경기 뒤 선택 없이 입대한다
-  prev?: { season: number; bat: BatStats; pit: PitStats }; // 지난 시즌 기록 (시즌이 바뀔 때 옮겨 적는다)
+  prev?: { season: number; bat: BatStats; pit: PitStats; ovr?: number }; // 지난 시즌 기록 (시즌이 바뀔 때 옮겨 적는다). ovr = 그 시즌 끝의 오버롤 (방출 추천의 하락 판정. 옛 세이브에는 없다)
   subFor?: string; // 부상 대체로 자동 콜업된 선수: 대신하는 부상자의 id (복귀하면 2군으로 돌아간다)
   subFrom?: 'bench'; // 부상 대체 카드에서 고른 1군 벤치·불펜 선수 (복귀하면 2군이 아니라 원래 자리로)
   posShift?: { from: string; pen: number; until: number }; // 포지션 전향 중: 원래 포지션 · 수비 감소분(이미 def 에 반영) · 해소되는 day

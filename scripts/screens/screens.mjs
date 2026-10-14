@@ -36,6 +36,10 @@ const c = (click, o = {}) => ({ click, ...o });
 const m = (click, o = {}) => ({ click, when: 'mobile', ...o });
 const d = (click, o = {}) => ({ click, when: 'desktop', ...o });
 const st = (xs) => xs.map((x) => (typeof x === 'string' ? c(x) : x));
+/** 스토브리그의 이적 창구: 트레이드 제안 카드가 먼저 뜨면 [거절]하고 다시 연다 */
+const STOVE_DESK = [c('stove-market'), c('선택', { nth: 1, optional: true }), { wait: 300 }, c('stove-market', { optional: true }), m('side-squad')];
+/** 우리 선수단 목록의 정렬 칩 (데스크톱은 영입 시장에도 있다) */
+const RSORT = 'css:[data-testid="browser-roster"] [data-testid="list-sort"]';
 /** 초기 화면에서 [이어하기] 뒤의 스텝 */
 const game = (...xs) => [c('continue'), ...st(xs)];
 const S = (id, fixture, steps, o = {}) => ({ id, fixture, steps, ...o });
@@ -128,6 +132,14 @@ export const SCREENS = [
   // 조치 시트
   S('remedy-penover', 'penover', game('불펜 과부하')),
   S('todo-penover', 'penover', game()),
+  // 방출 추천: 할 일 → 조치 시트 → 이적 창구(방출 후보순) → 추천 선수 카드
+  S('rel-todo', 'relFull', game()),
+  S('rel-remedy', 'relFull', game('방출 검토')),
+  S('rel-desk', 'relFull', game('방출 검토', '이적 창구 열기', { wait: 300 })),
+  S('rel-card', 'relFull', game('방출 검토', '이적 창구 열기', { wait: 300 }, 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
+  S('rel-open', 'relOpen', game()),
+  S('rel-stove', 'relStove', game(...STOVE_DESK, RSORT, RSORT, RSORT)),
+  S('rel-stove-card', 'relStove', game(...STOVE_DESK, RSORT, RSORT, RSORT, 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
 
   // ── 선수단 (모바일: 선수단 탭, 데스크톱: [선수단 열기] 모달)
   S('roster-field', 'farm', game(...SQUAD)),

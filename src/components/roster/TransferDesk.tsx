@@ -17,6 +17,8 @@ import { CHARACTERS } from '../../game/story';
 import { PART_KO } from './labels';
 import { usePosReport } from './rosterUi';
 import { useTransferUi } from './transferUi';
+import { TRADE_HINT, releaseAdvice, releaseOutcome, releaseScores, releaseTodo, releaseTradeFirst, type Advice } from '../../game/release';
+import { useUi } from '../layout/uiStore';
 
 const PARTS = ['bat', 'def', 'rot', 'pen'] as const;
 const DONE_MS = 2000;
@@ -60,7 +62,7 @@ export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: str
 }
 
 /** [트레이드 시장에] 토글: 내놓으면 트레이드 기간 중 원하는 구단의 제안이 온다 (trade.ts) */
-function BlockChip({ pid }: { pid: string }) {
+function BlockChip({ pid, big = false }: { pid: string; big?: boolean }) {
   const on = useStore((s) => (s.campaign.block ?? []).includes(pid));
   const toggle = useStore((s) => s.blockToggle);
   const closed = useStore((s) => blockClosedWhy(s));
@@ -74,11 +76,11 @@ function BlockChip({ pid }: { pid: string }) {
       title={closed ?? '트레이드 시장에 내놓기'}
       aria-label="트레이드 시장에 내놓기"
       onClick={() => toggle(pid)}
-      className="shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-35 mob:min-h-9 mob:px-1.5 mob:text-[13px]"
+      className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
       style={on ? { background: color, color: '#0f1420' } : { background: '#0f1420', color, boxShadow: `inset 0 0 0 1px ${color}88` }}
     >
       {on ? '✓' : '⇄'}
-      <span className="mob:hidden"> 시장</span>
+      {big ? (on ? ' 트레이드 시장에 내놓음' : ' 트레이드 시장에 내놓기') : <span className="mob:hidden"> 시장</span>}
     </button>
   );
 }
@@ -111,6 +113,37 @@ function heatText(core: Parameters<typeof faHeatLine>[0], inBasket: number): str
 
 const squadKinds = (p: Player): BasketKind[] => ['release', p.farm ? 'up' : 'down'];
 
+/** 이름 옆 "방출 추천" 칩 (빨간 테두리) */
+function ReleaseBadge() {
+  return (
+    <span className="shrink-0 whitespace-nowrap px-1 text-[10px] leading-[1.5] text-bad mob:text-[12px]" style={{ boxShadow: 'inset 0 0 0 1px #ff6b6b' }} data-testid="rel-badge">
+      방출 추천
+    </span>
+  );
+}
+
+/** 추천 선수 카드의 이유 줄과 "방출하면:" 한 줄 (담기 미리보기와 같은 계산) */
+function ReleaseWhy({ a }: { a: Advice }) {
+  const core = useCore();
+  const out = useMemo(() => releaseOutcome(core, a.p.id), [core, a.p.id]);
+  return (
+    <div className="mt-1.5 bg-bad/10 px-1.5 py-1 text-[11px] leading-snug mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #ff6b6b' }} data-testid="rel-why">
+      <div className="text-bad">▸ 방출 추천</div>
+      {a.why.map((w, i) => (
+        <div key={i} className="text-white/80" data-testid="rel-line">
+          · {w}
+          {a.trade && i === a.why.length - 1 && <span className="text-[#c9a0ff]"> {TRADE_HINT}</span>}
+        </div>
+      ))}
+      <div className="mt-0.5 text-white" data-testid="rel-outcome">
+        <span className="text-white/55">방출하면: </span>
+        {out.text}
+      </div>
+      {out.pv.error && <div className="text-bad">✕ 불가: {out.pv.error}</div>}
+    </div>
+  );
+}
+
 function Desk() {
   const mobile = useIsMobile();
   const core = useCore();
@@ -118,7 +151,16 @@ function Desk() {
   const rows = usePosReport();
   const freeAgents = useStore((s) => s.freeAgents);
   const transfer = useStore((s) => s.transfer);
-  const { basket, side, pos, nonce, close, clear } = useTransferUi();
+  const { basket, side, pos, nonce, sort, close, clear } = useTransferUi();
+  // 방출 추천 (최대 3명) · 방출 후보순 정렬 점수
+  const advice = useMemo(() => releaseAdvice(core), [core]);
+  const relScores = useMemo(() => releaseScores(core), [core]);
+  const relSort = useMemo(() => ({ label: '방출 후보순', val: (p: Player) => -(relScores.get(p.id)?.score ?? -999) }), [relScores]);
+  // 방출을 담으면 할 일 "방출 검토"는 그 상황 동안 다시 올리지 않는다
+  const relTodo = useMemo(() => releaseTodo(core)?.id, [core]);
+  useEffect(() => {
+    if (basket.release.length && relTodo) useUi.getState().dismissTodo(relTodo);
+  }, [basket.release.length, relTodo]);
   const [card, setCard] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -136,6 +178,7 @@ function Desk() {
   };
   const cardFa = card ? freeAgents.find((p) => p.id === card) : undefined;
   const cardP = cardFa ?? (card ? team.roster.find((p) => p.id === card) : undefined);
+  const cardAdv = !cardFa && card ? advice.find((a) => a.p.id === card) : undefined;
 
   const confirm = () => {
     const moved = PARTS.filter((k) => pv.parts.a[k] !== pv.parts.b[k]).map((k) => `${PART_KO[k]} ${pv.parts.a[k]} → ${pv.parts.b[k]}`);
@@ -205,6 +248,9 @@ function Desk() {
       onPick={(p) => setCard(p.id)}
       band={band}
       note={roleNote}
+      badge={(p) => (advice.some((a) => a.p.id === p.id) ? <ReleaseBadge /> : null)}
+      extraSort={relSort}
+      initExtra={sort === 'release'}
       rowAction={(p) => [...squadKinds(p).map((k) => <AddChip key={k} kind={k} pid={p.id} />), <BlockChip key="block" pid={p.id} />]}
     />
     </>
@@ -249,7 +295,8 @@ function Desk() {
       )}
       <Summary pv={pv} done={done} mobile={mobile} onConfirm={confirm} />
       {cardP && (
-        <CardPop player={cardP} onClose={() => setCard(null)}>
+        <CardPop player={cardP} onClose={() => setCard(null)} extra={cardAdv ? <ReleaseWhy a={cardAdv} /> : undefined}>
+          {cardAdv && releaseTradeFirst(core, cardAdv) && <BlockChip pid={cardP.id} big />}
           {cardFa && (
             <span className="mr-auto self-center text-[11px] text-white/75 mob:text-[13px]" data-testid="card-bonus">
               {bonusText(core, cardFa, cardAhead)}

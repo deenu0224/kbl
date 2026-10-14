@@ -105,6 +105,8 @@ export default function RemedySheet({
       return onClose();
     }
     if (a.t === "go") {
+      // 방출 검토는 창구를 열어 보면 확인한 것으로 친다 (그 시즌 · 그 상황 동안 다시 올리지 않는다)
+      if (a.to === "release" && todo.dismissible) useUi.getState().dismissTodo(todo.id);
       onClose();
       return go(a.to, a.sub, a.pid);
     }
