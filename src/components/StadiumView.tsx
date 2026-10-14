@@ -13,7 +13,7 @@ import GameSummary, { TeamTag } from './GameSummary';
 import { useIsMobile } from './layout/useLayout';
 import { fastFor, useUi } from './layout/uiStore';
 import { uiZoom } from './layout/uiScale';
-import { awayFacilities, awayFanShare } from './layout/away';
+import { awayFacilities, awayFanShare, awayFillSize } from './layout/away';
 import { teamDef } from '../game/generate';
 import { clinchesTitle } from '../game/postseason';
 import { defendingChamp } from '../game/campaign';
@@ -166,6 +166,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const crowd = useStore((s) => s.crowd);
   const teams = useStore((s) => s.teams);
   const userId = useStore((s) => s.userId);
+  const season = useStore((s) => s.season);
   const schedule = useStore((s) => s.schedule);
   const day = useStore((s) => s.day);
   const phase = useStore((s) => s.phase);
@@ -209,7 +210,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
     let fx: StadiumFx = { kind: 'none' };
     let fxKey = 0;
     let homeBatting = false;
-    if (away) fill = Math.min(0.95, 0.45 + 0.5 * (teamDef(oppId)?.pop ?? 0.6));
+    if (away) fill = Math.min(0.95, 0.45 + 0.5 * (teamDef(oppId)?.pop ?? 0.6)) * (oppId ? awayFillSize({ teams, season }, oppId) : 1);
     if (report) {
       if (!away) fill = report.isHome && report.crowd ? Math.min(1, report.crowd.attendance / Math.max(1, report.crowd.capacity)) : idleFill * 0.15;
       fxKey = (report.day + 1) * 100 + step;
@@ -232,7 +233,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
     }
     if (away && opp) {
       return {
-        facilities: awayFacilities(opp.id),
+        facilities: awayFacilities({ teams, season }, opp.id),
         homeColor: opp.color,
         homeColor2: opp.color2,
         awayColor: user.color,
@@ -266,7 +267,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
       gateQueue, // 재생 중에는 그 경기의 줄
       autumn: autumn || undefined, // 가을야구 동안 우리 홈 구장의 깃발줄
     };
-  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras, away, awayRep, fans, oppId, autumn]);
+  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras, away, awayRep, fans, oppId, autumn, teams, season]);
   const titleWall = away ? [] : (scene.titleWall ?? []);
 
   const star = useMemo(() => user.roster.reduce<(typeof user.roster)[number] | null>((a, p) => (!a || p.star > a.star ? p : a), null), [user.roster]);

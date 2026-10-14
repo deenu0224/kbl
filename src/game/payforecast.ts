@@ -25,6 +25,7 @@ import { clamp } from './rng';
 import { DRAFT_ROUNDS } from './draft';
 import { POST_DIVIDEND } from './campaign';
 import { fmtMoney } from './format';
+import { awayGate } from './gate';
 
 const RETIRE_AGE = 40; // season.ts 와 같다
 
@@ -150,7 +151,11 @@ export function nextSeasonForecast(core: Core): PayForecast {
   const played = core.phase === 'season' ? core.day : len;
   const scaled = core.phase === 'season' && core.day < len;
   const div = core.phase === 'season' ? 0 : POST_DIVIDEND[core.post?.userFinish ?? 'none'] ?? 0;
-  const gross = L.ticket + (L.awayGate ?? 0) + L.food + L.merch + L.league - div;
+  // 원정 몫: 내년엔 상대 구장이 커질 수 있다 (gate.ts awayFacilities) — 리그 중간 순위·금요일급 요일 어림의 내년/올해 비율을 곱한다
+  const others = core.teams.filter((x) => x.id !== core.userId);
+  const awayAt = (season: number) => others.reduce((sum, x) => sum + awayGate({ teams: core.teams, fans: core.fans, season }, x.id, Math.ceil(core.teams.length / 2), 3).gross, 0);
+  const awayGrow = awayAt(core.season + 1) / Math.max(1, awayAt(core.season));
+  const gross = L.ticket + (L.awayGate ?? 0) * awayGrow + L.food + L.merch + L.league - div;
   const income = Math.round(scaled ? (gross * len) / Math.max(1, played) : gross);
   // 지출: 지금 시설·팬 규모·부채 그대로
   const homes = core.schedule.filter((d) => d.some((g) => g.homeId === core.userId)).length;

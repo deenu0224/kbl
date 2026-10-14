@@ -113,6 +113,9 @@ export const SCREENS = [
   // ── 홈
   S('home', 'opened', game()),
   S('home-away', 'away', game()),
+  // 상대 구장 성장: 같은 13,000석 개막 구단의 1시즌 · 9시즌+ 원정
+  S('home-away-early', 'awayEarly', game()),
+  S('home-away-late', 'awayLate', game()),
   S('home-full', 'opened', game({ dblclick: 'stadium-pan' }), { only: 'mobile' }),
   S('home-soldout', 'soldout', game()),
   S('home-injury', 'injury', game()),

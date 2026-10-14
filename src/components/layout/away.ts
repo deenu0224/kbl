@@ -1,7 +1,7 @@
 import type { Core } from '../../game/types';
 
 // 원정 응원단·상대 구장 시설은 원정 입장 몫 모델(game/gate.ts)과 같이 쓴다
-export { awayFacilities, awayFanShare } from '../../game/gate';
+export { awayFacilities, awayFanShare, awayFillSize } from '../../game/gate';
 
 export interface TripInfo {
   home: boolean;

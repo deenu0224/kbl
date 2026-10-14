@@ -937,7 +937,7 @@ export const FARM_CARDS: FarmCardDef[] = [
           {
             label: '내린다',
             desc: `${p.name} 2군행 · ${alt ? `주전 ${p.ovr} → ${alt.ovr}` : `${FARM_LOCK}경기 재등록 불가`}`,
-            disabled: farmRoster(t).length >= farmMax(c) ? '2군이 가득 찼습니다' : undefined,
+            disabled: farmRoster(t).length >= farmMax(c) ? '2군이 가득 찼습니다' : !spareOnActive(t, p) ? `1군 ${p.kind === 'B' ? '타자' : '투수'}가 모자랍니다` : undefined,
             detail: {
               rows: [alt ? rowOvr('주전', p.ovr, alt.ovr) : rowInfo('주전', '빈자리는 감독이 메운다', `${p.name} ${p.ovr}`), rowInfo(`${p.name} 재등록`, `${FARM_LOCK}경기 불가`, undefined, 'bad'), growRow(c, p)],
               ...pair(p, alt),
