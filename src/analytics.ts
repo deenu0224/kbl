@@ -71,7 +71,8 @@ export function initAnalytics() {
 
 // ── 초기 화면의 "단장 n명" ──
 // GoatCounter 의 공개 집계(사이트 설정에서 visitor counter 를 켜야 한다)에서 새 게임 수를 읽는다.
-// 서버가 없어 "지금 접속 중"은 셀 수 없다. 누적과 오늘 시작한 수만 보여 준다.
+// 서버가 없어 "지금 접속 중"은 셀 수 없다. 공개 집계는 GoatCounter 쪽에서 몇 시간씩 캐시되므로(주소 뒤 쿼리로도 못 피한다)
+// "오늘 n명" 은 날이 바뀌어도 어제 값이 남을 수 있어 보여 주지 않고, 누적만 쓴다.
 const COUNT_KEY = 'kbl-gm-count2';
 const COUNT_MIN = 5; // 이보다 적으면 보여 주지 않는다
 export interface GmCount { total: number; today: number; champ: number; champToday: number; moved: number }
