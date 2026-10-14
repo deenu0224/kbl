@@ -142,6 +142,7 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: 
     title: '자금 예측',
     lines: [
       '최근 홈 관중과 지금 연봉·유지비가 이어진다고 보고 남은 경기를 계산합니다.',
+      '입장 수입은 KBO처럼 홈 72 : 원정 28로 나눕니다.',
       `금고가 ${RUNWAY_SHOW}경기 안에 비면 경고가 뜨고, ${RUNWAY_DANGER}경기 안이면 빨간색입니다.`,
       `금고가 비면 모자란 돈은 연 ${Math.round(LOAN_RATE * 100)}% 긴급 대출로 바뀝니다.`,
       '부채가 한도를 넘으면 영입·투자가 막히고, 보낼 선수를 골라야 합니다.',

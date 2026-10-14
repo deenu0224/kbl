@@ -425,6 +425,7 @@ export function StadiumTab({ part }: { part?: 'ticket' | FacilityKind } = {}) {
 
 const INCOME: [keyof Ledger, string][] = [
   ['ticket', '입장'],
+  ['awayGate', '원정 입장'],
   ['food', '매점'],
   ['merch', '굿즈'],
   ['league', '분배금'],
@@ -455,7 +456,7 @@ export function LedgerBars({ ledger }: { ledger: Ledger }) {
         <span>수입</span>
         <span>+{fmtMoney(income)}</span>
       </div>
-      {INCOME.map(([k, label]) => (lv(ledger, k) > 0 || k !== 'sales' ? <MoneyBar key={k} label={label} text={fmtMoney(lv(ledger, k))} ratio={lv(ledger, k) / max} color="#6ee07a" /> : null))}
+      {INCOME.map(([k, label]) => (lv(ledger, k) > 0 || (k !== 'sales' && k !== 'awayGate') ? <MoneyBar key={k} label={label} text={fmtMoney(lv(ledger, k))} ratio={lv(ledger, k) / max} color="#6ee07a" /> : null))}
       <div className="mt-1 flex justify-between text-[10px] text-bad">
         <span>지출</span>
         <span>-{fmtMoney(expense)}</span>

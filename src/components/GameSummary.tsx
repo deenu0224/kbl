@@ -36,10 +36,12 @@ function RankMove({ before, after }: { before: number; after: number }) {
 }
 
 function MoneyBlock({ m, netLabel = '오늘 순익' }: { m: DayReport['money']; netLabel?: string }) {
-  const max = Math.max(1, m.ticket, m.food, m.merch, m.league, m.salary, m.upkeep, m.interest);
+  const away = m.awayGate ?? 0;
+  const max = Math.max(1, m.ticket, away, m.food, m.merch, m.league, m.salary, m.upkeep, m.interest);
   return (
     <div className="flex flex-col gap-[3px]">
-      <MoneyBar label="입장" text={`+${fmtMoney(m.ticket)}`} ratio={m.ticket / max} color="#6ee07a" />
+      {(m.ticket > 0 || !away) && <MoneyBar label="입장" text={`+${fmtMoney(m.ticket)}`} ratio={m.ticket / max} color="#6ee07a" />}
+      {away > 0 && <MoneyBar label="원정 입장" text={`+${fmtMoney(away)}`} ratio={away / max} color="#6ee07a" />}
       <MoneyBar label="매점" text={`+${fmtMoney(m.food)}`} ratio={m.food / max} color="#6ee07a" />
       <MoneyBar label="굿즈" text={`+${fmtMoney(m.merch)}`} ratio={m.merch / max} color="#6ee07a" />
       <MoneyBar label="분배금" text={`+${fmtMoney(m.league)}`} ratio={m.league / max} color="#6ee07a" />
