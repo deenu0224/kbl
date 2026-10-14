@@ -329,6 +329,7 @@ export const SCREENS = [
   S('autumn-view', 'post', game()),
   S('autumn-view-fast', 'post', game('postview-fast')),
   S('autumn-view-play', 'post', game('▶ 경기 진행', { wait: 5200 })),
+  S('autumn-line-late', 'post', game('▶ 경기 진행', { wait: 14000 })),
 
   // ── 포스트시즌
   S('post-home', 'post', game()),
