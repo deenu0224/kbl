@@ -4,7 +4,7 @@ import { josa } from './format';
 import type { BatPos, Core, Player, Team } from './types';
 import {
   FARM_LOCK, FOOD_LV, LOAN_STEP, loanInterest, loanLimit, MIN_BATTERS, MIN_PITCHERS, RAIN_ROOF, ROOF_SEATS, ROSTER_MAX, SEAT_LV, SVC_YEARS, WEATHER_MULT,
-  activeRoster, capacityOf, farmRoster, hasRoof, previewDemand, releaseCost, bonusText, signingBonusFor, upgradeCost, userTeam, deadlinesSoon,
+  activeRoster, capacityOf, farmMax, farmRoster, payroll, hasRoof, previewDemand, releaseCost, bonusText, signingBonusFor, upgradeCost, userTeam, deadlinesSoon,
 } from './economy';
 import { svcYear } from './contract';
 import { FOREIGN_MAX } from './events';
@@ -20,8 +20,9 @@ import { runway, runwayAfter, type Runway } from './runway';
 import { POS_NAME } from './script';
 import { borrow, repay, callUp, farmLockLeft, ilLock, releasePlayer, sendDown, setTicketPrice, signPlayer, upgradeFacility } from './season';
 import { tiredPenalty } from './sim';
+import { releaseAdvice } from './release';
 
-export type RemedyGo = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad';
+export type RemedyGo = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad' | 'release';
 /** 직렬화 가능한 액션 서술. 대상은 실행 시점의 core 에서 다시 찾는다 */
 export type RemedyAction =
   | { t: 'sub' } // 부상 주전·선발 자리에 1군 대체 선수를 넣는다
@@ -497,6 +498,19 @@ function scoutRemedies(core: Core): Remedy[] {
   return [{ id: 'go', run: { t: 'go', to: 'market', pid: ps[0].id }, tone: 'good', label: `이적 창구 열기 — 추천 ${ps.length}명`, effect: ps.slice(0, 2).map((p) => `${p.name}(${posKo(p.pos)} 오버롤 ${p.ovr} · 연봉 ${fmtMoney(p.salary)})`).join(' · ') }, CLOSE];
 }
 
+/** 방출 검토: 이적 창구의 우리 선수단을 "방출 후보순"으로 연다 (방출은 거기서 [− 방출] 담기로만) */
+function releaseRemedies(core: Core): Remedy[] {
+  const adv = releaseAdvice(core);
+  if (!adv.length) return [CLOSE];
+  return [
+    {
+      id: 'go', run: { t: 'go', to: 'release', pid: adv[0].p.id }, tone: 'warn', label: `이적 창구 열기 — 방출 후보 ${adv.length}명`,
+      effect: adv.slice(0, 2).map((a) => `${a.p.name}(오버롤 ${a.p.ovr} · 연봉 ${fmtMoney(a.p.salary)})`).join(' · '),
+    },
+    CLOSE,
+  ];
+}
+
 function faRemedies(core: Core): Remedy[] {
   const t = userTeam(core);
   const fa = t.roster.filter((p) => (svcYear(core, p) ?? 0) >= SVC_YEARS).sort((a, b) => b.ovr - a.ovr);
@@ -563,6 +577,7 @@ export function remedies(core: Core, todoId: string): Remedy[] {
     : id === 'away' ? awayRemedies(core)
     : id === 'scout' ? scoutRemedies(core)
     : id === 'fa' ? faRemedies(core)
+    : id === 'rel' ? releaseRemedies(core)
     : id === 'beat' ? beatRemedies(core, todoId)
     : id === 'dl' ? deadlineRemedies(core, todoId)
     : [];
@@ -604,6 +619,8 @@ export function remedyNow(core: Core, todoId: string): string {
       return `좌석 ${fmtInt(capacityOf(core))}석 · 티켓값 ${core.finance.ticketPrice.toFixed(1)}만 · 현금 ${fmtMoney(core.finance.cash)}`;
     case 'scout':
       return `현금 ${fmtMoney(core.finance.cash)} · 1군 ${act.length}/${ROSTER_MAX}명`;
+    case 'rel':
+      return `1군 ${act.length}/${ROSTER_MAX}명 · 2군 ${farmRoster(t).length}/${farmMax(core)}명 · 연봉 총액 ${fmtMoney(payroll(t))} · 현금 ${fmtMoney(core.finance.cash)}`;
     case 'fa':
       return `남은 경기 ${core.schedule.length - core.day} · 현금 ${fmtMoney(core.finance.cash)}`;
     case 'beat':

@@ -29,7 +29,8 @@ export const RL = {
   costPerEok: 6, // 5. 방출 비용: 잔여 연봉 지급 1억당 −
   starter: 20, // 주전(라인업·로테이션·마무리)은 −: 빠지면 전력이 바로 준다
   partDrop: 4, // 방출하면 전력 4칸 합이 1 줄 때마다 −
-  min: 20, // 이 점수 이상만 추천
+  onlyBackup: 12, // 그 자리(본 포지션)를 볼 수 있는 1군 벤치가 이 선수뿐이면 −
+  min: 28, // 이 점수 이상만 추천 (벤치라는 이유 하나로는 넘지 못한다 — 다른 이유가 하나 더 있어야 한다)
   max: 3, // 최대 인원
 };
 const EOK = 10000;
@@ -104,6 +105,10 @@ function lines(core: Core, p: Player): Line[] {
           const pts = RL.blocked + (1 - use) * RL.lowUse;
           out.push({ pts, text: `${POS_LABEL[blk.pos as PosKey]} 주전 ${blk.q.name}(${blk.q.ovr})에 밀림${n >= RL.useFrom ? ` · 출전 ${g}경기` : ''}` });
         } else if (n >= RL.useFrom && use < 0.3) out.push({ pts: (1 - use) * RL.lowUse, text: `벤치 · 출전 ${g}경기 (팀 ${n}경기)` });
+        // 유일한 백업: 본 포지션을 볼 수 있는 다른 1군 벤치가 없다
+        const inLu = new Set(t.lineup.map((l) => l.pid));
+        const others = activeRoster(t).filter((x) => x.kind === 'B' && x.id !== p.id && !inLu.has(x.id) && canPlay(x).includes(p.pos as never));
+        if (p.pos !== 'DH' && !others.length) out.push({ pts: -RL.onlyBackup, text: '' });
       }
     } else {
       const g = p.pit.g;
@@ -185,7 +190,7 @@ export function releaseOutcome(core: Core, pid: string): { pv: TransferPreview; 
   const bits: string[] = [];
   const dPay = pv.payroll.b - pv.payroll.a;
   if (dPay) bits.push(`연봉 ${dPay < 0 ? '−' : '+'}${fmtMoney(Math.abs(dPay))}/시즌`);
-  bits.push(`잔여 연봉 ${fmtMoney(pv.penalty)} 지급`);
+  bits.push(pv.penalty > 0 ? `잔여 연봉 ${fmtMoney(pv.penalty)} 지급` : '잔여 연봉 없음');
   const KO = { bat: '타선', def: '수비', rot: '선발', pen: '불펜' } as const;
   const moved = (['bat', 'def', 'rot', 'pen'] as const).filter((k) => pv.parts.a[k] !== pv.parts.b[k]);
   bits.push(moved.length ? moved.map((k) => `${KO[k]} ${pv.parts.b[k] > pv.parts.a[k] ? '+' : '−'}${Math.abs(pv.parts.b[k] - pv.parts.a[k])}`).join(' · ') : '전력 그대로');

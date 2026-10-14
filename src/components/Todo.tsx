@@ -74,6 +74,9 @@ export function useGoScreen(): (
       case "squad":
         openDesk({ side: "squad" });
         break;
+      case "release":
+        openDesk({ side: "squad", sort: "release" });
+        break;
       case "market":
         openDesk({ side: "market", pos: "weak" });
         break;
