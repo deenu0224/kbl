@@ -142,7 +142,7 @@ export function upcomingForecasts(core: Core, lead = 12): Beat[] {
   return (core.campaign.beats ?? []).filter((b) => !!b.label && b.to >= core.day && b.from - core.day <= lead);
 }
 
-function userGame(core: Core, day: number): { oppId: string; home: boolean } | null {
+export function userGame(core: Core, day: number): { oppId: string; home: boolean } | null {
   const m = core.schedule[day]?.find((g) => g.homeId === core.userId || g.awayId === core.userId);
   if (!m) return null;
   const home = m.homeId === core.userId;

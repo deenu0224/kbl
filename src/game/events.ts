@@ -16,7 +16,7 @@ import { rowAdd, rowCash, rowFans, rowInfo, rowMult, rowNone, rowOvr, rowPayroll
 import { SIM, tiredPenalty } from './sim';
 import { teamParts } from './ratings';
 import { winDelta } from './briefing';
-import { beatOn, midDay, POS_NAME } from './script';
+import { beatOn, midDay, POS_NAME, userGame } from './script';
 import { dayAt } from './league';
 import { cardRested, markCardMut, memoGet, memoNum, memoSet, seenCards } from './memo';
 import { CARD_LINES, CHARACTERS, NEWS, STAGE_STORY, TRUST_LABEL } from './story';
@@ -570,7 +570,8 @@ export const CARDS: CardDef[] = [
     forced: true,
     when: (c) => {
       const b = beatOn(c, c.day, 'rainy');
-      return !!b && c.day >= b.from + 2;
+      // 섬을 떠나는 날만: 오늘이 원정이고 직전 경기가 홈 (이미 원정 중이면 비행기를 탈 일이 없다)
+      return !!b && c.day >= b.from + 2 && userGame(c, c.day)?.home === false && userGame(c, c.day - 1)?.home !== false;
     },
     make: (c) =>
       card('typhoon', null, {
