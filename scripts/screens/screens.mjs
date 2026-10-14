@@ -3,7 +3,9 @@
 //   steps:   { click: testid 또는 글 } · { dblclick } · { wait: ms } · { fill: testid, text } · { scroll: 'bottom'|'top' } · { key }
 //            click 에는 nth(같은 것이 여럿일 때) · optional(없어도 넘어감) · when('mobile'|'desktop') 을 붙일 수 있다
 //   only:    'mobile' | 'desktop' — 그 레이아웃에만 있는 화면
-//   query:   주소 뒤에 붙일 쿼리 ('?l=...' — 도전 링크)
+//   query:   주소 뒤에 붙일 쿼리 ('?l=...' — 도전 링크 · '?fxT=2.4' — 우승 세리머니 시간 고정)
+//   motion:  true 면 움직임 줄이기를 끄고 찍는다 (기본은 reducedMotion 'reduce')
+//   steps 의 { waitFor: testid, timeout? } 은 그 요소가 보일 때까지 기다린다
 // 클릭 대상을 못 찾으면 그 화면은 missing 으로 기록되고 순회는 계속된다.
 
 /** 검사 허용 목록: { kind?, testid?, testidPrefix?, text?(정규식), selector? } — 의도된 것만 적는다 */
@@ -266,6 +268,14 @@ export const SCREENS = [
   S('week', 'opened', game('1주', { wait: 1500 })),
 
   // ── 시즌 끝
+  // 한국시리즈 우승: 확정 경기의 세리머니(홈·원정 · 움직임 줄이기) · 첫 우승 결산 · 2연패 결산 · 우승 다음 시즌 홈 구장
+  S('champ-ceremony', 'ksClinchHome', game(...PLAY, { waitFor: 'champion-ceremony', timeout: 40000 }), { query: '?fxT=2.4', motion: true }),
+  S('champ-ceremony-calm', 'ksClinchHome', game(...PLAY, { waitFor: 'champion-ceremony', timeout: 40000 }), { query: '?fxT=2.4' }),
+  S('champ-ceremony-away', 'ksClinchAway', game(...PLAY, { waitFor: 'champion-ceremony', timeout: 40000 }), { query: '?fxT=2.4', motion: true }),
+  S('champ-ended', 'champ1', game(c('계속', { optional: true }))),
+  S('champ-ended-bottom', 'champ1', game(c('계속', { optional: true }), { scroll: 'bottom' })),
+  S('champ-ended-2', 'champ2', game(c('계속', { optional: true }))),
+  S('champ-defending', 'defending', game()),
   S('ended', 'ended', game()),
   S('ended-bottom', 'ended', game({ scroll: 'bottom' })),
   S('ended-folds', 'ended', game('fold-bracket', 'fold-awards', 'fold-ledger')),
