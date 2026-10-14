@@ -10,7 +10,7 @@ import { fmtInt, fmtMoney, josa } from './format';
 import { isFranchise } from './franchise';
 import { fixLineup } from './lineup';
 import { memoNum } from './memo';
-import { addNews, marketSalary } from './season';
+import { marketSalary } from './season';
 import { dayAt } from './league';
 import { trFrom, trTo } from './trade';
 import { powerLoss } from './debt';
@@ -104,7 +104,6 @@ export const RELIEF_CARDS: ReliefCardDef[] = [
       c.finance.ledger.league += fee;
       const d = repayMut(c, fee);
       c.campaign.buffs.push({ kind: 'turf', value: RF.turf, until: c.schedule.length, left: RF.turfGames, label: `잔디 손상 (홈 수비 ${RF.turf})` });
-      addNews(c, `🎤 구장 대관 콘서트 — 대관료 ${fmtMoney(fee)}로 빚을 갚았습니다`, 'good');
       return `대관료 ${fmtMoney(fee)} — 부채 ${fmtMoney(d)}`;
     },
   },
@@ -158,7 +157,6 @@ export const RELIEF_CARDS: ReliefCardDef[] = [
       c.finance.ledger.sales += price;
       const d = repayMut(c, price);
       fixLineup(t);
-      addNews(c, `💼 ${josa(p.name, '이', '가')} ${buyer}로 현금 이적 — 대금 ${fmtMoney(price)}로 빚을 갚았습니다`, 'info');
       return `${p.name} 매각 (${fmtMoney(price)}) — 부채 ${fmtMoney(d)}`;
     },
   },

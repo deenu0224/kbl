@@ -69,6 +69,7 @@ export interface Player {
   ask?: number; // FA 재계약 때 합의한 배율 (시장가 × 이 값. 유저 팀에 있는 동안 유지)
   away?: { until: number; kind: 'army' }; // 팀을 떠나 있는 선수 (입대). until 시즌 개막에 복귀. 로스터가 아니라 campaign.away 에 있다
   served?: boolean; // 군 복무를 마쳤거나 입대한 선수 (입대 통지 대상에서 빠진다)
+  mlbAsk?: number; // 메이저리그 포스팅 제안을 받은 횟수 (붙잡으면 한 번 더 온다. posting.ts)
   armyDue?: number; // 입대를 미룬 선수: 이 시즌 60경기 뒤 선택 없이 입대한다
   prev?: { season: number; bat: BatStats; pit: PitStats; ovr?: number }; // 지난 시즌 기록 (시즌이 바뀔 때 옮겨 적는다). ovr = 그 시즌 끝의 오버롤 (방출 추천의 하락 판정. 옛 세이브에는 없다)
   subFor?: string; // 부상 대체로 자동 콜업된 선수: 대신하는 부상자의 id (복귀하면 2군으로 돌아간다)
@@ -463,6 +464,7 @@ export interface Campaign {
   subAuto?: boolean; // 부상 대체: true = 감독에게 맡기기 (undefined = 직접 고르기). subpick.ts
   penStyle?: 'trust' | 'balance' | 'swarm'; // 불펜 운영 방침 (undefined = 균형). sim.ts
   away?: Player[]; // 팀을 떠나 있는 선수 (입대). 각 선수의 away.until 시즌 개막에 돌아온다
+  mlb?: { last: number; gone: { p: Player; season: number }[] }; // 메이저리그 포스팅: 마지막 제안 시즌 · 보낸 선수(몇 시즌 뒤 복귀 카드). posting.ts
   posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)
   cardSeen?: Record<string, number>; // 카드 기본 id → 마지막으로 나온 시즌 (재등장 간격. events.ts cardRested)
   alumni?: { name: string; season: number; pos: string }[]; // 유저 팀에서 은퇴한 스타성 60+ 선수 (인스트럭터 후보. 영구결번과 별개)

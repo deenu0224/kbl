@@ -27,6 +27,7 @@ import { drawSubCard, resolveSubCard } from './subpick';
 import { positionReport } from './analysis';
 import { SCANDAL_CARDS } from './scandal';
 import { RELIEF_CARDS } from './relief';
+import { MLB_ID, resolveMlbMut } from './posting';
 import { TRADE_ID, drawTrade, resolveTradeMut } from './trade';
 import { DEBT_SALE_ID, drawDebtSale, resolveDebtSaleMut } from './debt';
 
@@ -852,6 +853,8 @@ export const CARDS: CardDef[] = [
   },
   // ───────── 트레이드 제안 (trade.ts drawTrade 가 올린다. 일반 카드와 별도 예산) ─────────
   { id: TRADE_ID, prio: 0, forced: true, when: () => false, make: () => null, resolve: (c, i, cd, rng) => resolveTradeMut(c, i, cd, rng) },
+  // 메이저리그 포스팅·복귀 (스토브리그. posting.ts drawMlb 가 올린다)
+  { id: MLB_ID, prio: 0, forced: true, when: () => false, make: () => null, resolve: (c, i, cd) => resolveMlbMut(c, i, cd) },
   {
     id: 'tourist',
     prio: 35,

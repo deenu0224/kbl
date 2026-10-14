@@ -18,6 +18,7 @@ import { addNews, marketSalary } from './season';
 import { memoAdd, memoGet, memoNum, memoSet } from './memo';
 import { rowCash, rowFans, rowInfo, rowPayroll, rowSat, satAfter, type Row } from './eventRows';
 import { CHARACTERS, NEWS } from './story';
+import { drawMlb } from './posting';
 
 // ── 튜닝 상수 ──
 export const TR = {
@@ -541,6 +542,10 @@ export function drawTrade(core0: Core, rng: Rng): Core {
 
 /** 스토브리그(결산 후 · 드래프트 전): 제안 1건. 내놓은 선수가 있으면 그 선수부터 */
 export function drawStoveTrade(core0: Core, rng: Rng): Core {
+  // 메이저리그 포스팅·복귀 카드가 먼저 (posting.ts · 스토브리그에 한 번 검사)
+  const mlb = drawMlb(core0, rng);
+  if (mlb.campaign.event) return mlb;
+  core0 = mlb;
   if (!TRADE_AUDIT.offers || core0.phase !== 'ended' || core0.campaign.event || memoGet(core0, 'trStove')) return core0;
   const core = structuredClone(core0);
   memoSet(core, 'trStove', 1);
