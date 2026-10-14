@@ -325,6 +325,10 @@ export const SCREENS = [
   S('po-from-wc-bracket', 'poFromWc', game('리그', '대진표')),
   S('po-from-wc-home', 'poFromWc', game()),
   S('po-from-wc-table', 'poFromWc', game('리그')),
+  // 가을야구 보기 속도: 기본 천천히 · [빨리] 누른 뒤 · 천천히 재생 중 (장면 점이 늘어난다)
+  S('autumn-view', 'post', game()),
+  S('autumn-view-fast', 'post', game('postview-fast')),
+  S('autumn-view-play', 'post', game('▶ 경기 진행', { wait: 5200 })),
 
   // ── 포스트시즌
   S('post-home', 'post', game()),
