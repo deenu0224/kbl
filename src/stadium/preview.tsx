@@ -20,6 +20,9 @@ const FX: { label: string; fx: StadiumFx }[] = [
   { label: '공사: 관중석', fx: { kind: 'build', target: 'seats' } },
   { label: '공사: 매점', fx: { kind: 'build', target: 'food' } },
   { label: '공사: 훈련장', fx: { kind: 'build', target: 'training' } },
+  { label: '우승(홈)', fx: { kind: 'champion', away: false, c1: '', c2: '' } },
+  { label: '우승(원정)', fx: { kind: 'champion', away: true, c1: '', c2: '' } },
+  { label: '우승(움직임 줄임)', fx: { kind: 'champion', away: false, c1: '', c2: '', calm: true } },
 ];
 
 function Row(props: { label: string; children: ReactNode }) {
@@ -65,6 +68,7 @@ function Preview() {
   const [playing, setPlaying] = useState(false);
   const [homeBatting, setHomeBatting] = useState(true);
   const [banners, setBanners] = useState(qNum('banners') ?? 0);
+  const [wall, setWall] = useState(qNum('wall') ?? 0);
   // v3 필드: undefined = 필드 없음(기존 화면)
   const [oldBanner, setOldBanner] = useState<boolean | undefined>(Q.has('old') ? Q.get('old') === '1' : undefined);
   const [gateQueue, setGateQueue] = useState<number | undefined>(qNum('queue'));
@@ -88,9 +92,12 @@ function Preview() {
     night,
     playing,
     homeBatting,
-    fx,
+    // 우승 fx 의 팀 색은 "우리 팀"(홈이면 홈, 원정 우승이면 원정 팀) 색으로 채운다
+    fx: fx.kind === 'champion' ? { ...fx, c1: TEAMS[fx.away ? away : home].c, c2: TEAMS[fx.away ? away : home].c2 } : fx,
     fxKey,
     banners,
+    titleWall: [3, 5].slice(2 - Math.min(2, wall)),
+    awayFans: fx.kind === 'champion' && fx.away ? 0.2 : undefined,
     oldBanner,
     gateQueue,
     cheerLv,
@@ -216,6 +223,13 @@ function Preview() {
           <Btn on={spots} onClick={() => setSpots((v) => !v)}>
             핫스팟 표시
           </Btn>
+        </Row>
+        <Row label="펜스 우승">
+          {[0, 1, 2].map((v) => (
+            <Btn key={v} on={wall === v} onClick={() => setWall(v)}>
+              {v}
+            </Btn>
+          ))}
         </Row>
         <Row label="옛 깃발">
           <Btn on={oldBanner === undefined} onClick={() => setOldBanner(undefined)}>
