@@ -14,7 +14,7 @@ import { fmtMoney } from './format';
 import { fixLineup } from './lineup';
 import { isFranchise, seasonsWith } from './franchise';
 import { batZero, pitZero } from './generate';
-import { addNews, marketSalary } from './season';
+import { addNews, marketSalary, rankOf } from './season';
 import { marketRatio } from './contract';
 import { cardRested, markCardMut, memoGet, memoSet } from './memo';
 import { rowCash, rowFans, rowInfo, rowPayroll, rowSat, rowTrust, satAfter, trustAfter } from './eventRows';
@@ -527,6 +527,7 @@ export function exposeMut(core: Core, rng: Rng, champion: boolean): Exposure[] {
   const c = core.campaign;
   const out: Exposure[] = [];
   const keep: Secret[] = [];
+  let trustNow = c.trust;
   for (const s of c.secrets ?? []) {
     if (rng() >= detectChance(core.season - s.season)) {
       keep.push(s);
@@ -537,7 +538,8 @@ export function exposeMut(core: Core, rng: Rng, champion: boolean): Exposure[] {
     const past = c.history.find((h) => h.season === s.season);
     const tainted = past ? past.post === 'champion' : champion;
     if (past && tainted) past.tainted = true;
-    const ex: Exposure = { kind: s.kind, name: s.name, season: s.season, trust: SC.trust[s.kind], stars: 0, wins: 0, fine: 0, ban: 0, tainted };
+    const ex: Exposure = { kind: s.kind, name: s.name, season: s.season, trust: SC.trust[s.kind], stars: 0, wins: 0, fine: 0, ban: 0, tainted, trustFrom: trustNow };
+    trustNow = clamp(trustNow + ex.trust, 0, 100);
     if (s.kind === 'dope') {
       if (p) {
         p.bat = batZero();
@@ -549,9 +551,12 @@ export function exposeMut(core: Core, rng: Rng, champion: boolean): Exposure[] {
       ex.fine = payFineMut(core, 'dopeExposed');
     } else {
       if (p) removeMut(core, p, false);
+      const r0 = rankOf(core.teams, core.userId);
+      ex.wFrom = t.rec.w;
       ex.wins = Math.min(SC.forfeit, t.rec.w);
       t.rec.w -= ex.wins;
       t.rec.l += ex.wins;
+      ex.rank = [r0, rankOf(core.teams, core.userId)];
       ex.fine = payFineMut(core, 'fixExposed');
       c.leagueCut = { season: core.season + 1, mult: SC.leagueCut };
     }
@@ -575,3 +580,16 @@ export function exposureLines(ex: Exposure): { what: string; lost: string[] } {
   if (ex.tainted) lost.push(SCANDAL_NEWS.tainted);
   return { what: `${ex.season}번째 시즌에 덮은 ${ex.name}의 ${KIND_KO[ex.kind]} 사실이 드러났습니다`, lost };
 }
+
+/** 리그 사무국 긴급 발표 화면의 전 → 후 줄들 (결산 전 장면) */
+export function exposureRows(ex: Exposure): { label: string; from?: string; to: string }[] {
+  const rows: { label: string; from?: string; to: string }[] = [];
+  rows.push(ex.trustFrom !== undefined ? { label: TRUST_LABEL, from: `${ex.trustFrom}`, to: `${clamp(ex.trustFrom + ex.trust, 0, 100)}` } : { label: TRUST_LABEL, to: `${ex.trust}` });
+  if (ex.wins) rows.push({ label: `${ex.wins}승 몰수`, ...(ex.wFrom !== undefined ? { from: `${ex.wFrom}승`, to: `${ex.wFrom - ex.wins}승` } : { to: `−${ex.wins}승` }) });
+  if (ex.rank && ex.rank[0] !== ex.rank[1]) rows.push({ label: '정규시즌 순위', from: `${ex.rank[0]}위`, to: `${ex.rank[1]}위` });
+  if (ex.fine) rows.push({ label: '제재금', to: `−${fmtMoney(ex.fine)}` });
+  if (ex.kind === 'fix') rows.push({ label: '다음 시즌 리그 분배금', from: '100%', to: pctTxt(SC.leagueCut) });
+  rows.push({ label: ex.name, to: ex.kind === 'fix' ? '영구 제명' : ex.ban ? `${ex.ban}경기 출장 정지 · 시즌 기록 삭제` : '이미 팀을 떠났습니다' });
+  return rows;
+}
+export const exposureWhat = (ex: Exposure): string => `${ex.season}번째 시즌에 덮은 ${ex.name}의 ${KIND_KO[ex.kind]}`;

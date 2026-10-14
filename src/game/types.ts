@@ -464,6 +464,9 @@ export interface Exposure {
   fine: number; // 벌금
   ban: number; // 출장 정지 경기 수 (0 = 영구 제명)
   tainted: boolean; // 우승 시즌의 일이었다
+  trustFrom?: number; // 드러나기 직전 도민 지지 (발표 화면의 전 → 후)
+  wFrom?: number; // 몰수 전 승수
+  rank?: [number, number]; // 몰수 전 → 후 정규시즌 순위
 }
 // ───────── 주간 브리핑 (briefing.ts 가 만들고 해석한다) ─────────
 export type BriefAction =

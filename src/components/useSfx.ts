@@ -73,7 +73,8 @@ export function useSfx(): void {
       const verdictUp = (st: typeof s) => (st.campaign.verdict && (st.phase === 'ended' || st.phase === 'over') && !st.summary && !st.playback ? st.campaign.verdict : null);
       const v = verdictUp(s);
       if (v && v !== verdictUp(p)) {
-        if (s.post?.championId === s.userId) play('champion');
+        if (v.exposures?.length) play('lose'); // 리그 사무국 긴급 발표가 먼저 뜬다
+        else if (s.post?.championId === s.userId) play('champion');
         else if (v.fired) play('lose');
         else if (v.cleared || s.campaign.objectives.some((o) => !o.main && o.state === 'done')) play('achievement');
         else play('groan');

@@ -19,6 +19,7 @@ import { PostLegend, cutShadow, rankTone } from './ui';
 import { postTeams } from '../game/league';
 import { Flag, POST_KO, StageTrail, silhouette, stageName } from './Campaign';
 import EndingScene from './EndingScene';
+import ExposureScene from './ExposureScene';
 import ChampionHero from './ChampionHero';
 import { ShareButton } from './ShareSheet';
 import EventCardModal from './EventCardModal';
@@ -171,6 +172,7 @@ function SeasonEndBody() {
   const [armNew, setArmNew] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [endingSeen, setEndingSeen] = useState(false);
+  const [scnOpen, setScnOpen] = useState(true); // 적발 발표: 결산에 들어가기 전에 한 번 (요약 줄에서 다시 연다)
 
   const awards = useMemo(() => seasonAwards(core), [core]);
   const league = useMemo(() => leagueAwards(core), [core]);
@@ -201,6 +203,7 @@ function SeasonEndBody() {
   // 이 결산에서 처음 엔딩 조건을 넘었는가
   const endingNow = !!v?.cleared && !!c.ending && STAGES.slice(stageBefore, Math.max(stageAfter, stageBefore + 1)).some((s) => s.ending);
 
+  if (scnOpen && v?.exposures?.length) return <ExposureScene list={v.exposures} onDone={() => setScnOpen(false)} />;
   if (endingNow && !endingSeen) return <EndingScene onDone={() => setEndingSeen(true)} />;
 
   return (
@@ -270,19 +273,18 @@ function SeasonEndBody() {
             </div>
           </Sheet>
         )}
-        {/* 덮은 일이 드러났다: 무슨 일 · 잃은 것 */}
-        {v?.exposures?.map((ex, i) => {
-          const l = exposureLines(ex);
-          return (
-            <div key={i} className="mt-3 bg-bad/20 px-2 py-2 text-[13px] leading-snug" style={{ boxShadow: '0 0 0 1px #ff6b6b' }} data-testid="exposed">
-              <div className="text-bad">{l.what}</div>
-              <div className="mt-0.5 text-white/85">{l.lost.join(' · ')}</div>
-              <div className="mt-1 text-white/60">
-                {CHARACTERS.chair.name} {CHARACTERS.chair.title} — “{SCANDAL_NEWS.chairExposed}”
-              </div>
-            </div>
-          );
-        })}
+        {/* 덮은 일이 드러났다: 한 줄 요약 (발표 장면을 다시 연다) */}
+        {!!v?.exposures?.length && (
+          <div className="mt-3 flex min-h-10 items-center gap-2 bg-bad/20 px-2 py-1.5 text-[13px] leading-snug" style={{ boxShadow: '0 0 0 1px #ff6b6b' }} data-testid="exposed">
+            <span className="min-w-0 flex-1 text-bad">
+              덮은 일 {v.exposures.length}건이 드러났습니다 — {v.exposures.map((ex) => exposureLines(ex).lost[0]).join(' · ')}
+              {v.exposures.some((ex) => ex.wins) ? ` · ${v.exposures.reduce((s, ex) => s + ex.wins, 0)}승 몰수` : ''}
+            </span>
+            <button className="px-btn shrink-0 whitespace-nowrap" data-testid="exposed-reopen" onClick={() => setScnOpen(true)}>
+              발표 다시 보기
+            </button>
+          </div>
+        )}
 
         {/* 깃발 → 별 → 도민 지지 → 시즌 이름 */}
         <div className="mt-3 grid grid-cols-2 gap-3 por:grid-cols-1">
