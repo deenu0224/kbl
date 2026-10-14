@@ -51,7 +51,7 @@ function TodayCards() {
           <span className="text-[13px] text-white/60">{idle}</span>
         )}
       </div>
-      {inPost && next && <OppClimb className="mt-1 border-t-2 border-ink pt-1" />}
+      {inPost && next && <OppClimb oneRow className="mt-1 border-t-2 border-ink pt-1" />}
       </div>
       <TodoCard />
     </div>
