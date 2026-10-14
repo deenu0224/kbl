@@ -2,7 +2,6 @@ import { projectVerdictLine, projectsOpen } from '../game/projects';
 import { TRUST_LABEL } from '../game/story';
 import Sheet from './layout/Sheet';
 import { ProjectsSection } from './RightPanel';
-import { exposureLines } from '../game/scandal';
 import { CHARACTERS, DEBT_MOOD_LINE, SCANDAL_NEWS } from '../game/story';
 import { luxRule } from '../game/economy';
 import Fold from './Fold';
@@ -275,9 +274,9 @@ function SeasonEndBody() {
         )}
         {/* 덮은 일이 드러났다: 한 줄 요약 (발표 장면을 다시 연다) */}
         {!!v?.exposures?.length && (
-          <div className="mt-3 flex min-h-10 items-center gap-2 bg-bad/20 px-2 py-1.5 text-[13px] leading-snug" style={{ boxShadow: '0 0 0 1px #ff6b6b' }} data-testid="exposed">
-            <span className="min-w-0 flex-1 text-bad">
-              덮은 일 {v.exposures.length}건이 드러났습니다 — {v.exposures.map((ex) => exposureLines(ex).lost[0]).join(' · ')}
+          <div className="mt-3 flex flex-wrap items-center gap-2 bg-bad/20 px-2 py-1.5 text-[13px] leading-snug" style={{ boxShadow: '0 0 0 1px #ff6b6b' }} data-testid="exposed">
+            <span className="min-w-[180px] flex-1 text-bad">
+              덮은 일 {v.exposures.length}건이 드러났습니다 · {TRUST_LABEL} {v.exposures.reduce((s, ex) => s + ex.trust, 0)}
               {v.exposures.some((ex) => ex.wins) ? ` · ${v.exposures.reduce((s, ex) => s + ex.wins, 0)}승 몰수` : ''}
             </span>
             <button className="px-btn shrink-0 whitespace-nowrap" data-testid="exposed-reopen" onClick={() => setScnOpen(true)}>

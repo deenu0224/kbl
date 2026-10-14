@@ -257,7 +257,6 @@ export const SCREENS = [
   // 덮은 일이 따라다닌다: 기자 카드 · 상세 · 선수단 🤫 · 선수 카드 태그 · 캠페인·재무의 적발 위험 · 브리핑 징후 경고
   S('scandal-press', 'pressCard', game()),
   S('scandal-press-detail', 'pressCard', game(c('ev-more', { optional: true }))),
-  S('scandal-press-confess', 'pressCard', game(c('ev-more', { optional: true }), c('지금이라도 털어놓는다', { optional: true }))),
   S('scandal-squad', 'secretQuiet', game(...SQUAD)),
   S('scandal-playercard', 'secretQuiet', game(...SQUAD, 'css:[data-testid="squad-field"] [data-item]:has([data-testid="secret-tag"])')),
   S('scandal-campaign', 'secretQuiet', game('캠페인', { scroll: 'bottom' })),
