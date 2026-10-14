@@ -452,6 +452,11 @@ export interface Secret {
   name: string;
   season: number;
   unknown?: boolean; // 유저가 사실 여부를 모르는 건 ("선수 말을 믿는다"). 화면의 "말하지 않은 일" 건수에 넣지 않는다
+  press?: number; // 기자 카드가 이 일로 찾아온 횟수 (최대 SC.press.max)
+  pressSeason?: number; // 마지막으로 찾아온 시즌
+  heat?: number; // heatSeason 결산의 적발 위험 가감 (입막음 −, 모른 척 +)
+  heatSeason?: number;
+  hushAt?: number[]; // 입막음한 시즌들 (그 다음 시즌부터 기록이 남아 위험이 오른다)
 }
 /** 결산에서 드러난 일 한 건 (결산 화면의 빨간 섹션) */
 export interface Exposure {

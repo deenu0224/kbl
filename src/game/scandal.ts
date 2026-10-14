@@ -76,6 +76,19 @@ export const SC = {
     fixExposed: [150000, 0.5], // 승부조작 적발
   },
   leagueCut: 0.6, // 승부조작 적발: 다음 시즌 리그 분배금 배율
+  // 기자 카드 「기자가 냄새를 맡았다」: 덮은 다음 시즌부터, 덮은 일 1건당 최대 2번 · 시즌에 1장
+  press: {
+    from: 30, // 84경기 기준 이 사이의 하루 (선수·시즌 해시로 정한다. 난수를 쓰지 않는다)
+    to: 55,
+    max: 2,
+    hush: -0.15, // 입막음: 이번 시즌 말 적발 위험
+    hushCost: 0.25, // 입막음 비용 = 그 일의 적발 제재금 × 이 값
+    hushLate: 0.05, // 입막음도 기록이 남는다: 다음 시즌부터 시즌마다 이만큼 (입막음 1번당)
+    ignore: 0.1, // 모른 척: 이번 시즌 말 적발 위험
+    floor: 0.05,
+    cap: 0.6,
+    confess: 0.5, // 털어놓는다: 적발 때 도민 지지 하락의 이만큼. 제재금은 자진 신고·협조 수준, 승수 몰수·분배금 삭감 없음
+  },
 };
 
 type Kind = Secret['kind'];
@@ -515,9 +528,147 @@ export const SCANDAL_CARDS: ScandalCardDef[] = [
   },
 ];
 
+/** 결정적 해시 (난수를 쓰지 않는 연출용) */
+const hashOf = (str: string): number => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return h >>> 0;
+};
+/** 기자 카드가 이번 시즌에 찾아올 덮은 일과 그날 (없으면 null) */
+function pressDue(core: Core): Secret | null {
+  for (const s of core.campaign.secrets ?? []) {
+    const n = s.press ?? 0;
+    if (s.unknown || s.season >= core.season || n >= SC.press.max || s.pressSeason === core.season) continue;
+    const h = hashOf(`${s.pid}|${core.season}`);
+    if (n > 0 && h % 2) continue; // 두 번째는 시즌마다 반반
+    if (core.day >= dayAt(core, SC.press.from + (h % (SC.press.to - SC.press.from + 1)))) return s;
+  }
+  return null;
+}
+const fineKeyOf = (k: Kind, exposed: boolean): FineKey => (k === 'dope' ? (exposed ? 'dopeExposed' : 'dopeReport') : exposed ? 'fixExposed' : 'fixCoop');
+export const hushCost = (core: Core, s: Secret): number => Math.round((fineOf(core, fineKeyOf(s.kind, true)) * SC.press.hushCost) / 100) * 100;
+const confessTrust = (s: Secret) => Math.round(SC.trust[s.kind] * SC.press.confess);
+
+/** 「기자가 냄새를 맡았다」: 덮은 일이 시즌 중에 다시 찾아온다 */
+const PRESS_CARD: ScandalCardDef = {
+  id: 'press',
+  prio: 86,
+  forced: true,
+  when: (c) => !!pressDue(c),
+  make: (c) => {
+    const s = pressDue(c);
+    if (!s) return null;
+    s.press = (s.press ?? 0) + 1;
+    s.pressSeason = c.season;
+    const p = find(c, s.pid);
+    const r0 = secretRisk(c, s);
+    const rHush = secretRisk(c, s, SC.press.hush);
+    const rIgn = secretRisk(c, s, SC.press.ignore);
+    const cost = hushCost(c, s);
+    const fine = fineOf(c, fineKeyOf(s.kind, false));
+    const tr = confessTrust(s);
+    const what = KIND_KO[s.kind];
+    return {
+      id: `press|${s.pid}|${s.season}`,
+      title: '기자가 냄새를 맡았다',
+      icon: '🕵️',
+      ...(p ? { pid: p.id } : {}),
+      who: 'marketing',
+      line: `기자 한 명이 자꾸 전화를 해요. ${josa(s.name, '이', '가')} ${s.season}번째 시즌에 어땠는지만 물어요. 뭘 아는 것 같아요.`,
+      body: `${s.season}번째 시즌에 덮은 ${s.name}의 ${what}. 이번 시즌 결산에서 드러날 확률은 지금 ${pctTxt(r0)}입니다.`,
+      choices: [
+        {
+          label: '입막음한다',
+          desc: `적발 위험 ${pctTxt(r0)} → ${pctTxt(rHush)} · ${fmtMoney(cost)}`,
+          cashNeed: cost,
+          ...(c.finance.cash < cost ? { disabled: `현금 부족 (필요 ${fmtMoney(cost)})` } : {}),
+          detail: {
+            rows: [
+              rowCash(c, -cost),
+              rowInfo('이번 시즌 말 적발 위험', pctTxt(rHush), pctTxt(r0), 'good'),
+              rowInfo('다음 시즌부터 적발 위험', `+${Math.round(SC.press.hushLate * 100)}%p`, '기준', 'bad'),
+              rowInfo('말하지 않은 일', `${secretsN(c)}건`, `${secretsN(c)}건`),
+            ],
+            ...(p ? { pids: [p.id] } : {}),
+            risk: `입막음도 기록이 남는다 — 비용은 그 일의 적발 제재금(${fmtMoney(fineOf(c, fineKeyOf(s.kind, true)))})의 ${pctTxt(SC.press.hushCost)}`,
+          },
+        },
+        {
+          label: '모른 척한다',
+          desc: `적발 위험 ${pctTxt(r0)} → ${pctTxt(rIgn)}`,
+          detail: {
+            rows: [rowInfo('이번 시즌 말 적발 위험', pctTxt(rIgn), pctTxt(r0), 'bad'), rowInfo('말하지 않은 일', `${secretsN(c)}건`, `${secretsN(c)}건`)],
+            ...(p ? { pids: [p.id] } : {}),
+            risk: DETECT_RISK,
+          },
+        },
+        {
+          label: '지금이라도 털어놓는다',
+          desc: `${TRUST_LABEL} ${sgn(tr)} · 제재금 ${fmtMoney(fine)}`,
+          detail: {
+            rows: [
+              rowTrust(c, tr),
+              rowCash(c, -fine),
+              ...(p
+                ? [s.kind === 'dope' ? rowInfo(`${p.name} 출장 정지`, `${SC.reportBan}경기`, '0경기', 'bad') : rowInfo(p.name, '영구 제명', `오버롤 ${p.ovr}`, 'bad')]
+                : [rowInfo(s.name, '이미 팀을 떠났습니다', undefined)]),
+              rowInfo('말하지 않은 일', `${secretsN(c) - 1}건`, `${secretsN(c)}건`, 'good'),
+              rowInfo('드러났을 때와 비교', `${TRUST_LABEL} ${SC.trust[s.kind]} → ${tr} · 제재금 ${fmtMoney(fineOf(c, fineKeyOf(s.kind, true)))} → ${fmtMoney(fine)}${s.kind === 'fix' ? ` · ${SC.forfeit}승 몰수 없음` : ''}`, undefined, 'good'),
+            ],
+            ...(p ? { pids: [p.id] } : {}),
+          },
+        },
+      ],
+    };
+  },
+  resolve: (c, i, cd) => {
+    const [, pid, ss] = cd.id.split('|');
+    const s = (c.campaign.secrets ?? []).find((x) => x.pid === pid && x.season === Number(ss));
+    if (!s) return '없던 일이 되었습니다';
+    if (i === 0) {
+      const cost = hushCost(c, s);
+      c.finance.cash -= cost;
+      c.finance.ledger.upkeep += cost;
+      s.heat = SC.press.hush;
+      s.heatSeason = c.season;
+      s.hushAt = [...(s.hushAt ?? []), c.season];
+      return `기자는 더 묻지 않았습니다 (${fmtMoney(cost)}) — 이번 시즌 말 적발 위험 ${pctTxt(secretRisk(c, s))}`;
+    }
+    if (i === 1) {
+      s.heat = SC.press.ignore;
+      s.heatSeason = c.season;
+      return `전화를 받지 않았습니다 — 이번 시즌 말 적발 위험 ${pctTxt(secretRisk(c, s))}`;
+    }
+    c.campaign.secrets = (c.campaign.secrets ?? []).filter((x) => x !== s);
+    c.campaign.trust = trustAfter(c, confessTrust(s));
+    const paid = payFineMut(c, fineKeyOf(s.kind, false));
+    const p = find(c, s.pid);
+    if (p && s.kind === 'dope') {
+      p.star = clamp(p.star + SC.reportStar, 0, 100);
+      banMut(c, p, SC.reportBan);
+    } else if (p) removeMut(c, p, false);
+    addNews(c, chairSays(SCANDAL_NEWS.chairReport), 'info');
+    return `${s.season}번째 시즌에 덮은 ${s.name}의 ${KIND_KO[s.kind]} 사실을 리그에 털어놓았습니다 — ${TRUST_LABEL} ${sgn(confessTrust(s))} · 제재금 ${fmtMoney(paid)}${p ? (s.kind === 'dope' ? ` · ${p.name} ${SC.reportBan}경기 정지` : ` · ${p.name} 영구 제명`) : ''}`;
+  },
+};
+SCANDAL_CARDS.push(PRESS_CARD);
+
 // ───────── 적발 (결산) ─────────
 
 export const detectChance = (elapsed: number): number => Math.min(SC.detectMax, SC.detect0 + SC.detectStep * Math.max(0, elapsed));
+/** 덮은 일 한 건의 이번 시즌 결산 적발 확률: 기본(해마다 오른다) + 기자 카드의 선택 */
+export function secretRisk(core: Pick<Core, 'season'>, s: Secret, heat = s.heatSeason === core.season ? (s.heat ?? 0) : 0): number {
+  const late = SC.press.hushLate * (s.hushAt ?? []).filter((x) => x < core.season).length;
+  const r = detectChance(core.season - s.season) + heat + late;
+  return heat || late ? clamp(r, SC.press.floor, SC.press.cap) : r;
+}
+/** 유저가 아는 덮은 일 중 한 건 이상이 이번 시즌 말에 드러날 확률 (없으면 null) */
+export function exposeRisk(core: Core): number | null {
+  const xs = (core.campaign.secrets ?? []).filter((x) => !x.unknown);
+  return xs.length ? 1 - xs.reduce((q, s) => q * (1 - secretRisk(core, s)), 1) : null;
+}
+/** 이 선수와 관련된, 유저가 아는 덮은 일 */
+export const secretOf = (core: Pick<Core, 'campaign'>, pid: string): Secret | undefined => (core.campaign.secrets ?? []).find((x) => !x.unknown && x.pid === pid);
 
 /**
  * 결산의 맨 앞 (mutate): 덮은 일마다 적발 판정. 드러난 건은 선수 징계·승수 몰수·벌금을 바로 적용하고 목록을 돌려준다.
@@ -529,7 +680,7 @@ export function exposeMut(core: Core, rng: Rng, champion: boolean): Exposure[] {
   const keep: Secret[] = [];
   let trustNow = c.trust;
   for (const s of c.secrets ?? []) {
-    if (rng() >= detectChance(core.season - s.season)) {
+    if (rng() >= secretRisk(core, s)) {
       keep.push(s);
       continue;
     }
