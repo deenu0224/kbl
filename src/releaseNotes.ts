@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.10.3',
+    date: '2026-10-14',
+    title: '도전과제 알림 고침',
+    notes: ['이미 본 도전과제 알림이 경기 뒤에 다시 뜨던 문제를 고쳤습니다.'],
+  },
+  {
     version: '0.10.2',
     date: '2026-10-14',
     title: '구단 이름 이어 쓰기',
