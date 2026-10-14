@@ -729,7 +729,7 @@ function drawPlayers(ctx: Ctx, scene: StadiumScene, t: number, fxT: number, f: n
     // 연습: 펑고 코치 + 러닝
     if (!celebrate) list.push({ x: -9, y: -1, k: homeKit, pose: 0, bat: (t % 3.2) / 3.2 > 0.9 ? 1 : 0 });
     for (let i = 0; i < 3; i++) {
-      const u = (t * 0.035 + i * 0.012) % 2;
+      const u = (t * 0.035 + i * 0.08) % 2; // 세 명이 겹쳐 보이지 않게 간격을 둔다
       const phi = lerp(14, 40, u < 1 ? u : 2 - u) * DEG;
       list.push({ x: 264 * Math.sin(phi), y: -264 * Math.cos(phi), k: homeKit, pose: 1 });
     }
