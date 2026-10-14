@@ -882,6 +882,7 @@ export const FARM_CARDS: FarmCardDef[] = [
           {
             label: '맡긴다',
             desc: `인건비 ${fmtMoney(F.coachCost)} · 2군 ${kind === 'P' ? '투수' : '타자'} 성장 확률 ${pctTxt(base)} → ${pctTxt(Math.min(1, base + F.coachGrow))}`,
+            cashNeed: F.coachCost,
             disabled: c.finance.cash < F.coachCost ? `현금 부족 (필요 ${fmtMoney(F.coachCost)})` : undefined,
             detail: {
               rows: [rowCash(c, -F.coachCost), rowInfo(`2군 ${kind === 'P' ? '투수' : '타자'} 성장 확률(주)`, pctTxt(Math.min(1, base + F.coachGrow)), pctTxt(base), 'good'), rowInfo('대상', `${n}명`)],

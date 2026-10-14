@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { choiceBlocked } from '../game/events';
 import type { EventCard } from "../game/types";
 import { findPlayer, useStore } from "../store";
 import { CHARACTERS } from "../game/story";
@@ -61,6 +62,7 @@ function CardBody({
   onOpen: (i: number) => void;
 }) {
   const resolveEvent = useStore((s) => s.resolveEvent);
+  const finance = useStore((s) => s.finance); // 막힘 여부는 지금 현금으로 다시 본다
   const sp = useSpeaker(card);
   const setOpen = onOpen;
   return (
@@ -143,9 +145,9 @@ function CardBody({
                   {ch.desc}
                 </span>
               )}
-              {ch.disabled && (
+              {choiceBlocked({ finance }, ch) && (
                 <span className="text-[13px] leading-snug text-[#ffb0b0]">
-                  {ch.disabled}
+                  {choiceBlocked({ finance }, ch)}
                 </span>
               )}
               {ch.detail && (
@@ -158,7 +160,7 @@ function CardBody({
               className="px-btn primary !min-h-12 w-16 shrink-0 text-[14px]"
               data-sfx="none"
               data-testid="ev-select"
-              disabled={!!ch.disabled}
+              disabled={!!choiceBlocked({ finance }, ch)}
               onClick={() => resolveEvent(i)}
             >
               선택

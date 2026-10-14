@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { choiceBlocked } from '../game/events';
 import { WhoTag, useWho } from './whoTag';
 import { fmtAvg, fmtEra, fmtIp } from '../game/format';
 import type { EventCard, Player } from "../game/types";
@@ -145,8 +146,10 @@ export default function EventDetail({
   const teams = useStore((s) => s.teams);
   const freeAgents = useStore((s) => s.freeAgents);
   const userId = useStore((s) => s.userId);
+  const finance = useStore((s) => s.finance);
   const [view, setView] = useState<string | null>(null);
   const ch = card.choices[index];
+  const blocked = choiceBlocked({ finance }, ch);
   const d = ch?.detail;
   if (!ch || !d) return null;
   const team = teams.find((t) => t.id === userId);
@@ -292,15 +295,15 @@ export default function EventDetail({
         </div>
       )}
 
-      {ch.disabled && (
-        <div className="text-[13px] text-[#ffb0b0]">{ch.disabled}</div>
+      {blocked && (
+        <div className="text-[13px] text-[#ffb0b0]">{blocked}</div>
       )}
       <div className="sticky -bottom-3 flex items-center gap-2 bg-panel pt-1.5 pb-3">
         <button
           className="px-btn primary !min-h-12 flex-[2] text-[15px]"
           data-testid="ev-pick"
           data-sfx="none"
-          disabled={!!ch.disabled}
+          disabled={!!blocked}
           onClick={() => onPick(index)}
         >
           이 선택으로

@@ -364,7 +364,8 @@ export interface EventCard {
   pid?: string; // 관련 선수
   who?: CharId; // 말하는 인물 (없으면 인물 없는 사건)
   line?: string; // 인물의 대사 (2문장 이하). body 는 상황 설명 한 줄
-  choices: { label: string; desc: string; disabled?: string; detail?: EventDetail }[]; // disabled = 선택 불가 사유. desc 는 핵심 2조각, 나머지는 detail
+  choices: { label: string; desc: string; disabled?: string; cashNeed?: number; detail?: EventDetail }[]; // cashNeed = 이 선택에 드는 현금 (막힘 여부는 카드를 만든 때가 아니라 지금 현금으로 다시 본다)
+  // // disabled = 선택 불가 사유. desc 는 핵심 2조각, 나머지는 detail
 }
 
 // 선택지 상세 (카드에서 선택지를 누르면 열리는 시트). 숫자는 resolve 가 적용하는 값과 같은 계산에서 나온다 (eventRows.ts)

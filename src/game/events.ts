@@ -119,6 +119,20 @@ const money = (core: Core, v: number) => Math.round((v * scale(core)) / 1000) * 
 const fanCost = (core: Core, min: number, perFan: number) => Math.max(min, Math.round((core.fans * perFan) / 1000) * 1000);
 const goodsCut = (m: number) => 1 + (m - 1) / 2;
 const cashGate = (core: Core, cost: number): string | undefined => (core.finance.cash < cost ? `현금 부족 (필요 ${fmtMoney(cost)})` : undefined);
+
+/**
+ * 이 선택지가 지금 막혀 있는가. 현금이 드는 선택은 카드를 만든 때가 아니라 **지금 현금**으로 다시 본다
+ * (카드를 띄워 둔 채 대출을 받거나 선수를 팔면 풀려야 한다). 예전 세이브의 카드는 금액이 없어 사유 문구에서 읽는다.
+ */
+export function choiceBlocked(core: Pick<Core, 'finance'>, ch: { disabled?: string; cashNeed?: number }): string | undefined {
+  if (ch.cashNeed !== undefined) return core.finance.cash < ch.cashNeed ? `현금 부족 (필요 ${fmtMoney(ch.cashNeed)})` : ch.disabled?.startsWith('현금 부족') ? undefined : ch.disabled;
+  const m = ch.disabled?.match(/^현금 부족 \(필요 ([0-9.,]+)(억|만)\)$/);
+  if (m) {
+    const need = Number(m[1].replace(/,/g, '')) * (m[2] === '억' ? 10000 : 1);
+    return core.finance.cash >= need * 1.03 ? undefined : ch.disabled; // 반올림된 표기라 3% 여유를 둔다
+  }
+  return ch.disabled;
+}
 const sat = (core: Core, d: number) => (core.fanSat = satAfter(core, d));
 const spend = (core: Core, v: number) => {
   core.finance.cash -= v;
@@ -734,7 +748,7 @@ export const CARDS: CardDef[] = [
           {
             label: '단속한다',
             desc: `비용 ${fmtMoney(cost)} · 팬 만족도 ${sgn(N.crackSat)}`,
-            disabled: cashGate(c, cost),
+            cashNeed: cost, disabled: cashGate(c, cost),
             detail: { rows: [rowCash(c, -cost), rowSat(c, N.crackSat), rowFans(c, N.crackFans), rowMult('관중 수요', N.crackDemand)], lasts: `검문 대기 ${N.crackGames}홈경기` },
           },
           { label: '방치한다', desc: `비용 없음 · 팬 만족도 ${N.ignoreSat}`, detail: { rows: [rowCash(c, 0), rowSat(c, N.ignoreSat)] } },
@@ -818,7 +832,7 @@ export const CARDS: CardDef[] = [
           {
             label: '투자',
             desc: `비용 ${fmtMoney(cost)} · 굿즈 매출 ×${N.goodsMult}`,
-            disabled: cashGate(c, cost),
+            cashNeed: cost, disabled: cashGate(c, cost),
             detail: { rows: [rowCash(c, -cost), rowMult('굿즈 매출', N.goodsMult), rowFans(c, fans)], risk: `연승이 끊기면 남은 기간 ×${goodsCut(N.goodsMult)}`, lasts: `${BUFF_LONG}경기` },
           },
           { label: '패스', desc: '변화 없음', detail: { rows: [rowCash(c, 0), rowMult('굿즈 매출', 1)] } },
@@ -891,7 +905,7 @@ export const CARDS: CardDef[] = [
           {
             label: '기념 경기',
             desc: `비용 ${fmtMoney(cost)} · 관중 수요 ${pctTxt(N.retireDemand)}`,
-            disabled: cashGate(c, cost),
+            cashNeed: cost, disabled: cashGate(c, cost),
             detail: { rows: [rowCash(c, -cost), rowMult('관중 수요', N.retireDemand), ...fixRow, endRow], ...who2, lasts: `${BUFF_GAMES}홈경기 (그동안 ${p.name} 고정 출전)` },
           },
           { label: '조용히', desc: `비용 없음 · 팬 만족도 ${N.quietSat}`, detail: { rows: [rowCash(c, 0), rowSat(c, N.quietSat), endRow], pids: [p.id] } },
@@ -900,7 +914,7 @@ export const CARDS: CardDef[] = [
                 {
                   label: '한 해 더',
                   desc: `잔류 보너스 ${fmtMoney(stayCost(p))} · 은퇴하지 않음`,
-                  disabled: cashGate(c, stayCost(p)),
+                  cashNeed: stayCost(p), disabled: cashGate(c, stayCost(p)),
                   detail: { rows: [rowCash(c, -stayCost(p)), rowSat(c, N.staySat), rowInfo('시즌 뒤', `잔류 (내년 ${p.age + 1}세, 능력치 하락)`, `${p.age}세`)], pids: [p.id] },
                 },
               ]
@@ -1012,7 +1026,8 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   if (!card0) return { core: core0, error: '처리할 이벤트가 없습니다', result: '' };
   const ch = card0.choices[choiceIdx];
   if (!ch) return { core: core0, error: '잘못된 선택입니다', result: '' };
-  if (ch.disabled) return { core: core0, error: ch.disabled, result: '' };
+  const blocked = choiceBlocked(core0, ch);
+  if (blocked) return { core: core0, error: blocked, result: '' };
   const def = all().def.get(baseId(card0.id)) ?? farmCardDef(baseId(card0.id));
   const core = structuredClone(core0);
   const cd = core.campaign.event!;
