@@ -12,6 +12,15 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.13.1',
+    date: '2026-10-15',
+    title: '돈으로 살까, 키워 낼까',
+    notes: [
+      '새 도전과제 「외인 구단」과 「섬에서 키웠다」: 주전과 선발진을 전부 FA로, 또는 전부 우리 드래프트 출신으로 채워 우승해 보세요.',
+      '그런 팀으로 가을야구에 가면 시즌 이름이 「돈으로 산 가을」 또는 「섬에서 키운 가을」이 됩니다. 이번 업데이트 뒤에 들어온 선수부터 셉니다.',
+    ],
+  },
+  {
     version: '0.13.0',
     date: '2026-10-15',
     title: '왕조는 쉽지 않다',
