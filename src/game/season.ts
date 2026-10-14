@@ -19,6 +19,7 @@ import { memoAdd, memoGet, memoSet } from './memo';
 import { NEWS, OVER_LABEL } from './story';
 import { isFranchise } from './franchise';
 import { afterRegularSeasonMut, playPostDayMut } from './postseason';
+import { diaryMut } from './gmscore';
 import { isDraftDone } from './draft';
 import { armTickMut, cutGoodsMut, FOREIGN_MAX } from './events';
 import { leagueMult, scandalTickMut } from './scandal';
@@ -380,6 +381,7 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
   const oppRuns = isHome ? res.away : res.home;
   const won = myRuns === oppRuns ? null : myRuns > oppRuns;
   memoSet(core, 'wl', (memoGet(core, 'wl') ?? '') + (won === null ? 'T' : won ? 'W' : 'L'));
+  diaryMut(core, res, isHome); // 기록 카드: 상대 전적·명장면 (gmscore.ts)
   if (isHome && jetLag(core, day)) notes.push(NEWS.jetLag);
 
   // ── 부상 회복 / 신규 부상 ──

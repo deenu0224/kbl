@@ -1,5 +1,5 @@
 // 개인 기록 순위 · 시즌 시상 · 리그 평균 환경. 순수 함수 (Core 를 바꾸지 않는다).
-import type { BatPos, Core, Player, Team } from './types';
+import type { BatPos, Core, Player, SeasonMvp, Team } from './types';
 import { fmtAvg, fmtEra, fmtInt, fmtOps, fmtWhip } from './format';
 import { seasonGames } from './league';
 
@@ -232,4 +232,31 @@ export function leagueAwards(core: Core): LeagueAwards {
     if (r) titles.push({ cat: t.cat, label: t.label, row: r });
   }
   return { mvp, rookie, goldenGlove, titles };
+}
+
+/** 우리 팀 올해의 선수 (기록 카드): 시상과 같은 기여도로 고르고, 리그 타이틀이 있으면 붙인다 */
+export function teamMvp(core: Core, teamId = core.userId): SeasonMvp | null {
+  const env = leagueEnv(core);
+  const team = core.teams.find((t) => t.id === teamId);
+  let top: Player | undefined;
+  let topV = -Infinity;
+  for (const p of team?.roster ?? []) {
+    const v = value(p, env);
+    if (v > topV) {
+      topV = v;
+      top = p;
+    }
+  }
+  if (!top || topV === -Infinity) return null;
+  const aw = leagueAwards(core);
+  const titles = [...(aw.mvp?.pid === top.id ? ['리그 MVP'] : []), ...aw.titles.filter((t) => t.row.pid === top!.id).map((t) => t.label)];
+  const b = top.bat;
+  const s = top.pit;
+  const line =
+    top.kind === 'B'
+      ? `${fmtAvg(b.h, b.ab)} · ${b.hr}홈런 · ${b.rbi}타점${b.sb >= 20 ? ` · ${b.sb}도루` : ''}`
+      : s.sv >= 10
+        ? `${s.sv}세이브 · 평균자책 ${fmtEra(s.er, s.outs)}`
+        : `${s.w}승 ${s.l}패 · 평균자책 ${fmtEra(s.er, s.outs)} · ${s.so}탈삼진`;
+  return { name: top.name, pos: top.pos, line, titles };
 }
