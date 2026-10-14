@@ -72,6 +72,8 @@ export const DEBT_MOOD_LINE = {
   warn: '빚으로 굴리는 구단이라는 말이 조합에 돕니다. 올해는 제가 막았습니다만, 내년엔 장담 못 합니다.',
   cut: '귤 판 돈으로 이자를 갚는다고들 수군거립니다. 저도 더는 드릴 말씀이 없습니다.',
 };
+/** 결산의 내년 살림 미리보기: 이대로면 내년 적자 (payforecast.ts) */
+export const PAY_FORECAST_LINE = '몸값은 해마다 오르는데 귤값은 그대로입니다. 겨울에 정리할 건 정리하셔야 내년 장부가 버팁니다.';
 
 /** 스캔들(scandal.ts)의 뉴스와 조합장의 한 줄. 건조하게 사실만 */
 export const SCANDAL_NEWS = {

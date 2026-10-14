@@ -31,6 +31,7 @@ import TransferDesk from './roster/TransferDesk';
 import { openDesk } from './roster/transferUi';
 import { LedgerBars, ledgerTotals } from './RightPanel';
 import { MiniBars, OvrBadge, POS_KO, TeamDot, fmtPct, recText } from './ui';
+import { PayForecastBlock } from './PayForecast';
 
 const GRADE_COLOR: Record<string, string> = { ...Object.fromEntries(RANKS.map((r) => [r.id, r.color])) }; // 단장 랭크 (옛 등급 S~D 도 같은 표)
 const GG_ORDER: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
@@ -406,6 +407,9 @@ function SeasonEndBody() {
           )}
           <StageTrail stage={stageAfter} />
         </Step>
+
+        {/* 내년 살림 미리보기: 시즌이 바뀌면 연봉이 다시 매겨진다 — 결과를 미리 말한다 (payforecast.ts) */}
+        {core.phase === 'ended' && <PayForecastBlock core={core} />}
 
         {/* 살림: 최종 순위 · 손익 · 구단 MVP 는 접어 둔다 */}
         <Fold label="최종 순위 · 손익 결산 · 구단 MVP" className="mt-3" testid="fold-ledger">

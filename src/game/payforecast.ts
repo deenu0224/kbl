@@ -24,6 +24,7 @@ import { MIN_SALARY } from './ratings';
 import { clamp } from './rng';
 import { DRAFT_ROUNDS } from './draft';
 import { POST_DIVIDEND } from './campaign';
+import { fmtMoney } from './format';
 
 const RETIRE_AGE = 40; // season.ts 와 같다
 
@@ -178,3 +179,43 @@ export function nextSeasonForecast(core: Core): PayForecast {
     scaled,
   };
 }
+
+// ───────── 문구 ─────────
+
+/** "+9.7억" / "−7억" (0 은 "±0") */
+export function signedMoney(v: number): string {
+  if (Math.round(v / 1000) === 0) return '±0';
+  return v < 0 ? `−${fmtMoney(-v)}` : `+${fmtMoney(v)}`;
+}
+
+const PART_LABEL: [keyof PayForecast['parts'], string][] = [
+  ['rate', '연봉 재평가'],
+  ['svc', '보유 기간 할인 줄어듦'],
+  ['draft', '드래프트 2군'],
+  ['back', '전역 복귀'],
+  ['retire', '은퇴'],
+];
+/** 증감의 이유별 조각: ["연봉 재평가 +7.2억", "보유 기간 할인 줄어듦 +3.1억", ...] (0.1억 미만은 뺀다) */
+export function payParts(f: PayForecast): string[] {
+  return PART_LABEL.filter(([k]) => Math.abs(f.parts[k]) >= 1000).map(([k, label]) => `${label} ${signedMoney(f.parts[k])}`);
+}
+
+export const RAISE_WHY: Record<RaiseWhy, string> = { svc: '보유 기간 할인 끝', rate: '연봉 재평가' };
+/** 보유 기간 할인이 끝나는가(FA 자격 · 마지막 해) — 줄어들기만 하면 "할인 줄어듦" */
+export function raiseWhyText(core: Core, r: PayRaise): string {
+  if (r.why !== 'svc') return RAISE_WHY.rate;
+  const p = userTeam(core).roster.find((x) => x.id === r.pid);
+  const yr = p ? svcYearAt(p, core.season + 1) : null;
+  return yr !== null && yr <= SVC_YEARS ? '보유 기간 할인 줄어듦' : RAISE_WHY.svc;
+}
+
+/** 시즌 후반 재무 탭·할 일에 띄우는가: 남은 경기가 1/3 이하 */
+export const PAY_SHOW_LEFT = 1 / 3;
+export function payForecastShown(core: Pick<Core, 'phase' | 'day' | 'schedule'>): boolean {
+  const len = core.schedule.length;
+  return core.phase === 'season' && len > 0 && len - core.day <= len * PAY_SHOW_LEFT;
+}
+
+/** 할 일: 내년 적자 예상이 이만큼 이상이고 시즌 마지막 PAY_TODO_LAST 경기 안이면 */
+export const PAY_TODO_LOSS = -50000; // −5억
+export const PAY_TODO_LAST = 10;
