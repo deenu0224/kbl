@@ -22,6 +22,9 @@ import EndingScene from './EndingScene';
 import ChampionHero from './ChampionHero';
 import { ShareButton } from './ShareSheet';
 import EventCardModal from './EventCardModal';
+import GmRankLine from './GmRankLine';
+import { RANKS } from '../game/gmscore';
+import { cardOf } from '../share/shareData';
 import { useIsMobile } from './layout/useLayout';
 import PixelFace from './PixelFace';
 import TransferDesk from './roster/TransferDesk';
@@ -29,7 +32,7 @@ import { openDesk } from './roster/transferUi';
 import { LedgerBars, ledgerTotals } from './RightPanel';
 import { MiniBars, OvrBadge, POS_KO, TeamDot, fmtPct, recText } from './ui';
 
-const GRADE_COLOR: Record<string, string> = { S: '#ffd84a', A: '#6ee07a', B: '#7fd3ff', C: '#f0a35a', D: '#ff6b6b' };
+const GRADE_COLOR: Record<string, string> = { ...Object.fromEntries(RANKS.map((r) => [r.id, r.color])) }; // 단장 랭크 (옛 등급 S~D 도 같은 표)
 const GG_ORDER: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
 
 /** 결산 항목이 차례로 드러난다 */
@@ -191,7 +194,7 @@ function SeasonEndBody() {
   const stars = objs.filter((o) => !o.main);
   const last = c.history?.[c.history.length - 1];
   const seasonName = v?.seasonName ?? last?.name;
-  const grade = last?.grade ?? awards.grade;
+  const grade = cardOf(core, 'season').gm?.id ?? last?.grade ?? awards.grade; // 단장 랭크 (점수가 없는 옛 기록은 저장된 등급)
   const stageBefore = v?.stageBefore ?? c.stage;
   const stageAfter = v?.stageAfter ?? c.stage;
   const advanced = stageAfter > stageBefore;
@@ -209,6 +212,8 @@ function SeasonEndBody() {
       style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="px-panel px-scroll flex max-h-full w-full max-w-[1100px] flex-col overflow-y-auto p-4 mob:p-3">
+        {/* 단장 랭크 한 줄 + 도움말 (gmscore.ts) */}
+        <GmRankLine core={core} />
         {/* 머리: 우승한 시즌은 전용 머리 (큰 우승기 · N년 만의 우승 · 시리즈 MVP · 공유) */}
         {finish === 'champion' ? (
           <ChampionHero core={core} team={team} rank={rank} />

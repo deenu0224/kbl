@@ -63,6 +63,8 @@ export interface Story {
   results: string[]; // 결과 줄 1~2개 (큰 사건 먼저)
   lesson: string | null; // 운영하다 깨달은 것
   versus: string | null; // 시뮬레이션 단장과 비교
+  gm: string | null; // 단장 점수 한 줄 ("단장 점수 742점, A랭크(명단장).")
+  scene: string | null; // 그 시즌 명장면 한 줄
   close: string; // 마지막 줄 (태그·주소 앞)
 }
 
@@ -91,6 +93,8 @@ export function storyOf(d: ShareData): Story {
     results,
     lesson: ls.length ? LESSON[pick(ls, r.seed, slot(2))] : null,
     versus: moved ? null : `시뮬레이션 단장 ${d.pct.n}명과 견주면 상위 ${d.pct.pct}%.`,
+    gm: r.gm ? `${r.gm.career ? '단장 경력 점수' : '단장 점수'} ${r.gm.score}점, ${r.gm.id}랭크(${r.gm.name}).` : null,
+    scene: r.card?.scene ? `올해의 명장면은 ${r.card.scene.text}.` : null,
     close: pick(CLOSE, r.seed, slot(3)),
   };
 }
@@ -99,15 +103,16 @@ export const cleanNote = (note: string): string => [...note.replace(/\s+/g, ' ')
 export const askOf = (r: ShareRecord): string => (r.kind === 'relocated' ? ASK_KEEP : ASK);
 
 /**
- * 올라갈 글: [소감] → 첫 줄 → 결과 1~2줄 → 깨달은 것 0~1줄 → 비교 줄 → "마지막 줄 #답답해서내가 {주소}".
- * X 제한(280)을 넘으면 깨달은 것 → 비교 줄 → 결과 둘째 줄 순으로 뺀다. 소감이 아주 길어 그래도 넘치면 첫 줄을 소감이 대신한다
+ * 올라갈 글: [소감] → 첫 줄 → 결과 1~2줄 → 단장 점수 → 명장면 → 깨달은 것 0~1줄 → 비교 줄 → "마지막 줄 #답답해서내가 {주소}".
+ * X 제한(280)을 넘으면 깨달은 것 → 비교 줄 → 명장면 → 결과 둘째 줄 순으로 뺀다. 소감이 아주 길어 그래도 넘치면 첫 줄을 소감이 대신한다
  */
 export function shareText(d: ShareData, note = '', limit = X_LIMIT): string {
   const head = cleanNote(note);
   const s = storyOf(d);
   let open: string[] = [s.open];
-  const build = () => [...(head ? [head] : []), ...open, ...s.results, ...(s.lesson ? [s.lesson] : []), ...(s.versus ? [s.versus] : []), `${s.close} ${SHARE_TAG} ${d.url}`].join('\n');
-  const drops = [() => (s.lesson = null), () => (s.versus = null), () => (s.results = s.results.slice(0, 1)), () => head && (open = [])];
+  const opt = (x: string | null) => (x ? [x] : []);
+  const build = () => [...(head ? [head] : []), ...open, ...s.results, ...opt(s.gm), ...opt(s.scene), ...opt(s.lesson), ...opt(s.versus), `${s.close} ${SHARE_TAG} ${d.url}`].join('\n');
+  const drops = [() => (s.lesson = null), () => (s.versus = null), () => (s.scene = null), () => (s.results = s.results.slice(0, 1)), () => head && (open = [])];
   for (const drop of drops) {
     if (xWeight(build()) <= limit) break;
     drop();
