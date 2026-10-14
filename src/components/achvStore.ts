@@ -49,6 +49,10 @@ const today = (): string => {
 
 /** 스토어 변화를 보고 도전과제를 판정한다 (main.tsx 에서 한 번). 게임 상태는 읽기만 한다 */
 export function initAchv(): void {
+  // 다른 탭에서 달성한 것을 이 탭도 알게 한다 (안 그러면 탭마다 같은 도전과제를 다시 달성해 알림이 또 뜬다)
+  window.addEventListener('storage', (e) => {
+    if (e.key === ACHV_KEY) useAchv.setState({ save: parseAchv(e.newValue) });
+  });
   const see = (prev: Core | null, core: Core, reports: Parameters<typeof achvStep>[4]): void => {
     const r = achvStep(ACHV_LIST, useAchv.getState().save, prev, core, reports, today());
     if (r.save !== useAchv.getState().save) put(r.save);
