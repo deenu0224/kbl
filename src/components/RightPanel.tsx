@@ -28,6 +28,8 @@ import {
 } from '../game/economy';
 import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season';
 import { deadlinesSoon } from '../game/economy';
+import { payForecastShown } from '../game/payforecast';
+import { PayForecastLine } from './PayForecast';
 import { RUNWAY_DANGER, borrowMoodText, debtMoodText, luxLine, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import { teamStrength } from '../game/ratings';
 import Bracket, { OppClimb } from './Bracket';
@@ -563,6 +565,12 @@ export function FinanceTab() {
         <div className="mb-1.5 flex items-center gap-1.5 text-[11px] mob:text-[13px]" data-testid="lux-line">
           <span className={`min-w-0 flex-1 ${lux.over ? 'text-bad' : 'text-white/75'}`}>{lux.text}</span>
           <Help topic="luxtax" />
+        </div>
+      )}
+      {/* 시즌 후반: 내년 연봉 재평가 미리 보기 (payforecast.ts) */}
+      {payForecastShown(core) && (
+        <div className="mb-1.5">
+          <PayForecastLine core={core} />
         </div>
       )}
       {inSeason && !over && rw.forcedSale !== null && rw.forcedSale <= RUNWAY_DANGER && (

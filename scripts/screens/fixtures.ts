@@ -28,6 +28,7 @@ import { ROSTER_MAX, activeRoster } from '../../src/game/economy';
 import { releaseAdvice } from '../../src/game/release';
 import { SC, SCANDAL_CARDS } from '../../src/game/scandal';
 import { SCANDAL_NEWS } from '../../src/game/story';
+import { nextSeasonForecast, payForecastShown } from '../../src/game/payforecast';
 
 /** 할 일 카드 맨 앞 3줄 안에 "방출 검토"가 있다 */
 const relTop = (c: Core) => todoList(c).slice(0, 3).some((t) => t.id.startsWith('rel-'));
@@ -135,6 +136,11 @@ const WANT: Record<string, Pred> = {
   relFull: (c) => inSeason(c) && quiet(c) && c.day >= 12 && activeRoster(userTeam(c)).length >= ROSTER_MAX && releaseAdvice(c).length >= 2 && relTop(c),
   relOpen: (c) => inSeason(c) && quiet(c) && c.season >= 2 && c.day === 0 && releaseAdvice(c).length >= 1,
   relStove: (c) => c.phase === 'ended' && !c.campaign.event && c.season >= 2 && releaseAdvice(c).length >= 2 && !endingNow(c),
+  // 내년 살림 미리보기: 적자 예상 결산(많이 오르는 선수 3명) · 흑자 예상 결산 · 시즌 후반 재무 탭 · 할 일 "내년 적자 예상"
+  endedPayLoss: (c) => c.phase === 'ended' && !c.campaign.event && c.season >= 2 && !endingNow(c) && !c.campaign.verdict?.exposures?.length && nextSeasonForecast(c).profit <= -50000 && nextSeasonForecast(c).top.length >= 3,
+  endedPayGain: (c) => c.phase === 'ended' && !c.campaign.event && !endingNow(c) && !c.campaign.verdict?.exposures?.length && nextSeasonForecast(c).profit > 0,
+  payLate: (c) => inSeason(c) && quiet(c) && c.season >= 2 && payForecastShown(c) && nextSeasonForecast(c).profit < 0,
+  payTodo: (c) => inSeason(c) && quiet(c) && todoList(c).slice(0, 3).some((t) => t.id.startsWith('pay-')),
 };
 
 /** 한국시리즈에서 유저 팀이 3승째를 쌓아 다음 경기에 이기면 우승하는 날 */

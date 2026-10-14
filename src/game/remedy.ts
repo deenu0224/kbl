@@ -21,6 +21,7 @@ import { POS_NAME } from './script';
 import { borrow, repay, callUp, farmLockLeft, ilLock, releasePlayer, sendDown, setTicketPrice, signPlayer, upgradeFacility } from './season';
 import { tiredPenalty } from './sim';
 import { releaseAdvice } from './release';
+import { nextSeasonForecast, payParts, signedMoney } from './payforecast';
 
 export type RemedyGo = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad' | 'release';
 /** 직렬화 가능한 액션 서술. 대상은 실행 시점의 core 에서 다시 찾는다 */
@@ -511,6 +512,17 @@ function releaseRemedies(core: Core): Remedy[] {
   ];
 }
 
+/** 내년 적자 예상: 재무 탭(내년 살림 미리보기) · 이적 창구(방출 후보순) */
+function payRemedies(core: Core): Remedy[] {
+  const f = nextSeasonForecast(core);
+  const adv = releaseAdvice(core);
+  return [
+    { id: 'go', run: { t: 'go', to: 'finance' }, label: '재무 탭 열기 — 내년 살림 미리보기', effect: `연봉 총액 ${signedMoney(f.next.total - f.now.total)}${payParts(f).length ? ` (${payParts(f).slice(0, 2).join(' · ')})` : ''}` },
+    ...(adv.length ? [{ id: 'rel', run: { t: 'go', to: 'release', pid: adv[0].p.id }, tone: 'warn', label: `이적 창구 열기 — 방출 후보 ${adv.length}명`, effect: adv.slice(0, 2).map((a) => `${a.p.name}(오버롤 ${a.p.ovr} · 연봉 ${fmtMoney(a.p.salary)})`).join(' · ') } as Remedy] : []),
+    CLOSE,
+  ];
+}
+
 function faRemedies(core: Core): Remedy[] {
   const t = userTeam(core);
   const fa = t.roster.filter((p) => (svcYear(core, p) ?? 0) >= SVC_YEARS).sort((a, b) => b.ovr - a.ovr);
@@ -577,6 +589,7 @@ export function remedies(core: Core, todoId: string): Remedy[] {
     : id === 'away' ? awayRemedies(core)
     : id === 'scout' ? scoutRemedies(core)
     : id === 'fa' ? faRemedies(core)
+    : id === 'pay' ? payRemedies(core)
     : id === 'rel' ? releaseRemedies(core)
     : id === 'beat' ? beatRemedies(core, todoId)
     : id === 'dl' ? deadlineRemedies(core, todoId)
@@ -621,6 +634,10 @@ export function remedyNow(core: Core, todoId: string): string {
       return `현금 ${fmtMoney(core.finance.cash)} · 1군 ${act.length}/${ROSTER_MAX}명`;
     case 'rel':
       return `1군 ${act.length}/${ROSTER_MAX}명 · 2군 ${farmRoster(t).length}/${farmMax(core)}명 · 연봉 총액 ${fmtMoney(payroll(t))} · 현금 ${fmtMoney(core.finance.cash)}`;
+    case 'pay': {
+      const f = nextSeasonForecast(core);
+      return `연봉 총액 ${fmtMoney(f.now.total)} → ${fmtMoney(f.next.total)} 예상 · 내년 영업손익 ${signedMoney(f.profit)} 예상 · 현금 ${fmtMoney(core.finance.cash)}`;
+    }
     case 'fa':
       return `남은 경기 ${core.schedule.length - core.day} · 현금 ${fmtMoney(core.finance.cash)}`;
     case 'beat':
