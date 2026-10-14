@@ -562,7 +562,8 @@ export type StadiumFx =
   | { kind: 'walkoff' } // 끝내기: 대형 폭죽
   | { kind: 'win' } // 홈 승리 폭죽
   | { kind: 'injury' } // 부상: 적십자 점멸
-  | { kind: 'build'; target: FacilityKind }; // 업그레이드 직후 반짝임
+  | { kind: 'build'; target: FacilityKind } // 업그레이드 직후 반짝임
+  | { kind: 'champion'; away: boolean; c1: string; c2: string; calm?: boolean }; // 한국시리즈 우승 확정: 마운드 세리머니 (away = 원정 구장 · c1/c2 = 우리 팀 색 · calm = 움직임 줄이기)
 
 export interface StadiumScene {
   facilities: Facilities;
@@ -584,4 +585,5 @@ export interface StadiumScene {
   retiredNums?: number; // 걸린 영구결번 수 (0~4)
   dome?: 0 | 1 | 2 | 3; // 우리 돔구장 단계 (1 조감도 간판 · 2 크레인·비계 · 3 돔 지붕). 없으면 그리지 않는다
   awayFans?: number; // 원정 응원단 크기 0~1 (3루 쪽 끝 관중석의 원정 색 덩어리). 없으면 그리지 않는다
+  titleWall?: number[]; // 외야 펜스에 건 우승 현수막의 시즌 번호 (오래된 것부터, 최대 2). 없으면 그리지 않는다
 }

@@ -372,3 +372,9 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
     post: { round: s.round, name: s.name, gameNo: m.gameNo, myW, oppW, bestOf: s.bestOf },
   };
 }
+
+/** 이 경기로 유저 팀의 한국시리즈 우승이 확정됐는가 (하이라이트 끝의 우승 세리머니용) */
+export function clinchesTitle(r: Pick<DayReport, 'post' | 'won'> | null | undefined): boolean {
+  const p = r?.post;
+  return !!p && p.round === 'KS' && r?.won === true && p.myW >= Math.floor(p.bestOf / 2) + 1;
+}

@@ -213,7 +213,7 @@ canvas.pixel {
   animation: fade-in 0.15s steps(3) backwards;
 }
 /* 앱이 뒤로 갔다 돌아오면 멈춰 있던 등장 애니메이션을 끊고 제 모습으로 둔다 (main.tsx) */
-:root[data-noanim] [class*='anim-']:not(.anim-blink) {
+:root[data-noanim] [class*='anim-']:not(.anim-blink):not(.anim-marquee) {
   animation: none !important;
 }
 
@@ -279,4 +279,18 @@ canvas.pixel {
 .spot {
   background: rgba(255, 216, 74, 0.3) !important;
   box-shadow: inset 0 0 0 2px #ffd84a !important;
+}
+
+/* 우승 전광판: 긴 글자가 오른쪽에서 왼쪽으로 흐른다 (부모 폭 기준으로 들어와 글자 폭만큼 빠져나간다) */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+.anim-marquee {
+  padding-left: 100%;
+  animation: marquee 3.2s linear infinite;
 }

@@ -19,6 +19,7 @@ import {
   OLD_BANNER_X,
   PARK_SLOTS,
   RETIRED_X,
+  SB_FRAME,
   RETIRED_Y,
   STADIUM_H,
   STADIUM_W,
@@ -27,6 +28,7 @@ import {
   fenceTopY,
   gateX,
   hash2,
+  standToWorld,
   standingSpots,
   type Pt,
   type Seat,
@@ -288,30 +290,39 @@ function drawCrowd(
 // 원정 응원단: 3루 쪽 내야 스탠드의 외야 쪽 끝 구역을 원정 색으로 채운다 (좌석 배열별로 순서를 한 번만 만든다)
 const AWAY_ORDER = new WeakMap<Seat[], Seat[]>();
 const AWAY_MIN = 70; // 390px 폭 화면에서도 덩어리로 보이는 최소 인원
-function drawAwayFans(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number): void {
+/** 원정 응원석에 앉는 자리들 (앞에서부터 n 명). 응원단이 없으면 빈 배열 */
+function awaySeats(L: StaticLayers, scene: StadiumScene): Seat[] {
   const share = clamp01(scene.awayFans || 0);
-  if (share <= 0) return;
+  if (share <= 0) return [];
   let order = AWAY_ORDER.get(L.seats);
   if (!order) {
     order = L.seats.filter((s) => s.sec !== 2 && s.u < 0.5).sort((a, b) => a.u - b.u);
     AWAY_ORDER.set(L.seats, order);
   }
-  const n = Math.min(order.length, Math.max(AWAY_MIN, Math.round(L.seats.length * share)));
+  return order.slice(0, Math.min(order.length, Math.max(AWAY_MIN, Math.round(L.seats.length * share))));
+}
+
+function drawAwayFans(ctx: Ctx, L: StaticLayers, scene: StadiumScene, f: number): void {
+  const order = awaySeats(L, scene);
+  const n = order.length;
   if (n <= 0) return;
   const c = scene.awayColor;
   const hi = shade(c, 0.35);
+  // 원정에서 우승을 확정하면 원정 응원석만 터진다
+  const party = scene.fx.kind === 'champion' && scene.fx.away;
   for (let i = 0; i < n; i++) {
     const s = order[i];
     // 원정 팬은 자기 팀이 칠 때(홈 공격이 아닐 때) 들썩인다
-    const up = scene.playing && !scene.homeBatting && ((f + s.ph) & 3) === 0 ? 1 : 0;
+    const up = party ? (scene.fx.kind === 'champion' && scene.fx.calm ? 1 : [0, 1, 2, 1][(f + s.ph) & 3]) : scene.playing && !scene.homeBatting && ((f + s.ph) & 3) === 0 ? 1 : 0;
     ctx.fillStyle = s.ph % 5 === 0 ? hi : c;
     ctx.fillRect(s.x - 1, s.y - up, 4, 3);
     ctx.fillStyle = s.ph & 1 ? PAL.skin2 : PAL.skin;
     ctx.fillRect(s.x, s.y - up - 1, 2, 1);
   }
-  // 응원 깃발 두 개
-  for (let k = 0; k < 2; k++) {
-    const s = order[Math.floor(((k + 1) * n) / 3)];
+  // 응원 깃발 두 개 (우승 때는 다섯 개)
+  const flags = party ? 5 : 2;
+  for (let k = 0; k < flags; k++) {
+    const s = order[Math.floor(((k + 1) * n) / (flags + 1))];
     const w = (f + k * 3) & 2 ? 1 : 0;
     R(ctx, s.x + 1, s.y - 9, 1, 9, '#f4f6fa');
     R(ctx, s.x + 2 - w * 6, s.y - 9, 5, 3, c);
@@ -464,6 +475,35 @@ function drawBigBanner(ctx: Ctx, scene: StadiumScene, t: number, wild: boolean):
       const sx = Math.round(x0 + hash2(i, fl) * (x1 - x0 - 4));
       sparkle(ctx, sx, fenceTopY(sx) - 2, false, '#ffffff');
     }
+  }
+}
+
+/** 외야 펜스에 건 우승 현수막: 금빛 천에 팀 색 띠 (글자 "{n}시즌 우승"은 StadiumView 의 오버레이). 하나면 가운데, 둘이면 좌우 */
+export const TITLE_WALL_SPANS: Record<number, [number, number][]> = {
+  1: [[288, 352]],
+  2: [
+    [250, 314],
+    [326, 390],
+  ],
+};
+
+function drawTitleWall(ctx: Ctx, scene: StadiumScene): void {
+  const spans = TITLE_WALL_SPANS[Math.min(2, scene.titleWall?.length ?? 0)];
+  if (!spans) return;
+  const band = scene.homeColor;
+  const dk = '#b38a14';
+  for (const [x0, x1] of spans) {
+    for (let sx = x0; sx < x1; sx += 2) {
+      // 펜스 벽면에 걸어 펜스 곡선을 따른다
+      const y = fenceTopY(sx) - 2;
+      R(ctx, sx, y, 2, 11, PAL.gold);
+      R(ctx, sx, y, 2, 1, '#fff1a8');
+      R(ctx, sx, y + 1, 2, 1, band);
+      R(ctx, sx, y + 9, 2, 1, band);
+      R(ctx, sx, y + 10, 2, 1, dk);
+    }
+    R(ctx, x0 - 1, fenceTopY(x0) - 3, 1, 13, '#0f1420');
+    R(ctx, x1, fenceTopY(x1) - 3, 1, 13, '#0f1420');
   }
 }
 
@@ -671,6 +711,7 @@ function drawPlayers(ctx: Ctx, scene: StadiumScene, t: number, fxT: number, f: n
   const playing = scene.playing;
   const fieldKit = playing ? (scene.homeBatting ? awayKit : homeKit) : homeKit;
   const batKit = playing ? (scene.homeBatting ? homeKit : awayKit) : homeKit;
+  if (scene.fx.kind === 'champion') return drawChampionPile(ctx, scene, scene.fx, fxT, f);
   const celebrate = (fx === 'win' || fx === 'walkoff') && fxT < 14;
   const fxBusy = (fx === 'hr' || fx === 'score' || fx === 'walkoff' || fx === 'win' || fx === 'injury') && fxT < 6;
 
@@ -773,6 +814,46 @@ function drawPlayers(ctx: Ctx, scene: StadiumScene, t: number, fxT: number, f: n
   }
 }
 
+type ChampFx = Extract<StadiumScene['fx'], { kind: 'champion' }>;
+
+const PILE_FIELD = FIELDERS.length; // 그라운드에 있던 9명
+const PILE_BENCH = 9; // 덕아웃에서 쏟아져 나오는 선수·코치
+
+/** 마운드 위 한 덩어리: i 번째 선수의 자리(월드). 안쪽부터 해바라기 씨처럼 채운다 */
+function pileSpot(i: number): Pt {
+  const a = i * 2.4;
+  const r = 2 + Math.sqrt(i) * 3.4;
+  return { x: MOUND.x + Math.cos(a) * r, y: MOUND.y + 2 + Math.sin(a) * r * 0.8 };
+}
+
+/**
+ * 우승 세리머니: 수비 위치의 9명이 마운드로 달려가 한 덩어리가 되고, 덕아웃에서 나머지가 쏟아져 나와 합류한다.
+ * 모인 뒤에는 저마다 다른 박자로 팔을 들고 뛴다. 원정이면 우리 팀(원정 유니폼)이 3루 덕아웃에서 나온다.
+ */
+function drawChampionPile(ctx: Ctx, scene: StadiumScene, fx: ChampFx, fxT: number, f: number): void {
+  const k = fx.away ? kit(scene.awayColor, false) : kit(scene.homeColor, true);
+  const side: -1 | 1 = fx.away ? -1 : 1;
+  const list: { x: number; y: number; pose: 0 | 1 | 2; ph: number }[] = [];
+  const at = (from: Pt, i: number, t0: number, dur: number) => {
+    const g = fx.calm ? 1 : clamp01((fxT - t0) / dur);
+    const to = pileSpot(i);
+    const e = 1 - (1 - g) * (1 - g);
+    list.push({ x: lerp(from.x, to.x, e), y: lerp(from.y, to.y, e), pose: g < 1 ? 1 : 2, ph: i * 3 + (i >> 2) });
+  };
+  // 투수·포수가 먼저 닿고, 외야수가 마지막
+  FIELDERS.forEach((p, i) => at(p, i, 0.05 * i, 0.5 + Math.hypot(p.x - MOUND.x, p.y - MOUND.y) / 150));
+  for (let j = 0; j < PILE_BENCH; j++) {
+    const from = standToWorld(side, -4, 50 + j * 3);
+    at(from, PILE_FIELD + j, 0.35 + j * 0.12, 1.5);
+  }
+  list.sort((a, b) => a.y - b.y);
+  for (const s of list) {
+    // 뛰는 박자를 선수마다 어긋나게 (calm 이면 팔만 든 정지 자세)
+    const ff = fx.calm ? 0 : (f >> (s.ph & 1)) + s.ph;
+    sprite(ctx, X(s.x), Y(s.y), k, s.pose, ff);
+  }
+}
+
 // ───────── fx ─────────
 
 function cheerLevel(scene: StadiumScene, fxT: number): number {
@@ -786,6 +867,8 @@ function cheerLevel(scene: StadiumScene, fxT: number): number {
     case 'walkoff':
     case 'win':
       return fxT < 16 ? 2 : 0;
+    case 'champion':
+      return fx.away ? 0 : 2; // 원정 구장의 홈 관중은 조용하다
     default:
       return 0;
   }
@@ -853,6 +936,65 @@ function confetti(ctx: Ctx, fxT: number, key: number): void {
     const c = FIREWORK_COLORS[i % FIREWORK_COLORS.length];
     if ((Math.floor(fxT * 8) + i) & 1) R(ctx, x, y, 2, 1, c);
     else R(ctx, x, y, 1, 2, c);
+  }
+}
+
+/** 전광판 위로 터지는 우승 폭죽의 시각(초). 효과음(sfx.ts CHAMP_POPS)과 같은 박자 */
+export const CHAMP_POPS = [0.55, 1.2, 1.9, 2.7, 3.6, 4.5, 5.5, 6.4];
+const CHAMP_CONFETTI = 120; // 폰에서도 프레임이 버티는 상한
+
+/** 팀 색 색종이: 관중석(원정이면 원정 응원석)에서 흩날려 떨어진다 */
+function teamConfetti(ctx: Ctx, L: StaticLayers, scene: StadiumScene, fx: ChampFx, fxT: number): void {
+  const cols = [fx.c1, fx.c2, '#ffffff', fx.c1, PAL.gold];
+  let x0 = 0;
+  let x1 = STADIUM_W;
+  let y0 = -20;
+  let span = 460;
+  let n = CHAMP_CONFETTI;
+  if (fx.away) {
+    // 원정 응원석 위로만
+    const seats = awaySeats(L, scene);
+    if (!seats.length) return;
+    x0 = Infinity;
+    x1 = -Infinity;
+    let yMin = Infinity;
+    let yMax = -Infinity;
+    for (const s of seats) {
+      x0 = Math.min(x0, s.x);
+      x1 = Math.max(x1, s.x);
+      yMin = Math.min(yMin, s.y);
+      yMax = Math.max(yMax, s.y);
+    }
+    x0 -= 10;
+    x1 += 10;
+    y0 = yMin - 40;
+    span = yMax - yMin + 60;
+    n = 60;
+  }
+  if (fx.calm) n = Math.round(n / 4);
+  const fade = fxT < 0.3 ? fxT / 0.3 : 1;
+  n = Math.round(n * fade);
+  for (let i = 0; i < n; i++) {
+    const sp = fx.calm ? 0 : 26 + hash2(i, 81) * 34;
+    const y = y0 + ((hash2(i, 82) * span + fxT * sp) % span);
+    const x = x0 + hash2(i, 83) * (x1 - x0) + (fx.calm ? 0 : Math.sin(fxT * 3 + i) * 4);
+    const c = cols[i % cols.length];
+    if (((fx.calm ? 0 : Math.floor(fxT * 8)) + i) & 1) R(ctx, x, y, 2, 1, c);
+    else R(ctx, x, y, 1, 2, c);
+  }
+}
+
+/** 전광판 위의 픽셀 폭죽: 정해진 박자에 좌우를 오가며 터진다 */
+function champFireworks(ctx: Ctx, fx: ChampFx, fxT: number, key: number, f: number): void {
+  const pops = fx.calm ? CHAMP_POPS.slice(0, 2) : CHAMP_POPS;
+  const cx0 = SB_FRAME.x + SB_FRAME.w / 2;
+  for (let i = 0; i < pops.length; i++) {
+    const age = fxT - pops[i] + 0.28; // 0.28초 동안 올라가 pops[i] 에 터진다
+    if (age < 0 || age > 1.5) continue;
+    const dir = i & 1 ? 1 : -1;
+    const cx = Math.round(cx0 + dir * (24 + hash2(i, key + 5) * 70));
+    const cy = Math.round(18 + hash2(i, key + 6) * 22);
+    burst(ctx, cx, cy, fx.calm ? Math.min(age, 0.6) : age, key * 13 + i * 7, i % 3 !== 2, f);
   }
 }
 
@@ -928,6 +1070,10 @@ function drawFx(ctx: Ctx, L: StaticLayers, scene: StadiumScene, fxT: number, f: 
         fireworks(ctx, fxT - 0.2, key, 7, 0.4, true, 3.0, f);
         if (fxT > 0.5) confetti(ctx, fxT - 0.5, key);
       }
+      break;
+    case 'champion':
+      teamConfetti(ctx, L, scene, fx, fxT);
+      champFireworks(ctx, fx, fxT, key, f);
       break;
     case 'injury': {
       if (fxT > 8) break;
@@ -1125,12 +1271,15 @@ export function drawFrame(inp: FrameInput): void {
   const night = !!scene.night;
   // 응원 문화: fx 로 환호하는 동안은 한 단계 더 격렬하게
   const baseLv = Math.max(0, Math.min(3, Math.round(scene.cheerLv || 0)));
-  const cheerLv = baseLv > 0 && cheer > 0 ? baseLv + 1 : baseLv;
+  const champ = scene.fx.kind === 'champion' ? scene.fx : null;
+  // 우승 확정: 홈이면 응원이 최대(물결 둘·대형 현수막 펄럭임), 원정 구장의 홈 관중은 응원을 멈춘다
+  const cheerLv = champ ? (champ.away ? 0 : 4) : baseLv > 0 && cheer > 0 ? baseLv + 1 : baseLv;
 
   ctx.globalAlpha = 1;
   ctx.drawImage(L.base, 0, 0);
   drawCars(ctx, scene, t);
   drawRetired(ctx, scene);
+  drawTitleWall(ctx, scene);
   if (cheerLv >= 3) drawBigBanner(ctx, scene, t, cheerLv >= 4);
   drawCrowd(ctx, L, scene, t, f, cheer, cheerLv);
   drawAwayFans(ctx, L, scene, f);
