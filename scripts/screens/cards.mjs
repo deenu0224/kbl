@@ -61,7 +61,7 @@ try {
       const text = st.shareText(data);
       const noted = st.shareText(data, note);
       const longest = st.shareText(data, '가'.repeat(60));
-      return { data, text, noted, w: st.xWeight(text), wLong: st.xWeight(longest), x: st.xIntent(noted), threads: st.threadsIntent(noted), back: sd.parseChallenge(new URL(data.url).search), info: sd.codeInfo(data.code), png };
+      return { data, text, noted, w: st.xWeight(text), wLong: st.xWeight(longest), x: st.xIntent(noted), threads: st.threadsIntent(noted), info: sd.codeInfo(data.code), png };
     }, [kind, NOTE]);
     const out = resolve(OUT, `card-${kind}.png`);
     writeFileSync(out, Buffer.from(r.png.split(',')[1], 'base64'));
@@ -72,7 +72,7 @@ try {
     const { data } = r;
     check(r.w <= 280 && r.wLong <= 280, `${kind}: 글 길이 ${r.w} (소감 60자일 때 ${r.wLong}) ≤ X 280`);
     check(r.text.endsWith(data.url) && r.noted.startsWith(`${NOTE}\n`), `${kind}: 글은 주소로 끝나고, 소감은 맨 앞 줄`);
-    check(r.back === data.rec.seed && r.info && new RegExp(`^https://ddhsido\\.app/s/${data.code}/\\?l=[0-9a-z]+$`).test(data.url), `${kind}: 결과 주소 ${data.url} ↔ 시드 ${data.rec.seed} · 유형 ${data.code}`);
+    check(!!r.info && data.url === `https://ddhsido.app/s/${data.code}/`, `${kind}: 결과 주소 ${data.url} · 유형 ${data.code}`);
     check(data.pct.pct >= 1 && data.pct.pct <= 99 && data.pct.n > 0 && !!data.pct.basis, `${kind}: 상위 ${data.pct.pct}% (시뮬레이션 단장 ${data.pct.n}명 대비, ${data.pct.basis})`);
     const x = new URL(r.x);
     check(x.origin + x.pathname === 'https://twitter.com/intent/tweet' && x.searchParams.get('text') === r.noted && !/[\n\s·]/.test(r.x), `${kind}: X 인텐트 인코딩`);
@@ -101,22 +101,6 @@ try {
     check(calls.opened.length === 2 && calls.opened[0].url === r.x && calls.opened[1].url === r.threads && calls.opened.every((o) => o.target === '_blank' && /noopener/.test(o.features)), `${kind}: [X에 올리기]·[스레드에 올리기] → 새 창(noopener)`);
     check(!calls.kakao, `${kind}: 카카오 SDK·버튼 없음`);
     report[kind] = { file: out, code: data.code, pct: data.pct, text: r.text, noted: r.noted, x: r.x, threads: r.threads, calls };
-    await ctx.close();
-  }
-
-  // 도전 링크로 열어 같은 시드로 시작되는지
-  {
-    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ko-KR' });
-    const page = await ctx.newPage();
-    await page.goto(`${base}?l=lz3k9f2a&from=w6`, { waitUntil: 'load' });
-    const who = await page.textContent('[data-testid="challenge"]');
-    check(/누군가 6시즌 만에 우승한 리그입니다/.test(who) && /같은 선수단, 같은 일정에서 시작합니다/.test(who), `도전 링크 초기 화면: ${who.replace(/\s+/g, ' ').slice(0, 60)}`);
-    await page.click('[data-testid="challenge-start"]');
-    await page.fill('[data-testid="nick-input"]', '도전자');
-    await page.click('[data-testid="nick-start"]');
-    await page.waitForTimeout(500);
-    const got = await page.evaluate(() => ({ seed: JSON.parse(localStorage.getItem('kbl-save-v1')).state.seed, search: location.search }));
-    check(got.seed === parseInt('lz3k9f2a', 36) && got.search === '', `도전 링크 ?l=lz3k9f2a → 시드 ${got.seed} 로 새 게임, 주소의 쿼리 제거`);
     await ctx.close();
   }
 
