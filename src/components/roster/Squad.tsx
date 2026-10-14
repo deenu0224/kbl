@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { secretOf } from '../../game/scandal';
 import { fixedStarters } from '../../game/campaign';
 import { uiZoom } from '../layout/uiScale';
 import type { BatPos, Player } from '../../game/types';
@@ -509,6 +510,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
       <span className="flex items-center gap-0.5">
         <span className={`min-w-0 flex-1 whitespace-nowrap text-[14px] leading-tight ${o.row ? '' : 'truncate'} ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
           {p.name}
+          {secretOf(core, p.id) && <span className="text-[12px]" title="말하지 않은 일" data-testid="secret-tag">🤫</span>}
           {o.off && <span className="text-[13px] text-hi" title="제 포지션이 아니다" data-testid="off-pos">⚠</span>}
         </span>
         <OvrBadge ovr={p.ovr} size={20} />

@@ -6,7 +6,7 @@ import Fold from './Fold';
 import Help from './Help';
 import { FirstTip } from './Briefing';
 import type { Core, FacilityKind, HintTab, Ledger } from '../game/types';
-import { SC, ethicsBlocked, ethicsCost, ethicsLv, ethicsMult, scandalOpen } from '../game/scandal';
+import { SC, exposeRisk, ethicsBlocked, ethicsCost, ethicsLv, ethicsMult, scandalOpen } from '../game/scandal';
 import { useCore, useStore, useUserTeam, userMatch, type RightTab } from '../store';
 import { fmtInt, fmtMoney } from '../game/format';
 import {
@@ -592,6 +592,14 @@ export function FinanceTab() {
           전력 {Math.round(teamStrength(team))} · 팬 {fmtInt(Math.round(core.fans))}명 · 만족도 {Math.round(core.fanSat)}
           {core.crowd ? ` · 최근 홈 관중 ${fmtInt(core.crowd.attendance)}명` : ''}
         </div>
+        {exposeRisk(core) !== null && (
+          <div className="mt-1 flex min-h-9 items-center justify-between gap-2 bg-panel-2 px-1.5 py-1 text-[11px] text-white/75 mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="secrets-finance">
+            <span>
+              🤫 말하지 않은 일 {(core.campaign.secrets ?? []).filter((x) => !x.unknown).length}건 · <span className="text-[#f0a35a]">시즌 말 적발 위험 {Math.round((exposeRisk(core) ?? 0) * 100)}%</span>
+            </span>
+            <Help topic="secrets" />
+          </div>
+        )}
       </Fold>
 
       <SectionTitle>대출</SectionTitle>

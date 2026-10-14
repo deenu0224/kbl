@@ -71,6 +71,7 @@ export default function PlayerCard({
   const t = p.pit;
   const season = useStore((s) => s.season);
   const phase = useStore((s) => s.phase);
+  const secret = useStore((s) => (s.campaign.secrets ?? []).some((x) => !x.unknown && x.pid === p.id));
   const mine = !!team && !prospect;
   const left = mine ? svcLeft({ season, phase }, p) : null;
   const gap = mine ? valueGap(p, season) : 0;
@@ -146,6 +147,7 @@ export default function PlayerCard({
         )}
         <div className="flex flex-wrap gap-1 empty:hidden">
           {p.injury > 0 && <Tag text={p.ban ? `징계 ${p.ban}경기` : `부상 ${p.injury}경기`} tone="text-bad" />}
+          {secret && <Tag text="🤫 말하지 않은 일" tone="text-[#f0a35a]" help="secrets" />}
           {(p.tired ?? 0) > 0 && <Tag text={`연투 ${p.tired}일째`} tone="text-[#f0a35a]" help="fatigue" />}
           {p.posShift && <Tag text={`전향 중 수비 −${p.posShift.pen}`} tone="text-bad" />}
           {left !== null && <Tag text={left > 0 ? `FA 자격까지 ${left}시즌` : 'FA 자격'} tone="text-sky" help="service" />}
