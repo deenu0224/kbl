@@ -72,7 +72,7 @@ try {
     const { data } = r;
     check(r.w <= 280 && r.wLong <= 280, `${kind}: 글 길이 ${r.w} (소감 60자일 때 ${r.wLong}) ≤ X 280`);
     check(r.text.endsWith(data.url) && r.noted.startsWith(`${NOTE}\n`), `${kind}: 글은 주소로 끝나고, 소감은 맨 앞 줄`);
-    check(r.back === data.rec.seed && r.info && new RegExp(`^https://deenu0224\\.github\\.io/kbl/s/${data.code}/\\?l=[0-9a-z]+$`).test(data.url), `${kind}: 결과 주소 ${data.url} ↔ 시드 ${data.rec.seed} · 유형 ${data.code}`);
+    check(r.back === data.rec.seed && r.info && new RegExp(`^https://ddhsido\\.app/s/${data.code}/\\?l=[0-9a-z]+$`).test(data.url), `${kind}: 결과 주소 ${data.url} ↔ 시드 ${data.rec.seed} · 유형 ${data.code}`);
     check(data.pct.pct >= 1 && data.pct.pct <= 99 && data.pct.n > 0 && !!data.pct.basis, `${kind}: 상위 ${data.pct.pct}% (시뮬레이션 단장 ${data.pct.n}명 대비, ${data.pct.basis})`);
     const x = new URL(r.x);
     check(x.origin + x.pathname === 'https://twitter.com/intent/tweet' && x.searchParams.get('text') === r.noted && !/[\n\s·]/.test(r.x), `${kind}: X 인텐트 인코딩`);
