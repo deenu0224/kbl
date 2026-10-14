@@ -692,7 +692,8 @@ export function secretRisk(core: Pick<Core, 'season'>, s: Secret, heat = s.heatS
 /** 유저가 아는 덮은 일 중 한 건 이상이 이번 시즌 말에 드러날 확률 (없으면 null) */
 export function exposeRisk(core: Core): number | null {
   const xs = (core.campaign.secrets ?? []).filter((x) => !x.unknown);
-  return xs.length ? 1 - xs.reduce((q, s) => q * (1 - secretRisk(core, s)), 1) : null;
+  const at = { season: core.phase === 'season' || core.phase === 'post' ? core.season : core.season + 1 }; // 결산 뒤에는 다음 시즌 말
+  return xs.length ? 1 - xs.reduce((q, s) => q * (1 - secretRisk(at, s)), 1) : null;
 }
 /** 이 선수와 관련된, 유저가 아는 덮은 일 */
 export const secretOf = (core: Pick<Core, 'campaign'>, pid: string): Secret | undefined => (core.campaign.secrets ?? []).find((x) => !x.unknown && x.pid === pid);
