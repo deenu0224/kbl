@@ -1,6 +1,6 @@
 import { SCANDAL_NEWS } from '../game/story';
-import { DONATE_URL, FEEDBACK_URL, track } from '../analytics';
-import { useMemo, useState, type CSSProperties } from 'react';
+import { DONATE_URL, FEEDBACK_URL, gmCount, track, type GmCount } from '../analytics';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { StadiumScene } from '../game/types';
 import { HOF_END_KO, HOF_RECORD_KO, hofWorthy, type HofRecordKey } from '../game/hof';
 import { TEAM_DEFS, USER_ID } from '../game/generate';
@@ -64,6 +64,29 @@ function Logo({ nick }: { nick: string }) {
       <div className="font-pixel-lg title-logo mt-3 text-[18px] leading-tight short:text-[16px]" style={{ color: DEF.color }}>
         {DEF.city} {nick}
       </div>
+      <GmCountLine />
+    </div>
+  );
+}
+
+/** "지금까지 단장 n명 · 오늘 n명": 집계를 읽었을 때만 뜬다 (자리는 미리 잡아 두어 화면이 밀리지 않게) */
+function GmCountLine() {
+  const [n, setN] = useState<GmCount | null>(null);
+  useEffect(() => {
+    let live = true;
+    void gmCount().then((v) => live && setN(v));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <div className="title-logo mt-2 min-h-[18px] text-[13px] leading-tight text-white/75" data-testid="gm-count">
+      {n && (
+        <>
+          지금까지 단장 <span className="text-hi">{fmtInt(n.total)}명</span>
+          {n.today > 0 && <> · 오늘 {fmtInt(n.today)}명</>}
+        </>
+      )}
     </div>
   );
 }
