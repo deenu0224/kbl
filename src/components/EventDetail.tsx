@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { WhoTag, useWho } from './whoTag';
 import { fmtAvg, fmtEra, fmtIp } from '../game/format';
 import type { EventCard, Player } from "../game/types";
 import { findPlayer, useStore } from "../store";
@@ -35,6 +36,7 @@ function seasonRows(a: Player, b: Player): [string, string, string][] {
 
 /** 두 선수의 능력치를 나란히 (왼쪽 a = 들어오는 선수, 오른쪽 b = 지금 선수, 가운데는 a 기준 차이). 주간 브리핑 상세도 쓴다 */
 export function Compare({ a, b }: { a: Player; b: Player }) {
+  const who = useWho();
   const cell = (v: number, right: boolean) => (
     <div
       className={`flex min-w-0 flex-1 items-center gap-1.5 ${right ? "flex-row-reverse" : ""}`}
@@ -58,6 +60,11 @@ export function Compare({ a, b }: { a: Player; b: Player }) {
         <span className="min-w-0 flex-1 truncate text-right text-white">
           {b.name}
         </span>
+      </div>
+      {/* 누가 우리 선수인지: 이름 바로 아래에 소속·역할 */}
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <WhoTag who={who(a)} />
+        <WhoTag who={who(b)} />
       </div>
       <div className="mb-1 flex items-center text-[12px] text-white/60">
         <span className="flex-1">
@@ -134,6 +141,7 @@ export default function EventDetail({
   onNav: (i: number) => void;
   onPick: (i: number) => void;
 }) {
+  const who = useWho();
   const teams = useStore((s) => s.teams);
   const freeAgents = useStore((s) => s.freeAgents);
   const userId = useStore((s) => s.userId);
@@ -267,6 +275,7 @@ export default function EventDetail({
                 <span className="text-[12px] text-white/55">
                   {POS_KO[p.pos]}
                 </span>
+                <WhoTag who={who(p)} />
               </button>
             ))}
           </div>
