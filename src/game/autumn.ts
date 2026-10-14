@@ -173,7 +173,12 @@ export function climbLine(core: Pick<Core, 'post' | 'teams'>, teamId: string): s
   const t = core.teams.find((x) => x.id === teamId);
   const name = t ? t.name : teamId;
   const seed = post.seeds.indexOf(teamId) + 1;
-  if (!path.length) return seed > 0 ? `${name} — 정규시즌 ${seed}위로 기다림` : null;
+  if (!path.length) {
+    if (seed <= 0) return null;
+    // 첫 라운드가 아닌 곳에서 처음 나오면 그 라운드까지 기다린 팀
+    const at = post.series.findIndex((s) => s.hiId === teamId || s.loId === teamId);
+    return `${name} — 정규시즌 ${seed}위${at > 0 ? ` · ${post.series[at].name}에서 기다렸다` : ' · 가을야구 첫 경기'}`;
+  }
   const played = post.series.reduce((a, s) => a + s.games.filter((g) => g.homeId === teamId || g.awayId === teamId).length, 0);
   return `${name} — ${path[0].round === 'WC' ? '와일드카드' : path[0].name}부터 올라옴 · 가을야구 ${played + 1}경기째`;
 }
