@@ -202,7 +202,7 @@ export function OppClimb({ className = '', chips = true }: { className?: string;
   const { m, path, opp } = data;
   return (
     <div className={`min-w-0 text-[11px] leading-snug mob:text-[12px] ${className}`} data-testid="opp-climb">
-      <div className="truncate text-white/75">{data.line}</div>
+      <div className="text-white/75">{data.line}</div>
       {chips && path.length > 0 && (
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-[3px]" data-testid="opp-climb-path">
           {path.map((p) => (

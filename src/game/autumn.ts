@@ -165,15 +165,15 @@ export function climbPath(core: Pick<Core, 'post' | 'teams'>, teamId: string): P
   return out;
 }
 
-/** 상대가 어떻게 올라왔는지 한 줄: "한강 판다스 — 와일드카드부터 올라옴 · 가을야구 6경기째" (직행 팀이면 "정규시즌 1위 직행") */
+/** 상대가 어떻게 올라왔는지 한 줄: "판다스 — 와일드카드부터 올라옴 · 가을야구 6경기째" (기다린 팀이면 "듀오스 — 정규시즌 1위로 기다림") */
 export function climbLine(core: Pick<Core, 'post' | 'teams'>, teamId: string): string | null {
   const post = core.post;
   if (!post) return null;
   const path = climbPath(core, teamId);
   const t = core.teams.find((x) => x.id === teamId);
-  const name = t ? `${t.city} ${t.name}` : teamId;
+  const name = t ? t.name : teamId;
   const seed = post.seeds.indexOf(teamId) + 1;
   if (!path.length) return seed > 0 ? `${name} — 정규시즌 ${seed}위로 기다림` : null;
   const played = post.series.reduce((a, s) => a + s.games.filter((g) => g.homeId === teamId || g.awayId === teamId).length, 0);
-  return `${name} — ${path[0].name}부터 올라옴 · 가을야구 ${played + 1}경기째`;
+  return `${name} — ${path[0].round === 'WC' ? '와일드카드' : path[0].name}부터 올라옴 · 가을야구 ${played + 1}경기째`;
 }
