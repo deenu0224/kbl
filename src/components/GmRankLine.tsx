@@ -10,7 +10,7 @@ const PART_KO = [
   ['m', '민심', `시즌 말 ${TRUST_LABEL} 150 · 깃발 달성 60 · 별 한 개 20 (최대 40)`],
 ] as const;
 
-/** 시즌 결산 맨 위 한 줄: "단장 A · 명단장 · 742점" + [?] 도움말 (세 갈래 막대와 계산식) */
+/** 시즌 결산 맨 위 한 줄: "단장 A · 명단장 · 742점" + [?] 도움말 (세 갈래 막대와 계산식). 랭크 딱지는 결산 머리의 큰 딱지가 맡는다 */
 export default function GmRankLine({ core }: { core: Core }) {
   const gm = useMemo(() => cardOf(core, 'season').gm, [core]);
   const [open, setOpen] = useState(false);
@@ -20,11 +20,8 @@ export default function GmRankLine({ core }: { core: Core }) {
   return (
     <div className="mb-2" data-testid="gm-rank">
       <div className="flex items-center gap-2">
-        <span className="font-pixel-lg flex h-8 min-w-10 items-center justify-center px-1.5 text-[18px] text-ink" style={{ background: color, boxShadow: '0 0 0 2px #0f1420' }}>
-          {gm.id}
-        </span>
         <span className="font-pixel-lg min-w-0 flex-1 truncate text-[16px] mob:text-[15px]">
-          단장 {gm.id} · <span style={{ color }}>{gm.name}</span> · {gm.score}점
+          단장 <span style={{ color }}>{gm.id}</span> · <span style={{ color }}>{gm.name}</span> · {gm.score}점
         </span>
         <button type="button" className="px-btn flex h-8 w-8 shrink-0 items-center justify-center !p-0 mob:h-10 mob:w-10" aria-label="단장 점수 도움말" aria-expanded={open} data-testid="gm-help" onClick={() => setOpen(!open)}>
           ?
