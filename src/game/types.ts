@@ -523,6 +523,7 @@ export interface Briefing {
   offers: BriefOffer[];
   resultInfo?: BriefResult[]; // results 와 같은 순서의 상세
   alert?: string; // 조합장의 자금 경고 한 줄 (금고가 12경기 안에 빌 때만, 제안보다 위에)
+  warn?: { who: CharId; line: string }; // 스캔들 징후를 본 스태프의 한 줄 (scandal.ts scandalWarn. 시즌에 한 번, 노란색)
 }
 /** 실행한 제안 (다음 주 브리핑의 결과 줄을 만들 재료) */
 export interface BriefDone {

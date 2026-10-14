@@ -15,6 +15,7 @@ import { stageOf } from './campaign';
 import { memoGet, memoNum, memoSet } from './memo';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import { CHARACTERS } from './story';
+import { markScandalWarnMut, scandalWarn } from './scandal';
 
 export const BRIEF_EVERY = 6; // 경기
 export const BRIEF_MAX = 2; // 한 번에 내는 제안 수
@@ -833,7 +834,8 @@ export function weeklyBriefing(core: Core): Briefing {
     const text = d.day < core.day ? resultLine(core, d) : null;
     if (text) resultInfo.push({ text, label: d.label, ...(d.expect ? { expect: d.expect } : {}), ...(d.parts && d.partsExp ? { parts: { a: d.parts, b: d.partsExp, now } } : {}) });
   }
-  return { day: core.day, summary, results: resultInfo.map((r) => r.text), resultInfo, offers, ...(alert ? { alert } : {}) };
+  const warn = scandalWarn(core);
+  return { day: core.day, summary, results: resultInfo.map((r) => r.text), resultInfo, offers, ...(alert ? { alert } : {}), ...(warn ? { warn } : {}) };
 }
 
 /** 브리핑을 열 차례인가: 정규시즌 6경기마다, 그날 이미 닫지 않았을 때 */
@@ -855,7 +857,7 @@ export function drawBriefing(core0: Core): Core {
   core.campaign.briefMemo = observe(core, memoOf(core));
   const b = weeklyBriefing(core);
   const m = memoOf(core);
-  if (!b.offers.length && !b.results.length) {
+  if (!b.offers.length && !b.results.length && !b.warn) {
     core.campaign.briefMemo = { ...m, done: m.done.filter((d) => d.day >= core.day), snap: snapOf(core) };
     return core;
   }
@@ -864,6 +866,7 @@ export function drawBriefing(core0: Core): Core {
   core.campaign.briefing = b;
   core.campaign.briefMemo = { ...m, shown: (m.shown ?? 0) + b.offers.length, log: offeredLog(m, core.day, b) };
   if (moodShown) memoSet(core, MOOD_WARN_KEY, core.day);
+  if (b.warn) markScandalWarnMut(core); // 같은 징후 경고는 한 번만
   return core;
 }
 
@@ -874,7 +877,7 @@ export function refreshBriefing(core0: Core): Core {
   const m = memoOf(core);
   const b = weeklyBriefing(core);
   core.campaign.briefMemo = { ...m, shown: (m.shown ?? 0) - core0.campaign.briefing.offers.length + b.offers.length, log: offeredLog(m, core.day, b) };
-  core.campaign.briefing = b;
+  core.campaign.briefing = { ...b, ...(core0.campaign.briefing.warn ? { warn: core0.campaign.briefing.warn } : {}) };
   return core;
 }
 

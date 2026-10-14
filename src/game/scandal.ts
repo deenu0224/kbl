@@ -5,7 +5,7 @@ import { josa } from './format';
 // - SCANDAL_CARDS: 「트레이너의 보고」(약물) · 「사무국의 전화」(승부조작). events.ts 의 카드 목록에 들어간다
 // - exposeMut: 결산(concludeMut)에서 덮은 일(campaign.secrets)의 적발 판정
 // - buyEthics: 구단 탭의 선수단 윤리 교육
-import type { Core, EventCard, Exposure, Player, Secret } from './types';
+import type { CharId, Core, EventCard, Exposure, Player, Secret } from './types';
 import { clamp, pick, randInt, type Rng } from './rng';
 import { calcOvr } from './ratings';
 import { MIN_SALARY } from './ratings';
@@ -201,9 +201,23 @@ function revertMut(p: Player, ups: string, extra: number): void {
   p.ovr = q.ovr;
 }
 
+/** 덮은 승부조작: 그 선수가 팀에 있는 동안 시즌에 1~2번 "또 이상한 하루" 뉴스 (뉴스만. 난수 대신 해시로 날을 정한다) */
+function fixAgainMut(core: Core): void {
+  for (const s of core.campaign.secrets ?? []) {
+    if (s.kind !== 'fix' || s.unknown || s.season >= core.season) continue;
+    const p = find(core, s.pid);
+    if (!p || p.farm) continue;
+    const h = hashOf(`fix|${s.pid}|${core.season}`);
+    const days = [dayAt(core, 14 + (h % 20)), ...(h & 64 ? [dayAt(core, 48 + ((h >>> 8) % 26))] : [])];
+    const n = days.indexOf(core.day);
+    if (n >= 0) addNews(core, SCANDAL_NEWS.fixAgain(p.name, n + (h & 1)), 'bad');
+  }
+}
+
 /** 매 경기 후 (mutate): 시즌의 스캔들을 정하고, 때가 되면 징후를 낸다 */
 export function scandalTickMut(core: Core, rng: Rng): void {
   if (core.phase !== 'season') return;
+  fixAgainMut(core);
   if (memoGet(core, PLAN) === undefined) {
     if (core.day < SC.rollDay) return;
     memoSet(core, PLAN, 'none');
@@ -239,13 +253,26 @@ export function scandalTickMut(core: Core, rng: Rng): void {
     p.ovr = calcOvr(p);
     p.pot = Math.max(p.pot, p.ovr);
     plan.ups = ups.map(([k, d]) => `${k}:${d}`).join(',');
-    addNews(core, SCANDAL_NEWS.dopeSign(p.name, p.age), 'good');
+    addNews(core, SCANDAL_NEWS.dopeSign(p.name, p.age), 'info');
   } else {
     addNews(core, p.kind === 'P' ? SCANDAL_NEWS.fixSignP(p.name) : SCANDAL_NEWS.fixSignB(p.name), 'info');
   }
   plan.state = 'sign';
   savePlan(core, plan);
 }
+
+const WARN = 'scnWarn';
+/** 주간 브리핑의 징후 경고 한 줄: 징후가 나온 뒤 첫 브리핑에 한 번 (트레이너·감독) */
+export function scandalWarn(core: Core): { who: CharId; line: string } | null {
+  const plan = planOf(core);
+  if (!plan || plan.state !== 'sign' || core.day < plan.sign || memoGet(core, WARN) === String(core.season)) return null;
+  const p = find(core, plan.pid);
+  if (!p) return null;
+  return plan.kind === 'dope'
+    ? { who: p.kind === 'P' ? 'pitching' : 'farm', line: SCANDAL_NEWS.dopeWarn(p.name) }
+    : { who: 'manager', line: SCANDAL_NEWS.fixWarn(p.name) };
+}
+export const markScandalWarnMut = (core: Core): void => memoSet(core, WARN, String(core.season));
 
 // ───────── 선수 처리 ─────────
 

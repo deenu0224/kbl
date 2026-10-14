@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Compare } from './EventDetail';
 import { play } from '../audio/sfx';
 import { openDesk } from './roster/transferUi';
-import type { BriefDetail, BriefOffer, BriefResult } from '../game/types';
+import type { BriefDetail, CharId, BriefOffer, BriefResult } from '../game/types';
 import { PART_LABELS } from '../game/briefing';
 import { flagForecast } from '../game/campaign';
 import { CHARACTERS } from '../game/story';
@@ -48,6 +48,25 @@ function ChairAlert({ text }: { text: string }) {
           {ch.name} <span className="text-[11px] text-white/55">{ch.title}</span>
         </div>
         <div className="mt-0.5 text-[12px] leading-snug text-white mob:text-[13px]">“{text}”</div>
+      </div>
+    </div>
+  );
+}
+
+/** 스캔들 징후를 본 스태프의 한 줄 (노란색): 제안보다 위에 뜬다 */
+function StaffWarn({ who, line }: { who: CharId; line: string }) {
+  const team = useUserTeam();
+  const ch = CHARACTERS[who];
+  return (
+    <div className="flex items-start gap-2 bg-[#f0a35a]/12 p-2" style={{ boxShadow: 'inset 3px 0 0 #f0a35a' }} data-testid="brief-warn">
+      <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
+        <PixelFace id={`char-${ch.seed}`} color={team.color} color2={team.color2} size={44} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] leading-tight mob:text-[13px]">
+          {ch.name} <span className="text-[11px] text-white/55">{ch.title}</span>
+        </div>
+        <div className="mt-0.5 text-[12px] leading-snug text-[#f0a35a] mob:text-[13px]">“{line}”</div>
       </div>
     </div>
   );
@@ -340,6 +359,7 @@ export default function BriefingSheet() {
           {behind && <FlagForecast className="mt-1" />}
         </div>
         {b.alert && <ChairAlert text={b.alert} />}
+        {b.warn && <StaffWarn who={b.warn.who} line={b.warn.line} />}
         {b.offers.map((o) => (
           <OfferCard key={o.id} o={o} onOpen={() => setOpen({ t: 'offer', id: o.id })} />
         ))}
