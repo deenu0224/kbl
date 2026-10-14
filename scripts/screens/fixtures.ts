@@ -505,7 +505,9 @@ for (const [name, f] of Object.entries(found)) if (!name.startsWith('intro') && 
 mkdirSync(OUT, { recursive: true });
 // 명예의 전당: 연고 이전(없으면 결산) 세이브를 한 줄 올려 둔다
 const hofSrc = found.over?.core ?? found.ended?.core ?? found.endedFail?.core;
-const hof = hofSrc ? JSON.stringify(recordClub(emptyHof(), hofSrc, found.over ? 'relocated' : 'abandoned', '2026-10-13')) : null;
+// 같은 별칭의 지난 구단 하나를 먼저 올려 1기·2기 표시가 보이게 한다
+const hofOld = hofSrc ? recordClub(emptyHof(), { ...structuredClone(hofSrc), seed: hofSrc.seed + 1 }, 'abandoned', '2026-10-12') : null;
+const hof = hofSrc && hofOld ? JSON.stringify(recordClub(hofOld, hofSrc, found.over ? 'relocated' : 'abandoned', '2026-10-13')) : null;
 
 const index: Record<string, { seed: number; bot: string; season: number; day: number; phase: string; stage: number }> = {};
 for (const [name, f] of Object.entries(found)) {

@@ -132,11 +132,17 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
           <>
             <H>역대 구단</H>
             {hof.clubs.length ? (
-              hof.clubs.map((c) => (
+              hof.clubs.map((c, i) => (
                 <div key={c.seed} className="mb-1 min-h-12 bg-panel px-2 py-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="hof-club">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-pixel-lg truncate text-[16px]" style={{ color: DEF.color }}>
                       {DEF.city} {c.nick}
+                      {/* 같은 별칭의 구단이 여럿이면 1기·2기 (목록은 최신이 위 — 아래에 남은 같은 이름 수로 기수를 센다) */}
+                      {hof.clubs.filter((x) => x.nick === c.nick).length > 1 && (
+                        <span className="ml-1 text-[13px] text-white/60" data-testid="hof-gen">
+                          {hof.clubs.slice(i).filter((x) => x.nick === c.nick).length}기
+                        </span>
+                      )}
                     </span>
                     <span className={`shrink-0 ${c.end === 'champion' ? 'text-hi' : c.end === 'relocated' ? 'text-bad' : 'text-white/60'}`}>{HOF_END_KO[c.end]}</span>
                   </div>
@@ -215,7 +221,9 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
 const VIEW = { x: 225, y: 40, w: 190, h: 95 }; // 전광판 둘레만 잘라 보여 준다
 
 function NickEntry({ onBack }: { onBack: () => void }) {
-  const [nick, setNick] = useState(NICK_DEFAULT);
+  // 기본값은 지난번에 쓴 별칭 (지금 세이브의 구단, 없으면 명예의 전당의 가장 최근 구단)
+  const lastNick = useStore((st) => (useUi.getState().hasSave ? st.teams.find((t) => t.id === st.userId)?.name : undefined)) ?? useHof.getState().hof.clubs[0]?.nick;
+  const [nick, setNick] = useState(lastNick || NICK_DEFAULT);
   const name = nick.trim();
   const ok = name.length >= 1 && [...name].length <= NICK_MAX;
   const sb = HOTSPOTS.scoreboard;

@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.10.2',
+    date: '2026-10-14',
+    title: '구단 이름 이어 쓰기',
+    notes: ['새로 시작할 때 구단 별칭이 지난번 이름으로 채워져 있어요.', '명예의 전당에 같은 이름의 구단이 여럿이면 1기·2기로 나눠 보여 줍니다.'],
+  },
+  {
     version: '0.10.1',
     date: '2026-10-14',
     title: '내년 살림 미리보기',
