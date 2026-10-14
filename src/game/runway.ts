@@ -5,7 +5,7 @@
 //    훈련장 유지비, 구단 운영비, 이자(부채 × 연이율 / 경기 수).
 //  · 수입은 "최근 실적 × 현재 가격"으로 잡는다: 최근 홈 6경기(≈ 최근 12경기) 평균 관중 × (티켓값 + 매점 객단가),
 //    굿즈·분배금은 현재 팬 수·순위·스타성으로 계산. 홈 3경기를 치르기 전(시즌 초)에는 관중을 previewDemand ×
-//    요일·날씨 평균 계수로 대신한다.
+//    요일·날씨 평균 계수로 대신한다. 입장 수입은 홈 72%, 원정은 그날 상대 구장 입장 수입 추정(gate.ts)의 28%.
 //  · 남은 일정을 홈/원정 순서대로 한 경기씩 굴려 현금이 0 아래로 내려가는 경기(cashOut)와, 그 뒤 긴급 대출이 쌓여
 //    부채가 한도(loanLimit)를 넘는 경기(forcedSale)를 찾는다. 이자는 불어난 부채에 맞춰 매 경기 구간별로 다시 계산한다.
 //  · DayReport.money.net 은 저장되지 않고, cashHistory 의 차분에는 계약금·시설 투자·대출·이벤트 카드가 섞여 있어
@@ -21,7 +21,8 @@ import {
   capacityOf, debtMood, loanInterest, loanLimit, luxTax, opsCost, payroll, previewDemand, starPower, userTeam,
 } from './economy';
 import { fmtMoney } from './format';
-import { rankOf } from './season';
+import { WEEK, rankOf, standings } from './season';
+import { HOME_GATE, awayGate } from './gate';
 import { perGame, rankUnits } from './league';
 
 export interface Runway {
@@ -50,7 +51,7 @@ function baseNet(core: Core): { home: number; away: number } {
   const att = recent.length >= MIN_HOME ? recent.reduce((s, v) => s + v, 0) / recent.length : Math.min(cap, previewDemand(core) * AVG_DOW * AVG_WEATHER);
   const rank = rankOf(core.teams, core.userId);
   const food = FOOD_LV[core.facilities.food].spend * (core.facilities.food < FOOD_LV.length - 1 ? 1 - RAIN_P * (1 - RAIN_FOOD) : 1);
-  const gate = Math.min(cap, att) * (core.finance.ticketPrice + food);
+  const gate = Math.min(cap, att) * (core.finance.ticketPrice * HOME_GATE + food);
   const merch = core.fans * MERCH_K * (starPower(t, core.season) / 100);
   const league = perGame(core, leagueShare(core, rank) * leagueMult(core));
   const fixed = payroll(t) / len + perGame(core, TRAIN_LV[core.facilities.training].upkeep + opsCost(core));
@@ -74,9 +75,13 @@ function project(core: Core, d: { cash?: number; perGame?: number; debt?: number
   let cashOut: number | null = null;
   let forcedSale: number | null = debt0 > limit ? 0 : null;
   const left = core.schedule.length - core.day;
+  const ranks = new Map(standings(core.teams).map((t, i) => [t.id, i + 1]));
   for (let k = 1; k <= left; k++) {
-    const home = core.schedule[core.day + k - 1].some((g) => g.homeId === core.userId);
-    const n = (home ? net.home : net.away) + add - loanInterest(core, debt) / len;
+    const day = core.day + k - 1;
+    const g = core.schedule[day].find((x) => x.homeId === core.userId || x.awayId === core.userId);
+    const home = !g || g.homeId === core.userId;
+    const awayG = g && !home ? awayGate(core, g.homeId, ranks.get(g.homeId) ?? 0, day % WEEK).share : 0;
+    const n = (home ? net.home : net.away + awayG) + add - loanInterest(core, debt) / len;
     sum += n;
     cash += n;
     if (cash < 0) {

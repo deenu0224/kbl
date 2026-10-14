@@ -7,7 +7,7 @@
 //  · 은퇴(40세)는 같은 자리 신인(최저연봉)으로, 전역 선수는 지금 능력의 시장가(보유 기간이면 할인)로 돌아온다고 본다.
 //  · 드래프트 지명(DRAFT_ROUNDS 명 · 2군 정원까지)은 최저연봉으로 2군에 들어온다. 이미 드래프트를 마쳤으면 명단에 있다.
 // 영업손익 (runway.ts 와 같은 가정: 지금 가격·시설·팬 규모가 이어진다)
-//  · 수입 = 이번 시즌 입장·매점·굿즈·분배금 실적. 시즌 중이면 지금까지의 실적을 시즌 길이로 늘린다. 가을야구 배당금은 뺀다.
+//  · 수입 = 이번 시즌 입장(홈 72% + 원정 몫)·매점·굿즈·분배금 실적. 시즌 중이면 지금까지의 실적을 시즌 길이로 늘린다. 가을야구 배당금은 뺀다.
 //  · 지출 = 위 연봉 + 시설 유지비(홈 경기) + 훈련장·운영비·2군 운영비 + 이자(지금 부채 기준) + 경쟁균형세 예상.
 //  · 계약금·선수 매각·시설 투자·이벤트 카드는 넣지 않는다.
 import type { Core, Player } from './types';
@@ -150,7 +150,7 @@ export function nextSeasonForecast(core: Core): PayForecast {
   const played = core.phase === 'season' ? core.day : len;
   const scaled = core.phase === 'season' && core.day < len;
   const div = core.phase === 'season' ? 0 : POST_DIVIDEND[core.post?.userFinish ?? 'none'] ?? 0;
-  const gross = L.ticket + L.food + L.merch + L.league - div;
+  const gross = L.ticket + (L.awayGate ?? 0) + L.food + L.merch + L.league - div;
   const income = Math.round(scaled ? (gross * len) / Math.max(1, played) : gross);
   // 지출: 지금 시설·팬 규모·부채 그대로
   const homes = core.schedule.filter((d) => d.some((g) => g.homeId === core.userId)).length;

@@ -22,6 +22,7 @@ import { borrow, repay, callUp, farmLockLeft, ilLock, releasePlayer, sendDown, s
 import { tiredPenalty } from './sim';
 import { releaseAdvice } from './release';
 import { nextSeasonForecast, payParts, signedMoney } from './payforecast';
+import { HOME_GATE } from './gate';
 
 export type RemedyGo = 'order' | 'pitchers' | 'market' | 'finance' | 'seats' | 'league' | 'squad' | 'release';
 /** 직렬화 가능한 액션 서술. 대상은 실행 시점의 core 에서 다시 찾는다 */
@@ -376,7 +377,7 @@ function cashMetric(core: Core, r: Runway): { n: number | null; label: string; s
   const sale = r.forcedSale !== null && (core.finance.cash <= 0 || (r.cashOut !== null && r.cashOut <= 1));
   return sale ? { n: r.forcedSale, label: '한도 초과까지', sale } : { n: r.cashOut, label: '바닥까지', sale };
 }
-const gateIncome = (c: Core) => Math.min(capacityOf(c), previewDemand(c)) * (c.finance.ticketPrice + FOOD_LV[c.facilities.food].spend);
+const gateIncome = (c: Core) => Math.min(capacityOf(c), previewDemand(c)) * (c.finance.ticketPrice * HOME_GATE + FOOD_LV[c.facilities.food].spend);
 function homeShare(core: Core): number {
   const left = core.schedule.slice(core.day);
   return left.length ? left.filter((d) => d.some((g) => g.homeId === core.userId)).length / left.length : 0;

@@ -38,6 +38,7 @@ import { postTeams, seasonGames } from '../game/league';
 import Leaders from './Leaders';
 import { useUi, type LeagueSub } from './layout/uiStore';
 import { Badge, Bar, Chips, FAC_KO, MiniBars, MoneyBar, SectionTitle, TabBar, TeamDot, TONE_CLASS, dowOf, fmtPct, isNightDay } from './ui';
+import { HOME_GATE } from '../game/gate';
 
 const LEAGUE_SUBS: readonly (readonly [LeagueSub, string])[] = [
   ['table', '순위'],
@@ -395,7 +396,7 @@ export function StadiumTab({ part }: { part?: 'ticket' | FacilityKind } = {}) {
         <Bar ratio={cap ? demand / cap : 0} color={over ? '#ffd84a' : '#7fd3ff'} h={8} className="mt-0.5" />
         {over && <div className="mt-0.5 text-[10px] text-hi">예상 수요가 좌석보다 {fmtInt(Math.round(demand - cap))}명 많습니다</div>}
         <div className="mt-1 text-[10px] text-white/60">
-          홈경기당 예상 입장 수입 <span className="text-hi">{fmtMoney(Math.round(Math.min(demand, cap) * price))}</span>
+          홈경기당 예상 입장 수입 <span className="text-hi">{fmtMoney(Math.round(Math.min(demand, cap) * price * HOME_GATE))}</span>
         </div>
       </div>
 
