@@ -104,7 +104,7 @@ export const askOf = (r: ShareRecord): string => (r.kind === 'relocated' ? ASK_K
 
 /**
  * 올라갈 글: [소감] → 첫 줄 → 결과 1~2줄 → 단장 점수 → 명장면 → 깨달은 것 0~1줄 → 비교 줄 → "마지막 줄 #답답해서내가 {주소}".
- * X 제한(280)을 넘으면 깨달은 것 → 비교 줄 → 명장면 → 결과 둘째 줄 순으로 뺀다. 소감이 아주 길어 그래도 넘치면 첫 줄을 소감이 대신한다
+ * X 제한(280)을 넘으면 깨달은 것 → 비교 줄 → 명장면 → 결과 둘째 줄 → 단장 점수 순으로 뺀다. 소감이 아주 길어 그래도 넘치면 첫 줄을 소감이 대신한다
  */
 export function shareText(d: ShareData, note = '', limit = X_LIMIT): string {
   const head = cleanNote(note);
@@ -112,7 +112,7 @@ export function shareText(d: ShareData, note = '', limit = X_LIMIT): string {
   let open: string[] = [s.open];
   const opt = (x: string | null) => (x ? [x] : []);
   const build = () => [...(head ? [head] : []), ...open, ...s.results, ...opt(s.gm), ...opt(s.scene), ...opt(s.lesson), ...opt(s.versus), `${s.close} ${SHARE_TAG} ${d.url}`].join('\n');
-  const drops = [() => (s.lesson = null), () => (s.versus = null), () => (s.scene = null), () => (s.results = s.results.slice(0, 1)), () => head && (open = [])];
+  const drops = [() => (s.lesson = null), () => (s.versus = null), () => (s.scene = null), () => (s.results = s.results.slice(0, 1)), () => (s.gm = null), () => head && (open = [])];
   for (const drop of drops) {
     if (xWeight(build()) <= limit) break;
     drop();

@@ -235,10 +235,12 @@ export function cardLines(d: ShareData): { record: string; gb: string | null; mv
     mvp,
     marks,
     post,
-    career: c ? `단장 경력  ${c.seasons}시즌 · 우승 ${c.titles}회 · 통산 ${wlt(c.w, c.l, c.t)}` : null,
+    career: c ? `${c.seasons}시즌 · 우승 ${c.titles}회 · 통산 ${wlt(c.w, c.l, c.t)}` : null,
   };
 }
 
+/** 막대 높이: 승률 .100 ~ .900 을 바닥~꼭대기로 (.500 이 가운데 선) */
+const barOf = (v: number) => Math.max(0, Math.min(1, (v - 0.1) / 0.8));
 /** 월별 승률 막대: 6구간(4~9월), .500 선, 막대 위에 승률 */
 function monthBars(ctx: Ctx, months: number[], x: number, y: number, w: number, h: number): void {
   const n = months.length;
@@ -249,17 +251,21 @@ function monthBars(ctx: Ctx, months: number[], x: number, y: number, w: number, 
   const span = base - top;
   months.forEach((v, i) => {
     const bx = x + i * (bw + gap);
-    const bh = Math.max(4, Math.round(span * Math.max(0, Math.min(1, v))));
+    const bh = Math.max(4, Math.round(span * barOf(v)));
     ctx.fillStyle = RULE;
     ctx.fillRect(bx, top, bw, span);
     ctx.fillStyle = v >= 0.5 ? GREEN : ORANGE;
     ctx.fillRect(bx, base - bh, bw, bh);
-    line(ctx, v.toFixed(3).replace(/^0/, ''), 'Galmuri11', [22], bx + bw / 2, base - bh - 28, v >= 0.5 ? GREEN : MUTE, bw + gap, 'center');
-    line(ctx, `${i + 4}월`, 'Galmuri11', [22], bx + bw / 2, base + 6, MUTE, bw + gap, 'center');
   });
   // .500 선
   ctx.fillStyle = INK;
   for (let px = x; px < x + w; px += 12) ctx.fillRect(px, base - Math.round(span / 2) - 1, 6, 2);
+  months.forEach((v, i) => {
+    const bx = x + i * (bw + gap);
+    const bh = Math.max(4, Math.round(span * barOf(v)));
+    line(ctx, v.toFixed(3).replace(/^0/, ''), 'Galmuri11', [22], bx + bw / 2, base - bh - 28, v >= 0.5 ? GREEN : MUTE, bw + gap, 'center');
+    line(ctx, `${i + 4}월`, 'Galmuri11', [22], bx + bw / 2, base + 6, MUTE, bw + gap, 'center');
+  });
 }
 
 
@@ -275,7 +281,7 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
   const gone = r.kind === 'relocated';
   const ending = r.kind !== 'season';
   const gmText = r.gm ? gmLineOf(r.gm) : null;
-  const sub = ending ? (gone ? `${r.seasons}시즌 · 연고 이전` : `${r.seasons}시즌 · 우승 엔딩`) : `${f?.nth ?? r.seasons}시즌째`;
+  const sub = L.career ?? `${f?.nth ?? r.seasons}시즌째`;
   const title = f?.name ? `「${f.name}」` : '';
   const ask = gone ? '너라면 버틸 수 있나?' : r.kind === 'champion' ? ASK : '너라면 몇 승?';
   await loadFonts(`${SHARE_TITLE}${SHARE_CITY}${r.nick}${title}${sub}${gmText ?? ''}${L.record}${L.gb ?? ''}${L.mvp?.join('') ?? ''}${L.marks.join('')}${L.post ?? ''}${L.career ?? ''}${ask}올해의 선수 월별 최장 연승 4월5월6월7월8월9월.0123456789`);
@@ -303,16 +309,24 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
   const ns = line(ctx, `${SHARE_CITY} ${r.nick}`, 'Galmuri14', [56, 42, 28], PAD, top, INK, hw);
   line(ctx, sub, 'Galmuri11', [33, 22], PAD, top + ns + 18, MUTE, hw);
   if (r.gm) {
-    // 랭크 딱지 + "명단장 · 742점"
-    const gy = top + ns + 18 + 33 + 26;
+    // "단장 [A] · 명단장 · 742점" 한 줄 (랭크는 색 딱지)
+    const gy = top + ns + 18 + 33 + 30;
+    const head = r.gm.career ? '단장 경력' : '단장';
+    const rest = `· ${r.gm.name} · ${r.gm.score}점`;
     const tag = r.gm.id;
-    ctx.font = '56px Galmuri14';
-    const tw = Math.max(84, ctx.measureText(tag).width + 28);
-    box(ctx, PAD + 4, gy, tw, 76, RANK_FILL[tag] ?? GOLD);
-    line(ctx, tag, 'Galmuri14', [56], PAD + 4 + tw / 2, gy + 10, INK, tw, 'center');
-    const lx = PAD + tw + 30;
-    line(ctx, r.gm.career ? '단장 경력' : '단장', 'Galmuri11', [22], lx, gy - 2, MUTE, hw - tw - 30);
-    line(ctx, `${r.gm.name} · ${r.gm.score}점`, 'Galmuri14', [42, 28], lx, gy + 28, gone ? INK : GREEN, hw - tw - 30);
+    let fs = 42;
+    for (const s of [42, 28]) {
+      ctx.font = `${s}px Galmuri14`;
+      fs = s;
+      if (ctx.measureText(`${head} ${tag}  ${rest}`).width + 40 <= hw) break;
+    }
+    ctx.font = `${fs}px Galmuri14`;
+    const hwid = ctx.measureText(head).width;
+    const tw = ctx.measureText(tag).width + 24;
+    line(ctx, head, 'Galmuri14', [fs], PAD, gy + 10, INK, hw);
+    box(ctx, PAD + hwid + 18, gy, tw, fs + 20, RANK_FILL[tag] ?? GOLD, INK, 3);
+    line(ctx, tag, 'Galmuri14', [fs], PAD + hwid + 18 + tw / 2, gy + 10, INK, tw, 'center');
+    line(ctx, rest, 'Galmuri14', [fs], PAD + hwid + 18 + tw + 16, gy + 10, gone ? INK : GREEN, hw - hwid - tw - 34);
   }
 
   // 가운데 줄들: 높이를 먼저 재고, 남는 높이는 막대와 간격에 나눠 준다
@@ -322,8 +336,6 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
     ctx.fillStyle = RULE;
     ctx.fillRect(PAD, y, inner, 4);
   };
-  if (L.career)
-    blocks.push({ h: 44, draw: (y) => line(ctx, L.career!, 'Galmuri14', [28], PAD, y + 4, INK, inner) });
   if (L.record)
     blocks.push({
       h: 60,
@@ -366,12 +378,15 @@ export async function renderCard(d: ShareData, scene: StadiumScene): Promise<Blo
     blocks.push({ h: 36, draw: (y) => line(ctx, L.post!, 'Galmuri14', [28], PAD, y, gone ? INK : GREEN, inner) });
   }
   const y0 = top + MINI_H + 44;
-  const y1 = 980;
+  const y1 = 974;
   const need = blocks.reduce((a, b) => a + b.h, 0);
-  const free = Math.max(0, y1 - y0 - need);
-  const grow = blocks.some((b) => b.grow) ? Math.min(free * 0.6, 160) : 0;
-  const gapH = blocks.length > 1 ? Math.min(44, (free - grow) / (blocks.length + 1)) : 0;
-  let y = y0 + Math.max(0, (free - grow - gapH * (blocks.length - 1)) / 2 - 10);
+  const free = y1 - y0 - need;
+  const gaps = Math.max(1, blocks.length - 1);
+  const GAP_MIN = 18;
+  // 막대는 줄이 많으면 줄어들고(최대 −40) 적으면 자란다(최대 +160). 나머지는 간격(최대 44), 그래도 남으면 위아래 여백
+  const grow = blocks.some((b) => b.grow) ? Math.max(-40, Math.min(160, (free - GAP_MIN * gaps) * 0.6)) : 0;
+  const gapH = Math.max(GAP_MIN * 0.5, Math.min(44, (free - grow) / gaps));
+  let y = y0 + Math.max(0, (free - grow - gapH * gaps) / 2);
   rule(y0 - 22);
   for (const b of blocks) {
     const g = b.grow ? grow : 0;
