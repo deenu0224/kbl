@@ -26,7 +26,7 @@ export function PayForecastBlock({ core }: { core: Core }) {
     </div>
   );
   return (
-    <div className={`mt-3 px-2 py-2 text-[12px] leading-snug mob:text-[13px] ${loss ? 'bg-bad/10' : 'bg-ink/60'}`} data-testid="pay-forecast">
+    <div className={`mt-3 break-keep px-2 py-2 text-[12px] leading-snug mob:text-[13px] ${loss ? 'bg-bad/10' : 'bg-ink/60'}`} data-testid="pay-forecast">
       <div className="mb-1 text-[11px] text-sky">▸ 내년 살림 미리보기</div>
       {head}
       {loss && (
@@ -85,7 +85,7 @@ export function PayForecastLine({ core }: { core: Core }) {
   const diff = f.next.total - f.now.total;
   const loss = f.profit < 0;
   return (
-    <div className="flex items-start gap-1 text-[11px] leading-snug mob:text-[13px]" data-testid="pay-forecast-line">
+    <div className="flex items-start gap-1 break-keep text-[11px] leading-snug mob:text-[13px]" data-testid="pay-forecast-line">
       <span className="min-w-0 flex-1 text-white/75">
         내년 연봉 예상 <span className={diff > 0 ? 'text-bad' : 'text-good'}>{signedMoney(diff)}</span>
         {' · '}

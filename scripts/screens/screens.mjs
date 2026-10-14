@@ -142,6 +142,7 @@ export const SCREENS = [
   S('rel-stove', 'relStove', game(...STOVE_DESK, RSORT, RSORT, RSORT)),
   // 내년 살림 미리보기 (payforecast.ts): 결산의 블록(적자·흑자) · [이적 시장(방출 후보순)] · 시즌 후반 재무 탭 한 줄과 도움말 · 할 일과 조치 시트
   S('ended-pay-loss', 'endedPayLoss', game('css:[data-testid="pay-forecast"] > div')),
+  S('ended-pay-chair', 'endedPayLoss', game('css:[data-testid="pay-forecast"] > div:last-child > span')),
   S('ended-pay-desk', 'endedPayLoss', game('pay-release', c('선택', { nth: 1, optional: true }), { wait: 300 }, c('pay-release', { optional: true }), { wait: 300 })),
   S('ended-pay-gain', 'endedPayGain', game('css:[data-testid="pay-forecast"] > div')),
   S('club-finance-pay', 'payLate', game(...CLUB, '재무')),
