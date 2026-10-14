@@ -521,6 +521,8 @@ function coachOffer(core: Core): Cand | null {
 function chairOffer(core: Core): Cand | null {
   const f = core.finance;
   if (f.debt <= 0) return null;
+  // 금고가 곧 빈다는 경고가 떠 있으면 갚자고 하지 않는다 (같은 브리핑에 "빌리자"와 "갚자"가 함께 뜨던 문제)
+  if (cashAlert(core)) return null;
   const amt = Math.min(LOAN_STEP, f.debt);
   if (f.cash < amt + CASH_KEEP) return null;
   const perSeason = Math.round(loanInterest(core, f.debt) - loanInterest(core, f.debt - amt));
