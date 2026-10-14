@@ -1,5 +1,5 @@
 // 포스트시즌 (KBO 사다리식). 8구단 리그는 4팀, 10구단 리그는 와일드카드 결정전을 더한 5팀. docs/LEVEL_DESIGN.md 3절 · docs/TEN_TEAMS.md
-import type { BatStats, Core, Crowd, DayReport, GameEvent, GameResult, PitStats, PostFinish, PostRound, PostSeries, Postseason, Team } from './types';
+import type { BatStats, BoxSide, Core, Crowd, DayReport, GameEvent, GameResult, KsBox, PitStats, PostFinish, PostRound, PostSeries, Postseason, Team } from './types';
 import { clamp, gauss, randInt, type Rng } from './rng';
 import { FOOD_LV, SEAT_LV, TRAIN_LV, loanInterest, MERCH_K, calcDemand, opsCost, rainFood, starPower, userTeam } from './economy';
 import { fmtInt } from './format';
@@ -303,6 +303,7 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
 
   const tiredBefore = new Map(user.roster.map((p) => [p.id, p.tired ?? 0]));
   const { res } = playSeriesGame(core, idx, rng, true);
+  if (s.round === 'KS' && res.box) addKsBox(post, res.box[m.isHome ? 1 : 0]);
   const myRuns = m.isHome ? res.home : res.away;
   const oppRuns = m.isHome ? res.away : res.home;
   const won = myRuns > oppRuns;
@@ -371,4 +372,61 @@ export function playPostDayMut(core: Core, rng: Rng): DayReport {
     notes,
     post: { round: s.round, name: s.name, gameNo: m.gameNo, myW, oppW, bestOf: s.bestOf },
   };
+}
+
+/** 이 경기로 유저 팀의 한국시리즈 우승이 확정됐는가 (하이라이트 끝의 우승 세리머니용) */
+export function clinchesTitle(r: Pick<DayReport, 'post' | 'won'> | null | undefined): boolean {
+  const p = r?.post;
+  return !!p && p.round === 'KS' && r?.won === true && p.myW >= Math.floor(p.bestOf / 2) + 1;
+}
+
+/** 한국시리즈 한 경기의 유저 팀 기록을 시리즈 누적에 더한다 */
+function addKsBox(post: Postseason, side: BoxSide): void {
+  const k: KsBox = (post.ksBox ??= { bat: {}, pit: {} });
+  for (const b of side.bat) {
+    const a = (k.bat[b.pid] ??= { name: b.name, pos: b.pos, ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, r: 0 });
+    a.ab += b.ab;
+    a.h += b.h;
+    a.hr += b.hr;
+    a.rbi += b.rbi;
+    a.bb += b.bb;
+    a.r += b.r;
+  }
+  for (const p of side.pit) {
+    const a = (k.pit[p.pid] ??= { name: p.name, outs: 0, h: 0, er: 0, so: 0, w: 0, sv: 0 });
+    a.outs += p.outs;
+    a.h += p.h;
+    a.er += p.er;
+    a.so += p.so;
+    if (p.dec === 'W') a.w++;
+    if (p.dec === 'S') a.sv++;
+  }
+}
+
+export interface SeriesMvp {
+  pid: string;
+  name: string;
+  kind: 'B' | 'P';
+  text: string; // "타율 .412 · 2홈런 · 6타점" / "13⅓이닝 · 2자책 · 2승"
+}
+
+const ipText = (outs: number) => `${Math.floor(outs / 3)}${['', '⅓', '⅔'][outs % 3]}`;
+
+/** 한국시리즈 MVP: 시리즈 누적에서 가장 잘한 우리 선수. 타자는 출루·장타·타점, 투수는 이닝·자책·승. 기록이 없으면 null */
+export function seriesMvp(box: KsBox | undefined): SeriesMvp | null {
+  if (!box) return null;
+  let best: (SeriesMvp & { v: number }) | null = null;
+  for (const [pid, b] of Object.entries(box.bat)) {
+    if (b.ab + b.bb < 4) continue;
+    const v = b.h + b.bb * 0.6 + b.hr * 2 + b.rbi * 0.8 + b.r * 0.4;
+    if (!best || v > best.v) best = { pid, name: b.name, kind: 'B', v, text: `타율 ${b.ab ? (b.h / b.ab).toFixed(3).replace(/^0/, '') : '.000'} · ${b.hr}홈런 · ${b.rbi}타점` };
+  }
+  for (const [pid, p] of Object.entries(box.pit)) {
+    if (p.outs < 9) continue;
+    const v = (p.outs / 3) * 0.9 - p.er * 1.4 + p.so * 0.25 + p.w * 1.5 + p.sv * 1.2;
+    if (!best || v > best.v) best = { pid, name: p.name, kind: 'P', v, text: `${ipText(p.outs)}이닝 · ${p.er}자책${p.w ? ` · ${p.w}승` : ''}${p.sv ? ` · ${p.sv}세이브` : ''}` };
+  }
+  if (!best) return null;
+  const { v: _v, ...mvp } = best;
+  return mvp;
 }

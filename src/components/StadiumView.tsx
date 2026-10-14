@@ -13,6 +13,12 @@ import { useUi } from './layout/uiStore';
 import { uiZoom } from './layout/uiScale';
 import { awayFacilities, awayFanShare } from './layout/away';
 import { teamDef } from '../game/generate';
+import { clinchesTitle } from '../game/postseason';
+import { defendingChamp } from '../game/campaign';
+import { SHOT_FXT, reducedMotion } from '../stadium/shotMode';
+import { CEREMONY_MS } from '../stadium/ceremony';
+import { TITLE_WALL_SPANS } from '../stadium/dynamicLayer';
+import { fenceTopY } from '../stadium/geometry';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
 
 const KINDS: FacilityKind[] = ['seats', 'food', 'training'];
@@ -44,12 +50,14 @@ export function usePlaybackDriver(): void {
   const stepPlayback = useStore((s) => s.stepPlayback);
   const fast = useUi((s) => s.fast);
   const evType = report?.result.events[step]?.type;
+  const ceremony = useCeremony();
   useEffect(() => {
     if (!report) return;
-    const ms = (evType === 'hr' || evType === 'walkoff' ? 2600 : 1800) * (fast ? 0.5 : 1);
+    if (ceremony && SHOT_FXT !== null) return; // 화면 검증: 세리머니를 멈춰 둔다
+    const ms = ceremony ? (fast ? CEREMONY_MS.fast : CEREMONY_MS.normal) : (evType === 'hr' || evType === 'walkoff' ? 2600 : 1800) * (fast ? 0.5 : 1);
     const id = window.setTimeout(stepPlayback, ms);
     return () => window.clearTimeout(id);
-  }, [report, step, evType, stepPlayback, fast]);
+  }, [report, step, evType, stepPlayback, fast, ceremony]);
 }
 
 /**
@@ -124,6 +132,14 @@ function PanZoom({ children, fixed, onTagsOff }: { children: (style: CSSProperti
   );
 }
 
+/** 지금 재생 중인 장면이 한국시리즈 우승 확정 세리머니인가 */
+function useCeremony(): boolean {
+  return useStore((s) => {
+    const pb = s.playback;
+    return !!pb && pb.report.result.events[pb.step]?.type === 'final' && clinchesTitle(pb.report);
+  });
+}
+
 const FAC_ICON: Record<FacilityKind, string> = { seats: '🏟', food: '🍢', training: '💪' };
 
 export default function StadiumView({ pan = false }: { pan?: boolean }) {
@@ -171,6 +187,8 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const gateCrowd = report ? (report.isHome ? report.crowd : null) : crowd;
   const gateQueue = gateCrowd ? Math.max(0, Math.min(1, gateCrowd.turnedAway / Math.max(1, gateCrowd.capacity))) : 0;
   const extras = useMemo(() => sceneExtras(core), [core]);
+  const ceremony = useCeremony();
+  const defending = useMemo(() => defendingChamp(core), [core]);
 
   const scene = useMemo<StadiumScene>(() => {
     let fill = idleFill;
@@ -191,6 +209,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
         else if (ev.type === 'score') fx = { kind: 'score', cheer: away ? host : cheer };
         else if (ev.type === 'walkoff') fx = host ? { kind: 'walkoff' } : { kind: 'score', cheer: false };
         else if (ev.type === 'injury') fx = { kind: 'injury' };
+        else if (ev.type === 'final' && clinchesTitle(report)) fx = { kind: 'champion', away, c1: user.color, c2: user.color2, calm: reducedMotion() };
         else if (ev.type === 'final' && report.isHome && report.won === true) fx = { kind: 'win' };
       }
     } else if (fxUp) {
@@ -233,6 +252,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
       gateQueue, // 재생 중에는 그 경기의 줄
     };
   }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras, away, awayRep, fans, oppId]);
+  const titleWall = away ? [] : (scene.titleWall ?? []);
 
   const star = useMemo(() => user.roster.reduce<(typeof user.roster)[number] | null>((a, p) => (!a || p.star > a.star ? p : a), null), [user.roster]);
 
@@ -324,7 +344,9 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           className="pointer-events-none absolute flex flex-col items-center justify-center overflow-hidden text-center"
           style={{ ...rectStyle(HOTSPOTS.scoreboard), color: '#ffd84a', lineHeight: 1.15, textShadow: '0 0 0.6cqw rgba(255,216,74,.6)' }}
         >
-          {report && ev ? (
+          {ceremony ? (
+            <ChampionBoard text={`${user.city} ${user.name} 한국시리즈 우승`} k={k} />
+          ) : report && ev ? (
             <>
               <div style={{ fontSize: `${1.35 * k}cqw`, color: '#7fd3ff' }}>
                 {ev.type === 'final' ? '경기 종료' : ev.type === 'start' ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`}
@@ -343,6 +365,11 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             </>
           ) : next && opp ? (
             <>
+              {defending && !away && (
+                <div className="w-full truncate" data-testid="defending" style={{ fontSize: `${1.15 * k}cqw`, color: '#ffd84a' }}>
+                  ★ 디펜딩 챔피언 ★
+                </div>
+              )}
               <div className="w-full truncate" style={{ fontSize: `${1.25 * k}cqw`, color: '#7fd3ff' }}>
                 {postLine ? `${postLine.name} ${postLine.gameNo}차전` : `NEXT · ${day + 1}차전`}
               </div>
@@ -359,6 +386,32 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             </div>
           )}
         </div>
+
+        {/* 외야 펜스의 우승 현수막 글자 */}
+        {titleWall.length > 0 &&
+          (TITLE_WALL_SPANS[Math.min(2, titleWall.length)] ?? []).map(([x0, x1], i) => {
+            const cx = (x0 + x1) / 2;
+            const tilt = Math.atan2(fenceTopY(x1) - fenceTopY(x0), x1 - x0);
+            return (
+              <div
+                key={i}
+                className="pointer-events-none absolute flex items-center justify-center whitespace-nowrap font-pixel-lg"
+                data-testid="title-wall"
+                style={{
+                  left: `${(x0 / STADIUM_W) * 100}%`,
+                  width: `${((x1 - x0) / STADIUM_W) * 100}%`,
+                  top: `${((fenceTopY(cx) - 1) / STADIUM_H) * 100}%`,
+                  height: `${(8 / STADIUM_H) * 100}%`,
+                  fontSize: '1.05cqw',
+                  lineHeight: 1,
+                  color: '#1b2233',
+                  transform: `rotate(${tilt}rad)`,
+                }}
+              >
+                {titleWall[titleWall.length - Math.min(2, titleWall.length) + i]}시즌 우승
+              </div>
+            );
+          })}
 
         {/* 시설 핫스팟 */}
         {!away && KINDS.map((k) => {
@@ -406,6 +459,19 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
 
         {!pan && crowdChip}
 
+        {/* 우승 세리머니: 화면 아무 데나 누르면 넘어간다 */}
+        {ceremony && (
+          <button
+            className="absolute inset-0 z-[1] flex cursor-pointer items-end justify-center"
+            data-testid="champion-ceremony"
+            data-sfx="none"
+            aria-label="우승 세리머니 넘기기"
+            onClick={skipPlayback}
+          >
+            <span style={{ ...chip, marginBottom: '9%', fontSize: fz(mobile, 1.6, 12), color: '#fff' }}>누르면 넘어갑니다 ▶</span>
+          </button>
+        )}
+
         {/* 하이라이트 배너 */}
         {report && ev && (
           <div className="pointer-events-none absolute inset-x-0 flex justify-center" style={{ top: '34%' }}>
@@ -429,20 +495,24 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                   textShadow: '0.3cqw 0.3cqw 0 #0f1420',
                 }}
               >
-                {tagged && (
+                {ceremony ? '한국시리즈 우승!' : tagged && (
                   <span className="mr-[0.4em] inline-block align-middle" style={{ textShadow: 'none' }}>
                     <TeamTag team={evTeam} mine={mineEv} size={fz(mobile, 1.9, 11)} />
                   </span>
                 )}
-                {ev.text}
+                {!ceremony && ev.text}
               </div>
-              {ev.sub && <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>}
+              {ceremony ? (
+                <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#fff', marginTop: '0.4cqw' }}>{ceremonySub(report, user)}</div>
+              ) : (
+                ev.sub && <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>
+              )}
             </div>
           </div>
         )}
 
         {/* 재생 진행 + 건너뛰기 */}
-        {report && (
+        {report && !ceremony && (
           <div className="absolute inset-x-0 flex items-center justify-center" style={{ bottom: '20%', gap: '1.2cqw' }}>
             <div className="flex" style={{ gap: '0.4cqw' }}>
               {report.result.events.map((_, i) => (
@@ -470,4 +540,33 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
       {body({ width: `min(100cqw, calc(100cqh * ${STADIUM_W} / ${STADIUM_H}))` })}
     </div>
   );
+}
+
+/** 우승 확정 순간의 전광판: "{연고지} {별칭} 한국시리즈 우승" 이 흐른다 (움직임 줄이기면 두 줄로 멈춰 있다) */
+function ChampionBoard({ text, k }: { text: string; k: number }) {
+  const still = reducedMotion();
+  return (
+    <div className="flex w-full flex-col items-center" data-testid="champion-board">
+      <div style={{ fontSize: `${1.25 * k}cqw`, color: '#7fd3ff' }}>경기 종료</div>
+      {still ? (
+        <div className="font-pixel-lg w-full truncate" style={{ fontSize: `${1.7 * k}cqw` }}>
+          한국시리즈 우승
+        </div>
+      ) : (
+        <div className="w-full overflow-hidden">
+          <div className="font-pixel-lg anim-marquee inline-block whitespace-nowrap" style={{ fontSize: `${2.2 * k}cqw` }}>
+            {text}
+          </div>
+        </div>
+      )}
+      <div className="w-full truncate" style={{ fontSize: `${1.25 * k}cqw`, color: '#fff' }}>
+        {still ? text.replace(/ 한국시리즈 우승$/, '') : '★ ★ ★'}
+      </div>
+    </div>
+  );
+}
+
+/** 우승 확정 순간의 한 줄: "제주 탠저린즈 · 시리즈 4승 2패" */
+export function ceremonySub(report: { post?: { myW: number; oppW: number } }, team: { city: string; name: string }): string {
+  return `${team.city} ${team.name}${report.post ? ` · 시리즈 ${report.post.myW}승 ${report.post.oppW}패` : ''}`;
 }

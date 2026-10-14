@@ -740,9 +740,20 @@ export function cheerLv(core: Pick<Core, 'fans' | 'fanSat' | 'season'>): number 
 }
 
 /** StadiumScene 의 v3 필드 (구장 렌더러 입력) */
-export function sceneExtras(core: Core): Pick<StadiumScene, 'oldBanner' | 'gateQueue' | 'cheerLv' | 'retiredNums' | 'banners' | 'dome'> {
+/** 지난 시즌까지 우승한 시즌 번호 (오래된 것부터). 이번 시즌의 우승은 다음 시즌 개막부터 구장에 걸린다 */
+export function pastTitles(core: Pick<Core, 'season' | 'campaign'>): number[] {
+  return (core.campaign.history ?? []).filter((h) => h.post === 'champion' && h.season < core.season).map((h) => h.season);
+}
+
+/** 디펜딩 챔피언: 바로 지난 시즌에 우승했고, 지금 그다음 시즌을 치르는 중 */
+export function defendingChamp(core: Pick<Core, 'season' | 'campaign' | 'phase'>): boolean {
+  return (core.phase === 'season' || core.phase === 'post') && pastTitles(core).includes(core.season - 1);
+}
+
+export function sceneExtras(core: Core): Pick<StadiumScene, 'oldBanner' | 'gateQueue' | 'cheerLv' | 'retiredNums' | 'banners' | 'dome' | 'titleWall'> {
   const cr = core.crowd;
   return {
+    titleWall: pastTitles(core).slice(-2),
     oldBanner: true,
     gateQueue: cr && cr.capacity > 0 ? clamp(cr.turnedAway / cr.capacity, 0, 1) : 0,
     cheerLv: cheerLv(core),

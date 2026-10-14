@@ -3,6 +3,7 @@ import type { FacilityKind, StadiumScene } from '../game/types';
 import { buildNightTint, drawFrame } from './dynamicLayer';
 import { HOTSPOTS as GEO_HOTSPOTS, STADIUM_H as GH, STADIUM_W as GW } from './geometry';
 import { buildStatic, staticKey, type StaticLayers } from './staticLayer';
+import { SHOT_FXT } from './shotMode';
 
 export const STADIUM_W = GW;
 export const STADIUM_H = GH;
@@ -54,7 +55,8 @@ export default function StadiumCanvas(props: { scene: StadiumScene; className?: 
         fxKey = scene.fxKey;
         fxStart = stale ? now - 60000 : now;
       }
-      drawFrame({ ctx, scene, layers, t: now / 1000, fxT: (now - fxStart) / 1000, night });
+      const fxT = SHOT_FXT !== null && scene.fx.kind === 'champion' ? SHOT_FXT : (now - fxStart) / 1000;
+      drawFrame({ ctx, scene, layers, t: now / 1000, fxT, night });
     };
     const onVisibility = () => {
       if (!document.hidden && alive && raf === 0) raf = requestAnimationFrame(tick);

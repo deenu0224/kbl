@@ -10,14 +10,14 @@ import { mulberry32, type Rng } from '../../src/game/rng';
 import { newCore } from '../../src/game/generate';
 import { advanceDay, nextSeason, rankOf, signPlayer, standings } from '../../src/game/season';
 import { farmRoster, loanLimit, rehabRoster, userTeam } from '../../src/game/economy';
-import { ensureObjectives, STAGES } from '../../src/game/campaign';
+import { defendingChamp, ensureObjectives, STAGES } from '../../src/game/campaign';
 import { maybeDrawEvent, resolveEvent } from '../../src/game/events';
 import { drawStoveTrade, tradeOpen } from '../../src/game/trade';
 import { closeBriefing, drawBriefing } from '../../src/game/briefing';
 import { faSigned, luxTax } from '../../src/game/economy';
 import { beginDraft, draftPick, draftSkip, isDraftDone, isUserTurn } from '../../src/game/draft';
 import { drawResign } from '../../src/game/contract';
-import { postMatch } from '../../src/game/postseason';
+import { clinchesTitle, postMatch } from '../../src/game/postseason';
 import { runway, RUNWAY_DANGER } from '../../src/game/runway';
 import { bullpenLoad } from '../../src/game/fixes';
 import { todoList } from '../../src/game/todo';
@@ -119,7 +119,21 @@ const WANT: Record<string, Pred> = {
   regClosed: (c) => inSeason(c) && quiet(c) && c.day >= regDeadline(c) + 1 && c.day < c.schedule.length - 2,
   tradeWindow: (c) => inSeason(c) && quiet(c) && tradeOpen(c) && c.season >= 2 && nextIsHome(c),
   dynasty: (c) => inSeason(c) && stageName(c) === '왕조' && c.day >= 20 && quiet(c) && nextIsHome(c),
+  // 우승: 한국시리즈 3승을 안고 치르는 다음 경기(홈·원정) · 첫 우승 결산 · 우승 다음 시즌의 홈 구장
+  ksClinchHome: (c) => ksMatchPoint(c) && !!postMatch(c)?.isHome,
+  ksClinchAway: (c) => ksMatchPoint(c) && postMatch(c)?.isHome === false,
+  champ1: (c) => c.phase === 'ended' && !c.campaign.event && c.post?.userFinish === 'champion' && c.campaign.titles === 1,
+  defending: (c) => inSeason(c) && quiet(c) && c.day >= 1 && nextIsHome(c) && defendingChamp(c),
 };
+
+/** 한국시리즈에서 유저 팀이 3승째를 쌓아 다음 경기에 이기면 우승하는 날 */
+function ksMatchPoint(c: Core): boolean {
+  if (c.phase !== 'post' || !quiet(c) || !c.post) return false;
+  const m = postMatch(c);
+  const s = c.post.series[c.post.cur];
+  if (!m || m.round !== 'KS' || !s) return false;
+  return (s.hiId === c.userId ? s.hiW : s.loW) === 3;
+}
 
 const found: Record<string, { core: Core; seed: number; bot: string }> = {};
 const missing = () => Object.keys(WANT).filter((k) => !found[k]);
@@ -233,6 +247,38 @@ if (found.dynasty) {
     found[name] = { ...found.dynasty, core };
     if (n === 3) hofOf[name] = JSON.stringify(recordClub(emptyHof(), core, 'champion', '2026-10-13'));
   }
+}
+
+// ── 우승 확정 경기: 화면에서 [경기 진행]을 누르면 거의 반드시 이기도록 상대 구단의 능력치를 바닥으로 (화면 검증 전용) ──
+function weakenOpp(c0: Core): Core {
+  const c = structuredClone(c0);
+  const oppId = postMatch(c)!.oppId;
+  for (const p of c.teams.find((t) => t.id === oppId)!.roster) {
+    if (p.kind === 'B') Object.assign(p, { con: 20, pow: 20, eye: 20, spd: 20, def: 20 });
+    else Object.assign(p, { stf: 20, ctl: 20 });
+  }
+  return c;
+}
+for (const k of ['ksClinchHome', 'ksClinchAway']) {
+  const f = found[k];
+  if (!f) continue;
+  f.core = weakenOpp(f.core);
+  // 확인: 이 상태에서 한 경기를 치르면 얼마나 자주 우승이 확정되는가
+  let ok = 0;
+  for (let i = 0; i < 40; i++) if (clinchesTitle(advanceDay(f.core, mulberry32(1000 + i)).report)) ok++;
+  console.log(`  ${k}: 다음 경기 우승 확정 ${ok}/40`);
+}
+// 2연패 결산: 첫 우승 결산에서 지난 시즌 기록을 우승으로 바꿔 만든다 (봇이 두 해 연속 우승하는 일이 드물다)
+if (found.champ1) {
+  const core = structuredClone(found.champ1.core);
+  const h = core.campaign.history;
+  const cur = h[h.length - 1];
+  const prev = h.length >= 2 ? h[h.length - 2] : { ...cur, season: cur.season - 1, name: undefined };
+  prev.post = 'champion';
+  prev.rank = Math.min(prev.rank, 2);
+  if (h.length < 2) h.splice(h.length - 1, 0, prev);
+  core.campaign.titles = 2;
+  found.champ2 = { ...found.champ1, core, bot: `${found.champ1.bot} +2연패` };
 }
 
 // ── 10구단: 와일드카드 결정전 (봇이 4·5위로 시즌을 마치는 일이 드물어 마지막 경기 직전의 순위를 고쳐서 만든다) ──

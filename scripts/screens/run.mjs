@@ -3,6 +3,7 @@
 //   npm run screens -- --only=draft,ended --viewport=390
 //   npm run screens -- --only=home --dump        (탐색: 스텝 뒤에 누를 수 있는 것들을 출력)
 //   --keep-fixtures  픽스처를 다시 만들지 않는다
+// 화면 정의의 query 에 ?fxT=2.4 를 붙이면 우승 세리머니의 시간을 고정하고 자동으로 넘기지 않는다 (src/stadium/shotMode.ts)
 // 산출물: screens-out/{viewport}/{id}.png · report.json · report.md · index.html · sheet-{viewport}-{n}.png
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -77,6 +78,13 @@ async function runStep(page, step, vp) {
     return void (await page.waitForTimeout(500));
   }
   if (step.wait) return void (await page.waitForTimeout(step.wait));
+  if (step.waitFor) {
+    // testid 가 화면에 나타날 때까지 (하이라이트 재생 끝의 우승 세리머니처럼 시간이 정해지지 않은 장면)
+    await page.locator(`[data-testid="${step.waitFor}"]`).first().waitFor({ state: 'visible', timeout: step.timeout ?? 30000 }).catch(() => {
+      throw new Error(`나타나지 않음: ${step.waitFor}`);
+    });
+    return void (await page.waitForTimeout(step.then ?? 400));
+  }
   if (step.fill) {
     const loc = page.locator(`[data-testid="${step.fill}"]`).first();
     if (!(await loc.count())) throw new Error(`입력칸 없음: ${step.fill}`);
@@ -126,7 +134,7 @@ async function shoot(browser, base, vp, screen, fixtures) {
     hasTouch: vp.mobile,
     ...(vp.mobile ? { userAgent: MOBILE_UA } : {}),
     locale: 'ko-KR',
-    reducedMotion: 'reduce',
+    reducedMotion: screen.motion ? 'no-preference' : 'reduce', // motion: 움직임을 줄이지 않은 화면 (우승 세리머니 등)
   });
   const entries = fx ? [[SAVE_KEY, JSON.stringify(fx.save)], ...Object.entries(fx.ui ?? {})] : [];
   for (const [k, v] of Object.entries(screen.ui ?? {})) entries.push([k, v]);
