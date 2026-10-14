@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.12.0',
+    date: '2026-10-14',
+    title: '빚을 덜 기회',
+    notes: [
+      '빚이 한도의 절반을 넘으면 시즌에 한 번, 구장 대관이나 선수 현금 매입 제안이 옵니다. 받은 돈은 바로 빚을 갚아요.',
+      '시즌 메인 목표를 「깃발」 대신 「시즌 목표」로 부릅니다. 우승 깃발은 「우승기」예요.',
+      '태풍 결항이 이미 원정 중일 때 뜨던 문제를 고쳤습니다.',
+    ],
+  },
+  {
     version: '0.11.0',
     date: '2026-10-14',
     title: '원정 경기에도 수입이',

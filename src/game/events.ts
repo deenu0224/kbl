@@ -26,6 +26,7 @@ import { drawFarmEvent, farmCardDef } from './farm';
 import { drawSubCard, resolveSubCard } from './subpick';
 import { positionReport } from './analysis';
 import { SCANDAL_CARDS } from './scandal';
+import { RELIEF_CARDS } from './relief';
 import { TRADE_ID, drawTrade, resolveTradeMut } from './trade';
 import { DEBT_SALE_ID, drawDebtSale, resolveDebtSaleMut } from './debt';
 
@@ -308,21 +309,21 @@ export const CARDS: CardDef[] = [
                 desc: `달성 지원금 ×${MID_UP_MULT} · 실패 시 ${TRUST_LABEL} −${MID_UP_FAIL_TRUST} 더`,
                 detail: {
                   rows: [
-                    rowInfo('깃발 달성 지원금', fmtMoney(st.reward.cash * MID_UP_MULT), fmtMoney(st.reward.cash), 'good'),
-                    rowInfo(`깃발 실패 시 ${TRUST_LABEL}`, `−${st.failTrust + MID_UP_FAIL_TRUST}`, `−${st.failTrust}`, 'bad'),
+                    rowInfo('목표 달성 지원금', fmtMoney(st.reward.cash * MID_UP_MULT), fmtMoney(st.reward.cash), 'good'),
+                    rowInfo(`목표 실패 시 ${TRUST_LABEL}`, `−${st.failTrust + MID_UP_FAIL_TRUST}`, `−${st.failTrust}`, 'bad'),
                   ],
                   lasts: '이번 시즌 결산',
                 },
               },
-              { label: '사양한다', desc: '변화 없음', detail: { rows: [rowInfo('깃발 달성 지원금', fmtMoney(st.reward.cash), fmtMoney(st.reward.cash)), rowInfo(`깃발 실패 시 ${TRUST_LABEL}`, `−${st.failTrust}`, `−${st.failTrust}`)] } },
+              { label: '사양한다', desc: '변화 없음', detail: { rows: [rowInfo('목표 달성 지원금', fmtMoney(st.reward.cash), fmtMoney(st.reward.cash)), rowInfo(`목표 실패 시 ${TRUST_LABEL}`, `−${st.failTrust}`, `−${st.failTrust}`)] } },
             ]
           : [
               {
                 label: '조합원 특별 출자를 받는다',
                 desc: `현금 +${fmtMoney(st.midCash)} · 실패 시 ${TRUST_LABEL} −${MID_FAIL_TRUST} 더`,
-                detail: { rows: [rowCash(c, st.midCash), rowInfo(`깃발 실패 시 ${TRUST_LABEL}`, `−${st.failTrust + MID_FAIL_TRUST}`, `−${st.failTrust}`, 'bad')], lasts: '이번 시즌 결산' },
+                detail: { rows: [rowCash(c, st.midCash), rowInfo(`목표 실패 시 ${TRUST_LABEL}`, `−${st.failTrust + MID_FAIL_TRUST}`, `−${st.failTrust}`, 'bad')], lasts: '이번 시즌 결산' },
               },
-              { label: '지금대로 간다', desc: '변화 없음', detail: { rows: [rowCash(c, 0), rowInfo(`깃발 실패 시 ${TRUST_LABEL}`, `−${st.failTrust}`, `−${st.failTrust}`)] } },
+              { label: '지금대로 간다', desc: '변화 없음', detail: { rows: [rowCash(c, 0), rowInfo(`목표 실패 시 ${TRUST_LABEL}`, `−${st.failTrust}`, `−${st.failTrust}`)] } },
             ],
       });
     },
@@ -989,7 +990,7 @@ export const CARDS: CardDef[] = [
 const baseId = (id: string) => id.split('|')[0];
 // 스캔들 카드(scandal.ts)까지 합친 목록. 모듈 순환을 피하려고 처음 쓸 때 만든다
 let ALL: { def: Map<string, CardDef>; prio: CardDef[] } | null = null;
-const all = () => (ALL ??= ((cs: CardDef[]) => ({ def: new Map(cs.map((d) => [d.id, d])), prio: cs.slice().sort((a, b) => b.prio - a.prio) }))([...CARDS, ...SCANDAL_CARDS]));
+const all = () => (ALL ??= ((cs: CardDef[]) => ({ def: new Map(cs.map((d) => [d.id, d])), prio: cs.slice().sort((a, b) => b.prio - a.prio) }))([...CARDS, ...SCANDAL_CARDS, ...RELIEF_CARDS]));
 
 /** 매 경기 후: 조건이 맞는 카드 중 우선순위가 가장 높은 1장을 campaign.event 에 둔다. 해당 없으면 원본 반환. */
 export function maybeDrawEvent(core0: Core, rng: Rng): Core {

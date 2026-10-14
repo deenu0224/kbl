@@ -63,7 +63,7 @@ export const STAGES: StageDef[] = [
     stars: [
       { kind: 'wins', target: 450, text: '승률 .450 이상' },
       { kind: 'star', target: 58, text: '주전 타자 9명 전원 오버롤 58 이상' },
-      { kind: 'debt', target: 50000, text: '연봉 총액 증가 5억 이내로 깃발 달성' },
+      { kind: 'debt', target: 50000, text: '연봉 총액 증가 5억 이내로 시즌 목표 달성' },
     ],
     reward: { cash: 80000, trust: 15 },
     failTrust: 15,
@@ -117,7 +117,7 @@ export const STAGES: StageDef[] = [
   },
   {
     name: '제주의 기적',
-    desc: '바랜 깃발 옆에 새 깃발을. 그리고 육지에서 온 손님.',
+    desc: '바랜 우승기 옆에 새 우승기를. 그리고 육지에서 온 손님.',
     who: ['suitor', 'chair'],
     main: { kind: 'post', target: 4 },
     stars: [
@@ -232,6 +232,7 @@ export interface BuffEffect {
   focus: number; // 유저 선수 능력치 가감 (경기 시뮬 중에만)
   upkeep: number; // 홈경기 유지비 가산 (만원)
   youth: number; // 다음 드래프트 풀 품질 가산
+  turf: number; // 홈경기 수비 가감 (잔디 손상, 경기 시뮬 중에만)
   fixedPid: string | null; // 고정 출전 선수 (첫 번째)
   fixed: string[]; // 고정 출전 선수 전부
   rest: string[]; // 휴식 보장 투수 (등판 불가)
@@ -246,7 +247,7 @@ export function buffActive(b: Buff, day: number): boolean {
 
 export function activeBuffs(core: Core): BuffEffect {
   const e: BuffEffect = {
-    demand: 1, capacity: 1, merch: 1, food: 1, ticket: 1, price: 1, focus: 0, upkeep: 0, youth: 0,
+    demand: 1, capacity: 1, merch: 1, food: 1, ticket: 1, price: 1, focus: 0, upkeep: 0, youth: 0, turf: 0,
     fixedPid: null, fixed: [], rest: [], slump: {}, list: [],
   };
   const bs = core.campaign?.buffs ?? [];
@@ -282,6 +283,9 @@ export function activeBuffs(core: Core): BuffEffect {
         break;
       case 'youth':
         e.youth += b.value;
+        break;
+      case 'turf':
+        e.turf += b.value;
         break;
       case 'fixed':
         if (b.pid) e.fixed.push(b.pid);
@@ -703,7 +707,7 @@ export function flagForecast(core: Core): { text: string; ok: boolean } {
   switch (kind) {
     case 'rank': {
       const ok = rank <= target;
-      return { text: `지금 페이스: ${pace} · ${rank}위 예상 · 깃발 ${target}위 이내 ${mark(ok)}`, ok };
+      return { text: `지금 페이스: ${pace} · ${rank}위 예상 · 목표 ${target}위 이내 ${mark(ok)}`, ok };
     }
     case 'post': {
       const need = target >= 3 ? 2 : postTeams(core);
@@ -712,7 +716,7 @@ export function flagForecast(core: Core): { text: string; ok: boolean } {
     }
     case 'wins': {
       const ok = w >= target;
-      return { text: `지금 페이스: ${w}승 예상 · 깃발 ${target}승 ${mark(ok)}`, ok };
+      return { text: `지금 페이스: ${w}승 예상 · 목표 ${target}승 ${mark(ok)}`, ok };
     }
     case 'avgAtt': {
       const a = core.attHistory;
@@ -722,7 +726,7 @@ export function flagForecast(core: Core): { text: string; ok: boolean } {
       const rAvg = recent.reduce((s, v) => s + v, 0) / recent.length;
       const v = Math.round((a.reduce((s, x) => s + x, 0) + rAvg * homeLeft) / (a.length + homeLeft));
       const ok = v >= target;
-      return { text: `지금 페이스: 시즌 평균 관중 ${fmtInt(v)}명 예상 · 깃발 ${fmtInt(target)}명 ${mark(ok)}`, ok };
+      return { text: `지금 페이스: 시즌 평균 관중 ${fmtInt(v)}명 예상 · 목표 ${fmtInt(target)}명 ${mark(ok)}`, ok };
     }
     default: {
       const ok = objMet(kind, target, objValue(core, kind));
@@ -923,18 +927,18 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
       if (jumps >= MAX_JUMP || stage >= STAGES.length - 1) break;
       const nx = stageFor(core, stage).main;
       if (!objMet(nx.kind, nx.target, objValue(core, nx.kind))) break;
-      addNews(core, `월반! 「${STAGES[stage].name}」의 깃발까지 이미 닿았습니다`, 'good');
+      addNews(core, `월반! 「${STAGES[stage].name}」의 목표까지 이미 닿았습니다`, 'good');
     }
     c.stage = stage;
   } else {
     trust -= stageOf(core).failTrust;
     if (POST_CONSOLE[finish] > 0) {
       trust += POST_CONSOLE[finish];
-      addNews(core, `깃발에는 닿지 못했지만 가을야구가 섬을 달랬습니다 — ${TRUST_LABEL} +${POST_CONSOLE[finish]}`, 'info');
+      addNews(core, `시즌 목표에는 닿지 못했지만 가을야구가 섬을 달랬습니다 — ${TRUST_LABEL} +${POST_CONSOLE[finish]}`, 'info');
     }
     if (mid) {
       trust -= mid === 'up' ? MID_UP_FAIL_TRUST : MID_FAIL_TRUST;
-      addNews(core, mid === 'up' ? `조합장에게 한 약속을 지키지 못했습니다 — ${TRUST_LABEL} −${MID_UP_FAIL_TRUST}` : `조합원 출자금을 받고도 깃발에 닿지 못했습니다 — ${TRUST_LABEL} −${MID_FAIL_TRUST}`, 'bad');
+      addNews(core, mid === 'up' ? `조합장에게 한 약속을 지키지 못했습니다 — ${TRUST_LABEL} −${MID_UP_FAIL_TRUST}` : `조합원 출자금을 받고도 시즌 목표에 닿지 못했습니다 — ${TRUST_LABEL} −${MID_FAIL_TRUST}`, 'bad');
     }
   }
 
@@ -1017,8 +1021,8 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
   addNews(
     core,
     cleared
-      ? `시즌 결산: 「${st.name}」 깃발 달성! 지원금 ${fmtMoney(cashReward)} · ${TRUST_LABEL} ${trustBefore}→${c.trust}`
-      : `시즌 결산: 「${st.name}」 깃발 실패 — ${TRUST_LABEL} ${trustBefore}→${c.trust}`,
+      ? `시즌 결산: 「${st.name}」 시즌 목표 달성! 지원금 ${fmtMoney(cashReward)} · ${TRUST_LABEL} ${trustBefore}→${c.trust}`
+      : `시즌 결산: 「${st.name}」 시즌 목표 실패 — ${TRUST_LABEL} ${trustBefore}→${c.trust}`,
     cleared ? 'good' : 'bad',
   );
   if (fired) {

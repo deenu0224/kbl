@@ -74,7 +74,7 @@ export default function AutumnIntro() {
           {/* 이번 장 깃발 */}
           {flag && (
             <div className="mt-1.5 flex items-center gap-1.5 bg-ink/50 px-2 py-1 text-[12px] mob:text-[13px]" data-testid="autumn-flag">
-              <span className="shrink-0 text-white/50">깃발</span>
+              <span className="shrink-0 text-white/50">시즌 목표</span>
               <span className="min-w-0 flex-1 truncate">{flag.text}</span>
               <span className={`shrink-0 ${flag.state === 'done' ? 'text-good' : flag.state === 'failed' ? 'text-bad' : 'text-sky'}`}>
                 {flag.state === 'done' ? '달성' : flag.state === 'failed' ? '실패' : '가을야구에서 정해진다'}

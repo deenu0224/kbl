@@ -237,9 +237,9 @@ type AbilKeyAll = AbilKey;
 const ALL_KEYS: AbilKeyAll[] = [...BAT_KEYS, ...PIT_KEYS];
 
 /** 이벤트 집중력 버프: 경기 중에만 능력치를 가감하고 되돌리는 함수를 반환 */
-function applyFocus(t: Team, d: number, per: Record<string, number> = {}): () => void {
+function applyFocus(t: Team, d: number, per: Record<string, number> = {}, def = 0): () => void {
   const saved = t.roster.map((p) => ALL_KEYS.map((k) => p[k]));
-  for (const p of t.roster) for (const k of p.kind === 'B' ? BAT_KEYS : PIT_KEYS) p[k] = clamp(p[k] + d + (per[p.id] ?? 0), 20, 99);
+  for (const p of t.roster) for (const k of p.kind === 'B' ? BAT_KEYS : PIT_KEYS) p[k] = clamp(p[k] + d + (per[p.id] ?? 0) + (k === 'def' ? def : 0), 20, 99);
   return () => t.roster.forEach((p, i) => ALL_KEYS.forEach((k, j) => (p[k] = saved[i][j])));
 }
 
@@ -308,7 +308,8 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
         if (out && !memoGet(core, `fx-${pid}`)) memoSet(core, `fx-${pid}`, out); // 고정 출전이 끝나면 되돌린다
       }
       const focus = fx.focus + (userJetLag(core, home) ? JETLAG_FOCUS : 0);
-      if (focus || Object.keys(fx.slump).length) restore = applyFocus(ut, focus, fx.slump);
+      const turf = home.id === core.userId ? fx.turf : 0; // 대관 뒤 잔디 손상: 홈경기 수비만
+      if (focus || turf || Object.keys(fx.slump).length) restore = applyFocus(ut, focus, fx.slump, turf);
       if (fx.rest.length) rest = new Set(fx.rest);
     }
   }

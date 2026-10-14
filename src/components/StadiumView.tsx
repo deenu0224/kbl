@@ -151,7 +151,7 @@ function useCeremony(): boolean {
   });
 }
 
-const FAC_ICON: Record<FacilityKind, string> = { seats: '🏟', food: '🍢', training: '💪' };
+const FAC_ICON: Record<FacilityKind, string> = { seats: '🏟', food: '🍗', training: '💪' };
 
 export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const core = useCore();

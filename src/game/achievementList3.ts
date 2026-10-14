@@ -19,28 +19,28 @@ const lost = (x: X): boolean => !!x.r && x.r.won === false;
 const T = mk('story');
 const STORY: AchvDef[] = [
   T('t-stage1', '고장은 고쳤다', '2장 「돌아온 관중」에 도달', '🔧', 1, 'story', stageAt(1).test, { progress: stageAt(1).progress }),
-  T('t-stage2', '관중이 돌아왔다', '3장 「가을야구」에 도달', '🎏', 2, 'story', stageAt(2).test, { progress: stageAt(2).progress }),
+  T('t-stage2', '관중이 돌아왔다', '3장 「가을야구」에 도달', '🍂', 2, 'story', stageAt(2).test, { progress: stageAt(2).progress }),
   T('t-stage3', '가을에 야구하는 팀', '4장 「한국시리즈로」에 도달', '🍁', 2, 'story', stageAt(3).test, { progress: stageAt(3).progress }),
   T('t-stage4', '한 계단 남았다', '5장 「제주의 기적」에 도달', '🪜', 3, 'story', stageAt(4).test, { progress: stageAt(4).progress }),
-  T('t-ending', '제주의 기적', '5장의 깃발을 꽂는다 (한국시리즈 우승 엔딩)', '🏆', 3, 'story', (x) => !!camp(x).ending),
+  T('t-ending', '제주의 기적', '5장 목표인 한국시리즈 우승을 이룬다 (엔딩)', '🏆', 3, 'story', (x) => !!camp(x).ending),
   T('t-star1', '첫 별', '별 1개 획득', '⭐', 1, 'story', starsAt(1).test, { progress: starsAt(1).progress }),
   T('t-star5', '별 다섯 개', '별 5개 획득', '🌟', 2, 'story', starsAt(5).test, { progress: starsAt(5).progress }),
   T('t-star8', '별 헤는 밤', '별 8개 획득', '✨', 3, 'story', starsAt(8).test, { progress: starsAt(8).progress }),
   T('t-star10', '은하수', '별 10개 획득', '🌌', 4, 'story', starsAt(10).test, { progress: starsAt(10).progress }),
-  T('t-flag6', '약속을 어긴 적이 없다', '6시즌 연속으로 그 시즌의 깃발을 꽂는다', '🎌', 4, 'season', (x) => camp(x).history.length >= 6 && camp(x).history.slice(-6).every((h) => h.cleared)),
+  T('t-flag6', '약속을 어긴 적이 없다', '6시즌 연속으로 시즌 목표를 달성한다', '🎯', 4, 'season', (x) => camp(x).history.length >= 6 && camp(x).history.slice(-6).every((h) => h.cleared)),
   T('t-perfect', '한 장을 완벽하게', '한 장의 별 3개를 전부 획득', '💠', 4, 'story', (x) => [0, 1, 2, 3, 4, 5].some((s) => camp(x).achievements.filter((a) => a.startsWith(`s${s}-`)).length >= 3)),
   T('t-trust100', '섬의 아들', '도민 지지 100', '🫶', 2, 'story', (x) => camp(x).trust >= 100, { progress: (x) => [x.core.campaign.trust, 100] }),
   T('t-fast', '속성 과외', '부임 6시즌 안에 우승 엔딩', '⏱️', 4, 'story', (x) => !!camp(x).ending && camp(x).history.some((h, i) => i < 6 && h.stage === 4 && h.cleared)),
   T('t-nodeal', '흔들리지 않는 섬', '이전 협상 테이블에 앉지 않고 우승 엔딩', '🗿', 3, 'story', (x) => !!camp(x).ending && !camp(x).dealt, { hidden: '육지에서 온 손님에게 끝까지 자리를 내주지 않는다' }),
   T('t-dealt', '들어나 봅시다', '연고 이전 협상 테이블에 앉는다', '🪑', 2, ['story', 'event'], (x) => !!camp(x).dealt, { hidden: '육지에서 온 손님의 제안을 들어 본다' }),
   T('t-over', '팀이 섬을 떠났다', '도민 지지가 0 이 되어 연고 이전', '🚢', 2, 'story', (x) => x.core.phase === 'over', { hidden: '가장 보고 싶지 않은 결말' }),
-  T('t-titles2', '두 번째 깃발', '한 구단에서 한국시리즈 우승 2회', '🚩', 3, 'story', (x) => camp(x).titles >= 2, { progress: (x) => [x.core.campaign.titles, 2] }),
+  T('t-titles2', '두 번째 우승기', '한 구단에서 한국시리즈 우승 2회', '🏆', 3, 'story', (x) => camp(x).titles >= 2, { progress: (x) => [x.core.campaign.titles, 2] }),
   T('t-b2b', '왕조의 시작', '한국시리즈 2시즌 연속 우승', '👑', 4, 'season', (x) => {
     const h = camp(x).history;
     return h.length >= 2 && h[h.length - 1].post === 'champion' && h[h.length - 2].post === 'champion';
   }),
   T('t-skip', '월반', '한 번의 결산으로 두 장을 한꺼번에 오른다', '⏭️', 2, 'season', (x) => !!camp(x).verdict && camp(x).verdict!.stageAfter - camp(x).verdict!.stageBefore >= 2),
-  T('t-pledge', '약속은 지킨다', '중간 점검에서 목표 상향을 약속하고 그 시즌 깃발을 꽂는다', '🤞', 2, 'season', (x) => memoGet(x.core, 'mid') === 'up' && x.rec!.cleared),
+  T('t-pledge', '약속은 지킨다', '중간 점검에서 목표 상향을 약속하고 그 시즌 목표를 달성한다', '🤞', 2, 'season', (x) => memoGet(x.core, 'mid') === 'up' && x.rec!.cleared),
   T('t-dome1', '우리 돔구장', '돔구장 건설의 첫 단계를 시작한다', '📐', 3, 'story', (x) => domePaid(x.core) >= 1, { hidden: '우승 뒤에 열리는 가장 큰 공사' }),
   T('t-dome3', '섬에 돔을 세우다', '돔구장 완공 (3단계 모두 납부)', '🏗️', 4, 'story', (x) => domePaid(x.core) >= 3, { hidden: '비가 와도 야구하는 섬', progress: (x) => [domePaid(x.core), 3] }),
   T('t-academy', '백년대계', '육성 아카데미를 세운다', '🎓', 3, 'story', (x) => !!proj(x).academy, { hidden: '우승 뒤에 열리는 투자 — 사람을 키운다' }),

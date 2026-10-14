@@ -29,7 +29,7 @@ export function FlagForecast({ className = '' }: { className?: string }) {
       <span className="mt-[2px] shrink-0">
         <Flag size={11} color={f.ok ? '#6ee07a' : '#ffd84a'} />
       </span>
-      <span className={f.text === '—' ? 'text-white/50' : f.ok ? 'text-good' : 'text-white/85'}>{f.text === '—' ? '깃발 예측 — (12경기 뒤부터)' : f.text}</span>
+      <span className={f.text === '—' ? 'text-white/50' : f.ok ? 'text-good' : 'text-white/85'}>{f.text === '—' ? '목표 예측 — (12경기 뒤부터)' : f.text}</span>
     </div>
   );
 }
