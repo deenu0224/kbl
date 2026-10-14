@@ -1,5 +1,5 @@
 // 프랜차이즈 스타 (LEVEL_DESIGN 7절): 유저 팀에서 5시즌 이상 뛴 star 60+ 선수.
-import type { Player } from './types';
+import type { Player, Team } from './types';
 
 export const FRANCHISE_SEASONS = 5;
 export const FRANCHISE_STAR = 60;
@@ -11,4 +11,11 @@ export function seasonsWith(p: Player, season: number): number {
 
 export function isFranchise(p: Player, season: number): boolean {
   return p.star >= FRANCHISE_STAR && seasonsWith(p, season) >= FRANCHISE_SEASONS;
+}
+
+/** 주전 9명 + 선발진의 출신: FA 영입 · 우리 드래프트 인원 (외인 구단 · 섬에서 키운 팀) */
+export function coreOrigin(t: Team): { fa: number; draft: number; n: number } {
+  const ids = new Set([...t.lineup.map((s) => s.pid), ...t.rotation]);
+  const ps = t.roster.filter((p) => ids.has(p.id));
+  return { fa: ps.filter((p) => p.from === 'fa').length, draft: ps.filter((p) => p.from === 'draft').length, n: ps.length };
 }

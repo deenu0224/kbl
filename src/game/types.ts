@@ -68,6 +68,7 @@ export interface Player {
   svc?: number; // 보유 기간(서비스 타임)의 기준: 유저 팀에 드래프트로 입단해 데뷔한 시즌. 있으면 6시즌 동안 연봉이 시장가의 일부 (contract.ts)
   ask?: number; // FA 재계약 때 합의한 배율 (시장가 × 이 값. 유저 팀에 있는 동안 유지)
   away?: { until: number; kind: 'army' }; // 팀을 떠나 있는 선수 (입대). until 시즌 개막에 복귀. 로스터가 아니라 campaign.away 에 있다
+  from?: 'fa' | 'draft'; // 우리 구단에 온 길: FA 영입 · 우리 드래프트(은퇴 자리를 채운 신인 포함). 트레이드·창단 멤버·옛 세이브는 없다 (franchise.ts coreOrigin)
   served?: boolean; // 군 복무를 마쳤거나 입대한 선수 (입대 통지 대상에서 빠진다)
   mlbAsk?: number; // 메이저리그 포스팅 제안을 받은 횟수 (붙잡으면 한 번 더 온다. posting.ts)
   armyDue?: number; // 입대를 미룬 선수: 이 시즌 60경기 뒤 선택 없이 입대한다

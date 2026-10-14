@@ -235,7 +235,10 @@ export interface SeasonCtx {
   teams?: number; // 구단 수 (없으면 8 — 옛 호출)
   games?: number; // 시즌 경기 수 (없으면 84)
   postTeams?: number; // 포스트시즌 진출 팀 수 (없으면 4)
+  origin?: { fa: number; draft: number; n: number }; // 주전 9명 + 선발진의 출신 (franchise.ts coreOrigin)
 }
+/** 주전 9명 + 선발진 중 이 인원 이상이 FA(또는 우리 드래프트) 출신이면 그 팀의 해 */
+export const ORIGIN_MOST = 10;
 const nT = (x: SeasonCtx) => x.teams ?? 8;
 const nPost = (x: SeasonCtx) => x.postTeams ?? 4;
 const gAt = (x: SeasonCtx, d84: number) => Math.round((d84 * (x.games ?? 84)) / 84); // 84경기 기준 경기 수를 이 시즌 길이로
@@ -260,6 +263,8 @@ interface NameRule {
 export const SEASON_NAME_RULES: NameRule[] = [
   { name: '떠날 채비를 한 우승', test: (r, x) => r.post === 'champion' && x.dealt },
   { name: '제주의 기적', test: (r, x) => r.post === 'champion' && x.titlesBefore === 0 },
+  { name: '돈으로 산 가을', test: (r, x) => r.post !== 'none' && (x.origin?.fa ?? 0) >= ORIGIN_MOST },
+  { name: '섬에서 키운 가을', test: (r, x) => r.post !== 'none' && (x.origin?.draft ?? 0) >= ORIGIN_MOST },
   { name: '왕조의 해', test: (r) => r.post === 'champion' },
   { name: '한 걸음이 모자랐던 가을', test: (r) => r.post === 'KS' },
   { name: '처음 맞은 가을', test: (r, x) => r.post !== 'none' && x.prev.every((p) => p.post === 'none') },

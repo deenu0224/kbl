@@ -694,6 +694,7 @@ export const CARDS: CardDef[] = [
           if (!p) return '그 사이 다른 팀이 데려갔습니다';
           c.freeAgents = c.freeAgents.filter((x) => x.id !== p.id);
           p.since = c.season;
+          p.from = 'fa';
           t.roster.push(p);
           const role = slotNewcomer(t, p);
           c.fans += p.star * 2;

@@ -3,6 +3,7 @@ import { josa } from './format';
 // 시즌 대본(일정 배치·구간 효과)은 script.ts, 이벤트 카드는 events.ts, 대사·문구는 story.ts.
 import type { Buff, CharId, Core, DayReport, HintTab, ObjKind, Objective, Player, PostFinish, SeasonRecord, SeasonVerdict, StadiumScene, Team } from './types';
 import { clamp, type Rng } from './rng';
+import { coreOrigin } from './franchise';
 import { DEBT_OVER_TRUST, DEBT_OVER_TRUST2, capacityOf, debtMood, loanLimit, luxTax, salaryInflation, opProfit, payroll, revenueOf, userTeam } from './economy';
 import { fmtInt, fmtMoney } from './format';
 import { addNews, rankOf, seasonAwards } from './season';
@@ -995,6 +996,7 @@ export function concludeMut(core: Core, rng: Rng): SeasonVerdict {
     teams: leagueSize(core),
     games: seasonGames(core),
     postTeams: postTeams(core),
+    origin: coreOrigin(userTeam(core)),
   });
   c.history.push(rec);
 

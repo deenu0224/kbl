@@ -1,6 +1,7 @@
 import type { AchvDef } from './achievements';
 import { gv, mk, some, streaks, totAtLeast, won } from './achievementList1';
-import { isFranchise } from './franchise';
+import { coreOrigin, isFranchise } from './franchise';
+import { userTeam } from './economy';
 import { loanLimit } from './loan';
 import { memoGet } from './memo';
 import { isLast } from './league';
@@ -72,6 +73,14 @@ const ODD: AchvDef[] = [
   O('o-greedy', '이 가격에 누가 와', '티켓값 4.0만원에 관중이 좌석의 절반도 안 찬다', '🦗', 2, 'game', (x) => !!x.r?.crowd && !x.r.post && x.core.finance.ticketPrice >= 4 && x.r.crowd.attendance < x.r.crowd.capacity * 0.5, { hidden: '가격표를 끝까지 올려 본다' }),
   O('o-debt-limit', '영끌', '부채가 대출 한도에 닿는다', '🧨', 2, 'manage', (x) => x.core.finance.debt > 0 && x.core.finance.debt >= loanLimit(x.core)),
   O('o-cash-neg', '통장이 텅장', '현금이 0 아래로 떨어진다', '🕸️', 2, 'manage', (x) => x.core.finance.cash < 0, { hidden: '금고 바닥을 본다' }),
+  O('o-fa-champ', '외인 구단', '주전 9명과 선발진 전원이 FA 영입 선수인 채로 한국시리즈 우승', '💰', 4, 'season', (x) => {
+    const o = coreOrigin(userTeam(x.core));
+    return x.rec!.post === 'champion' && o.n > 0 && o.fa === o.n;
+  }),
+  O('o-home-champ', '섬에서 키웠다', '주전 9명과 선발진 전원이 우리 드래프트 출신인 채로 한국시리즈 우승', '🌱', 4, 'season', (x) => {
+    const o = coreOrigin(userTeam(x.core));
+    return x.rec!.post === 'champion' && o.n > 0 && o.draft === o.n;
+  }),
   O('o-champ-debt', '빚내서 우승', '부채가 남은 채로 한국시리즈 우승', '💳', 4, 'season', (x) => x.rec!.post === 'champion' && x.core.finance.debt > 0, { hidden: '갚는 건 내년의 내가' }),
   O('o-negdiff-post', '득실은 숫자일 뿐', '득실 차가 마이너스인데 포스트시즌 진출', '🎲', 3, 'season', (x) => x.rec!.post !== 'none' && x.t.rec.rs < x.t.rec.ra),
   O('o-franchise-out', '피도 눈물도 없다', '프랜차이즈 스타를 방출한다', '🧊', 3, 'squad', (x) => !!x.prev && x.released.some((p) => x.prev!.teams.some((t) => t.id === x.prev!.userId && t.roster.some((q) => q.id === p.id && isFranchise(q, x.prev!.season)))), { hidden: '팬들이 등을 돌릴 일을 한다' }),

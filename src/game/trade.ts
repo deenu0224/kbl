@@ -297,6 +297,7 @@ export function applyTradeMut(core: Core, of: TradeOffer, cash: number, quiet = 
   x.t.roster.push(...x.give);
   for (const p of x.get) {
     p.since = core.season;
+    delete p.from;
     // 받는 선수도 새 팀에서는 시장가 (보유 할인·약속된 요구는 따라오지 않는다)
     for (const k of ['svc', 'ask', 'lever', 'tired'] as const) delete p[k];
     p.salary = Math.max(p.salary, marketSalary(p, core.season));

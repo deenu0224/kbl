@@ -147,6 +147,7 @@ function takePlayer(core: Core, t: Team, p: Player, round: number): void {
   if (t.id === core.userId) {
     p.since = core.season + (p.tag === YOUTH_TAG ? 0 : 1); // 다음 시즌 데뷔 (제주 출신은 프랜차이즈 판정 연한 −1)
     p.svc = core.season + 1; // 보유 기간 1년차 = 데뷔 시즌
+    p.from = 'draft';
     const bonus = DRAFT_BONUS[round - 1] ?? DRAFT_BONUS[DRAFT_BONUS.length - 1];
     core.finance.cash -= bonus;
     core.finance.ledger.signing += bonus;

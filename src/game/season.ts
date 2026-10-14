@@ -561,6 +561,7 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
     core.campaign.fa = { season: faSeason(core), n: n + 1, paid: (prev?.paid ?? 0) + bonus, extra: (prev?.extra ?? 0) + bonus - signingBonus(fa) };
   }
   p.since = core.season;
+  p.from = 'fa';
   t.roster.push(p);
   const role = slotNewcomer(t, p);
   if (p.star >= STAR_SIGN_MIN) {
@@ -933,6 +934,7 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       if (t.id === core.userId) {
         nw.since = core.season;
         nw.svc = core.season; // 구단이 키우는 신인: 보유 기간 적용
+        nw.from = 'draft';
       }
       if (p.farm && (!p.il || activeRoster(t).length >= ROSTER_MAX)) nw.farm = true;
       return nw;
