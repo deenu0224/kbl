@@ -299,6 +299,7 @@ export interface Postseason {
   championId: string | null;
   userFinish: PostFinish;
   ksBox?: KsBox; // 한국시리즈 동안 유저 팀 선수별 누적 (시리즈 MVP 용. 옛 세이브에는 없다)
+  intro?: boolean; // 정규시즌 마감 화면을 아직 보지 않았다 (정규시즌이 끝날 때 켜고, 화면을 닫으면 지운다. 옛 세이브에는 없다)
 }
 
 /** 한국시리즈 유저 팀 선수별 누적 기록 (pid → 기록) */

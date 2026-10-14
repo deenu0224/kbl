@@ -55,6 +55,7 @@ export interface Store extends Core {
   skipPlayback(): void;
   simDays(n: number): void;
   closeSummary(): void;
+  closeAutumnIntro(): void; // 정규시즌 마감 화면을 닫는다 (post.intro 를 지운다)
   sign(pid: string): void;
   release(pid: string): void;
   sendDown(pid: string): void;
@@ -268,6 +269,12 @@ export const useStore = create<Store>()(
         },
         closeSummary() {
           set({ summary: null });
+        },
+        closeAutumnIntro() {
+          const post = get().post;
+          if (!post?.intro) return;
+          const { intro: _i, ...rest } = post;
+          set({ post: rest });
         },
 
         sign(pid) {

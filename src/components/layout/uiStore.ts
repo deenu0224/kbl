@@ -92,6 +92,8 @@ interface UiState {
   setEventHidden(id: string | null): void;
   setDraftPeek(v: boolean): void;
   setOrderOpen(v: boolean): void;
+  autumnOpen: boolean; // 정규시즌 마감 화면을 다시 열었다 (리그 탭 대진표의 [정규시즌 마감 다시 보기])
+  setAutumnOpen(v: boolean): void;
 }
 
 /** 화면 전용 UI 상태 (tips 만 localStorage 에 저장). 게임 상태는 src/store.ts 에. */
@@ -122,6 +124,8 @@ export const useUi = create<UiState>()((set) => ({
   eventHidden: null,
   draftPeek: false,
   orderOpen: true,
+  autumnOpen: false,
+  setAutumnOpen: (autumnOpen) => set({ autumnOpen }),
   orderBase: null,
   orderEdit: null,
   chances: {},

@@ -313,6 +313,17 @@ export const SCREENS = [
   S('draft-done', 'draftDone', game()),
   S('draft-done-bottom', 'draftDone', game({ scroll: 'bottom' })),
 
+  // ── 정규시즌 마감 화면: 4위 와일드카드 · 1위 직행 · 6위 탈락(한 칸 차이) → 결산 · 8구단 4팀 · 닫은 뒤 · 리그 탭에서 다시 열기
+  S('autumn-wc', 'introWc', game()),
+  S('autumn-wc-bottom', 'introWc', game({ scroll: 'bottom', in: 'autumn-intro' })),
+  S('autumn-top', 'introTop', game()),
+  S('autumn-out', 'introOut', game()),
+  S('autumn-out-next', 'introOut', game('autumn-go', { wait: 2500 })),
+  S('autumn-eight', 'introEight', game()),
+  S('autumn-go', 'introWc', game('autumn-go', { wait: 400 })),
+  S('autumn-reopen', 'post', game('리그', '대진표', 'autumn-reopen')),
+  S('po-from-wc-bracket', 'poFromWc', game('리그', '대진표')),
+
   // ── 포스트시즌
   S('post-home', 'post', game()),
   S('post-bracket', 'post', game('리그', '대진표')),
