@@ -24,6 +24,11 @@ import { todoList } from '../../src/game/todo';
 import { emptyHof, recordClub, seatsLabel, HOF_KEY, SAVE_VERSION } from '../../src/game/hof';
 import { greedy, passive, sensible, type Bot } from '../bots';
 import { regDeadline } from '../../src/game/economy';
+import { ROSTER_MAX, activeRoster } from '../../src/game/economy';
+import { releaseAdvice } from '../../src/game/release';
+
+/** 할 일 카드 맨 앞 3줄 안에 "방출 검토"가 있다 */
+const relTop = (c: Core) => todoList(c).slice(0, 3).some((t) => t.id.startsWith('rel-'));
 
 const OUT = resolve(dirname(fileURLToPath(import.meta.url)), '../../screens-out/fixtures');
 const SEED_MAX = 200; // 시드를 바꿔 가며 찾는 상한
@@ -119,6 +124,10 @@ const WANT: Record<string, Pred> = {
   regClosed: (c) => inSeason(c) && quiet(c) && c.day >= regDeadline(c) + 1 && c.day < c.schedule.length - 2,
   tradeWindow: (c) => inSeason(c) && quiet(c) && tradeOpen(c) && c.season >= 2 && nextIsHome(c),
   dynasty: (c) => inSeason(c) && stageName(c) === '왕조' && c.day >= 20 && quiet(c) && nextIsHome(c),
+  // 방출 추천: 1군이 꽉 찬 시즌 중(추천 2~3명) · 개막 전(0일) · 결산 뒤 스토브리그
+  relFull: (c) => inSeason(c) && quiet(c) && c.day >= 12 && activeRoster(userTeam(c)).length >= ROSTER_MAX && releaseAdvice(c).length >= 2 && relTop(c),
+  relOpen: (c) => inSeason(c) && quiet(c) && c.season >= 2 && c.day === 0 && releaseAdvice(c).length >= 1,
+  relStove: (c) => c.phase === 'ended' && !c.campaign.event && c.season >= 2 && releaseAdvice(c).length >= 2 && !endingNow(c),
 };
 
 const found: Record<string, { core: Core; seed: number; bot: string }> = {};

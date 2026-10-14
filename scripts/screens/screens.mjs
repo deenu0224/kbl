@@ -126,6 +126,14 @@ export const SCREENS = [
   // 조치 시트
   S('remedy-penover', 'penover', game('불펜 과부하')),
   S('todo-penover', 'penover', game()),
+  // 방출 추천: 할 일 → 조치 시트 → 이적 창구(방출 후보순) → 추천 선수 카드
+  S('rel-todo', 'relFull', game()),
+  S('rel-remedy', 'relFull', game('방출 검토')),
+  S('rel-desk', 'relFull', game('방출 검토', 'remedy-go', { wait: 300 })),
+  S('rel-card', 'relFull', game('방출 검토', 'remedy-go', { wait: 300 }, 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
+  S('rel-open', 'relOpen', game()),
+  S('rel-stove', 'relStove', game('stove-market', m('side-squad'), 'list-sort', 'list-sort', 'list-sort')),
+  S('rel-stove-card', 'relStove', game('stove-market', m('side-squad'), 'list-sort', 'list-sort', 'list-sort', 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
 
   // ── 선수단 (모바일: 선수단 탭, 데스크톱: [선수단 열기] 모달)
   S('roster-field', 'farm', game(...SQUAD)),
