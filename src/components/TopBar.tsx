@@ -9,6 +9,7 @@ import { runway, runwayAlert } from '../game/runway';
 import { CampaignChip } from './Campaign';
 import SoundButton from './SoundButton';
 import { useUi } from './layout/uiStore';
+import { useAutumnLine } from './Bracket';
 import { useAchv } from './achvStore';
 import { Bar, ratingColor, recText, TeamDot } from './ui';
 
@@ -51,6 +52,7 @@ export default function TopBar() {
   const str = teamStrength(team);
   const pay = payroll(team);
   const streak = team.rec.streak;
+  const autumn = useAutumnLine();
 
   return (
     <div className="px-panel flex h-12 shrink-0 items-stretch px-2">
@@ -71,6 +73,15 @@ export default function TopBar() {
       <Sep />
       <CampaignChip className="w-[210px] shrink-0 max-[1279px]:w-[176px]" />
       <Sep />
+      {autumn ? (
+        <div className="flex min-w-0 flex-col justify-center px-2.5 leading-tight max-[1279px]:px-1.5" data-testid="autumn-top" title={autumn.text}>
+          <span className="text-[9px] text-[#f0a35a]">🍂 가을야구 · 정규시즌 {rank}위</span>
+          <span className="truncate whitespace-nowrap text-[13px]">
+            {autumn.head} · <span className="text-hi">{autumn.status}</span>
+          </span>
+        </div>
+      ) : (
+      <>
       <Cell label="순위">
         <span className={inPost({ teams }, rank) ? 'text-hi' : inCellar({ teams }, rank) ? 'text-bad' : ''}>{rank}위</span>
       </Cell>
@@ -83,6 +94,8 @@ export default function TopBar() {
           </span>
         )}
       </Cell>
+      </>
+      )}
       <Sep />
       <Cell label="현금">
         <span className={cash < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(cash)}</span>
@@ -138,6 +151,7 @@ export function MobileTopBar() {
   const str = teamStrength(team);
   const pay = payroll(team);
   const streak = team.rec.streak;
+  const autumn = useAutumnLine();
   const satColor = fanSat >= 60 ? '#6ee07a' : fanSat >= 40 ? '#ffd84a' : '#ff6b6b';
 
   return (
@@ -154,12 +168,28 @@ export function MobileTopBar() {
         <span className="shrink-0 px-1 text-[16px] text-white/80 mob:!text-[18px]" data-testid="menu">{open ? '▲' : '≡'}</span>
       </button>
       {/* 캠페인: 세로는 한 줄, 가로는 옆에 두 줄 */}
+      {autumn ? (
+        // 가을야구 동안: 캠페인 줄 대신 지금 라운드와 시리즈 상황
+        <button
+          className="flex min-w-0 cursor-pointer flex-col justify-center bg-[#f0a35a]/15 px-2 py-1 text-left leading-tight land:w-[46%] land:shrink-0"
+          style={{ boxShadow: 'inset 0 2px 0 #0f1420, inset 3px 0 0 #f0a35a' }}
+          data-testid="autumn-top"
+          aria-label="캠페인 열기"
+          onClick={() => useUi.getState().setCampaignOpen(true)}
+        >
+          <span className="w-full truncate text-[12px] text-[#ffb870]">🍂 가을야구 · {autumn.head}</span>
+          <span className="w-full truncate text-[13px] text-hi">{autumn.status}</span>
+        </button>
+      ) : (
+        <>
       <div className="hidden bg-ink/35 por:block" style={{ boxShadow: 'inset 0 2px 0 #0f1420' }}>
         <CampaignChip line />
       </div>
       <div className="hidden w-[46%] shrink-0 bg-ink/35 land:flex" style={{ boxShadow: 'inset 2px 0 0 #0f1420' }}>
         <CampaignChip className="w-full" />
       </div>
+        </>
+      )}
 
       {open && (
         <>

@@ -97,6 +97,7 @@ function Preview() {
     fxKey,
     banners,
     titleWall: [3, 5].slice(2 - Math.min(2, wall)),
+    autumn: Q.get('autumn') === '1',
     awayFans: fx.kind === 'champion' && fx.away ? 0.2 : undefined,
     oldBanner,
     gateQueue,

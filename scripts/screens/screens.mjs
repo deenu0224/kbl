@@ -313,6 +313,23 @@ export const SCREENS = [
   S('draft-done', 'draftDone', game()),
   S('draft-done-bottom', 'draftDone', game({ scroll: 'bottom' })),
 
+  // ── 정규시즌 마감 화면: 4위 와일드카드 · 1위 직행 · 6위 탈락(한 칸 차이) → 결산 · 8구단 4팀 · 닫은 뒤 · 리그 탭에서 다시 열기
+  S('autumn-wc', 'introWc', game()),
+  S('autumn-wc-bottom', 'introWc', game({ scroll: 'bottom' })),
+  S('autumn-top', 'introTop', game()),
+  S('autumn-out', 'introOut', game()),
+  S('autumn-out-next', 'introOut', game('autumn-go', { wait: 2500 })),
+  S('autumn-eight', 'introEight', game()),
+  S('autumn-go', 'introWc', game('autumn-go', { wait: 400 })),
+  S('autumn-reopen', 'post', game('리그', '대진표', 'autumn-reopen')),
+  S('po-from-wc-bracket', 'poFromWc', game('리그', '대진표')),
+  S('po-from-wc-home', 'poFromWc', game()),
+  S('po-from-wc-table', 'poFromWc', game('리그')),
+  // 가을야구 보기 속도: 기본 천천히 · [빨리] 누른 뒤 · 천천히 재생 중 (장면 점이 늘어난다)
+  S('autumn-view', 'post', game()),
+  S('autumn-view-fast', 'post', game('postview-fast')),
+  S('autumn-view-play', 'post', game('▶ 경기 진행', { wait: 5200 })),
+
   // ── 포스트시즌
   S('post-home', 'post', game()),
   S('post-bracket', 'post', game('리그', '대진표')),

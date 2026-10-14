@@ -7,6 +7,7 @@ import Squad from '../roster/Squad';
 import { fmtMoney } from '../../game/format';
 import EventCardModal from '../EventCardModal';
 import OrderSheet from '../OrderSheet';
+import { OppClimb } from '../Bracket';
 import { FinanceTab, LeagueTab, NewsTab, StadiumTab, useHintTabs } from '../RightPanel';
 import StadiumView, { ceremonySub } from '../StadiumView';
 import { clinchesTitle } from '../../game/postseason';
@@ -32,7 +33,8 @@ function TodayCards() {
   const { next, opp, inPost, when, idle } = useMatchActions();
   return (
     <div className="flex shrink-0 flex-col gap-[4px] land:min-h-0 land:flex-1 land:overflow-y-auto" data-testid="today">
-      <div className="px-panel flex min-h-12 shrink-0 items-center gap-2 px-2 py-1.5">
+      <div className="px-panel shrink-0 px-2 py-1.5">
+      <div className="flex min-h-9 items-center gap-2">
         {next && opp ? (
           <>
             <span className={`shrink-0 px-1.5 py-0.5 text-[13px] ${next.isHome ? 'bg-good/25 text-good' : 'bg-white/10 text-white/80'}`}>{next.isHome ? '홈' : '원정'}</span>
@@ -48,6 +50,8 @@ function TodayCards() {
         ) : (
           <span className="text-[13px] text-white/60">{idle}</span>
         )}
+      </div>
+      {inPost && next && <OppClimb oneRow className="mt-1 border-t-2 border-ink pt-1" />}
       </div>
       <TodoCard />
     </div>

@@ -32,7 +32,8 @@ import { drawStoveTrade, toggleBlock } from './game/trade';
 import { memoGet, memoSet } from './game/memo';
 import { RUNWAY_STOP, runway } from './game/runway';
 import { applyTransfer, basketCount, type Basket } from './game/transfer';
-import { useUi } from './components/layout/uiStore';
+import { postViewOf, useUi } from './components/layout/uiStore';
+import { slowEvents } from './game/autumn';
 import { applySnap, replaceIn, type LineupSnap } from './components/roster/editorOps';
 import { ROSTER_MAX, activeRoster } from './game/economy';
 import { applyRemedy, type Remedy } from './game/remedy';
@@ -55,6 +56,7 @@ export interface Store extends Core {
   skipPlayback(): void;
   simDays(n: number): void;
   closeSummary(): void;
+  closeAutumnIntro(): void; // 정규시즌 마감 화면을 닫는다 (post.intro 를 지운다)
   sign(pid: string): void;
   release(pid: string): void;
   sendDown(pid: string): void;
@@ -224,7 +226,8 @@ export const useStore = create<Store>()(
             return;
           }
           const r = advanceDay(pickCore(s), rng);
-          const report = r.report;
+          // 가을야구 천천히 보기: 시뮬이 기록해 둔 장면을 하이라이트 사이에 끼워 넣는다 (결과는 그대로, 보여 주는 장면만)
+          const report = r.report.post && postViewOf(useUi.getState(), s) === 'slow' ? { ...r.report, result: { ...r.report.result, events: slowEvents(r.report.result) } } : r.report;
           const next = drawBriefing(maybeDrawEvent(r.core, rng));
           if (!report.result.events.length) {
             set({ ...pickCore(next), playback: null, summary: [report], lastReport: report, fx: null });
@@ -268,6 +271,12 @@ export const useStore = create<Store>()(
         },
         closeSummary() {
           set({ summary: null });
+        },
+        closeAutumnIntro() {
+          const post = get().post;
+          if (!post?.intro) return;
+          const { intro: _i, ...rest } = post;
+          set({ post: rest });
         },
 
         sign(pid) {

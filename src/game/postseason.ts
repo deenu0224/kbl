@@ -32,6 +32,11 @@ const FAN_CHAMPION = 1200;
 
 const TRAVEL_BEST_OF = 5; // 이 이상 길이의 시리즈에는 이동일이 있다
 const TRAVEL_AFTER = 2; // 이 경기 수를 치른 뒤 하루 쉰다 (연투 일수 −1)
+/** 라운드 규칙 (화면 문구용): 이름 · 길이 · 상위 시드 홈 경기 번호 · 안고 시작하는 승수 · 무승부 통과 */
+export function roundDef(round: PostRound): Readonly<{ name: string; bestOf: number; hiHome: readonly number[]; hiLead?: number; tieHi?: boolean }> {
+  return ROUND_DEF[round];
+}
+
 const need = (s: PostSeries) => Math.floor(s.bestOf / 2) + 1;
 const done = (s: PostSeries) => s.winnerId !== null;
 
@@ -256,6 +261,7 @@ export function endPostIfDone(core: Core, rng: Rng): void {
 /** 정규시즌 마지막 경기 직후 호출 (mutate): 진출이면 'post', 아니면 전체 자동 시뮬 후 결산 */
 export function afterRegularSeasonMut(core: Core, rng: Rng): void {
   startPostMut(core);
+  core.post!.intro = true; // 정규시즌 마감 화면 (난수를 쓰지 않는다)
   if (core.post!.userFinish !== 'none') {
     core.phase = 'post';
     addNews(core, `가을야구 진출! 정규시즌 ${rankOf(core.teams, core.userId)}위로 포스트시즌에 나섭니다`, 'good');

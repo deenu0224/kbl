@@ -142,6 +142,8 @@ export interface GameEvent {
   home: number;
   rbi?: number;
   pid?: string;
+  seq?: number; // 경기 안의 순서 (천천히 보기에서 장면을 끼워 넣을 때 쓴다)
+  moment?: 'k' | 'dp' | 'hold' | 'run'; // 천천히 보기에서만 보이는 장면: 득점권 삼진 · 병살 위기 탈출 · 득점권 무실점 이닝 종료 · 작은 득점 ('run' 말고는 type 'start' 로 둔다: 구장 효과·효과음이 없다)
 }
 
 export interface GameResult {
@@ -162,6 +164,7 @@ export interface GameResult {
   errs?: [{ pid: string; name: string; pos: string }[], { pid: string; name: string; pos: string }[]]; // [원정, 홈] 실책한 야수
   box?: [BoxSide, BoxSide]; // [원정, 홈] 선수별 기록 (유저 경기만)
   pitOrder?: [string[], string[]]; // [원정, 홈] 투수 등판 순서 pid (유저 경기만. 경기 기록의 투수 줄 순서)
+  more?: GameEvent[]; // 하이라이트에 들지 못한 장면 (유저 경기만. 가을야구 천천히 보기가 events 사이에 끼워 넣는다. 난수를 쓰지 않고 기록만 한다)
 }
 
 /** 한 경기의 선수별 기록 */
@@ -299,6 +302,7 @@ export interface Postseason {
   championId: string | null;
   userFinish: PostFinish;
   ksBox?: KsBox; // 한국시리즈 동안 유저 팀 선수별 누적 (시리즈 MVP 용. 옛 세이브에는 없다)
+  intro?: boolean; // 정규시즌 마감 화면을 아직 보지 않았다 (정규시즌이 끝날 때 켜고, 화면을 닫으면 지운다. 옛 세이브에는 없다)
 }
 
 /** 한국시리즈 유저 팀 선수별 누적 기록 (pid → 기록) */
@@ -593,4 +597,5 @@ export interface StadiumScene {
   dome?: 0 | 1 | 2 | 3; // 우리 돔구장 단계 (1 조감도 간판 · 2 크레인·비계 · 3 돔 지붕). 없으면 그리지 않는다
   awayFans?: number; // 원정 응원단 크기 0~1 (3루 쪽 끝 관중석의 원정 색 덩어리). 없으면 그리지 않는다
   titleWall?: number[]; // 외야 펜스에 건 우승 현수막의 시즌 번호 (오래된 것부터, 최대 2). 없으면 그리지 않는다
+  autumn?: boolean; // 가을야구 장식 (포스트시즌 동안 우리 홈 구장: 외야 펜스·내야 관중석 앞의 주황·갈색 깃발줄). 없으면 그리지 않는다
 }

@@ -9,7 +9,7 @@ import { usePostLine } from './Bracket';
 import EventCardModal from './EventCardModal';
 import GameSummary, { TeamTag } from './GameSummary';
 import { useIsMobile } from './layout/useLayout';
-import { useUi } from './layout/uiStore';
+import { fastFor, useUi } from './layout/uiStore';
 import { uiZoom } from './layout/uiScale';
 import { awayFacilities, awayFanShare } from './layout/away';
 import { teamDef } from '../game/generate';
@@ -18,7 +18,7 @@ import { defendingChamp } from '../game/campaign';
 import { SHOT_FXT, reducedMotion } from '../stadium/shotMode';
 import { CEREMONY_MS } from '../stadium/ceremony';
 import { TITLE_WALL_SPANS } from '../stadium/dynamicLayer';
-import { fenceTopY } from '../stadium/geometry';
+import { SB_FRAME, fenceTopY } from '../stadium/geometry';
 import { FAC_KO, WEATHER_ICON, WEATHER_KO, dowOf, isNightDay } from './ui';
 
 const KINDS: FacilityKind[] = ['seats', 'food', 'training'];
@@ -43,21 +43,30 @@ const chip: CSSProperties = {
   lineHeight: 1.25,
 };
 
+/** 가을야구 천천히 보기: 장면 사이 간격 배율 */
+const SLOW_MULT = 1.35;
+
 /** 하이라이트 재생 드라이버: 이벤트마다 타이머 하나 (App 에서 한 번). cleanup 으로 지우므로 StrictMode 이중 실행에도 안전. */
 export function usePlaybackDriver(): void {
   const report = useStore((s) => s.playback?.report ?? null);
   const step = useStore((s) => s.playback?.step ?? 0);
   const stepPlayback = useStore((s) => s.stepPlayback);
-  const fast = useUi((s) => s.fast);
+  const seed = useStore((s) => s.seed);
+  const season = useStore((s) => s.season);
+  const isPost = !!report?.post;
+  // 가을야구 경기는 가을야구 보기 속도(천천히/빨리)가 설정의 '빠르게'보다 우선한다
+  const fast = useUi((s) => fastFor(s, { seed, season }, isPost));
+  const slow = isPost && !fast;
   const evType = report?.result.events[step]?.type;
   const ceremony = useCeremony();
   useEffect(() => {
     if (!report) return;
     if (ceremony && SHOT_FXT !== null) return; // 화면 검증: 세리머니를 멈춰 둔다
-    const ms = ceremony ? (fast ? CEREMONY_MS.fast : CEREMONY_MS.normal) : (evType === 'hr' || evType === 'walkoff' ? 2600 : 1800) * (fast ? 0.5 : 1);
+    const base = evType === 'hr' || evType === 'walkoff' ? 2600 : 1800;
+    const ms = ceremony ? (fast ? CEREMONY_MS.fast : CEREMONY_MS.normal) : base * (fast ? 0.5 : slow ? SLOW_MULT : 1);
     const id = window.setTimeout(stepPlayback, ms);
     return () => window.clearTimeout(id);
-  }, [report, step, evType, stepPlayback, fast, ceremony]);
+  }, [report, step, evType, stepPlayback, fast, slow, ceremony]);
 }
 
 /**
@@ -187,6 +196,9 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   const gateCrowd = report ? (report.isHome ? report.crowd : null) : crowd;
   const gateQueue = gateCrowd ? Math.max(0, Math.min(1, gateCrowd.turnedAway / Math.max(1, gateCrowd.capacity))) : 0;
   const extras = useMemo(() => sceneExtras(core), [core]);
+  // 가을야구: 포스트시즌 동안(그리고 포스트시즌 경기의 재생·요약 동안) 구장이 가을 옷을 입는다. 전광판 위에는 라운드 이름
+  const autumnRound = shownRep?.post?.name ?? (phase === 'post' ? (postLine?.name ?? null) : null);
+  const autumn = !!autumnRound;
   const ceremony = useCeremony();
   const defending = useMemo(() => defendingChamp(core), [core]);
 
@@ -250,8 +262,9 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
       fxKey,
       ...extras,
       gateQueue, // 재생 중에는 그 경기의 줄
+      autumn: autumn || undefined, // 가을야구 동안 우리 홈 구장의 깃발줄
     };
-  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras, away, awayRep, fans, oppId]);
+  }, [report, step, ev, fxUp, facilities, user.color, user.color2, opp, idleFill, crowd?.weather, summaryOpen, userId, gateQueue, extras, away, awayRep, fans, oppId, autumn]);
   const titleWall = away ? [] : (scene.titleWall ?? []);
 
   const star = useMemo(() => user.roster.reduce<(typeof user.roster)[number] | null>((a, p) => (!a || p.star > a.star ? p : a), null), [user.roster]);
@@ -267,7 +280,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
   // 득점 장면은 왼쪽 띠로 편을 가른다: 우리 팀 초록, 상대 빨강
   const scoreEv = ev?.type === 'hr' || ev?.type === 'score' || ev?.type === 'walkoff';
   const band = scoreEv ? `max(1.2cqw, 6px) solid ${mineEv ? '#6ee07a' : '#ff6b6b'}` : undefined;
-  const tagged = !!ev && ev.type !== 'start' && ev.type !== 'final';
+  const tagged = !!ev && ((ev.type !== 'start' && ev.type !== 'final') || !!ev.moment);
 
   // 관중 칩: 세로 폰(pan)에서는 캔버스가 아니라 구장 영역의 좌상단에 고정한다 (확대해도 잘리지 않게)
   const crowdChip = (
@@ -349,7 +362,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           ) : report && ev ? (
             <>
               <div style={{ fontSize: `${1.35 * k}cqw`, color: '#7fd3ff' }}>
-                {ev.type === 'final' ? '경기 종료' : ev.type === 'start' ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`}
+                {ev.type === 'final' ? '경기 종료' : ev.type === 'start' && !ev.moment ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`}
               </div>
               <div className="font-pixel-lg flex items-center" style={{ fontSize: `${2.6 * k}cqw`, gap: '0.8cqw' }}>
                 <span style={{ fontSize: '1.5cqw', color: awayTeam?.id === userId ? '#fff' : '#b9c3e0' }}>{awayTeam?.id}</span>
@@ -386,6 +399,27 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             </div>
           )}
         </div>
+
+        {/* 전광판 위 가을야구 띠: 홈·원정 모두 라운드 이름 */}
+        {autumnRound && !ceremony && (
+          <div
+            className="pointer-events-none absolute flex items-center justify-center overflow-hidden whitespace-nowrap font-pixel-lg"
+            data-testid="autumn-board"
+            style={{
+              left: `${(SB_FRAME.x / STADIUM_W) * 100}%`,
+              width: `${(SB_FRAME.w / STADIUM_W) * 100}%`,
+              top: `${((SB_FRAME.y - 13) / STADIUM_H) * 100}%`,
+              height: `${(11 / STADIUM_H) * 100}%`,
+              fontSize: `${1.25 * k}cqw`,
+              lineHeight: 1,
+              color: '#1b2233',
+              background: '#f0a35a',
+              boxShadow: '0 0 0 0.25cqw #6b3a1a',
+            }}
+          >
+            🍂 가을야구 · {autumnRound}
+          </div>
+        )}
 
         {/* 외야 펜스의 우승 현수막 글자 */}
         {titleWall.length > 0 &&

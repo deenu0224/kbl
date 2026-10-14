@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { play as playSfx, unlock, type SfxName } from '../audio/sfx';
 import { duckBgm } from '../audio/bgm';
 import { useStore } from '../store';
-import { useUi } from './layout/uiStore';
+import { fastFor, useUi } from './layout/uiStore';
 import { clinchesTitle } from '../game/postseason';
 
 /**
@@ -50,12 +50,13 @@ export function useSfx(): void {
       if (pb && (pb !== p.playback) && (pb.step !== p.playback?.step || pb.report !== p.playback?.report)) {
         const ev = pb.report.result.events[pb.step];
         const mine = ev?.teamId === s.userId;
-        if (ev?.type === 'start') play('playball');
+        if (ev?.moment && ev.type === 'start') play(mine ? 'hit' : 'click'); // 천천히 보기의 위기 장면
+        else if (ev?.type === 'start') play('playball');
         else if (ev?.type === 'hr') play(mine ? 'homerun' : 'groan');
         else if (ev?.type === 'score') play(mine ? 'hit' : 'groan');
         else if (ev?.type === 'walkoff') play(mine ? 'walkoff' : 'groan');
         else if (ev?.type === 'injury') play('injury');
-        else if (ev?.type === 'final' && clinchesTitle(pb.report)) play(useUi.getState().fast ? 'crownShort' : 'crown');
+        else if (ev?.type === 'final' && clinchesTitle(pb.report)) play(fastFor(useUi.getState(), s, true) ? 'crownShort' : 'crown');
         else if (ev?.type === 'final') play(pb.report.won === false ? 'lose' : pb.report.won ? 'win' : 'click');
       }
       // 하이라이트 없이 끝난 경기 / 일괄 진행

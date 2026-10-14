@@ -2,7 +2,7 @@ import type { BatPos, Campaign, EvType, GameEvent, GameResult, Player, Team } fr
 import { clamp, randInt, type Rng } from './rng';
 import { effDef } from './ratings';
 import { slotValue } from './lineup';
-import { fmtIp } from './format';
+import { fmtIp, josa } from './format';
 import { KBO_AVG } from './kbo';
 
 // (연투 피로 도입으로 불펜 유효 구위가 평균 2 안팎 내려간 만큼 BB/K/BABIP 를 다시 맞췄다)
@@ -160,6 +160,10 @@ interface Side {
   lines: Map<string, BLine>;
   errors: { pid: string; name: string; pos: BatPos }[]; // 이 팀 야수가 저지른 실책
 }
+// 천천히 보기의 위기 장면: 이 이닝부터, 점수 차 이 안에서만
+const MOMENT_INN = 6;
+const MOMENT_LEAD = 3;
+
 interface Cand {
   ev: GameEvent;
   prio: number;
@@ -366,6 +370,7 @@ export function simulateGame(
   const A = makeSide(away, false, opts.rest, opts.penStyle?.[away.id] ?? autoPenStyle(away));
   const track = opts.track;
   const cands: Cand[] = [];
+  const more: GameEvent[] = [];
   let seq = 0;
   let winP: PState | undefined;
   let lossP: PState | undefined;
@@ -417,6 +422,9 @@ export function simulateGame(
       ps.bf++;
       const leadBefore = bat.runs - fld.runs;
       const runsBefore = bat.runs;
+      // 천천히 보기의 장면 판정용 (기록만, 난수 없음): 득점권 주자 · 타석 전 아웃
+      const rispBefore = !!(bases[1] || bases[2]);
+      const outsBefore = outs;
       let rbi = 0;
 
       const plate = (rn: Runner, credit: boolean): void => {
@@ -653,6 +661,11 @@ export function simulateGame(
           text = `${b.name} ${how}${leadBefore < 0 ? '로 역전' : '로 균형을 깼다'}!`;
           sub = `${halfTxt} · ${leadBefore < 0 ? '역전' : '리드'} 득점`;
         }
+        if (!type) {
+          // 하이라이트 기준에 못 미친 득점: 천천히 보기에서만
+          const how = kind === 'hr' ? '홈런' : isHit ? hitName : kind === 'bb' ? '밀어내기 볼넷' : kind === 'sf' ? '희생플라이' : kind === 'roe' ? '상대 실책' : '내야 땅볼';
+          more.push({ type: 'score', moment: 'run', inning, half, teamId: bat.team.id, text: `${b.name} ${josa(how, '으로', '로')} ${n}점`, sub: `${halfTxt}${rbi > 0 ? ` · ${rbi}타점` : ''}`, away: A.runs, home: H.runs, rbi, pid: b.id, seq: seq++ });
+        }
         if (type) {
           let prio = n * 5 + inning;
           if (goAhead) prio += 50;
@@ -666,6 +679,13 @@ export function simulateGame(
             seq: seq++,
           });
         }
+      } else if (track && n === 0 && rispBefore && inning >= MOMENT_INN && Math.abs(leadBefore) <= MOMENT_LEAD) {
+        // 후반 접전의 득점권 위기를 막은 장면 (천천히 보기에서만): 삼진 · 병살 · 이닝을 끝낸 아웃
+        const pn = ps.p.name;
+        const ev = (moment: 'k' | 'dp' | 'hold', text: string, sub: string): GameEvent => ({ type: 'start', moment, inning, half, teamId: fld.team.id, text, sub, away: A.runs, home: H.runs, pid: ps.p.id, seq: seq++ });
+        if (kind === 'k') more.push(ev('k', `${pn} 위기의 삼진!`, `${halfTxt} · 득점권 주자를 두고 ${b.name} 삼진`));
+        else if (outs - outsBefore >= 2) more.push(ev('dp', `${pn} 병살로 위기 탈출!`, `${halfTxt} · ${b.name} 병살타`));
+        else if (outs >= 3 && kind === 'out') more.push(ev('hold', `${pn} 실점 없이 막았다`, `${halfTxt} · 득점권 주자 잔루`));
       }
     }
   };
@@ -800,13 +820,14 @@ export function simulateGame(
       away: sc.away, home: sc.home,
     };
     const quota = Math.max(0, SIM.MAX_EVENTS - 2 - injEv.length);
-    const kept = cands
+    const top = cands
       .slice()
       .sort((a, b) => b.prio - a.prio)
-      .slice(0, quota)
-      .sort((a, b) => a.seq - b.seq)
-      .map((c) => c.ev);
+      .slice(0, quota);
+    const kept = top.sort((a, b) => a.seq - b.seq).map((c) => ({ ...c.ev, seq: c.seq }));
     result.events = [startEv, ...kept, ...injEv, finalEv];
+    const keptSeq = new Set(top.map((c) => c.seq));
+    result.more = [...cands.filter((c) => !keptSeq.has(c.seq)).map((c) => ({ ...c.ev, seq: c.seq })), ...more].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
   }
 
   return result;

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import type { Postseason, PostSeries, Team } from '../game/types';
 import { useStore, userMatch } from '../store';
 import { buildPost } from '../game/postseason';
+import { climbLine, climbPath, firstSeries, roundShortName, seriesStatus } from '../game/autumn';
+import { useUi } from './layout/uiStore';
 import { TeamDot } from './ui';
 import Help from './Help';
 
@@ -34,6 +36,28 @@ export function usePostLine(): { name: string; gameNo: number; myW: number; oppW
     const score = seriesScore(s, userId);
     return { name: m.name, gameNo: m.gameNo, myW, oppW, score, text: `${m.name} ${m.gameNo}차전 · ${score}` };
   }, [phase, post, schedule, userId]);
+}
+
+/**
+ * 상단 바의 가을야구 줄: { head: "와일드카드 결정전 1차전 vs 판다스", status: "우리 1승 0패(1승 안고 시작)" }.
+ * 시리즈가 끝나면 postMatch 가 다음 라운드를 가리키므로 저절로 다음 상대가 된다. 포스트시즌이 아니면 null
+ */
+export function useAutumnLine(): { head: string; status: string; text: string } | null {
+  const phase = useStore((s) => s.phase);
+  const post = useStore((s) => s.post);
+  const teams = useStore((s) => s.teams);
+  const userId = useStore((s) => s.userId);
+  const schedule = useStore((s) => s.schedule);
+  return useMemo(() => {
+    if (phase !== 'post' || !post) return null;
+    const m = userMatch({ schedule, userId, phase, post }, 0);
+    const s = post.series[post.cur];
+    if (!m || !s || !m.name || !m.gameNo) return null;
+    const opp = teams.find((t) => t.id === m.oppId);
+    const head = `${m.name} ${m.gameNo}차전 vs ${opp?.name ?? m.oppId}`;
+    const status = seriesStatus(s, userId);
+    return { head, status, text: `가을야구 · ${head} · ${status}` };
+  }, [phase, post, teams, userId, schedule]);
 }
 
 /** 와일드카드 결정전의 승수 칸: 2칸 중 채운 칸 = 승수. 안고 시작한 1승은 하늘색, 경기로 딴 승은 노란색 */
@@ -81,15 +105,18 @@ function wcNote(s: PostSeries, seedOf: (id: string | null) => number): string {
   return `${hi}는 1승이나 무승부면 통과 · ${lo}는 2연승해야 통과`;
 }
 
-function SeriesBox({ s, prev, byId, seeds, userId, live }: { s: PostSeries; prev?: PostSeries; byId: Map<string, Team>; seeds: string[]; userId: string; live: boolean }) {
+function SeriesBox({ s, prev, byId, seeds, userId, live, ours = false }: { s: PostSeries; prev?: PostSeries; byId: Map<string, Team>; seeds: string[]; userId: string; live: boolean; ours?: boolean }) {
   const st = (id: string | null) => (s.winnerId ? (s.winnerId === id ? 'win' : 'lose') : 'live') as 'win' | 'lose' | 'live';
   const wait = prev ? `${prev.name} 승자` : '';
   const wc = s.round === 'WC';
   const seedOf = (id: string | null) => (id ? seeds.indexOf(id) + 1 : 0);
   return (
-    <div className="min-w-0 flex-1" style={{ boxShadow: live ? '0 0 0 1px #7fd3ff' : '0 0 0 1px #0f1420' }} data-testid={`series-${s.round}`}>
+    <div className="min-w-0 flex-1" style={{ boxShadow: live ? '0 0 0 1px #7fd3ff' : ours ? '0 0 0 1px #f0a35a' : '0 0 0 1px #0f1420' }} data-testid={`series-${s.round}`} data-ours={ours ? '1' : undefined}>
       <div className="flex items-center justify-between gap-1 bg-panel-2 px-1.5 py-[3px] text-[11px]">
-        <span className={`min-w-0 truncate ${live ? 'text-sky' : 'text-white/75'}`}>{s.name}</span>
+        <span className={`min-w-0 truncate ${live ? 'text-sky' : ours ? 'text-[#f0a35a]' : 'text-white/75'}`}>
+          {ours && <span aria-hidden>▲ </span>}
+          {s.name}
+        </span>
         <span className="shrink-0 whitespace-nowrap text-[10px] text-white/45">{wc ? `${seedOf(s.hiId)}위 1승 안고 시작` : (FORMAT[s.bestOf] ?? `${s.bestOf}전`)}</span>
       </div>
       <Side team={s.hiId ? byId.get(s.hiId) : undefined} seed={seedOf(s.hiId)} wins={s.hiW} state={st(s.hiId)} me={s.hiId === userId} wait={wait} wc={wc} given={wc ? 1 : 0} />
@@ -124,7 +151,7 @@ function SeriesBox({ s, prev, byId, seeds, userId, live }: { s: PostSeries; prev
  * 포스트시즌 대진표(사다리). 아래 칸의 승자가 위 칸으로 올라간다.
  * post 가 없으면(정규시즌 중) 현재 순위로 짠 가상의 대진을 보여준다.
  */
-export default function Bracket({ wide = false }: { wide?: boolean }) {
+export default function Bracket({ wide = false, path = false, reopen = false }: { wide?: boolean; path?: boolean; reopen?: boolean }) {
   const post = useStore((s) => s.post);
   const teams = useStore((s) => s.teams);
   const userId = useStore((s) => s.userId);
@@ -137,11 +164,23 @@ export default function Bracket({ wide = false }: { wide?: boolean }) {
   }, [post, teams, userId]);
 
   const champ = view.championId ? byId.get(view.championId) : undefined;
+  // 우리 길: 우리가 처음 나서는 시리즈부터 한국시리즈까지 (탈락했으면 탈락한 시리즈까지)
+  const first = path && post ? firstSeries({ post, userId }) : null;
+  const lostAt = post ? post.series.findIndex((s) => s.winnerId && s.winnerId !== userId && (s.hiId === userId || s.loId === userId)) : -1;
+  const ours = (i: number) => !!first && i >= first.idx && (lostAt < 0 || i <= lostAt);
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-[10px] text-white/45 mob:text-[12px]">
-        <span>{post ? `가을야구 ${view.seeds.length}팀` : '지금 순위대로라면'}</span>
-        <Help topic="postseason" />
+      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-white/45 mob:text-[12px]">
+        <span className="whitespace-nowrap">{post ? `가을야구 ${view.seeds.length}팀` : '지금 순위대로라면'}</span>
+        {first && <span className="whitespace-nowrap text-[#f0a35a]">▲ 우리 길</span>}
+        <span className="ml-auto flex items-center gap-1">
+          {reopen && post && (
+            <button className="px-btn min-h-8 whitespace-nowrap !px-1.5 text-[11px] mob:text-[12px]" data-testid="autumn-reopen" onClick={() => useUi.getState().setAutumnOpen(true)}>
+              정규시즌 마감
+            </button>
+          )}
+          <Help topic="postseason" />
+        </span>
       </div>
       {champ && (
         <div className="mb-1.5 flex items-center justify-center gap-1.5 bg-hi/20 px-2 py-1 text-[13px] text-hi">
@@ -155,7 +194,7 @@ export default function Bracket({ wide = false }: { wide?: boolean }) {
       {/* 사다리: 좁은 곳에선 한국시리즈가 맨 위, 넓은 화면에선 왼쪽 → 오른쪽 */}
       <div className={wide ? 'flex items-start gap-2 por:flex-col-reverse por:items-stretch por:gap-1.5' : 'flex flex-col-reverse gap-1.5'} data-testid="bracket">
         {view.series.map((s, i) => (
-          <SeriesBox key={s.round} s={s} prev={view.series[i - 1]} byId={byId} seeds={view.seeds} userId={userId} live={!!post && post.cur === i && !s.winnerId} />
+          <SeriesBox key={s.round} s={s} prev={view.series[i - 1]} byId={byId} seeds={view.seeds} userId={userId} live={!!post && post.cur === i && !s.winnerId} ours={ours(i)} />
         ))}
       </div>
     </div>
@@ -163,3 +202,47 @@ export default function Bracket({ wide = false }: { wide?: boolean }) {
 }
 
 export const roundShort = (r: string) => SHORT[r] ?? r;
+
+/**
+ * 다음 상대가 가을야구에서 지나온 길 (작은 토너먼트 그림): 한 줄 요약 + 라운드 칸
+ * "와일드카드 판다스 2:0 앵커스 → 준PO 판다스 3:1 매직스 → PO 판다스 vs 우리". 포스트시즌이 아니면 그리지 않는다
+ */
+export function OppClimb({ className = '', chips = true, oneRow = false }: { className?: string; chips?: boolean; oneRow?: boolean }) {
+  const phase = useStore((s) => s.phase);
+  const post = useStore((s) => s.post);
+  const teams = useStore((s) => s.teams);
+  const userId = useStore((s) => s.userId);
+  const schedule = useStore((s) => s.schedule);
+  const data = useMemo(() => {
+    if (phase !== 'post' || !post) return null;
+    const m = userMatch({ schedule, userId, phase, post }, 0);
+    if (!m) return null;
+    const core = { post, teams };
+    return { m, line: climbLine(core, m.oppId), path: climbPath(core, m.oppId), opp: teams.find((t) => t.id === m.oppId) };
+  }, [phase, post, teams, userId, schedule]);
+  if (!data?.line) return null;
+  const { m, path, opp } = data;
+  return (
+    <div className={`min-w-0 text-[11px] leading-snug mob:text-[12px] ${className}`} data-testid="opp-climb">
+      <div className={`text-white/75 ${oneRow ? 'truncate' : ''}`}>{data.line}</div>
+      {chips && path.length > 0 && (
+        <div className={`mt-0.5 flex items-center gap-x-1 gap-y-[3px] ${oneRow ? 'no-scrollbar flex-nowrap overflow-x-auto' : 'flex-wrap'}`} data-testid="opp-climb-path">
+          {path.map((p) => (
+            <span key={p.round} className="flex shrink-0 items-center gap-1">
+              <span className="whitespace-nowrap bg-ink/70 px-1 py-[1px]" style={{ boxShadow: 'inset 0 -2px 0 #47557f' }}>
+                <span className="text-sky">{p.short}</span> {p.winner} <span className="text-hi">{p.w}:{p.l}</span>
+                {p.ties ? <span className="text-white/50">({p.ties}무)</span> : null} <span className="text-white/45">{p.loser}</span>
+              </span>
+              <span aria-hidden className="text-white/40">
+                →
+              </span>
+            </span>
+          ))}
+          <span className="shrink-0 whitespace-nowrap bg-hi/15 px-1 py-[1px] text-hi" style={{ boxShadow: 'inset 0 -2px 0 #ffd84a' }}>
+            <span className="text-sky">{m.round ? roundShortName(m.round) : ''}</span> {opp?.name} vs 우리
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}

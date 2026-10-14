@@ -365,6 +365,57 @@ function wildcardFixtures(): void {
 }
 wildcardFixtures();
 
+// ── 정규시즌 마감 화면 (post.intro): 마지막 경기 직전의 순위를 고쳐 4위 와일드카드 · 1위 직행 · 6위 탈락(한 칸 차이), 2위로 기다린 플레이오프 상대가 와일드카드부터 올라온 대진 ──
+function lastDayCore(seed: number): { c: Core; rng: Rng } | null {
+  const rng = mulberry32(seed * 7919 + 101);
+  let c = sensible.preseason(ensureObjectives(newCore(seed), rng));
+  for (let g = 0; g < 400 && c.phase === 'season' && !lastDay(c); g++) {
+    if (!c.campaign.event && !c.campaign.briefing) c = sensible.daily(c);
+    c = stepDay(c, rng);
+  }
+  return lastDay(c) ? { c, rng } : null;
+}
+/** 1위로: 2위보다 4승 많게 */
+function forceFirst(c0: Core): Core | null {
+  const c = structuredClone(c0);
+  const top = standings(c.teams).filter((t) => t.id !== c.userId)[0].rec;
+  const me = c.teams.find((t) => t.id === c.userId)!;
+  const games = me.rec.w + me.rec.l + me.rec.t;
+  const w = Math.min(games - me.rec.t, top.w + 4);
+  me.rec = { ...me.rec, w, l: games - w - me.rec.t, rs: top.rs + 60, ra: top.ra - 30, last10: [1, 1, 0, 1, 1, 1, 0, 1, 1, 0], streak: 2 };
+  return rankOf(c.teams, c.userId) === 1 ? c : null;
+}
+function autumnFixtures(): void {
+  for (let seed = 1; seed <= 10 && !(found.introWc && found.introTop && found.introOut && found.poFromWc); seed++) {
+    const L = lastDayCore(seed);
+    if (!L) continue;
+    const tries: [string, () => Core | null, (p: Core) => boolean][] = [
+      ['introWc', () => forceRank(L.c, 4), (p) => p.phase === 'post' && rankOf(p.teams, p.userId) === 4 && !!p.post?.intro],
+      ['introTop', () => forceFirst(L.c), (p) => p.phase === 'post' && rankOf(p.teams, p.userId) === 1 && !!p.post?.intro],
+      ['introOut', () => forceRank(L.c, 6), (p) => p.phase === 'ended' && rankOf(p.teams, p.userId) === 6 && !!p.post?.intro],
+      // 2위: 플레이오프 상대(준PO 승자)가 와일드카드 결정전부터 올라왔다
+      ['poFromWc', () => forceRank(L.c, 2), (p) => p.phase === 'post' && !!p.post && p.post.series[2]?.loId === p.post.series[0].winnerId],
+    ];
+    for (const [name, make, ok] of tries) {
+      if (found[name]) continue;
+      const base = make();
+      if (!base) continue;
+      for (let k = 0; k < 24 && !found[name]; k++) {
+        let p: Core;
+        try {
+          p = stepDay(base, mulberry32(seed * 131 + k * 17 + name.length));
+        } catch {
+          continue;
+        }
+        if (ok(p) && !p.campaign.event) found[name] = { core: structuredClone(p), seed, bot: `forced ${name}` };
+      }
+    }
+  }
+  // 플레이오프 대진표 화면은 마감 화면을 이미 닫은 뒤
+  if (found.poFromWc) delete found.poFromWc.core.post!.intro;
+}
+autumnFixtures();
+
 // ── 8구단 세이브 (10구단 체제 전에 시작한 게임): 구단 8개 · 84경기. 시즌 중 + 포스트시즌(4팀 사다리) ──
 {
   const rng = mulberry32(8 * 7919 + 101);
@@ -378,11 +429,14 @@ wildcardFixtures();
   const base = lastDay(c) ? forceRank(c, 4) : null;
   if (base) {
     const p = stepDay(base, rng);
-    if (p.phase === 'post' && quiet(p)) found.eightPost = { core: structuredClone(p), seed: 8, bot: '8구단 forced 4위' };
+    if (p.phase === 'post' && quiet(p)) {
+      found.eightPost = { core: structuredClone(p), seed: 8, bot: '8구단 forced 4위' };
+      found.introEight = { core: structuredClone(p), seed: 8, bot: '8구단 forced 4위 마감 화면' };
+    }
   }
   // 옛 세이브처럼: 구단 이름은 그때 이름 그대로 (세이브는 migrate 로 이름·id 를 바꾸지 않는다)
   const OLD: Record<string, [string, string]> = { SEL: ['서울', '스카이라인즈'], HAN: ['한강', '그리폰즈'], BUS: ['부산', '씨호크스'], DGU: ['대구', '썬더킹스'], GWJ: ['광주', '레드폭스'], DJN: ['대전', '팰컨스'] };
-  for (const k of ['eight', 'eightPost']) {
+  for (const k of ['eight', 'eightPost', 'introEight']) {
     const f = found[k];
     if (!f) continue;
     for (const t of f.core.teams) if (OLD[t.id]) [t.city, t.name] = OLD[t.id];
@@ -398,6 +452,9 @@ for (const [name, file] of [['oldReal', 'sensible-3-s6mid'], ['oldRealPost', 'se
     // 파일이 없으면 건너뛴다
   }
 }
+
+// 정규시즌 마감 화면은 intro 픽스처에서만 뜬다 (다른 포스트시즌 화면은 마감 화면을 닫은 뒤의 상태)
+for (const [name, f] of Object.entries(found)) if (!name.startsWith('intro') && f.core.post?.intro) delete f.core.post.intro;
 
 mkdirSync(OUT, { recursive: true });
 // 명예의 전당: 연고 이전(없으면 결산) 세이브를 한 줄 올려 둔다

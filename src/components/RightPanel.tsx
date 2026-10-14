@@ -30,8 +30,8 @@ import { borrow as borrowLoan, standings, upgradeFacility } from '../game/season
 import { deadlinesSoon } from '../game/economy';
 import { RUNWAY_DANGER, borrowMoodText, debtMoodText, luxLine, runway, runwayPath, runwayPieceOf } from '../game/runway';
 import { teamStrength } from '../game/ratings';
-import Bracket from './Bracket';
-import { PostLegend, cutShadow, rankTone } from './ui';
+import Bracket, { OppClimb } from './Bracket';
+import Standings from './Standings';
 import { postTeams, seasonGames } from '../game/league';
 import Leaders from './Leaders';
 import { useUi, type LeagueSub } from './layout/uiStore';
@@ -59,7 +59,6 @@ export function LeagueTab() {
 
   const table = useMemo(() => standings(teams), [teams]);
   const byId = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
-  const lead = table[0];
   const upcoming = useMemo(() => {
     const out: { day: number; oppId: string; isHome: boolean }[] = [];
     if (phase !== 'season') return out;
@@ -88,46 +87,20 @@ export function LeagueTab() {
       {sub === 'leaders' && <Leaders />}
       {sub === 'bracket' && (
         <div className="mt-2">
-          <Bracket />
+          <OppClimb className="mb-1.5 bg-ink/40 px-1.5 py-1" />
+          <Bracket path reopen />
         </div>
       )}
       {sub === 'table' && (
         <>
       {phase === 'post' && post && (
         <div className="mt-2">
+          <OppClimb className="mb-1.5 bg-ink/40 px-1.5 py-1" />
           <Bracket />
         </div>
       )}
       <SectionTitle right={<Help topic="postseason" />}>순위표</SectionTitle>
-      <div className="flex px-1 text-[9px] text-white/40 mob:text-[13px]">
-        <span className="w-6" />
-        <span className="flex-1">구단</span>
-        <span className="w-14 text-center">승-패</span>
-        <span className="w-9 text-right">승차</span>
-      </div>
-      {table.map((t, i) => {
-        const gb = (lead.rec.w - t.rec.w + (t.rec.l - lead.rec.l)) / 2;
-        const me = t.id === userId;
-        return (
-          <div
-            key={t.id}
-            className={`flex items-center px-1 py-[3px] text-[11px] mob:py-1 mob:text-[13px] ${me ? 'bg-hi/20 text-hi' : i % 2 ? 'bg-white/4' : ''}`}
-            style={cutShadow(me, i + 1 === postTeams({ teams }))}
-            data-testid="standing-row"
-          >
-            <span className={`w-6 ${rankTone({ teams }, i + 1)}`}>{i + 1}</span>
-            <span className="flex min-w-0 flex-1 items-center gap-1">
-              <TeamDot team={t} />
-              <span className="truncate">{t.name}</span>
-            </span>
-            <span className="w-14 text-center text-white/85">
-              {t.rec.w}-{t.rec.l}
-            </span>
-            <span className="w-9 text-right text-white/60">{i === 0 || gb === 0 ? '-' : gb.toFixed(1)}</span>
-          </div>
-        );
-      })}
-      <PostLegend teams={teams} />
+      <Standings teams={teams} userId={userId} />
       <Fold label="자세히: 승률 · 최근 10경기 · 타구장 결과" className="mt-1" testid="fold-league">
         {table.map((t) => (
           <div key={t.id} className="flex items-center px-1 py-[3px] text-[11px] mob:text-[13px]">

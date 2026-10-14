@@ -6,6 +6,7 @@ import RightPanel from './components/RightPanel';
 import StadiumView from './components/StadiumView';
 import BottomBar from './components/BottomBar';
 import SeasonEnd from './components/SeasonEnd';
+import AutumnIntro from './components/AutumnIntro';
 import DraftScreen from './components/DraftScreen';
 import GameOver from './components/GameOver';
 import OrderSheet from './components/OrderSheet';
@@ -30,7 +31,11 @@ function PhaseScreens() {
   const idle = useStore((s) => !s.summary && !s.playback);
   const phase = useStore((s) => s.phase);
   const draftPeek = useUi((s) => s.draftPeek);
+  const intro = useStore((s) => !!s.post?.intro && (s.phase === 'post' || s.phase === 'ended'));
+  const autumnOpen = useUi((s) => s.autumnOpen);
   if (!idle) return null;
+  // 정규시즌 마감 화면: 가을야구 첫 경기 전 · 떨어졌으면 결산 전에 한 번 (리그 탭 대진표에서 다시 연다)
+  if (intro || (autumnOpen && (phase === 'post' || phase === 'ended'))) return <AutumnIntro />;
   if (phase === 'ended') return <SeasonEnd />;
   if (phase === 'over') return <GameOver />;
   if (phase === 'draft' && !draftPeek) return <DraftScreen />;
