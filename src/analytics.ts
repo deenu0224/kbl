@@ -70,7 +70,7 @@ export function initAnalytics() {
 // GoatCounter 의 공개 집계(사이트 설정에서 visitor counter 를 켜야 한다)에서 새 게임 수를 읽는다.
 // 서버가 없어 "지금 접속 중"은 셀 수 없다. 누적과 오늘 시작한 수만 보여 준다.
 const COUNT_KEY = 'kbl-gm-count';
-const COUNT_MIN = 30; // 이보다 적으면 보여 주지 않는다 (초라해 보이는 숫자 방지)
+const COUNT_MIN = 5; // 이보다 적으면 보여 주지 않는다
 export interface GmCount { total: number; today: number }
 
 async function readCount(path: string, start?: string): Promise<number> {
