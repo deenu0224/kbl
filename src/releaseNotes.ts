@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.13.0',
+    date: '2026-10-15',
+    title: '왕조는 쉽지 않다',
+    notes: [
+      '우승한 다음 시즌은 개막 몇 경기 동안 우승 후유증이 남습니다. 연속 우승이 길수록 세져요.',
+      '2연패부터 상위권 구단이 「타도 제주」를 외치며 FA 최대어를 먼저 데려갑니다.',
+      '명예의 전당에서 구단·기록·선수를 누르면 시즌별 기록을 볼 수 있어요.',
+    ],
+  },
+  {
     version: '0.12.1',
     date: '2026-10-15',
     title: '메이저리그의 부름',
