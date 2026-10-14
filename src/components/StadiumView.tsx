@@ -401,10 +401,10 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                   left: `${(x0 / STADIUM_W) * 100}%`,
                   width: `${((x1 - x0) / STADIUM_W) * 100}%`,
                   top: `${((fenceTopY(cx) - 1) / STADIUM_H) * 100}%`,
-                  height: `${(9 / STADIUM_H) * 100}%`,
+                  height: `${(8 / STADIUM_H) * 100}%`,
                   fontSize: '1.05cqw',
                   lineHeight: 1,
-                  color: '#3a2a00',
+                  color: '#1b2233',
                   transform: `rotate(${tilt}rad)`,
                 }}
               >

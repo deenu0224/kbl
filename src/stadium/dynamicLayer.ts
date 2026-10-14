@@ -492,16 +492,16 @@ function drawTitleWall(ctx: Ctx, scene: StadiumScene): void {
   const spans = TITLE_WALL_SPANS[Math.min(2, scene.titleWall?.length ?? 0)];
   if (!spans) return;
   const band = scene.homeColor;
-  const dk = '#b38a14';
   for (const [x0, x1] of spans) {
     for (let sx = x0; sx < x1; sx += 2) {
-      // 펜스 벽면에 걸어 펜스 곡선을 따른다
+      // 펜스 벽면에 걸어 펜스 곡선을 따른다: 흰 천 + 금색 단 + 팀 색 줄 (광고판과 구별되게 어두운 테두리)
       const y = fenceTopY(sx) - 2;
-      R(ctx, sx, y, 2, 11, PAL.gold);
-      R(ctx, sx, y, 2, 1, '#fff1a8');
+      R(ctx, sx, y - 1, 2, 13, '#0f1420');
+      R(ctx, sx, y, 2, 11, '#fbfaf2');
+      R(ctx, sx, y, 2, 1, PAL.gold);
       R(ctx, sx, y + 1, 2, 1, band);
       R(ctx, sx, y + 9, 2, 1, band);
-      R(ctx, sx, y + 10, 2, 1, dk);
+      R(ctx, sx, y + 10, 2, 1, PAL.gold);
     }
     R(ctx, x0 - 1, fenceTopY(x0) - 3, 1, 13, '#0f1420');
     R(ctx, x1, fenceTopY(x1) - 3, 1, 13, '#0f1420');
@@ -859,6 +859,18 @@ function drawChampionPile(ctx: Ctx, scene: StadiumScene, fx: ChampFx, fxT: numbe
     const ff = fx.calm ? 0 : (f >> (s.ph & 1)) + s.ph;
     sprite(ctx, X(s.x), Y(s.y), k, s.pose, ff);
   }
+  // 다 모이면 덩어리 한가운데서 팀 깃발이 올라간다
+  const up = fx.calm ? 1 : clamp01((fxT - 1.7) / 0.6);
+  if (up > 0) {
+    const px = X(MOUND.x) + 1;
+    const py = Y(MOUND.y + 2) - 6;
+    const hgt = Math.round(6 + 16 * up);
+    const wv = fx.calm ? 0 : (f >> 2) & 1;
+    R(ctx, px, py - hgt, 1, hgt, '#f4f6fa');
+    R(ctx, px + 1, py - hgt + wv, 9, 6, fx.c1);
+    R(ctx, px + 1, py - hgt + 2 + wv, 9, 2, fx.c2 === fx.c1 ? '#ffffff' : fx.c2);
+    R(ctx, px + 1, py - hgt + 6 + wv, 9, 1, 'rgba(15,20,32,0.4)');
+  }
 }
 
 // ───────── fx ─────────
@@ -951,10 +963,11 @@ const CHAMP_CONFETTI = 120; // 폰에서도 프레임이 버티는 상한
 /** 팀 색 색종이: 관중석(원정이면 원정 응원석)에서 흩날려 떨어진다 */
 function teamConfetti(ctx: Ctx, L: StaticLayers, scene: StadiumScene, fx: ChampFx, fxT: number): void {
   const cols = [fx.c1, fx.c2, '#ffffff', fx.c1, PAL.gold];
-  let x0 = 0;
-  let x1 = STADIUM_W;
-  let y0 = -20;
-  let span = 460;
+  // 홈: 구장 그릇 전체(스탠드 위에서 그라운드로)
+  let x0 = 90;
+  let x1 = 550;
+  let y0 = 100;
+  let span = 330;
   let n = CHAMP_CONFETTI;
   if (fx.away) {
     // 원정 응원석 위로만
@@ -984,8 +997,12 @@ function teamConfetti(ctx: Ctx, L: StaticLayers, scene: StadiumScene, fx: ChampF
     const y = y0 + ((hash2(i, 82) * span + fxT * sp) % span);
     const x = x0 + hash2(i, 83) * (x1 - x0) + (fx.calm ? 0 : Math.sin(fxT * 3 + i) * 4);
     const c = cols[i % cols.length];
-    if (((fx.calm ? 0 : Math.floor(fxT * 8)) + i) & 1) R(ctx, x, y, 2, 1, c);
-    else R(ctx, x, y, 1, 2, c);
+    // 3×2 ↔ 2×3 으로 뒤집히며 떨어지는 종이 (그림자 1px 로 밝은 바닥에서도 보이게)
+    const flat = ((fx.calm ? 0 : Math.floor(fxT * 7)) + i) & 1;
+    const w = flat ? 3 : 2;
+    const h = flat ? 2 : 3;
+    R(ctx, x + 1, y + 1, w, h, 'rgba(15,20,32,0.35)');
+    R(ctx, x, y, w, h, c);
   }
 }
 
@@ -998,7 +1015,7 @@ function champFireworks(ctx: Ctx, fx: ChampFx, fxT: number, key: number, f: numb
     if (age < 0 || age > 1.5) continue;
     const dir = i & 1 ? 1 : -1;
     const cx = Math.round(cx0 + dir * (24 + hash2(i, key + 5) * 70));
-    const cy = Math.round(18 + hash2(i, key + 6) * 22);
+    const cy = Math.round(30 + hash2(i, key + 6) * 18);
     burst(ctx, cx, cy, fx.calm ? Math.min(age, 0.6) : age, key * 13 + i * 7, i % 3 !== 2, f);
   }
 }
