@@ -33,6 +33,10 @@ interface Pair {
   profitRaw: number;
   faKept: number;
   faLeft: number;
+  inc: number; // 실제 수입 (배당금 제외)
+  upk: number; // 실제 유지·운영 (경쟁균형세 포함)
+  int: number;
+  sal: number; // 실제 장부 연봉
 }
 
 function playSeason(bot: Bot, c0: Core, rng: Rng, acc: { farmSal: number }): Core {
@@ -58,14 +62,15 @@ function playSeason(bot: Bot, c0: Core, rng: Rng, acc: { farmSal: number }): Cor
 function runOne(bot: Bot, seed: number, out: Pair[]): void {
   const rng: Rng = mulberry32(seed * 7919 + 101);
   let c = ensureObjectives(newCore(seed), rng);
-  let pending: Omit<Pair, 'ledActive' | 'profitAdj' | 'profitRaw'> | null = null;
+  let pending: Omit<Pair, 'ledActive' | 'profitAdj' | 'profitRaw' | 'inc' | 'upk' | 'int' | 'sal'> | null = null;
   for (let s = 1; s <= N_SEASONS + 1; s++) {
     const acc = { farmSal: 0 };
     c = playSeason(bot, c, rng, acc);
     const L = c.finance.ledger;
+    if (pending && c.day < c.schedule.length) pending = null; // 시즌 도중에 끝난 캠페인(이전·해임)은 장부가 반쪽이라 뺀다
     if (pending) {
       const div = POST_DIVIDEND[c.post?.userFinish ?? 'none'] ?? 0;
-      out.push({ ...pending, ledActive: L.salary - acc.farmSal, profitRaw: opProfit(L), profitAdj: opProfit(L) - div - L.sales + L.signing });
+      out.push({ ...pending, ledActive: L.salary - acc.farmSal, profitRaw: opProfit(L), profitAdj: opProfit(L) - div - L.sales + L.signing, inc: L.ticket + L.food + L.merch + L.league - div, upk: L.upkeep, int: L.interest, sal: L.salary });
       pending = null;
     }
     if (c.phase === 'over' || s > N_SEASONS) break;
@@ -132,4 +137,11 @@ for (let s = 1; s <= N_SEASONS; s++) {
   if (!xs.length) continue;
   const m = (f: (p: Pair) => number) => (mean(xs.map(f)) / 10000).toFixed(1);
   console.log(`${s}→${s + 1}  ${m((p) => p.f.now.total)} → ${m((p) => p.f.next.total)} / ${m((p) => p.openTotal)} · ${m((p) => p.f.parts.rate)} · ${m((p) => p.f.parts.svc)} · ${m((p) => p.f.parts.retire)} · ${m((p) => p.f.parts.back)} · ${m((p) => p.f.parts.draft)} · FA ${mean(xs.map((p) => p.faKept)).toFixed(2)}/${mean(xs.map((p) => p.faLeft)).toFixed(2)} · ${m((p) => p.f.profit)} / ${m((p) => p.profitAdj)}`);
+}
+console.log('\n항목별 평균 (억, 예측 / 실제): 수입 · 연봉(장부) · 유지·운영(경쟁균형세 포함) · 이자');
+for (let s = 1; s <= N_SEASONS; s++) {
+  const xs = pairs.filter((p) => p.season === s);
+  if (!xs.length) continue;
+  const m = (f: (p: Pair) => number) => (mean(xs.map(f)) / 10000).toFixed(1);
+  console.log(`${s}→${s + 1}  ${m((p) => p.f.income)} / ${m((p) => p.inc)} · ${m((p) => p.f.next.total)} / ${m((p) => p.sal)} · ${m((p) => p.f.upkeep + (p.f.lux?.tax ?? 0))} / ${m((p) => p.upk)} · ${m((p) => p.f.interest)} / ${m((p) => p.int)}`);
 }
