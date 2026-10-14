@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { skipOrCeremony } from './skip';
 import LineScore from './LineScore';
 import type { FacilityKind, StadiumFx, StadiumScene } from '../game/types';
 import StadiumCanvas, { HOTSPOTS, STADIUM_H, STADIUM_W } from '../stadium/StadiumCanvas';
@@ -501,7 +502,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             data-testid="champion-ceremony"
             data-sfx="none"
             aria-label="우승 세리머니 넘기기"
-            onClick={skipPlayback}
+            onClick={() => skipPlayback()}
           >
             <span style={{ ...chip, marginBottom: '9%', fontSize: fz(mobile, 1.6, 12), color: '#fff' }}>누르면 넘어갑니다 ▶</span>
           </button>
@@ -556,7 +557,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             </div>
             {/* 모바일은 엄지 위치(액션 바)에 건너뛰기가 있다 */}
             {!mobile && (
-              <button className="px-btn" style={{ fontSize: 'max(11px, 1.5cqw)' }} onClick={skipPlayback}>
+              <button className="px-btn" style={{ fontSize: 'max(11px, 1.5cqw)' }} onClick={skipOrCeremony}>
                 건너뛰기 ▶▶
               </button>
             )}

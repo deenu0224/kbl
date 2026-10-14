@@ -1,4 +1,5 @@
 import { useStore, userMatch } from '../store';
+import { skipOrCeremony } from './skip';
 import { usePostLine } from './Bracket';
 import { EventReopen } from './EventCardModal';
 import { chanceKey, postViewKey, postViewOf, useUi, type PostView } from './layout/uiStore';
@@ -204,7 +205,6 @@ function LiveScore() {
 export function MobileActionBar({ bare = false }: { bare?: boolean } = {}) {
   const { opener, playback, inPost, next, opp, reason, idle, whenShort, off, bulkOff, bulkReason } = useMatchActions();
   const simDays = useStore((s) => s.simDays);
-  const skipPlayback = useStore((s) => s.skipPlayback);
 
   const info = playback ? (
     <LiveScore />
@@ -226,7 +226,7 @@ export function MobileActionBar({ bare = false }: { bare?: boolean } = {}) {
   const hiddenId = useUi((s) => s.eventHidden);
   const eventFolded = eventId !== null && eventId === hiddenId;
   const buttons = playback ? (
-    <button className="px-btn gold min-h-11 short:min-h-10 flex-1 text-[15px]" onClick={skipPlayback}>
+    <button className="px-btn gold min-h-11 short:min-h-10 flex-1 text-[15px]" onClick={skipOrCeremony}>
       건너뛰기 ▶▶
     </button>
   ) : eventFolded ? (

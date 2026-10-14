@@ -53,7 +53,7 @@ export interface Store extends Core {
   rightTab: RightTab;
   playNext(): void;
   stepPlayback(): void;
-  skipPlayback(): void;
+  skipPlayback(toEnd?: boolean): void;
   simDays(n: number): void;
   closeSummary(): void;
   closeAutumnIntro(): void; // 정규시즌 마감 화면을 닫는다 (post.intro 를 지운다)
@@ -241,7 +241,14 @@ export const useStore = create<Store>()(
           if (pb.step + 1 >= pb.report.result.events.length) commitPlayback();
           else set({ playback: { ...pb, step: pb.step + 1 } });
         },
-        skipPlayback() {
+        skipPlayback(toEnd = false) {
+          // toEnd: 마지막 장면(우승 세리머니)으로만 건너뛴다 — 판단은 화면 쪽(skipOrCeremony)에서 (여기서 postseason 을 import 하면 순환 참조)
+          const pb = get().playback;
+          const last = pb ? pb.report.result.events.length - 1 : -1;
+          if (toEnd && pb && pb.step < last) {
+            set({ playback: { ...pb, step: last } });
+            return;
+          }
           commitPlayback();
         },
         simDays(n) {

@@ -305,6 +305,8 @@ export const SCREENS = [
   // ── 시즌 끝
   // 한국시리즈 우승: 확정 경기의 세리머니(홈·원정 · 움직임 줄이기) · 첫 우승 결산 · 2연패 결산 · 우승 다음 시즌 홈 구장
   S('champ-ceremony', 'ksClinchHome', game(...PLAY, { waitFor: 'champion-ceremony', timeout: 40000 }), { query: '?fxT=2.4', motion: true }),
+  S('champ-skip', 'ksClinchHome', game(...PLAY, { wait: 800 }, '건너뛰기 ▶▶', { waitFor: 'champion-ceremony', timeout: 20000 }), { query: '?fxT=3.0', motion: true }),
+  S('champ-toss', 'ksClinchHome', game(...PLAY, { waitFor: 'champion-ceremony', timeout: 40000 }), { query: '?fxT=3.0', motion: true }),
   S('champ-ceremony-calm', 'ksClinchHome', game(...PLAY, { waitFor: 'champion-ceremony', timeout: 40000 }), { query: '?fxT=2.4' }),
   S('champ-ceremony-away', 'ksClinchAway', game(...PLAY, { waitFor: 'champion-ceremony', timeout: 40000 }), { query: '?fxT=2.4', motion: true }),
   S('champ-ended', 'champ1', game(c('계속', { optional: true }))),

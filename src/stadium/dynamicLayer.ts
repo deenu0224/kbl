@@ -926,6 +926,18 @@ function drawChampionPile(ctx: Ctx, scene: StadiumScene, fx: ChampFx, fxT: numbe
     const ff = fx.calm ? 0 : (f >> (s.ph & 1)) + s.ph;
     sprite(ctx, X(s.x), Y(s.y), k, s.pose, ff);
   }
+  // 헹가래: 깃발이 오른 뒤 덩어리가 감독을 세 번 던져 올린다 (움직임 줄이기면 공중에 뜬 한 장면)
+  const tossT = fxT - 2.6;
+  if (fx.calm || tossT > 0) {
+    const n = fx.calm ? 0.5 : tossT / 0.85; // 한 번에 0.85초
+    if (fx.calm || n < 3) {
+      const lift = Math.round(Math.abs(Math.sin(Math.PI * (n % 1))) * 13);
+      const mx = X(MOUND.x - 6);
+      const my = Y(MOUND.y + 2) + 1 - lift; // 덩어리 바로 위에서 솟았다 떨어진다
+      // 감독은 정장 차림(짙은 색) — 누운 자세 대신 팔을 든 자세로 위아래만
+      sprite(ctx, mx, my, { j: '#2b3350', c: '#1b2233', p: '#3a4563' }, 2, fx.calm ? 0 : f);
+    }
+  }
   // 다 모이면 덩어리 한가운데서 팀 깃발이 올라간다
   const up = fx.calm ? 1 : clamp01((fxT - 1.7) / 0.6);
   if (up > 0) {
