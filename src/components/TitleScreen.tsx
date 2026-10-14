@@ -80,11 +80,23 @@ function GmCountLine() {
     };
   }, []);
   return (
-    <div className="title-logo mt-2 min-h-[18px] text-[13px] leading-tight text-white/75" data-testid="gm-count">
+    <div className="title-logo mt-2 min-h-[36px] text-[13px] leading-tight text-white/75" data-testid="gm-count">
       {n && (
         <>
           지금까지 단장 <span className="text-hi">{fmtInt(n.total)}명</span>
           {n.today > 0 && <> · 오늘 {fmtInt(n.today)}명</>}
+          {(n.champ > 0 || n.moved > 0) && (
+            <span className="mt-1 block text-white/65" data-testid="gm-count-ends">
+              {n.champ > 0 && (
+                <>
+                  우승 <span className="text-hi">{fmtInt(n.champ)}번</span>
+                  {n.champToday > 0 && <> (오늘 {fmtInt(n.champToday)}번)</>}
+                </>
+              )}
+              {n.champ > 0 && n.moved > 0 && ' · '}
+              {n.moved > 0 && <>연고 이전 {fmtInt(n.moved)}번</>}
+            </span>
+          )}
         </>
       )}
     </div>
