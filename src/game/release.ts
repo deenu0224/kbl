@@ -226,7 +226,7 @@ const WHEN_KO: Record<ReleaseWhen, string> = {
   farm: '2군이 꽉 찼습니다',
   cash: '자금 경고',
   stove: '스토브리그',
-  lux: '경쟁균형세 상한 초과 예상',
+  lux: '경쟁균형세 초과 예상',
 };
 export const CASH_SOON = 12; // 이 경기 안에 금고가 비면 "자금 경고"
 
