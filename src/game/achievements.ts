@@ -87,7 +87,7 @@ export const lineupKey = (t: Team): string => `${t.lineup.map((l) => l.pid + l.p
 const squadKey = (t: Team): string => t.roster.map((p) => `${p.id}${p.farm ? 'f' : ''}`).join(',');
 const storyKey = (c: Core): string => {
   const k = c.campaign;
-  return [c.phase, k.stage, k.trust, k.achievements.length, k.titles, k.ending, k.dealt, k.analyst, k.ethics, k.bailout, k.exposed, k.secrets?.length, k.retired?.length, k.alumni?.length, k.away?.length, JSON.stringify(k.projects ?? {}), k.farmAuto, k.subAuto, k.penStyle, k.briefMemo?.done.length, k.block?.length, c.fans, Math.round(c.fanSat)].join('/');
+  return [c.phase, k.stage, k.trust, k.achievements.length, k.titles, k.ending, k.dealt, k.analyst, k.ethics, k.bailout, k.exposed, k.secrets?.length, k.retired?.length, k.alumni?.length, k.away?.length, JSON.stringify(k.projects ?? {}), k.farmAuto, k.subAuto, k.penStyle, k.runStyle, k.briefMemo?.done.length, k.block?.length, c.fans, Math.round(c.fanSat)].join('/');
 };
 const manageKey = (c: Core): string => [c.finance.cash, c.finance.debt, c.finance.ticketPrice, c.facilities.seats, c.facilities.food, c.facilities.training].join('/');
 

@@ -271,7 +271,7 @@ function boxOf(team: Team, lineup: Team['lineup'], before: Map<string, { bat: Ba
     const pa = p.bat.pa - b0.bat.pa;
     if (pa > 0 || rank.has(p.id)) {
       const d = (k: keyof BatStats) => p.bat[k] - b0.bat[k];
-      bat.push({ pid: p.id, name: p.name, pos: pos.get(p.id) ?? '대타', ab: d('ab'), h: d('h'), hr: d('hr'), rbi: d('rbi'), bb: d('bb'), so: d('so'), r: d('r') });
+      bat.push({ pid: p.id, name: p.name, pos: pos.get(p.id) ?? '대타', ab: d('ab'), h: d('h'), hr: d('hr'), rbi: d('rbi'), bb: d('bb'), so: d('so'), r: d('r'), sb: d('sb'), cs: d('cs') });
     }
     if (p.pit.g - b0.pit.g > 0 || p.pit.outs - b0.pit.outs > 0) {
       const d = (k: keyof PitStats) => p.pit[k] - b0.pit[k];

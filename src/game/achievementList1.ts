@@ -97,6 +97,8 @@ const GAME: AchvDef[] = [
   G('g-extra', '퇴근은 없다', '연장전(10회 이후)에서 승리', '🌙', 1, 'game', (x) => won(x) && x.r!.result.innings >= 10),
   G('g-12', '무박 2일', '12회까지 가서 승리', '🛌', 2, 'game', (x) => won(x) && x.r!.result.innings >= 12),
   G('g-hr2', '멀티포', '타자 1명이 한 경기 홈런 2개 이상', '✌️', 1, 'game', (x) => !!x.r && g(x).bat.some((b) => b.hr >= 2)),
+  G('g-sb3', '발야구', '우리 팀이 한 경기 도루 3개 이상', '👟', 1, 'game', (x) => !!x.r && g(x).bat.reduce((s, b) => s + (b.sb ?? 0), 0) >= 3),
+  G('g-sb2', '두 번 훔쳤다', '타자 1명이 한 경기 도루 2개 이상', '🥷', 1, 'game', (x) => !!x.r && g(x).bat.some((b) => (b.sb ?? 0) >= 2)),
   G('g-hr3', '오늘 야구 혼자 하나', '타자 1명이 한 경기 홈런 3개 이상', '🎇', 4, 'game', (x) => !!x.r && g(x).bat.some((b) => b.hr >= 3)),
   G('g-team-hr4', '홈런 공장 가동', '한 경기 팀 홈런 4개 이상', '🏭', 2, 'game', (x) => !!x.r && g(x).bat.reduce((s, b) => s + b.hr, 0) >= 4),
   G('g-h4', '치면 안타', '타자 1명이 한 경기 4안타 이상', '🎯', 1, 'game', (x) => !!x.r && g(x).bat.some((b) => b.h >= 4)),
@@ -112,6 +114,8 @@ const GAME: AchvDef[] = [
 
 const E = mk('season');
 const SEASON: AchvDef[] = [
+  E('se-sb130', '육상부', '한 시즌 팀 도루 130개 이상 (가을야구 포함)', '🏃', 3, 'season', (x) => x.t.roster.reduce((s, p) => s + p.bat.sb, 0) >= 130),
+  E('se-sb40', '대도', '타자 1명이 한 시즌 도루 40개 이상 (가을야구 포함)', '💨', 3, 'season', (x) => x.t.roster.some((p) => p.bat.sb >= 40)),
   E('se-rank7', '탈꼴찌', '정규시즌을 꼴찌가 아닌 순위로 마친다', '🥾', 1, 'season', (x) => !isLast(x.core, x.rec!.rank)),
   E('se-rank5', '희망 고문', '정규시즌 6위로 마친다 (한 칸 차이로 가을야구 탈락)', '😮‍💨', 2, 'season', (x) => x.rec!.rank === postTeams(x.core) + 1),
   E('se-rank4', '가을 냄새', '정규시즌 5위 이내로 마친다 (가을야구 진출권)', '🍂', 2, 'season', (x) => inPost(x.core, x.rec!.rank)),

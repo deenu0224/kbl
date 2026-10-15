@@ -70,6 +70,7 @@ const SQUAD: AchvDef[] = [
   Q('q-army-back', '전역을 명 받았습니다', '입대했던 선수가 팀에 돌아온다', '🎖️', 3, 'story', (x) => !!x.prev && (x.prev.campaign.away ?? []).some((a) => some(x, (p) => p.id === a.id))),
   Q('q-analyst', '숫자로 야구한다', '데이터 분석원을 채용한다', '📊', 2, 'story', (x) => !!x.core.campaign.analyst),
   Q('q-ethics', '바른 생활 구단', '선수단 윤리 교육 3단계 완료', '📜', 3, 'story', (x) => (x.core.campaign.ethics ?? 0) >= 3, { progress: (x) => [x.core.campaign.ethics ?? 0, 3] }),
+  Q('q-run', '뛰는 야구', '주루 방침을 직접 바꾼다', '🚦', 1, 'story', (x) => x.quiet && !!x.prev && (x.prev.campaign.runStyle ?? 'normal') !== (x.core.campaign.runStyle ?? 'normal')),
   Q('q-pen', '불펜 운영 철학', '불펜 운영 방침을 직접 바꾼다', '🧠', 1, 'story', (x) => x.quiet && !!x.prev && (x.prev.campaign.penStyle ?? 'balance') !== (x.core.campaign.penStyle ?? 'balance')),
   Q('q-farm-manual', '2군도 내가 본다', '2군 자동 운영을 끈다', '🕹️', 1, 'story', (x) => x.core.campaign.farmAuto === false),
   Q('q-block', '매물 나왔습니다', '우리 선수 1명을 트레이드 시장에 내놓는다', '🏷️', 1, 'story', (x) => (x.core.campaign.block?.length ?? 0) >= 1),

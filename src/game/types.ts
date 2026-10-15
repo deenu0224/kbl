@@ -171,7 +171,7 @@ export interface GameResult {
 
 /** 한 경기의 선수별 기록 */
 export interface BoxSide {
-  bat: { pid: string; name: string; pos: string; ab: number; h: number; hr: number; rbi: number; bb: number; so: number; r: number }[];
+  bat: { pid: string; name: string; pos: string; ab: number; h: number; hr: number; rbi: number; bb: number; so: number; r: number; sb?: number; cs?: number }[];
   pit: { pid: string; name: string; outs: number; h: number; er: number; bb: number; so: number; dec?: 'W' | 'L' | 'S' }[];
 }
 
