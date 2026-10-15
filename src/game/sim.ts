@@ -52,6 +52,8 @@ export const SIM = {
   SBA_SPD: 28,
   SBA_3B: 0.2, // 3루 도루는 2루 도루 시도율의 이 비율
   SB_SUCC: 0.75, // 평균 주자 vs 평균 포수 성공률
+  RUN_MULT: { run: 1.8, normal: 1, hold: 0.25 } as Record<RunStyle, number>, // 주루 방침: 도루 시도율 배율 (성공률은 그대로)
+  AI_RUN_SPD: 9, // AI 구단: 타선 평균 주력이 REF 보다 이만큼 낮으면 자제
   SB_SUCC_SPD: 0.006,
   SB_SUCC_DEF: 0.005,
   SAC_FLY: 0.6,
@@ -150,6 +152,7 @@ interface Side {
   pen: Player[]; // 아직 안 쓴 불펜 (앞이 필승조)
   closer: Player | null;
   style: PenStyle;
+  run: RunStyle;
   core: Set<string>; // 믿음 방침의 필승조
   def: number;
   misfit: number; // 낯선 자리에 선 야수들의 수비 페널티 합 중 MISFIT_FREE 초과분
@@ -211,6 +214,24 @@ function tiredCtlPenalty(tired: number | undefined): number {
   return n >= 2 ? SIM.TIRED_CTL_2 : n === 1 ? SIM.TIRED_CTL_1 : 0;
 }
 
+/** 주루 방침: 뛰는 야구(도루 시도↑) / 보통 / 자제(거의 안 뛴다). 성공률은 주자 주력과 포수 수비로 정해진다 */
+export type RunStyle = NonNullable<Campaign['runStyle']>;
+export const RUN_STYLES: RunStyle[] = ['run', 'normal', 'hold'];
+
+/** 타선(오늘 나서는 9명) 평균 주력 */
+export function lineupSpeed(t: Team): number {
+  const byId = new Map(t.roster.map((p) => [p.id, p]));
+  const ps = t.lineup.map((s) => byId.get(s.pid)).filter((p): p is Player => !!p);
+  return ps.length ? ps.reduce((s, p) => s + p.spd, 0) / ps.length : SIM.REF;
+}
+
+/** 팀 구성에 맞는 주루 방침 (AI 구단이 쓴다) */
+export function autoRunStyle(t: Team): RunStyle {
+  const v = lineupSpeed(t) - SIM.REF;
+  // 뛰는 야구는 고르지 않는다: 리그 도루 1위 기록이 KBO 범위를 넘는다 (balance). 발이 느린 타선만 자제한다
+  return v <= -SIM.AI_RUN_SPD ? 'hold' : 'normal';
+}
+
 /** 불펜 운영 방침: 믿음(선발을 길게, 뒤는 필승조와 마무리) / 균형 / 벌떼(선발을 일찍 내리고 여럿이 짧게) */
 export type PenStyle = NonNullable<Campaign['penStyle']>;
 export const PEN_STYLES: PenStyle[] = ['trust', 'balance', 'swarm'];
@@ -234,7 +255,7 @@ export function autoPenStyle(t: Team): PenStyle {
   return 'balance';
 }
 
-function makeSide(t: Team, isHome: boolean, rest: Set<string> | undefined, style: PenStyle): Side {
+function makeSide(t: Team, isHome: boolean, rest: Set<string> | undefined, style: PenStyle, run: RunStyle): Side {
   const byId = new Map(t.roster.map((p) => [p.id, p]));
   const order = gameOrder(t);
   const fielders = order.filter((s) => s.pos !== 'DH');
@@ -268,7 +289,7 @@ function makeSide(t: Team, isHome: boolean, rest: Set<string> | undefined, style
   const side: Side = {
     team: t, isHome, order, idx: 0,
     cur: undefined as unknown as PState,
-    used: [], pen, closer, style, core: new Set(pen.slice(0, SIM.TRUST_CORE).map((p) => p.id)), def, misfit, cDef, runs: 0, hits: 0, line: [], lines: new Map(), errors: [],
+    used: [], pen, closer, style, run, core: new Set(pen.slice(0, SIM.TRUST_CORE).map((p) => p.id)), def, misfit, cDef, runs: 0, hits: 0, line: [], lines: new Map(), errors: [],
   };
   for (const s of order) {
     s.p.bat.g++;
@@ -363,11 +384,11 @@ export function simulateGame(
   home: Team,
   away: Team,
   rng: Rng,
-  opts: { track: boolean; injMult?: Record<string, number>; focusId?: string; rest?: Set<string>; awayEdge?: Record<string, number>; penStyle?: Record<string, PenStyle> },
+  opts: { track: boolean; injMult?: Record<string, number>; focusId?: string; rest?: Set<string>; awayEdge?: Record<string, number>; penStyle?: Record<string, PenStyle>; runStyle?: Record<string, RunStyle> },
 ): GameResult {
   // 방침을 따로 주지 않은 팀(AI 구단)은 팀 구성으로 고른다
-  const H = makeSide(home, true, opts.rest, opts.penStyle?.[home.id] ?? autoPenStyle(home));
-  const A = makeSide(away, false, opts.rest, opts.penStyle?.[away.id] ?? autoPenStyle(away));
+  const H = makeSide(home, true, opts.rest, opts.penStyle?.[home.id] ?? autoPenStyle(home), opts.runStyle?.[home.id] ?? autoRunStyle(home));
+  const A = makeSide(away, false, opts.rest, opts.penStyle?.[away.id] ?? autoPenStyle(away), opts.runStyle?.[away.id] ?? autoRunStyle(away));
   const track = opts.track;
   const cands: Cand[] = [];
   const more: GameEvent[] = [];
@@ -396,7 +417,7 @@ export function simulateGame(
         const from = bases[0] && !bases[1] ? 0 : !bases[0] && bases[1] && !bases[2] ? 1 : -1;
         const rn = from >= 0 ? bases[from] : null;
         if (rn) {
-          const att = SIM.SBA * Math.exp((rn.b.spd - SIM.REF) / SIM.SBA_SPD) * (from === 1 ? SIM.SBA_3B : 1);
+          const att = SIM.SBA * Math.exp((rn.b.spd - SIM.REF) / SIM.SBA_SPD) * (from === 1 ? SIM.SBA_3B : 1) * SIM.RUN_MULT[bat.run];
           if (rng() < att) {
             const succ = clamp(SIM.SB_SUCC + (rn.b.spd - SIM.REF) * SIM.SB_SUCC_SPD - (fld.cDef - SIM.REF) * SIM.SB_SUCC_DEF, 0.4, 0.95);
             bases[from] = null;

@@ -3,7 +3,7 @@ import { clamp, gauss, randInt, pick, type Rng } from './rng';
 import { calcOvr, calcSalary, teamStrength } from './ratings';
 import { autoLineup, fixLineup, slotNewcomer } from './lineup';
 import { buildSchedule } from './schedule';
-import { simulateGame, type PenStyle } from './sim';
+import { simulateGame, type PenStyle, type RunStyle } from './sim';
 import { fmtAvg, fmtEra, fmtInt, fmtMoney } from './format';
 import { projectFx, projectSeasonOpenMut } from './projects';
 import {
@@ -296,8 +296,10 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
   let rest: Set<string> | undefined;
   const awayEdge: Record<string, number> = {};
   let penStyle: Record<string, PenStyle> | undefined;
+  let runStyle: Record<string, RunStyle> | undefined;
   if (core) {
     penStyle = { [core.userId]: core.campaign?.penStyle ?? 'balance' };
+    runStyle = { [core.userId]: core.campaign?.runStyle ?? 'normal' };
     if (away.id === core.userId) awayEdge[core.userId] = awaySupport(core); // 원정 응원단
     injMult[core.userId] = TRAIN_LV[core.facilities.training].inj * projectFx(core).inj;
     const ut = home.id === core.userId ? home : away.id === core.userId ? away : null;
@@ -316,7 +318,7 @@ export function playGame(core: Core | null, home: Team, away: Team, rng: Rng, tr
   // 선수별 기록은 경기 전후의 시즌 누적을 빼서 만든다 (유저 경기만)
   const before = track ? new Map([...away.roster, ...home.roster].map((p) => [p.id, { bat: { ...p.bat }, pit: { ...p.pit } }])) : null;
   const order = track ? ([away, home].map((t) => t.lineup.map((l) => ({ ...l }))) as [Team['lineup'], Team['lineup']]) : null;
-  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId, rest, awayEdge, penStyle });
+  const res = simulateGame(home, away, rng, { track, injMult, focusId: core?.userId, rest, awayEdge, penStyle, runStyle });
   restore?.();
   if (before && order) res.box = [boxOf(away, order[0], before, res, 0), boxOf(home, order[1], before, res, 1)];
   return res;

@@ -464,6 +464,7 @@ export interface Campaign {
   farmAuto?: boolean; // 2군 자동 운영 (undefined = 켜짐). farm.ts
   subAuto?: boolean; // 부상 대체: true = 감독에게 맡기기 (undefined = 직접 고르기). subpick.ts
   penStyle?: 'trust' | 'balance' | 'swarm'; // 불펜 운영 방침 (undefined = 균형). sim.ts
+  runStyle?: 'run' | 'normal' | 'hold'; // 주루 방침 (undefined = 보통). sim.ts
   away?: Player[]; // 팀을 떠나 있는 선수 (입대). 각 선수의 away.until 시즌 개막에 돌아온다
   mlb?: { last: number; gone: { p: Player; season: number }[] }; // 메이저리그 포스팅: 마지막 제안 시즌 · 보낸 선수(몇 시즌 뒤 복귀 카드). posting.ts
   posRank0?: { season: number; ranks: Record<string, number> }; // 시즌 개막 시점의 포지션별 리그 순위 (analysis.ts positionReport 의 key → 순위)

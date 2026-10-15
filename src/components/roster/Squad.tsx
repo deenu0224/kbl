@@ -16,6 +16,7 @@ import { useWinChance } from '../useWinChance';
 import { Bar, OvrBadge, POS_KO, ratingColor } from '../ui';
 import { effDef } from '../../game/ratings';
 import { fmtMoney } from '../../game/format';
+import RunStyleBar from './RunStyle';
 import PenStyleBar, { ArmState } from './PenStyle';
 import RosterList, { CardPop, goMarket } from './RosterList';
 import { EMPTY_CLOSER, POS, groupOf, planCloser, planEdit, recommend, slotCandidates, snapOf, type Plan, type PlanResult } from './editorOps';
@@ -552,23 +553,39 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
     </>
   );
 
+  // 타순 화면은 타격 능력치를 바로 보여 준다 (오버롤에는 수비가 섞여 있어 타순을 짜기 어렵다)
+  const BAT_COLS: [string, (p: Player) => number][] = [['컨택', (p) => p.con], ['파워', (p) => p.pow], ['선구', (p) => p.eye], ['주력', (p) => p.spd]];
+  const tone = (v: number) => (v >= 70 ? 'text-hi' : v < 50 ? 'text-white/40' : 'text-white/85');
   const orderView = (
     <div className="flex flex-col gap-1 p-1" data-testid="squad-order">
+      <RunStyleBar />
+      <div className="flex items-center gap-1 pr-1.5 text-[12px] text-white/50" data-testid="order-head">
+        <span className="min-w-0 flex-1" />
+        {BAT_COLS.map(([k]) => (
+          <span key={k} className="w-7 shrink-0 text-center">
+            {k}
+          </span>
+        ))}
+      </div>
       {team.lineup.map((l, i) => {
         const p = byId.get(l.pid);
         if (!p) return null;
         const off = offPos(p, l.pos);
         return (
-          <div key={p.id} {...itemProps(p.id, 'y')} className="flex min-h-[46px] cursor-pointer items-center gap-2 bg-panel-2 pr-2 select-none" style={{ ...frame(p.id), touchAction: 'pan-y' }}>
-            <span data-handle className="flex h-[46px] w-11 shrink-0 cursor-grab items-center justify-center text-[20px] text-white/55" style={{ touchAction: 'none' }}>
+          <div key={p.id} {...itemProps(p.id, 'y')} className="flex min-h-[46px] cursor-pointer items-center gap-1 bg-panel-2 pr-1.5 select-none" style={{ ...frame(p.id), touchAction: 'pan-y' }}>
+            <span data-handle className="flex h-[46px] w-9 shrink-0 cursor-grab items-center justify-center text-[20px] text-white/55" style={{ touchAction: 'none' }}>
               ≡
             </span>
-            <span className="w-4 shrink-0 text-[15px] text-hi">{i + 1}</span>
-            <span className={`w-9 shrink-0 text-[13px] ${off ? 'text-hi' : 'text-white/60'}`}>{POS_KO[l.pos]}</span>
+            <span className="w-4 shrink-0 text-center text-[15px] text-hi">{i + 1}</span>
+            <span className={`w-8 shrink-0 text-[13px] ${off ? 'text-hi' : 'text-white/60'}`}>{POS_KO[l.pos]}</span>
             {fixed.has(p.id) && <span className="shrink-0 text-[13px] text-sky">고정 {fixed.get(p.id)!.left}경기</span>}
             <span className={`min-w-0 flex-1 truncate text-[14px] ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
             <span className="shrink-0 text-[13px]">{delta(stateOf(p.id).plan, null, false)}</span>
-            <OvrBadge ovr={p.ovr} size={22} />
+            {BAT_COLS.map(([k, f]) => (
+              <span key={k} className={`w-7 shrink-0 text-center text-[14px] ${tone(f(p))}`} data-testid="order-stat">
+                {f(p)}
+              </span>
+            ))}
           </div>
         );
       })}

@@ -2,7 +2,7 @@ import { fmtMoney } from './game/format';
 import { buyProject, projectPreview, type ProjectId } from './game/projects';
 import { create } from 'zustand';
 import { changePenStyle } from './game/briefing';
-import type { PenStyle } from './game/sim';
+import type { PenStyle, RunStyle } from './game/sim';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { HintTab, Core, DayReport, FacilityKind, Player, PostRound, Team } from './game/types';
@@ -90,6 +90,7 @@ export interface Store extends Core {
   newGame(nickname?: string, seed?: number): void;
   loadSave(core: Core, version: number): void; // 가져온 세이브로 덮어쓴다
   setPenStyle(style: PenStyle): void; // 불펜 운영 방침 (campaign.penStyle)
+  setRunStyle(style: RunStyle): void; // 주루 방침 (campaign.runStyle)
   setFarmAuto(v: boolean): void; // 2군 자동 운영 (campaign.farmAuto)
   setSubAuto(v: boolean): void; // 부상 대체: true = 감독에게 맡기기 (campaign.subAuto)
   remedy(r: Remedy): string | null; // 할 일의 조치 실행. 막히면 사유를 돌려준다 (조치 시트가 결과를 보여 주므로 토스트는 없다)
@@ -537,6 +538,9 @@ export const useStore = create<Store>()(
         },
         setPenStyle(style) {
           set({ campaign: changePenStyle(pickCore(get()), style).campaign });
+        },
+        setRunStyle(style) {
+          set({ campaign: { ...get().campaign, runStyle: style } as Core['campaign'] });
         },
         setFarmAuto(v) {
           set({ campaign: { ...get().campaign, farmAuto: v } as Core['campaign'] });

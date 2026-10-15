@@ -23,6 +23,7 @@ export type HelpTopic =
   | 'faheat'
   | 'fatigue'
   | 'penStyle'
+  | 'runStyle'
   | 'farm'
   | 'service'
   | 'payNext'
@@ -151,6 +152,15 @@ export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: 
   fatigue: {
     title: '연투 피로',
     lines: [`전날 던진 불펜 투수는 구위가 ${SIM.TIRED_1}, 제구가 ${SIM.TIRED_CTL_1} 떨어집니다.`, `이틀 연속 던졌으면 ${SIM.TIRED_2}, ${SIM.TIRED_CTL_2} 떨어집니다.`, `마무리는 ${SIM.CLOSER_MAX_TIRED + 1}연투까지만 나오고 그 뒤에는 쉽니다.`, '하루 쉬면 회복합니다.'],
+  },
+  runStyle: {
+    title: '주루 방침',
+    lines: [
+      `뛰는 야구: 도루를 ${SIM.RUN_MULT.run}배 더 자주 시도합니다.`,
+      `자제: 도루를 거의 하지 않습니다 (${SIM.RUN_MULT.hold}배).`,
+      '성공률은 주자의 주력과 상대 포수의 수비로 정해집니다. 발이 느린 타선이 뛰면 아웃만 늘어납니다.',
+      '상대 구단도 타선의 주력에 맞는 방침을 씁니다.',
+    ],
   },
   penStyle: {
     title: '불펜 운영 방침',
