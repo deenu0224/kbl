@@ -138,6 +138,12 @@ export default function PlayerCard({
           <span className="text-white/60">
             연봉 <span className="text-white">{fmtMoney(p.salary)}</span>
           </span>
+          {/* 출신: 외인 구단 · 섬에서 키웠다 도전과제의 단서 (기록이 생기기 전에 온 선수는 없다) */}
+          {mine && p.from && (
+            <span className="shrink-0 text-white/50" data-testid="card-from">
+              {p.from === 'fa' ? 'FA 영입' : '우리 드래프트'}
+            </span>
+          )}
         </div>
         {!prospect && (
           <div className="flex flex-col gap-[2px] bg-ink/40 px-1.5 py-1" data-testid="card-stats">

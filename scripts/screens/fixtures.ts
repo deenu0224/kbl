@@ -88,6 +88,7 @@ const WANT: Record<string, Pred> = {
   debt80: (c) => inSeason(c) && quiet(c) && c.day >= 1 && c.finance.debt >= loanLimit(c) * 0.8 && c.finance.debt <= loanLimit(c),
   debtOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && c.finance.debt > loanLimit(c), // 개막일(0일)은 개막전 오더 화면이라 하단 탭이 없다
   debtSale: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('debtsale'),
+  mlbPost: (c) => c.phase === 'ended' && !!c.campaign.event && c.campaign.event.id.startsWith('mlb|post'),
   rental: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('rental|'),
   buyout: (c) => inSeason(c) && !!c.campaign.event && c.campaign.event.id.startsWith('buyout|'),
   endedDebt: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.debtOver,

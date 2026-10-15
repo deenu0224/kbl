@@ -223,6 +223,8 @@ export const SCREENS = [
   S('club-finance-debtover', 'debtOver', game(...CLUB, '재무')),
   S('event-debtsale', 'debtSale', game()),
   S('event-rental', 'rental', game()),
+  S('event-mlb', 'mlbPost', game()),
+  S('event-mlb-detail', 'mlbPost', game(c('ev-more', { optional: true }))),
   S('event-buyout', 'buyout', game(c('ev-more', { optional: true }))),
   S('event-debtsale-detail', 'debtSale', game(c('ev-more', { optional: true }))),
   S('ended-debtover', 'endedDebt', game()),

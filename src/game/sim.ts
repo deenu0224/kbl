@@ -48,8 +48,8 @@ export const SIM = {
   FB: 0.35, // 뜬공
   DP: 0.37, // 1루 주자 + 2사 미만 땅볼의 병살 확률
   // 도루: 1루(2루 빈 상황) 주자가 타석마다 시도할 확률 = SBA × exp((주력−REF)/SBA_SPD)
-  SBA: 0.078,
-  SBA_SPD: 28,
+  SBA: 0.082,
+  SBA_SPD: 34,
   SBA_3B: 0.2, // 3루 도루는 2루 도루 시도율의 이 비율
   SB_SUCC: 0.75, // 평균 주자 vs 평균 포수 성공률
   RUN_MULT: { run: 1.8, normal: 1, hold: 0.25 } as Record<RunStyle, number>, // 주루 방침: 도루 시도율 배율 (성공률은 그대로)

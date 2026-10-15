@@ -1,4 +1,6 @@
 import { useStore } from './store';
+import { titleStreak } from './game/season';
+import { loanLimit } from './game/economy';
 
 // 익명 방문 통계(GoatCounter)와 의견 창구. 둘 다 비어 있으면 아무것도 하지 않는다.
 // - 쿠키·고정 번호·별칭·세이브 내용은 보내지 않는다. 보내는 것은 "어떤 일이 일어났다"는 이름뿐이다.
@@ -61,7 +63,17 @@ export function initAnalytics() {
     prev = s;
     if (s.season < p.season || (s.season === 1 && s.day < p.day)) once.clear(); // 새 게임
     if (s.season === 1 && p.day === 0 && s.day === 1) trackOnce('first-game');
-    if (s.phase !== p.phase && s.phase === 'ended') trackOnce(`season-${Math.min(s.season, 12)}`);
+    if (s.phase !== p.phase && s.phase === 'ended') {
+      trackOnce(`season-${Math.min(s.season, 12)}`);
+      // 연속 우승 보정 관찰: 몇 연패까지 가는가 (season.ts DYN)
+      const streak = titleStreak(s);
+      if (streak > 0) trackOnce(`title-streak-${Math.min(streak, 6)}`);
+      // 빚 관찰: 첫 세 시즌 결산 때 부채가 한도의 몇 %인가 (0 · 50 미만 · 80 미만 · 80 이상)
+      if (s.season <= 3) {
+        const r = s.finance.debt / Math.max(1, loanLimit(s));
+        trackOnce(`debt-s${s.season}-${s.finance.debt <= 0 ? 0 : r < 0.5 ? 50 : r < 0.8 ? 80 : 100}`);
+      }
+    }
     if (s.phase !== p.phase && s.phase === 'over') {
       trackOnce(`moved-${Math.min(s.season, 12)}`);
       trackOnce('moved'); // 초기 화면의 연고 이전 합계용

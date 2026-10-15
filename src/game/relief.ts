@@ -51,6 +51,7 @@ function repayMut(core: Core, v: number): number {
   return f.debt;
 }
 const debtAfter = (core: Core, v: number) => Math.max(0, core.finance.debt - v);
+const debtText = (v: number) => (v > 0 ? fmtMoney(v) : '없음');
 
 const badValue = (p: Player) => p.salary / Math.max(5, p.ovr - 50);
 
@@ -90,7 +91,7 @@ export const RELIEF_CARDS: ReliefCardDef[] = [
             label: '빌려준다',
             desc: `부채 −${fmtMoney(fee)} · 홈 ${RF.turfGames}경기 수비 ${RF.turf}`,
             detail: {
-              rows: [rowInfo('부채', fmtMoney(debtAfter(c, fee)), fmtMoney(debt), 'good'), rowInfo('잔디 손상', `홈경기 수비 ${RF.turf}`, undefined, 'bad')],
+              rows: [rowInfo('부채', debtText(debtAfter(c, fee)), fmtMoney(debt), 'good'), rowInfo('잔디 손상', `홈경기 수비 ${RF.turf}`, undefined, 'bad')],
               lasts: `홈 ${RF.turfGames}경기`,
             },
           },
@@ -133,7 +134,7 @@ export const RELIEF_CARDS: ReliefCardDef[] = [
             desc: `부채 −${fmtMoney(price)} · 연봉 −${fmtMoney(p.salary)}${loss > 0 ? ` · 전력 −${loss}` : ''}`,
             detail: {
               rows: [
-                rowInfo('부채', fmtMoney(debtAfter(c, price)), fmtMoney(debt), 'good'),
+                rowInfo('부채', debtText(debtAfter(c, price)), fmtMoney(debt), 'good'),
                 rowInfo('연봉 총액', `−${fmtMoney(p.salary)}`, undefined, 'good'),
                 rowInfo('전력(4칸 합)', loss > 0 ? `−${loss}` : '거의 없음', undefined, loss > 0 ? 'bad' : 'info'),
               ],

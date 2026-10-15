@@ -56,7 +56,7 @@ function payInMut(core: Core, v: number): [number, number] {
 const moneyRows = (core: Core, v: number) => {
   const repay = Math.min(core.finance.debt, v);
   return [
-    ...(repay > 0 ? [rowInfo('부채', fmtMoney(core.finance.debt - repay), fmtMoney(core.finance.debt), 'good' as const)] : []),
+    ...(repay > 0 ? [rowInfo('부채', core.finance.debt - repay > 0 ? fmtMoney(core.finance.debt - repay) : '없음', fmtMoney(core.finance.debt), 'good' as const)] : []),
     ...(v - repay > 0 ? [rowInfo('현금', fmtMoney(core.finance.cash + v - repay), fmtMoney(core.finance.cash), 'good' as const)] : []),
   ];
 };
