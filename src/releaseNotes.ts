@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.4',
+    date: '2026-10-15',
+    title: '한눈에 보이는 타순',
+    notes: ['타순 화면의 컨택·파워·선구·주력에 색을 넣었습니다. 초록은 강점, 주황·빨강은 약점이에요.', '첫 화면의 단장 수가 가끔 안 보이던 문제를 고쳤습니다.'],
+  },
+  {
     version: '0.14.3',
     date: '2026-10-15',
     title: '덜 시끄럽게',
