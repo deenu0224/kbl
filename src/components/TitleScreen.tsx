@@ -85,7 +85,13 @@ function GmCountLine() {
     <div className="title-logo mt-2 min-h-[36px] text-[13px] leading-tight text-white/75" data-testid="gm-count">
       {n && (
         <>
-          지금까지 단장 <span className="text-hi">{fmtInt(n.total)}명</span> · <span className="text-hi">{fmtInt(n.seasons)}시즌</span>
+          지금까지 단장 <span className="text-hi">{fmtInt(n.total)}명</span>
+          {n.seasons > 0 && (
+            <>
+              {' · '}
+              <span className="text-hi">{fmtInt(n.seasons)}시즌</span>
+            </>
+          )}
           {(n.champ > 0 || n.moved > 0) && (
             <span className="mt-1 block text-white/65" data-testid="gm-count-ends">
               {n.champ > 0 && (

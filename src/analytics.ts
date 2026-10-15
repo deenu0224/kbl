@@ -89,7 +89,7 @@ export function initAnalytics() {
 // GoatCounter 의 공개 집계(사이트 설정에서 visitor counter 를 켜야 한다)에서 새 게임 수를 읽는다.
 // 서버가 없어 "지금 접속 중"은 셀 수 없다. 공개 집계는 GoatCounter 앞단 캐시에 몇 시간씩 남는데(age 4시간+),
 // 아무 쿼리나 붙여서는 못 피하고 start 날짜만 캐시 키에 들어간다 → 기록이 생기기 전의 날짜를 분마다 바꿔 넣는다 (합계는 같다).
-const COUNT_KEY = 'kbl-gm-count3';
+const COUNT_KEY = 'kbl-gm-count4';
 const COUNT_MIN = 5; // 이보다 적으면 보여 주지 않는다
 export interface GmCount { total: number; seasons: number; champ: number; moved: number }
 // 2026-10-15 이전의 몫: season-done · title 이벤트가 생기기 전에 센 값 (season-1~12 합 51 · 우승 엔딩을 본 구단 3 — 우승 횟수의 하한)
@@ -102,32 +102,39 @@ function freshStart(): string {
   return new Date(Date.UTC(2016, 0, 1) + m * 86400000).toISOString().slice(0, 10);
 }
 
-async function readCount(path: string): Promise<number> {
-  const r = await fetch(`https://${STATS_CODE}.goatcounter.com/counter/${encodeURIComponent(path)}.json?start=${freshStart()}`);
-  if (!r.ok) return 0; // 설정이 꺼져 있으면 403, 아직 기록이 없으면 404
-  const j = (await r.json()) as { count?: string };
-  return Number(String(j.count ?? '0').replace(/[^0-9]/g, '')) || 0;
+/** 한 집계 읽기: 실패하면 한 번 더. 끝내 못 읽으면 null (기록이 아직 없는 404 는 0) */
+async function readCount(path: string): Promise<number | null> {
+  for (let i = 0; i < 2; i++) {
+    try {
+      const r = await fetch(`https://${STATS_CODE}.goatcounter.com/counter/${encodeURIComponent(path)}.json?start=${freshStart()}`);
+      if (r.status === 404) return 0;
+      if (!r.ok) continue; // 설정이 꺼져 있으면 403, 몰리면 5xx
+      const j = (await r.json()) as { count?: string };
+      return Number(String(j.count ?? '0').replace(/[^0-9]/g, '')) || 0;
+    } catch {
+      /* 네트워크가 끊겼다 → 한 번 더 */
+    }
+  }
+  return null;
 }
+
+const COUNT_TTL = 60_000; // 읽은 값은 1분만 쓴다 (실패한 결과는 남기지 않는다 — 다음에 화면을 열면 다시 읽는다)
 
 /** 새 게임을 시작한 단장 수. 못 읽었거나 너무 적으면 null (아무것도 그리지 않는다) */
 export async function gmCount(): Promise<GmCount | null> {
   if (!STATS_CODE || local() || navigator.webdriver) return null;
   try {
-    const hit = sessionStorage.getItem(COUNT_KEY);
-    if (hit) return JSON.parse(hit) as GmCount | null;
+    const hit = JSON.parse(sessionStorage.getItem(COUNT_KEY) ?? 'null') as { at: number; v: GmCount } | null;
+    if (hit && Date.now() - hit.at < COUNT_TTL) return hit.v;
   } catch {
     /* 캐시 없이 */
   }
-  let out: GmCount | null = null;
+  // 우승 = 한국시리즈 우승 시즌, 연고 이전 = 게임오버. 단장 수만 꼭 있어야 하고 나머지는 못 읽으면 빼고 보여 준다
+  const [total, seasons, champ, moved] = await Promise.all([readCount('new-game'), readCount('season-done'), readCount('title'), readCount('moved')]);
+  if (total === null || total < COUNT_MIN) return null;
+  const out: GmCount = { total, seasons: seasons === null ? 0 : SEASON_BASE + seasons, champ: champ === null ? 0 : TITLE_BASE + champ, moved: moved ?? 0 };
   try {
-    // 우승 = 한국시리즈 우승 시즌, 연고 이전 = 게임오버
-    const [total, seasons, champ, moved] = await Promise.all([readCount('new-game'), readCount('season-done'), readCount('title'), readCount('moved')]);
-    out = total >= COUNT_MIN ? { total, seasons: SEASON_BASE + seasons, champ: TITLE_BASE + champ, moved } : null;
-  } catch {
-    out = null;
-  }
-  try {
-    sessionStorage.setItem(COUNT_KEY, JSON.stringify(out));
+    sessionStorage.setItem(COUNT_KEY, JSON.stringify({ at: Date.now(), v: out }));
   } catch {
     /* 무시 */
   }
