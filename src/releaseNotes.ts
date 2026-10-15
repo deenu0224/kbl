@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.0',
+    date: '2026-10-15',
+    title: '뛰는 야구',
+    notes: [
+      '타순 화면에서 주루 방침을 고를 수 있어요. 뛰는 야구 · 보통 · 자제 — 발 빠른 타선이면 뛰어 보세요.',
+      '타순 화면에 오버롤 대신 컨택·파워·선구·주력이 보입니다.',
+      '도루 도전과제 5개가 생겼습니다.',
+    ],
+  },
+  {
     version: '0.13.1',
     date: '2026-10-15',
     title: '돈으로 살까, 키워 낼까',
