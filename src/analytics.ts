@@ -46,9 +46,9 @@ export const track = (name: string) => send(name, true);
 
 /** 한 세이브에서 같은 사건을 한 번만 세기 위한 표시 (새 게임이면 지워진다) */
 const once = new Set<string>();
-const trackOnce = (name: string) => {
-  if (once.has(name)) return;
-  once.add(name);
+const trackOnce = (name: string, key = name) => {
+  if (once.has(key)) return;
+  once.add(key);
   track(name);
 };
 
@@ -65,6 +65,9 @@ export function initAnalytics() {
     if (s.season === 1 && p.day === 0 && s.day === 1) trackOnce('first-game');
     if (s.phase !== p.phase && s.phase === 'ended') {
       trackOnce(`season-${Math.min(s.season, 12)}`);
+      // 초기 화면의 누적 시즌 · 우승 수 (시즌마다 한 번. 이름은 하나로 모아 한 번에 읽는다)
+      trackOnce('season-done', `sd-${s.season}`);
+      if (s.campaign.history[s.campaign.history.length - 1]?.post === 'champion') trackOnce('title', `ti-${s.season}`);
       // 연속 우승 보정 관찰: 몇 연패까지 가는가 (season.ts DYN)
       const streak = titleStreak(s);
       if (streak > 0) trackOnce(`title-streak-${Math.min(streak, 6)}`);
@@ -84,14 +87,23 @@ export function initAnalytics() {
 
 // ── 초기 화면의 "단장 n명" ──
 // GoatCounter 의 공개 집계(사이트 설정에서 visitor counter 를 켜야 한다)에서 새 게임 수를 읽는다.
-// 서버가 없어 "지금 접속 중"은 셀 수 없다. 공개 집계는 GoatCounter 쪽에서 몇 시간씩 캐시되므로(주소 뒤 쿼리로도 못 피한다)
-// "오늘 n명" 은 날이 바뀌어도 어제 값이 남을 수 있어 보여 주지 않고, 누적만 쓴다.
-const COUNT_KEY = 'kbl-gm-count2';
+// 서버가 없어 "지금 접속 중"은 셀 수 없다. 공개 집계는 GoatCounter 앞단 캐시에 몇 시간씩 남는데(age 4시간+),
+// 아무 쿼리나 붙여서는 못 피하고 start 날짜만 캐시 키에 들어간다 → 기록이 생기기 전의 날짜를 분마다 바꿔 넣는다 (합계는 같다).
+const COUNT_KEY = 'kbl-gm-count3';
 const COUNT_MIN = 5; // 이보다 적으면 보여 주지 않는다
-export interface GmCount { total: number; today: number; champ: number; champToday: number; moved: number }
+export interface GmCount { total: number; seasons: number; champ: number; moved: number }
+// 2026-10-15 이전의 몫: season-done · title 이벤트가 생기기 전에 센 값 (season-1~12 합 51 · 우승 엔딩을 본 구단 3 — 우승 횟수의 하한)
+const SEASON_BASE = 51;
+const TITLE_BASE = 3;
 
-async function readCount(path: string, start?: string): Promise<number> {
-  const r = await fetch(`https://${STATS_CODE}.goatcounter.com/counter/${encodeURIComponent(path)}.json${start ? `?start=${start}` : ''}`);
+/** 분마다 바뀌는 시작 날짜: 2016-01-01 부터 (분 번호 mod 3000)일 — 전부 기록이 생기기 전(2026-10)이라 합계는 같다 */
+function freshStart(): string {
+  const m = Math.floor(Date.now() / 60000) % 3000;
+  return new Date(Date.UTC(2016, 0, 1) + m * 86400000).toISOString().slice(0, 10);
+}
+
+async function readCount(path: string): Promise<number> {
+  const r = await fetch(`https://${STATS_CODE}.goatcounter.com/counter/${encodeURIComponent(path)}.json?start=${freshStart()}`);
   if (!r.ok) return 0; // 설정이 꺼져 있으면 403, 아직 기록이 없으면 404
   const j = (await r.json()) as { count?: string };
   return Number(String(j.count ?? '0').replace(/[^0-9]/g, '')) || 0;
@@ -108,11 +120,9 @@ export async function gmCount(): Promise<GmCount | null> {
   }
   let out: GmCount | null = null;
   try {
-    const d = new Date();
-    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    // 우승 = 왕조 장(stage 5) 도달, 연고 이전 = 게임오버
-    const [total, today, champ, champToday, moved] = await Promise.all([readCount('new-game'), readCount('new-game', day), readCount('stage-5'), readCount('stage-5', day), readCount('moved')]);
-    out = total >= COUNT_MIN ? { total, today, champ, champToday, moved } : null;
+    // 우승 = 한국시리즈 우승 시즌, 연고 이전 = 게임오버
+    const [total, seasons, champ, moved] = await Promise.all([readCount('new-game'), readCount('season-done'), readCount('title'), readCount('moved')]);
+    out = total >= COUNT_MIN ? { total, seasons: SEASON_BASE + seasons, champ: TITLE_BASE + champ, moved } : null;
   } catch {
     out = null;
   }
