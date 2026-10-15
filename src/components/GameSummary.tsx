@@ -182,7 +182,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
   const keyScores = scoring.slice(-3);
   const news = [
     ...res.injuries.filter((x) => x.teamId === userId).map((x) => `✚ ${x.name} 부상 (${x.games}경기 결장)`),
-    ...r.notes.filter((t) => !t.startsWith('부상: ')),
+    ...r.notes.filter((t) => !t.startsWith('부상: ') && !t.includes('긴급 대출') && !t.includes('강제 매각')),
   ];
   const verdict = r.won === null ? '무승부' : r.won ? '승리!' : '패배';
   const vColor = r.won === null ? 'text-sky' : r.won ? 'text-hi' : 'text-bad';

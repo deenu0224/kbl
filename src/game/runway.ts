@@ -16,6 +16,7 @@
 //  · 정규시즌 남은 경기까지만 본다(포스트시즌·다음 시즌 연봉 재산정은 예측 밖).
 import { leagueMult } from './scandal';
 import type { Core, Player } from './types';
+import { TRUST_LABEL } from './story';
 import {
   DOW_MULT, FOOD_LV, leagueShare, MERCH_K, MIN_BATTERS, MIN_PITCHERS, RAIN_FOOD, SEAT_LV, TRAIN_LV, WEATHER_MULT,
   capacityOf, debtMood, loanInterest, loanLimit, luxTax, opsCost, payroll, previewDemand, starPower, userTeam,
@@ -162,7 +163,7 @@ export function runwayAlert(core: Pick<Core, 'finance'> & Partial<Pick<Core, 'ca
   if (r.cashOut !== null && r.cashOut <= RUNWAY_SHOW) return { text: `${r.cashOut}경기 뒤 바닥`, danger: r.cashOut <= RUNWAY_DANGER };
   if (core.campaign && core.teams) {
     const m = debtMood(core as Pick<Core, 'campaign' | 'teams'>, core.finance.debt);
-    if (m?.heavy && core.finance.debt <= m.limit) return { text: m.trust > 0 ? `부채 한도의 ${m.pct}% · 시즌 말 지지 −${m.trust}` : `부채 한도의 ${m.pct}% · 시즌 말 경고`, danger: m.trust > 0 };
+    if (m?.heavy && core.finance.debt <= m.limit) return { text: m.trust > 0 ? `부채 한도의 ${m.pct}% · 시즌 말 ${TRUST_LABEL} −${m.trust}` : `부채 한도의 ${m.pct}% · 시즌 말 경고`, danger: m.trust > 0 };
   }
   return null;
 }

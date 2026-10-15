@@ -96,7 +96,7 @@ const WANT: Record<string, Pred> = {
   endedMoodWarn: (c) => c.phase === 'ended' && !c.campaign.event && c.campaign.verdict?.debtMood?.trust === 0,
   endedMood: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.verdict?.debtMood?.trust ?? 0) < 0 && !endingNow(c),
   endedLux: (c) => c.phase === 'ended' && !c.campaign.event && !!c.campaign.verdict?.luxTax,
-  briefMood: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing?.alert?.includes('이대로 마치면'),
+  briefMood: (c) => inSeason(c) && !c.campaign.event && !!c.campaign.briefing?.alert?.startsWith('빚이 한도의') && !!c.campaign.briefing.alert.includes('이대로'), // moodAlert (briefing.ts)
   luxOver: (c) => inSeason(c) && quiet(c) && c.day >= 1 && luxTax(c).tax > 0,
   academy: (c) => inSeason(c) && quiet(c) && (c.campaign.projects?.academy ?? 0) > 0 && c.day >= 5,
   domeDone: (c) => c.phase === 'ended' && !c.campaign.event && (c.campaign.projects?.dome ?? 0) >= 3 && seatsLabel(c).startsWith('돔구장'),
@@ -333,7 +333,7 @@ function forceRank(c0: Core, rank: number): Core | null {
 }
 const lastDay: Pred = (c) => c.phase === 'season' && c.day === c.schedule.length - 1 && quiet(c);
 function wildcardFixtures(): void {
-  for (let seed = 1; seed <= 12 && !(found.wcHi && found.wcLo && found.wcOut && found.wcTie && found.wcMid); seed++) {
+  for (let seed = 1; seed <= 24 && !(found.wcHi && found.wcLo && found.wcOut && found.wcTie && found.wcMid); seed++) {
     const rng = mulberry32(seed * 7919 + 101);
     let c = sensible.preseason(ensureObjectives(newCore(seed), rng));
     for (let g = 0; g < 400 && c.phase === 'season' && !lastDay(c); g++) {

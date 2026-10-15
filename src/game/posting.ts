@@ -75,7 +75,7 @@ function postingCard(core: Core, p: Player): EventCard {
     line: again
       ? `${josa(p.name, '이', '가')} 다시 찾아왔네. 꿈을 한 번 더 미루라고 하기는 어렵겠어.`
       : `메이저리그 구단이 ${josa(p.name, '을', '를')} 원한다네. 섬에서 메이저리거가 나오는 거야.`,
-    body: `포스팅 이적료 ${fmtMoney(fee)}${repay > 0 ? '는 빚부터 갚습니다' : '가 들어옵니다'}.`,
+    body: repay > 0 ? '이적료는 부채부터 갚습니다' : `${p.age}세 · 오버롤 ${p.ovr}`,
     choices: [
       {
         label: '보내 준다',
@@ -111,7 +111,7 @@ function backCard(core: Core, g: { p: Player; season: number }): EventCard {
     pid: g.p.id,
     title: '돌아온 메이저리거',
     line: `${josa(g.p.name, '이', '가')} 섬으로 돌아오고 싶다네. 마지막은 여기서 뛰고 싶다고.`,
-    body: `${core.season - g.season}시즌 만의 복귀 · 연봉 ${fmtMoney(salary)}`,
+    body: `${core.season - g.season}시즌 만의 복귀`,
     choices: [
       {
         label: '맞이한다',

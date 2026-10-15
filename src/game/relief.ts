@@ -85,7 +85,7 @@ export const RELIEF_CARDS: ReliefCardDef[] = [
         who: 'marketing',
         title: '구장 대관 제안',
         line: '육지 공연 기획사에서 연락이 왔어요! 쉬는 날 우리 구장에서 콘서트를 하고 싶대요.',
-        body: `대관료 ${fmtMoney(fee)}(${fmtInt(capacityOf(c))}석)는 바로 빚을 갚는 데 씁니다.`,
+        body: `${fmtInt(capacityOf(c))}석 구장 · 대관료는 바로 부채 상환`,
         choices: [
           {
             label: '빌려준다',
@@ -127,7 +127,7 @@ export const RELIEF_CARDS: ReliefCardDef[] = [
         pid: p.id,
         title: '현금 매입 제안',
         line: `${josa(buyer.name, '이', '가')} ${josa(p.name, '을', '를')} 현금으로 사겠다네. 그 돈이면 빚을 좀 덜 수 있겠어.`,
-        body: `매입 대금 ${fmtMoney(price)}는 바로 빚을 갚는 데 씁니다.`,
+        body: '매입 대금은 바로 부채 상환',
         choices: [
           {
             label: '판다',

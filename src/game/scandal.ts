@@ -340,7 +340,7 @@ const closePlan = (core: Core) => {
   if (plan) savePlan(core, { ...plan, state: 'done' });
 };
 const upsText = (ups: string) => {
-  const KO: Record<string, string> = { con: '컨택', pow: '파워', eye: '선구안', spd: '주력', def: '수비', stf: '구위', ctl: '제구', sta: '체력' };
+  const KO: Record<string, string> = { con: '컨택', pow: '파워', eye: '선구', spd: '주력', def: '수비', stf: '구위', ctl: '제구', sta: '체력' };
   return parseUps(ups).map(([k, d]) => `${KO[k]} +${d}`).join(' · ');
 };
 

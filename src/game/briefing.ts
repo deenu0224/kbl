@@ -316,11 +316,11 @@ function penStyleOffer(core: Core): Cand | null {
   if (style === 'swarm' && arms < SIM.AI_SWARM_ARMS) {
     const line = `벌떼인데 불펜 ${arms}명입니다. 이 인원으로는 팔이 남아나지 않습니다.`;
     const up = arms === SIM.AI_SWARM_ARMS - 1 && activeRoster(t).length < ROSTER_MAX ? shuttleArms(core)[0] : undefined;
-    if (up && !callUp(core, up.id).error) return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, `벌떼인데 불펜 ${arms}명: 과부하 위험 — 구원 1명 콜업: 2군 ${up.name}(오버롤 ${up.ovr}) · 불펜 ${arms} → ${arms + 1}명`, { t: 'fix' }, undefined, [{ t: up.id, d: 1 }]), farm: { up: up.id } };
-    return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, `벌떼인데 불펜 ${arms}명: 과부하 위험 — 균형으로`, { t: 'fix' }, undefined, [styleMove('swarm', -1)]), penStyle: 'balance' };
+    if (up && !callUp(core, up.id).error) return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, `구원 1명 콜업: 2군 ${up.name}(오버롤 ${up.ovr}) · 불펜 ${arms} → ${arms + 1}명`, { t: 'fix' }, undefined, [{ t: up.id, d: 1 }]), farm: { up: up.id } };
+    return { ...offer(46, 'penStyle', 'penStyle', 'pitching', line, '불펜 방침 → 균형', { t: 'fix' }, undefined, [styleMove('swarm', -1)]), penStyle: 'balance' };
   }
   if (style === 'trust' && (rotPenGap(t)?.gap ?? 0) <= -SIM.AI_STYLE_GAP)
-    return { ...offer(42, 'penStyle', 'penStyle', 'pitching', '믿음인데 선발이 불펜보다 약합니다. 오래 끌수록 점수를 줍니다.', `믿음인데 선발 평균 오버롤이 불펜보다 ${SIM.AI_STYLE_GAP} 이상 낮음 — 균형으로`, { t: 'fix' }, undefined, [styleMove('trust', -1)]), penStyle: 'balance' };
+    return { ...offer(42, 'penStyle', 'penStyle', 'pitching', '믿음인데 선발이 불펜보다 약합니다. 오래 끌수록 점수를 줍니다.', '불펜 방침 → 균형', { t: 'fix' }, undefined, [styleMove('trust', -1)]), penStyle: 'balance' };
   return null;
 }
 
@@ -422,7 +422,7 @@ function farmMoveOffer(core: Core, phase: 'up' | 'down'): Cand | null {
           'farm',
           'farm',
           better ? `${k.name}, 2군에서 준비가 끝났습니다. 지금 1군 자리보다 낫습니다.` : `${k.name}은 2군에서 배울 건 다 배웠습니다. 이제 위에서 부딪혀야 큽니다.`,
-          better ? `콜업 ${who}${swap}: ${POS_NAME[k.pos] ?? k.pos} ${cur!.ovr} → ${k.ovr} · ${parts}` : `콜업 ${who}${swap}: 2군 상한 오버롤 ${FARM_CAP} 도달 · 1군에서만 더 자랍니다(잠재 ${k.pot}) · ${parts}`,
+          better ? `콜업 ${who}${swap}: ${POS_NAME[k.pos] ?? k.pos} ${cur!.ovr} → ${k.ovr} · ${parts}` : `콜업 ${who}${swap}: 2군 상한 오버롤 ${FARM_CAP} 도달(잠재력 ${k.pot}) · ${parts}`,
           { t: 'fix' },
           flagPiece(core, { win: dw }),
           moves,
@@ -549,8 +549,8 @@ export function moodAlert(core: Core): string | null {
   const left = core.schedule.length - core.day;
   const pct = Math.round((core.finance.debt / loanLimit(core)) * 100);
   return m.cut > 0
-    ? `빚이 한도의 ${pct}%입니다. 남은 ${left}경기를 이대로 마치면 도민 지지가 ${m.cut} 깎입니다. 조합원들 볼 낯이 없습니다.`
-    : `빚이 한도의 ${pct}%입니다. 남은 ${left}경기를 이대로 마치면 조합에서 말이 나옵니다. 내년에도 이러면 도민 지지가 깎입니다.`;
+    ? `빚이 한도의 ${pct}%입니다. 이대로 ${left}경기를 마치면 도민 지지 −${m.cut}.`
+    : `빚이 한도의 ${pct}%입니다. 이대로 마치면 조합에서 말이 나옵니다.`;
 }
 
 /** 조합장의 한 줄: 12경기 안에 금고가 비거나 부채가 한도를 넘을 때, 또는 부채가 한도의 절반을 넘었을 때 (한 줄로 통합) */
@@ -558,7 +558,7 @@ export function cashAlert(core: Core): string | null {
   const r = runway(core);
   const lim = loanLimit(core);
   const debt = core.finance.debt;
-  if (debt > lim) return `빚이 한도를 넘었습니다. 부채 ${fmtMoney(debt)} / 한도 ${fmtMoney(lim)} — 누군가를 보내야 합니다.`;
+  if (debt > lim) return '빚이 한도를 넘었습니다. 누군가를 보내야 합니다.';
   if (core.finance.cash <= 0 && r.cashOut !== null && (r.forcedSale === null || r.forcedSale > RUNWAY_DANGER)) return '금고가 비었습니다. 경기마다 빚이 쌓이고 있습니다.';
   if (r.forcedSale !== null && r.forcedSale <= RUNWAY_DANGER) {
     return r.cashOut !== null && r.cashOut > 1 && r.cashOut < r.forcedSale
@@ -568,7 +568,7 @@ export function cashAlert(core: Core): string | null {
   if (r.cashOut !== null && r.cashOut <= RUNWAY_DANGER) return `이대로면 ${r.cashOut}경기 뒤에 금고가 빕니다. 조합원들 볼 낯이 없습니다.`;
   const mood = moodAlert(core);
   if (mood) return mood;
-  if (debt >= lim * LOAN_WARN) return `빚이 한도의 ${Math.round((debt / lim) * 100)}%입니다. 부채 ${fmtMoney(debt)} / 한도 ${fmtMoney(lim)} — 이자가 시즌당 ${fmtMoney(Math.round(loanInterest(core, debt)))}입니다.`;
+  if (debt >= lim * LOAN_WARN) return `빚이 한도의 ${Math.round((debt / lim) * 100)}%입니다. 이자만 시즌당 ${fmtMoney(Math.round(loanInterest(core, debt)))}.`;
   return null;
 }
 
@@ -766,7 +766,7 @@ function detailOf(a: Core, b: Core, o: BriefOffer): BriefDetail {
   if (ra.perGame !== rb.perGame || rows.length) {
     num('경기당 손익', ra.perGame, rb.perGame, (v) => signMoney(v));
     num('시즌 말 예상 현금', ra.seasonEnd, rb.seasonEnd, money);
-    if (ra.cashOut !== null || rb.cashOut !== null) rows.push({ label: '금고 바닥까지', a: ra.cashOut === null ? '안전' : `${ra.cashOut}경기`, b: rb.cashOut === null ? '안전' : `${rb.cashOut}경기`, ...(ra.cashOut !== rb.cashOut ? { tone: (rb.cashOut ?? 999) > (ra.cashOut ?? 999) ? ('good' as const) : ('bad' as const) } : {}) });
+    if (ra.cashOut !== null || rb.cashOut !== null) rows.push({ label: '현금 바닥까지', a: ra.cashOut === null ? '안전' : `${ra.cashOut}경기`, b: rb.cashOut === null ? '안전' : `${rb.cashOut}경기`, ...(ra.cashOut !== rb.cashOut ? { tone: (rb.cashOut ?? 999) > (ra.cashOut ?? 999) ? ('good' as const) : ('bad' as const) } : {}) });
   }
   const d: BriefDetail = { parts: { a: pa, b: pb } };
   if (rows.length) d.rows = rows;

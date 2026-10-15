@@ -390,7 +390,7 @@ export default function BriefingSheet() {
 
 const TIP_TEXT: Record<TipId, string> = {
   market: '좋은 선수를 데려오면 전력이 오르고, 연봉이 나갑니다.',
-  stadium: '표값을 올리면 경기당 수입이 늘고 관중이 줍니다. 자리가 모자라면 증축.',
+  stadium: '티켓값을 올리면 경기당 수입이 늘고 관중이 줍니다. 자리가 모자라면 증축.',
   finance: '대출은 당장 쓸 돈을 주고, 시즌 내내 이자를 가져갑니다.',
 };
 

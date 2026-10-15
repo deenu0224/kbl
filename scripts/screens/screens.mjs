@@ -37,7 +37,9 @@ const m = (click, o = {}) => ({ click, when: 'mobile', ...o });
 const d = (click, o = {}) => ({ click, when: 'desktop', ...o });
 const st = (xs) => xs.map((x) => (typeof x === 'string' ? c(x) : x));
 /** 스토브리그의 이적 창구: 트레이드 제안 카드가 먼저 뜨면 [거절]하고 다시 연다 */
-const STOVE_DESK = [c('stove-market'), c('선택', { nth: 1, optional: true }), { wait: 300 }, c('stove-market', { optional: true }), m('side-squad')];
+// 스토브리그 카드(재계약 여럿 · 포스팅 · 트레이드 제안)가 몇 장이든 첫 선택지로 넘긴다
+const STOVE_SKIP = Array.from({ length: 5 }, () => [c('선택', { nth: 1, optional: true }), { wait: 300 }, c('stove-market', { optional: true })]).flat();
+const STOVE_DESK = [c('stove-market'), ...STOVE_SKIP, m('side-squad')];
 /** 우리 선수단 목록의 정렬 칩 (데스크톱은 영입 시장에도 있다) */
 const RSORT = 'css:[data-testid="browser-roster"] [data-testid="list-sort"]';
 /** 초기 화면에서 [이어하기] 뒤의 스텝 */

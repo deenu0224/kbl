@@ -75,17 +75,9 @@ export function PayForecastLine({ core }: { core: Core }) {
   return (
     <div className="flex items-start gap-1 break-keep text-[11px] leading-snug mob:text-[13px]" data-testid="pay-forecast-line">
       <span className="min-w-0 flex-1 text-white/75">
-        내년 연봉 예상 <span className={diff > 0 ? 'text-bad' : 'text-good'}>{signedMoney(diff)}</span>
+        연봉 총액 예상 <span className={diff > 0 ? 'text-bad' : 'text-good'}>{signedMoney(diff)}</span>
         {' · '}
-        {loss ? (
-          <>
-            이대로면 내년 적자 <span className="text-bad">{signedMoney(f.profit)}</span>
-          </>
-        ) : (
-          <>
-            이대로면 내년 흑자 <span className="text-good">{signedMoney(f.profit)}</span>
-          </>
-        )}
+        내년 영업손익 예상 <span className={loss ? 'text-bad' : 'text-good'}>{signedMoney(f.profit)}</span>
       </span>
       <Help topic="payNext" />
     </div>

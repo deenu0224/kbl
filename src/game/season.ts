@@ -64,7 +64,7 @@ const AI_SIGN_MARGIN = 2; // 기존 주전 최저 OVR 보다 이만큼 나아야
 const AI_SIGN_TIER = 3; // 팀 전력 + 이 값을 넘는 FA 는 영입하지 않음
 const FAC_NAME: Record<FacilityKind, string> = { seats: '관중석', food: '매점', training: '훈련장' };
 const ABIL_KO: Record<string, string> = {
-  con: '컨택', pow: '파워', eye: '선구안', spd: '주력', def: '수비', stf: '구위', ctl: '제구', sta: '체력',
+  con: '컨택', pow: '파워', eye: '선구', spd: '주력', def: '수비', stf: '구위', ctl: '제구', sta: '체력',
 };
 type AbilKey = 'con' | 'pow' | 'eye' | 'spd' | 'def' | 'stf' | 'ctl' | 'sta';
 const BAT_KEYS: AbilKey[] = ['con', 'pow', 'eye', 'spd', 'def'];
@@ -127,7 +127,10 @@ export function settleCash(core: Core, notes: string[]): void {
   f.cash = 0;
   const msg = `현금 부족 — ${fmtMoney(need)} 긴급 대출로 전환`;
   notes.push(msg);
-  addNews(core, msg, 'bad');
+  if (!memoGet(core, 'loanNews')) {
+    memoSet(core, 'loanNews', 1); // 소식 탭에는 시즌에 한 번 (적자가 이어지면 경기마다 쌓였다)
+    addNews(core, msg, 'bad');
+  }
   if (!was && overLimit(core)) {
     const over = `부채 한도 초과! 부채 ${fmtMoney(f.debt)} / 한도 ${fmtMoney(loanLimit(core))}`;
     notes.push(over);
@@ -222,8 +225,7 @@ function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
       p.ovr = calcOvr(p);
       const msg = `${p.farm ? '퓨처스 성과' : '훈련 성과'}: ${p.name} ${ABIL_KO[k]}+${d} · ${ABIL_KO[k2]}+1`;
       if (p.farm && p.ovr >= FARM_CAP && p.ovr < p.pot) addNews(core, `${p.name}: 2군에서 배울 건 다 배웠습니다 (오버롤 ${p.ovr})`, 'info');
-      notes.push(msg);
-      addNews(core, msg, 'good');
+      notes.push(msg); // 소식 탭에는 올리지 않는다 (주간 브리핑의 "훈련 성과 n회"가 모아 보여 준다)
     } else if (p.age >= DECLINE_AGE && rng() < DECLINE_RATE) {
       const k = p.kind === 'B' ? pick(rng, ['spd', 'spd', 'def', 'con'] as AbilKey[]) : pick(rng, ['sta', 'stf'] as AbilKey[]);
       p[k] = clamp(p[k] - 1, 20, 99);
@@ -467,7 +469,10 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
     if (crowd.turnedAway > 0) {
       const msg = `매진! 자리가 없어 ${fmtInt(crowd.turnedAway)}명이 발길을 돌렸습니다`;
       notes.push(msg);
-      addNews(core, msg, 'info');
+      if (!memoGet(core, 'soldNews')) {
+        memoSet(core, 'soldNews', 1); // 소식 탭에는 시즌 첫 매진만
+        addNews(core, msg, 'info');
+      }
       if ((core.campaign.hints?.stadium ?? 0) < 3) hintMut(core, 'stadium');
     } else if (crowd.soldOut) {
       notes.push('매진! 만원 관중이 들어찼습니다');
@@ -838,6 +843,7 @@ function aiStoveLeague(core: Core, rng: Rng, ctx: Parameters<typeof genPlayer>[0
   const pool = core.freeAgents.slice().sort((a, b) => b.ovr - a.ovr);
   // 약한 팀부터 고른다 (리그 평준화)
   const ais = standings(core.teams).reverse().filter((t) => t.id !== core.userId);
+  const signed: { t: string; p: Player }[] = [];
   for (const t of ais) {
     const n = AI_SIGN_MIN + (rng() < AI_SIGN_EXTRA ? 1 : 0);
     for (let k = 0; k < n; k++) {
@@ -850,7 +856,7 @@ function aiStoveLeague(core: Core, rng: Rng, ctx: Parameters<typeof genPlayer>[0
       const [p] = pool.splice(i, 1);
       t.roster.push(p);
       autoLineup(t);
-      addNews(core, `스토브리그: ${t.name}, FA ${p.name}(${POS_NAME[p.pos] ?? p.pos} 오버롤 ${p.ovr}) 영입`, 'info');
+      signed.push({ t: t.name, p });
     }
     // 투수가 기준 구성에 못 미치면(투수 10명 시절의 세이브 포함) 남은 FA 구원, 없으면 신인 구원으로 불펜을 채운다
     for (let g = 0; g < 4 && t.roster.filter((p) => p.kind === 'P').length < AI_ROSTER - AI_ROSTER_B; g++) {
@@ -861,6 +867,9 @@ function aiStoveLeague(core: Core, rng: Rng, ctx: Parameters<typeof genPlayer>[0
     trimAiMut(t);
     autoLineup(t);
   }
+  // 구단마다 한 줄씩이면 스토브리그마다 열 줄 넘게 쌓인다 → 한 줄로 (최대어만 이름을 적는다)
+  const top = signed.slice().sort((a, b) => b.p.ovr - a.p.ovr)[0];
+  if (top) addNews(core, `스토브리그: AI 구단 FA 영입 ${signed.length}건 — 최대어 ${top.p.name}(${POS_NAME[top.p.pos] ?? top.p.pos} 오버롤 ${top.p.ovr}) → ${top.t}`, 'info');
 }
 
 export function nextSeason(core0: Core, rng: Rng): Core {

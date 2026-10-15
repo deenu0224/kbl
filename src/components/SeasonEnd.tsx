@@ -252,7 +252,7 @@ function SeasonEndBody() {
         {v?.debtMood && (
           <div className={`mt-3 px-2 py-1.5 text-[12px] leading-snug mob:text-[13px] ${v.debtMood.trust < 0 ? 'bg-bad/15' : 'bg-[#f0a35a]/15'}`} data-testid="end-debtmood">
             <span className={v.debtMood.trust < 0 ? 'text-bad' : 'text-[#f0a35a]'}>{v.debtMood.trust < 0 ? `빚더미 구단 — ${TRUST_LABEL} ${v.debtMood.trust}` : '빚더미 구단 — 조합장 경고'}</span>
-            <span className="text-white/70"> · 부채 {fmtMoney(v.debtMood.debt)} / 대출 한도 {fmtMoney(v.debtMood.limit)} ({Math.round((v.debtMood.debt / v.debtMood.limit) * 100)}%){v.debtMood.trust < 0 ? ` · ${v.debtMood.streak}시즌째` : ' · 다음 시즌에도 이대로면 지지가 깎입니다'}</span>
+            <span className="text-white/70"> · 부채 {fmtMoney(v.debtMood.debt)} / 한도 {fmtMoney(v.debtMood.limit)} ({Math.round((v.debtMood.debt / v.debtMood.limit) * 100)}%){v.debtMood.trust < 0 ? ` · ${v.debtMood.streak}시즌째` : ` · 다음 시즌에도 이대로면 ${TRUST_LABEL} 하락`}</span>
             <div className="mt-0.5 text-white/60">{CHARACTERS.chair.name} {CHARACTERS.chair.title} — “{v.debtMood.trust < 0 ? DEBT_MOOD_LINE.cut : DEBT_MOOD_LINE.warn}”</div>
           </div>
         )}

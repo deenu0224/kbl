@@ -120,7 +120,7 @@ function breakTie(res: GameResult, home: Team, away: Team, rng: Rng, track: bool
     half: homeWins ? 1 : 0,
     teamId: winner.id,
     text: homeWins ? `${winner.name} 연장 끝내기!` : `${winner.name} 연장 결승점!`,
-    sub: `${last}회${homeWins ? '말' : '초'} · 포스트시즌은 무승부가 없다`,
+    sub: `${last}회${homeWins ? '말' : '초'} · 가을야구는 무승부가 없다`,
     away: res.away,
     home: res.home,
   };
@@ -266,7 +266,7 @@ export function afterRegularSeasonMut(core: Core, rng: Rng): void {
   core.post!.intro = true; // 정규시즌 마감 화면 (난수를 쓰지 않는다)
   if (core.post!.userFinish !== 'none') {
     core.phase = 'post';
-    addNews(core, `가을야구 진출! 정규시즌 ${rankOf(core.teams, core.userId)}위로 포스트시즌에 나섭니다`, 'good');
+    addNews(core, `가을야구 진출! 정규시즌 ${rankOf(core.teams, core.userId)}위`, 'good');
     autoSimMut(core, rng);
     return;
   }

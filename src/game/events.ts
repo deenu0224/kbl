@@ -1018,8 +1018,6 @@ export function maybeDrawEvent(core0: Core, rng: Rng): Core {
     core.campaign.eventsSeen.push(d.id);
     if (!d.forced) markCardMut(core, d.id);
     memoSet(core, 'evDay', core.day);
-    const who = cd.who && cd.who !== 'player' ? `${CHARACTERS[cd.who].name} ${CHARACTERS[cd.who].title} — ` : '';
-    addNews(core, `${cd.icon} ${who}${cd.title}`, 'info');
     return core;
   }
   // 일반 카드가 없는 날: 트레이드 제안(별도 예산: trade.ts) → 2군 사건(별도 예산: farm.ts)
