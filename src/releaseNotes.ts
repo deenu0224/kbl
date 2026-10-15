@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.3',
+    date: '2026-10-15',
+    title: '덜 시끄럽게',
+    notes: ['소식 탭에 같은 소식이 반복해서 쌓이지 않게 정리했습니다. 카드와 브리핑 문구도 짧게 다듬었어요.'],
+  },
+  {
     version: '0.14.2',
     date: '2026-10-15',
     title: '함께 치른 시즌',
