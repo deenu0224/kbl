@@ -12,6 +12,15 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.1',
+    date: '2026-10-15',
+    title: '출신이 보여요',
+    notes: [
+      '선수 카드에 FA 영입인지 우리 드래프트 출신인지 표시됩니다.',
+      '도루가 가장 빠른 선수에게만 몰리지 않게 다듬었습니다.',
+    ],
+  },
+  {
     version: '0.14.0',
     date: '2026-10-15',
     title: '뛰는 야구',
