@@ -555,7 +555,6 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
 
   // 타순 화면은 타격 능력치를 바로 보여 준다 (오버롤에는 수비가 섞여 있어 타순을 짜기 어렵다)
   const BAT_COLS: [string, (p: Player) => number][] = [['컨택', (p) => p.con], ['파워', (p) => p.pow], ['선구', (p) => p.eye], ['주력', (p) => p.spd]];
-  const tone = (v: number) => (v >= 70 ? 'text-hi' : v < 50 ? 'text-white/40' : 'text-white/85');
   const orderView = (
     <div className="flex flex-col gap-1 p-1" data-testid="squad-order">
       <RunStyleBar />
@@ -582,7 +581,8 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
             <span className={`min-w-0 flex-1 truncate text-[14px] ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>{p.name}</span>
             <span className="shrink-0 text-[13px]">{delta(stateOf(p.id).plan, null, false)}</span>
             {BAT_COLS.map(([k, f]) => (
-              <span key={k} className={`w-7 shrink-0 text-center text-[14px] ${tone(f(p))}`} data-testid="order-stat">
+              // 선수 카드 막대와 같은 색 (ratingColor): 숫자를 읽지 않아도 강점·약점이 보이게 칸에 옅은 바탕을 깐다
+              <span key={k} className="w-7 shrink-0 py-0.5 text-center text-[14px]" style={{ color: ratingColor(f(p)), background: `${ratingColor(f(p))}26` }} data-testid="order-stat">
                 {f(p)}
               </span>
             ))}
