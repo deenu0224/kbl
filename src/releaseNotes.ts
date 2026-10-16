@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.6',
+    date: '2026-10-16',
+    title: '홈 화면에 추가해 보세요',
+    notes: ['첫 화면의 안내대로 홈 화면에 추가하면 앱처럼 열리고 세이브도 더 안전해요.', '혹시 화면이 멈추면 다시 시도할 수 있는 화면이 뜹니다.'],
+  },
+  {
     version: '0.14.5',
     date: '2026-10-16',
     title: '안드로이드 탭 고침',
