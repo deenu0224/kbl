@@ -32,16 +32,7 @@ import { openDesk } from './roster/transferUi';
 import { LedgerBars, ledgerTotals } from './RightPanel';
 import { MiniBars, OvrBadge, POS_KO, TeamDot, fmtPct, recText } from './ui';
 import { PayForecastBlock } from './PayForecast';
-import Help from './Help';
 
-/** 홈 화면 앱(설치된 웹앱)으로 열렸는가 */
-const installed = (): boolean => {
-  try {
-    return window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  } catch {
-    return false;
-  }
-};
 
 const GRADE_COLOR: Record<string, string> = { ...Object.fromEntries(RANKS.map((r) => [r.id, r.color])) }; // 단장 랭크 (옛 등급 S~D 도 같은 표)
 const GG_ORDER: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
@@ -420,14 +411,6 @@ function SeasonEndBody() {
 
         {/* 내년 살림 미리보기: 시즌이 바뀌면 연봉이 다시 매겨진다 — 결과를 미리 말한다 (payforecast.ts) */}
         {core.phase === 'ended' && <PayForecastBlock core={core} />}
-
-        {/* 첫 결산에 한 번만: 홈 화면 앱이 아니면 설치 안내 한 줄 (사파리의 7일 저장 삭제를 피한다) */}
-        {core.phase === 'ended' && core.season === 1 && !installed() && (
-          <div className="mt-3 flex items-center gap-1 text-[12px] text-white/70 mob:text-[13px]" data-testid="install-hint">
-            <span className="min-w-0 flex-1">📲 홈 화면에 추가하면 세이브가 더 안전해요</span>
-            <Help topic="install" />
-          </div>
-        )}
 
         {/* 살림: 최종 순위 · 손익 · 구단 MVP 는 접어 둔다 */}
         <Fold label="최종 순위 · 손익 결산 · 구단 MVP" className="mt-3" testid="fold-ledger">

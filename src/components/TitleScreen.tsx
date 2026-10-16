@@ -16,6 +16,8 @@ import { useAchv } from './achvStore';
 import { useUi } from './layout/uiStore';
 import { parseFrom } from '../share/shareData';
 import { ShareClubButton } from './ShareSheet';
+import Help from './Help';
+import { installed } from './layout/installed';
 
 const DEF = TEAM_DEFS.find((d) => d.id === USER_ID)!;
 export const NICK_DEFAULT = DEF.name;
@@ -392,6 +394,13 @@ export default function TitleScreen() {
               <button className={big} data-testid="open-settings" onClick={() => setSettingsOpen(true)}>
                 설정
               </button>
+              {/* 홈 화면 앱이 아니면 설치 안내 한 줄 (사파리의 7일 저장 삭제를 피한다) */}
+              {!installed() && (
+                <div className="mt-1 flex min-h-10 items-center justify-center gap-1.5 text-[13px] text-white/70" data-testid="install-hint">
+                  📲 홈 화면에 추가하면 세이브가 더 안전해요
+                  <Help topic="install" />
+                </div>
+              )}
               {FEEDBACK_URL && (
                 <a className="mt-1 flex min-h-10 items-center justify-center text-[13px] text-sky underline" href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" data-testid="feedback" onClick={() => track('feedback')}>
                   의견 보내기 — 불편한 점을 알려 주세요
