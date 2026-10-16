@@ -506,7 +506,7 @@ function SeasonEndBody() {
           >
             이적 시장
           </button>
-          <button className="px-btn primary min-h-11 whitespace-nowrap !px-6 !py-2 text-[14px] mob:flex-1 mob:!px-2" onClick={beginDraft}>
+          <button className="px-btn primary min-h-11 whitespace-nowrap !px-6 !py-2 text-[14px] mob:flex-1 mob:!px-2" onClick={beginDraft} data-hotkey>
             신인 드래프트로 ▶
           </button>
         </div>

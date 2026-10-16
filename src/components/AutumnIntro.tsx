@@ -108,7 +108,7 @@ export default function AutumnIntro() {
           </div>
         </div>
         <div className="shrink-0 border-t-2 border-ink p-2">
-          <button className="px-btn gold min-h-11 w-full text-[15px]" data-testid="autumn-go" onClick={done}>
+          <button className="px-btn gold min-h-11 w-full text-[15px]" data-testid="autumn-go" onClick={done} data-hotkey="2">
             {cta}
           </button>
         </div>

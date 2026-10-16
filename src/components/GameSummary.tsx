@@ -493,7 +493,7 @@ export default function GameSummary({ sheet = false }: { sheet?: boolean }) {
           <div className="mx-auto max-w-[720px]">{body}</div>
         </div>
         <div className="shrink-0 bg-edge/60 p-2">
-          <button className="px-btn primary mx-auto block min-h-11 w-full max-w-[720px] text-[15px]" onClick={close} autoFocus>
+          <button className="px-btn primary mx-auto block min-h-11 w-full max-w-[720px] text-[15px]" onClick={close} autoFocus data-hotkey="2" title="Enter · Space">
             {ended ? '시즌 결산 보기' : '확인'}
           </button>
         </div>
@@ -506,7 +506,7 @@ export default function GameSummary({ sheet = false }: { sheet?: boolean }) {
       <div className="px-panel px-scroll flex max-h-full w-full max-w-[560px] flex-col overflow-y-auto p-3">
         {body}
         <div className="mt-2.5 flex justify-end">
-          <button className="px-btn primary !px-5 !py-1.5 text-[13px]" onClick={close} autoFocus>
+          <button className="px-btn primary !px-5 !py-1.5 text-[13px]" onClick={close} autoFocus data-hotkey="2" title="Enter · Space">
             {ended ? '시즌 결산 보기' : '확인'}
           </button>
         </div>

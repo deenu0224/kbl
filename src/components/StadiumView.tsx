@@ -558,7 +558,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
             </div>
             {/* 모바일은 엄지 위치(액션 바)에 건너뛰기가 있다 */}
             {!mobile && (
-              <button className="px-btn" style={{ fontSize: 'max(11px, 1.5cqw)' }} onClick={skipOrCeremony}>
+              <button className="px-btn" style={{ fontSize: 'max(11px, 1.5cqw)' }} onClick={skipOrCeremony} data-hotkey title="Enter · Space">
                 건너뛰기 ▶▶
               </button>
             )}

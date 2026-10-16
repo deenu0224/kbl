@@ -365,7 +365,7 @@ export default function BriefingSheet() {
         ))}
       </div>
       <div className="shrink-0 px-2 pt-1.5 pb-2">
-        <button className="px-btn primary min-h-11 w-full text-[15px]" data-testid="brief-close" onClick={close}>
+        <button className="px-btn primary min-h-11 w-full text-[15px]" data-testid="brief-close" onClick={close} data-hotkey="2">
           {open > 0 ? `남은 제안 ${open}장 넘기고 닫기` : '닫기'}
         </button>
       </div>

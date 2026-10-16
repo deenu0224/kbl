@@ -99,13 +99,13 @@ function PlayButton({ className, opener, off }: { className: string; opener: boo
   const setOrderOpen = useUi((s) => s.setOrderOpen);
   if (opener) {
     return (
-      <button className={`px-btn primary ${className}`} data-testid="order-open" disabled={off} onClick={() => setOrderOpen(true)}>
+      <button className={`px-btn primary ${className}`} data-testid="order-open" disabled={off} onClick={() => setOrderOpen(true)} data-hotkey>
         개막전 오더
       </button>
     );
   }
   return (
-    <button className={`px-btn primary ${className}`} data-sfx="none" disabled={off} onClick={playNext}>
+    <button className={`px-btn primary ${className}`} data-sfx="none" disabled={off} onClick={playNext} data-hotkey title="Enter · Space">
       ▶ 경기 진행
     </button>
   );
@@ -226,7 +226,7 @@ export function MobileActionBar({ bare = false }: { bare?: boolean } = {}) {
   const hiddenId = useUi((s) => s.eventHidden);
   const eventFolded = eventId !== null && eventId === hiddenId;
   const buttons = playback ? (
-    <button className="px-btn gold min-h-11 short:min-h-10 flex-1 text-[15px]" onClick={skipOrCeremony}>
+    <button className="px-btn gold min-h-11 short:min-h-10 flex-1 text-[15px]" onClick={skipOrCeremony} data-hotkey>
       건너뛰기 ▶▶
     </button>
   ) : eventFolded ? (

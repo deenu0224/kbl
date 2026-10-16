@@ -7,10 +7,12 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { initAnalytics } from './analytics';
 import { initUiScale } from './components/layout/uiScale';
 import { initAchv } from './components/achvStore';
+import { initHotkeys } from './components/hotkey';
 
 initUiScale();
 initAnalytics();
 initAchv();
+initHotkeys();
 // 세이브를 브라우저가 임의로 지우지 않게 영구 저장을 요청한다 (거절돼도 그대로 동작. 홈 화면 앱이면 대개 허락된다)
 void navigator.storage?.persist?.().catch(() => false);
 
