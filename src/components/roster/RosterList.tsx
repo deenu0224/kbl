@@ -30,7 +30,7 @@ export function FullScreen({ title, sub, onClose, children, testid, hold = false
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, hold]);
   return createPortal(
-    <div className={`fixed inset-0 ${top ? 'z-[75]' : 'z-40'} flex h-[calc(var(--dvh)*100)] items-stretch justify-center bg-ink/90 p-5 font-pixel text-[12px] select-none mob:p-0`} style={safe} data-testid={testid}>
+    <div className={`fixed inset-0 ${top ? 'z-[75]' : 'z-40'} flex h-[calc(var(--dvh)*100)] items-stretch justify-center bg-ink/90 p-5 font-pixel text-[12px] select-none mob:bg-ink mob:p-0`} style={safe} data-testid={testid}>
       <div className="absolute inset-0" onClick={onClose} />
       <div className="px-panel relative flex min-h-0 w-full max-w-[1180px] flex-col">
         <div className="flex shrink-0 items-center gap-2 px-2 pt-1.5">

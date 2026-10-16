@@ -19,7 +19,7 @@ export function HofDetail({ club, gen, season, onClose }: { club: HofClub; gen?:
   // 시즌 줄: 새 기록은 hist, 옛 기록은 순위만
   const rows: (Pick<HofSeason, 's' | 'r'> & { full?: HofSeason })[] = club.hist ? club.hist.map((h) => ({ s: h.s, r: h.r, full: h })) : club.ranks.map((r, i) => ({ s: i + 1, r }));
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 mob:items-stretch" onClick={onClose} data-testid="hof-detail">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 mob:items-stretch mob:bg-ink" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={onClose} data-testid="hof-detail">
       <div className="flex max-h-[85%] w-full max-w-[560px] flex-col bg-[#141a29] px-3 py-2 mob:max-h-full" style={{ boxShadow: '0 0 0 2px #0f1420' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex shrink-0 items-center justify-between gap-2">
           <span className="font-pixel-lg truncate text-[17px]" style={{ color: DEF.color }}>
