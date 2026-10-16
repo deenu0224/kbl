@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.9',
+    date: '2026-10-16',
+    title: '홈 화면 앱 상단 다시 다듬기',
+    notes: ['아이폰 홈 화면 앱에서 플레이 화면 맨 위가 흐려 보이던 것을 고쳤습니다.'],
+  },
+  {
     version: '0.14.8',
     date: '2026-10-16',
     title: '홈 화면 앱 상단 정리',
