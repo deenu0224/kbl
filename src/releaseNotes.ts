@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.11',
+    date: '2026-10-16',
+    title: '엔터로 넘기기',
+    notes: ['PC에서 엔터·스페이스로 경기 진행, 건너뛰기, 경기 요약 확인을 할 수 있어요.'],
+  },
+  {
     version: '0.14.10',
     date: '2026-10-16',
     title: '플레이 화면 상단 고침',
