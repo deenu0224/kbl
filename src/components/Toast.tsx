@@ -26,7 +26,7 @@ function ToastBox() {
   return (
     <div
       data-testid="toast"
-      className={`pointer-events-none fixed inset-x-0 z-[60] flex justify-center px-3 ${overlay ? 'top-[calc(env(safe-area-inset-top)+6px)]' : 'top-14 mob:top-auto mob:bottom-[calc(env(safe-area-inset-bottom)+164px)] land:bottom-[calc(env(safe-area-inset-bottom)+60px)]'}`}
+      className={`pointer-events-none fixed inset-x-0 z-[60] flex justify-center px-3 ${overlay ? 'top-[calc(var(--sat)+6px)]' : 'top-14 mob:top-auto mob:bottom-[calc(env(safe-area-inset-bottom)+164px)] land:bottom-[calc(env(safe-area-inset-bottom)+60px)]'}`}
     >
       <div
         key={toast.key}

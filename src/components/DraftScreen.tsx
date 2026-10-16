@@ -91,7 +91,7 @@ export default function DraftScreen() {
   return (
     <div
       className="fixed inset-0 z-50 flex items-stretch justify-center bg-ink/95 p-4 mob:p-0"
-      style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingTop: 'max(var(--sat), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="px-panel flex min-h-0 w-full max-w-[1000px] flex-col">
         {/* 머리 */}

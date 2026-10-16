@@ -15,7 +15,7 @@ import { usePosReport, useRosterUi, type ListView } from './rosterUi';
 import { openDesk } from './transferUi';
 
 const safe = {
-  paddingTop: 'max(env(safe-area-inset-top), 0px)',
+  paddingTop: 'max(var(--sat), 0px)',
   paddingBottom: 'env(safe-area-inset-bottom)',
   paddingLeft: 'env(safe-area-inset-left)',
   paddingRight: 'env(safe-area-inset-right)',

@@ -24,7 +24,7 @@ export const NICK_DEFAULT = DEF.name;
 export const NICK_MAX = 8;
 
 const safe: CSSProperties = {
-  paddingTop: 'max(env(safe-area-inset-top), 12px)',
+  paddingTop: 'max(var(--sat), 12px)',
   paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
   paddingLeft: 'max(env(safe-area-inset-left), 16px)',
   paddingRight: 'max(env(safe-area-inset-right), 16px)',

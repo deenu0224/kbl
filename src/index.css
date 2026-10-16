@@ -31,6 +31,14 @@
   --vw: calc(1vw / var(--z));
 }
 
+/* 위쪽 안전 영역. 아이폰 홈 화면 앱은 iOS 가 상태 표시줄 아래 가장자리에 흐림 띠를 덮어서(설정과 무관) 첫 줄이 흐려진다 → 조금 더 내린다 (main.tsx 가 data-standalone 을 붙인다) */
+:root {
+  --sat: env(safe-area-inset-top);
+}
+:root[data-standalone='ios'] {
+  --sat: calc(env(safe-area-inset-top) + 16px);
+}
+
 html,
 body,
 #root {

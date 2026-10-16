@@ -213,7 +213,7 @@ function SeasonEndBody() {
   return (
     <div
       className="fixed inset-0 z-30 flex items-center justify-center bg-ink/95 p-4 mob:items-stretch mob:p-0"
-      style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingTop: 'max(var(--sat), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="px-panel px-scroll flex max-h-full w-full max-w-[1100px] flex-col overflow-y-auto p-4 mob:p-3">
         {/* 단장 랭크 한 줄 + 도움말 (gmscore.ts) */}

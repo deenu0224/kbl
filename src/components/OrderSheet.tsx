@@ -15,7 +15,7 @@ useStore.subscribe((s, p) => {
 });
 
 const safe = {
-  paddingTop: 'max(env(safe-area-inset-top), 4px)',
+  paddingTop: 'max(var(--sat), 4px)',
   paddingBottom: 'max(env(safe-area-inset-bottom), 6px)',
   paddingLeft: 'max(env(safe-area-inset-left), 4px)',
   paddingRight: 'max(env(safe-area-inset-right), 4px)',

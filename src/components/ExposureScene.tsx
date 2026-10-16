@@ -11,7 +11,7 @@ export default function ExposureScene({ list, onDone }: { list: Exposure[]; onDo
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/95 p-4 mob:items-stretch mob:p-0"
-      style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingTop: 'max(var(--sat), 0px)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       data-testid="exposure-scene"
     >
       <div className="px-scroll flex max-h-full w-full max-w-[560px] flex-col overflow-y-auto bg-[#140b0e] p-5 mob:max-w-none mob:p-4" style={{ boxShadow: '0 0 0 2px #ff6b6b, 0 0 40px rgba(255,107,107,0.25)' }}>

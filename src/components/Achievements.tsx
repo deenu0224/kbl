@@ -140,7 +140,7 @@ export function AchvToast() {
   const d = BY_ID.get(batch[0]);
   if (!d) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-[96px] z-[90] flex justify-center px-3 mob:top-[calc(env(safe-area-inset-top)+48px)]" data-testid="achv-toast" role="status">
+    <div className="pointer-events-none fixed inset-x-0 top-[96px] z-[90] flex justify-center px-3 mob:top-[calc(var(--sat)+48px)]" data-testid="achv-toast" role="status">
       <div className="flex max-w-full items-center gap-2 bg-[#2a2140] px-3 py-1.5 text-[13px] text-white" style={{ boxShadow: '0 0 0 2px #ffd84a, 0 0 0 4px #0f1420, 0 6px 0 rgba(0,0,0,.3)' }}>
         <span className="shrink-0 text-[16px]" aria-hidden>
           {d.icon}

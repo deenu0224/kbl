@@ -483,7 +483,7 @@ export default function GameSummary({ sheet = false }: { sheet?: boolean }) {
       <div
         className="anim-sheet fixed inset-0 z-40 flex flex-col bg-panel"
         style={{
-          paddingTop: 'env(safe-area-inset-top)',
+          paddingTop: 'var(--sat)',
           paddingBottom: 'env(safe-area-inset-bottom)',
           paddingLeft: 'env(safe-area-inset-left)',
           paddingRight: 'env(safe-area-inset-right)',
