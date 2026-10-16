@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.8',
+    date: '2026-10-16',
+    title: '홈 화면 앱 상단 정리',
+    notes: ['아이폰 홈 화면 앱 맨 위의 흐린 띠를 없앴습니다. 이미 추가했다면 아이콘을 지우고 다시 추가해야 바뀝니다 (먼저 설정에서 세이브를 내보내 두세요).'],
+  },
+  {
     version: '0.14.7',
     date: '2026-10-16',
     title: '홈 화면 앱 화면 다듬기',
