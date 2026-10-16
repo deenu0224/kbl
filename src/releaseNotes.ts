@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.12',
+    date: '2026-10-17',
+    title: '덜 누르게',
+    notes: [
+      '경기 요약이 떠 있어도 바로 다음 경기를 진행할 수 있어요.',
+      '부상 대체를 감독에게 맡겼다면 1주 진행이 부상으로 멈추지 않습니다.',
+      '오버롤 숫자가 잘려 보이던 문제를 고쳤습니다.',
+    ],
+  },
+  {
     version: '0.14.11',
     date: '2026-10-16',
     title: '엔터로 넘기기',
