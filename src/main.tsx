@@ -8,8 +8,6 @@ import { initAnalytics } from './analytics';
 import { initUiScale } from './components/layout/uiScale';
 import { initAchv } from './components/achvStore';
 
-// 아이폰 홈 화면 앱이면 표시 (index.css --sat: 위 여백을 조금 더 둔다)
-if ((navigator as Navigator & { standalone?: boolean }).standalone === true) document.documentElement.dataset.standalone = 'ios';
 initUiScale();
 initAnalytics();
 initAchv();

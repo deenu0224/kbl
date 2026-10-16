@@ -262,7 +262,7 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
 
   if (orientation === 'landscape') {
     return (
-      <div className="flex h-[calc(var(--dvh)*100)] gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
+      <div className="fixed inset-0 flex h-[calc(var(--dvh)*100)] gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
         <div className="flex min-w-0 flex-1 flex-col gap-[4px]">
           <ThinBar menu />
           <div className="relative min-h-0 flex-1">
@@ -282,8 +282,9 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
   }
   const lineOn = useLineScoreOn();
   const home = tab === 'home';
+  // 화면에 고정(fixed)한다: 보통 흐름이면 아이폰 홈 화면 앱에서 iOS 가 상태 표시줄 아래 가장자리에 흐림 띠를 덮는다 (고정 레이어인 초기 화면·도전과제에는 없다)
   return (
-    <div className="flex h-[calc(var(--dvh)*100)] flex-col gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
+    <div className="fixed inset-0 flex h-[calc(var(--dvh)*100)] flex-col gap-[4px] overflow-hidden bg-[#141a29] font-pixel text-[13px] select-none" style={safe}>
       {home && !playback ? <MobileTopBar /> : <ThinBar />}
       {home && (
         <>
