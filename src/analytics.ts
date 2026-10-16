@@ -52,7 +52,20 @@ const trackOnce = (name: string, key = name) => {
   track(name);
 };
 
+/** 화면·스크립트 오류를 센다: 이름은 err-{종류}-{메시지 앞부분} (세션마다 같은 오류는 한 번). 세이브·별칭은 보내지 않는다 */
+const errSeen = new Set<string>();
+export function trackError(kind: 'render' | 'js' | 'promise', err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  const slug = msg.replace(/[^0-9A-Za-z가-힣]+/g, '-').replace(/^-|-$/g, '').slice(0, 32) || 'unknown';
+  const name = `err-${kind}-${slug}`;
+  if (errSeen.has(name)) return;
+  errSeen.add(name);
+  track(name);
+}
+
 export function initAnalytics() {
+  window.addEventListener('error', (e) => trackError('js', e.error ?? e.message));
+  window.addEventListener('unhandledrejection', (e) => trackError('promise', e.reason));
   send(location.pathname, false);
   track(`ver-${__APP_VERSION__}`); // 어느 버전으로 들어왔는지 (업데이트 전후 비교)
   if (new URLSearchParams(location.search).has('from')) track('from-share'); // 공유 글을 타고 온 방문

@@ -12,6 +12,7 @@ import { DOME_COST, GIVE_FX_MAX } from '../game/projects';
 
 export type HelpTopic =
   | 'ovr'
+  | 'install'
   | 'potential'
   | 'strength'
   | 'winChance'
@@ -36,6 +37,15 @@ export type HelpTopic =
   | 'postseason';
 
 export const HELP: Record<HelpTopic, { title: string; lines: string[] | ((core: Core) => string[]) }> = {
+  install: {
+    title: '홈 화면에 추가',
+    lines: [
+      '아이폰: 사파리 아래 공유 버튼 → 홈 화면에 추가.',
+      '안드로이드: 크롬 오른쪽 위 ⋮ → 앱 설치(또는 홈 화면에 추가).',
+      '카카오톡·스레드 안에서 열었다면 먼저 "다른 브라우저로 열기".',
+      '홈 화면 앱은 오래 안 들어와도 세이브가 지워지지 않습니다 (사파리는 7일 동안 안 들어온 사이트의 저장 데이터를 지울 수 있습니다).',
+    ],
+  },
   postseason: {
     title: '가을야구',
     lines: (core: Core) => {
