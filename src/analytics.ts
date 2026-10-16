@@ -7,8 +7,11 @@ import { loanLimit } from './game/economy';
 // - 설정에서 끌 수 있다 (kbl-no-stats).
 /** GoatCounter 사이트 코드 (https://{코드}.goatcounter.com). 가입 뒤 여기에 적는다 */
 export const STATS_CODE: string = 'deenu0224';
-/** 의견 보내기 링크 (구글 폼). 비어 있으면 버튼이 뜨지 않는다 */
-export const FEEDBACK_URL: string = 'https://docs.google.com/forms/d/e/1FAIpQLSdF2ceTEtSme1Ph4mGg-h8k5n8e8W8hLTY94MMJKtnU-usYBw/viewform';
+/** 의견 보내기 링크 (구글 폼). 비어 있으면 버튼이 뜨지 않는다.
+ *  사진 첨부를 받으므로 구글 로그인이 필요하다(폼 설정). "버전" 칸(entry.969948271)은 지금 게임 버전으로 미리 채운다 */
+const FEEDBACK_FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSdF2ceTEtSme1Ph4mGg-h8k5n8e8W8hLTY94MMJKtnU-usYBw/viewform';
+const FEEDBACK_VERSION_ENTRY = 'entry.969948271';
+export const FEEDBACK_URL: string = `${FEEDBACK_FORM}?usp=pp_url&${FEEDBACK_VERSION_ENTRY}=${encodeURIComponent(`v${__APP_VERSION__}`)}`;
 /** 후원 링크 (카카오페이 송금코드). 비어 있으면 버튼이 뜨지 않는다. 후원에 게임 안 대가는 걸지 않는다 */
 export const DONATE_URL: string = 'https://qr.kakaopay.com/Ej8FYHCrH';
 
