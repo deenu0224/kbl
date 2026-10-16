@@ -378,11 +378,14 @@ export default function TitleScreen() {
                   <div className="mt-0.5 text-[13px] text-white/60">{from.ask}</div>
                 </div>
               )}
-              <button className={`${big} primary flex flex-col items-center justify-center !py-2 leading-tight`} data-testid="continue" disabled={!hasSave} onClick={() => setScreen('game')}>
-                이어하기
-                <span className="mt-0.5 text-[13px] text-white/75">{hasSave ? line : '저장된 구단이 없습니다'}</span>
-              </button>
-              <button className={big} data-testid="new-game" onClick={() => begin()}>
+              {/* 저장이 없으면 이어하기를 숨기고 새로하기가 주 버튼(주황)이 된다 — 흐린 주황 버튼에 눈과 손이 먼저 가던 것 */}
+              {hasSave && (
+                <button className={`${big} primary flex flex-col items-center justify-center !py-2 leading-tight`} data-testid="continue" onClick={() => setScreen('game')}>
+                  이어하기
+                  <span className="mt-0.5 text-[13px] text-white/75">{line}</span>
+                </button>
+              )}
+              <button className={`${big} ${hasSave ? '' : 'primary'}`} data-testid="new-game" onClick={() => begin()}>
                 새로하기
               </button>
               <button className={big} data-testid="open-hof" onClick={() => setView('hof')}>

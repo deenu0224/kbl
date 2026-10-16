@@ -787,7 +787,8 @@ export function stopReason(core: Core, report: DayReport): string | null {
     ...t.roster.filter((p) => rot.has(p.id)).sort(byOvr).slice(0, 3).map((p) => p.id),
   ]);
   const hurt = report.result.injuries.find((j) => j.teamId === core.userId && key.has(j.pid));
-  if (hurt && core.day - memoNum(core, 'injStop', -99) > STOP_INJ_GAP) {
+  // 부상 대체를 감독에게 맡겼으면 멈추지 않는다 (고를 카드가 없다 — 경기 요약에 부상이 나온다. farm.ts subAutoOn)
+  if (hurt && core.campaign.subAuto !== true && core.day - memoNum(core, 'injStop', -99) > STOP_INJ_GAP) {
     memoSet(core, 'injStop', core.day);
     return `주전 부상: ${hurt.name} ${hurt.games}경기 결장`;
   }

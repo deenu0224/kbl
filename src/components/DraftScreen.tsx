@@ -180,7 +180,7 @@ export default function DraftScreen() {
               <span className="min-w-0 flex-1 text-[12px] text-white/75">
                 우리 구단 지명 <span className="text-hi">{mine.size}명</span>
               </span>
-              <button className="px-btn primary min-h-11 !px-6 text-[15px] mob:flex-1" onClick={finishDraft}>
+              <button className="px-btn primary min-h-11 !px-6 text-[15px] mob:flex-1" onClick={finishDraft} data-hotkey title="Enter · Space">
                 새 시즌 개막 ▶
               </button>
             </>

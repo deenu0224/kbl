@@ -9,7 +9,6 @@ import { TeamDot, dowOf, isNightDay } from './ui';
 /** 하단 진행 버튼들의 공통 상태 (데스크톱 BottomBar · 모바일 액션 바 공용) */
 export function useMatchActions() {
   const playback = useStore((s) => !!s.playback);
-  const summary = useStore((s) => !!s.summary);
   const phase = useStore((s) => s.phase);
   const day = useStore((s) => s.day);
   const schedule = useStore((s) => s.schedule);
@@ -26,7 +25,8 @@ export function useMatchActions() {
   const next = live ? userMatch({ schedule, userId, phase, post }, day) : null;
   const opp = teams.find((t) => t.id === next?.oppId);
   const idle = phase === 'draft' ? '신인 드래프트 진행 중' : phase === 'over' ? '연고 이전이 확정됐습니다' : inPost ? '포스트시즌 일정이 끝났습니다' : '정규 시즌이 끝났습니다';
-  const reason = playback ? '경기 하이라이트 재생 중' : summary ? '경기 요약을 먼저 닫으세요' : event ? '이벤트 카드 대기 중' : briefing ? '주간 브리핑 대기 중' : !next ? idle : undefined;
+  // 경기 요약이 떠 있어도 진행할 수 있다 (store.playNext 가 요약을 닫고 이어 간다)
+  const reason = playback ? '경기 하이라이트 재생 중' : event ? '이벤트 카드 대기 중' : briefing ? '주간 브리핑 대기 중' : !next ? idle : undefined;
   /** 다음 경기 설명: 정규시즌은 "12차전 · 금요일 야간", 포스트시즌은 "한국시리즈 3차전 · 2승 1패" */
   const when = postLine ? postLine.text : `${day + 1}차전 · ${dowOf(day)}요일 ${isNightDay(day) ? '야간' : '주간'}`;
   const whenShort = postLine ? postLine.text : `${day + 1}차전 ${dowOf(day)} ${isNightDay(day) ? '야간' : '주간'}`;

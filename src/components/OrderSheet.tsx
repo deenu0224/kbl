@@ -104,7 +104,7 @@ export default function OrderSheet() {
   );
   const bottom = order ? (
     <div className="shrink-0 px-1.5 pt-1.5 pb-2">
-      <button className="px-btn primary min-h-11 w-full text-[15px]" data-sfx="none" data-testid="order-submit" onClick={submit}>
+      <button className="px-btn primary min-h-11 w-full text-[15px]" data-sfx="none" data-testid="order-submit" onClick={submit} data-hotkey="2" title="Enter · Space">
         오더 제출 ▶
       </button>
     </div>

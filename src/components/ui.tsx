@@ -105,11 +105,12 @@ export function OvrBadge({ ovr, size = 22 }: { ovr: number; size?: number }) {
       style={{
         width: size,
         height: size,
-        fontSize: Math.max(13, size * 0.55),
+        // Galmuri14 는 14px 격자 글꼴: 13px 처럼 어중간한 크기면 1px 획이 빠져 61 이 6' 로 보인다 → 14px 또는 28px 로만
+        fontSize: size >= 48 ? 28 : 14,
         background: ratingColor(ovr),
         boxShadow: '0 0 0 1px #0f1420, inset 0 -2px 0 rgba(0,0,0,.25)',
       }}
-      title={`종합 ${ovr}`}
+      title={`오버롤 ${ovr}`}
     >
       {ovr}
     </span>

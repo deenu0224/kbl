@@ -219,8 +219,10 @@ export const useStore = create<Store>()(
         rightTab: 'league',
 
         playNext() {
+          if (get().playback) return;
+          // 경기 요약이 떠 있으면 닫고 바로 다음 경기로 ([확인]을 한 번 더 누르지 않아도 된다)
+          if (get().summary) set({ summary: null });
           const s = get();
-          if (s.playback || s.summary) return;
           const block = playBlock(s);
           if (block) {
             if (s.campaign?.event) set({ toast: mkToast(block, 'info') });
@@ -253,8 +255,9 @@ export const useStore = create<Store>()(
           commitPlayback();
         },
         simDays(n) {
+          if (get().playback) return;
+          if (get().summary) set({ summary: null });
           const s = get();
-          if (s.playback || s.summary) return;
           let core = pickCore(s);
           const reports: DayReport[] = [];
           let stopped: string | null = null;
