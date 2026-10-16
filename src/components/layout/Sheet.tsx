@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { uiZoom } from './uiScale';
+import { useGhostGuard } from './ghostClick';
 
 /**
  * 모바일 바텀 시트. 바깥(어두운 배경)을 탭하거나 손잡이를 아래로 끌면 닫힌다.
@@ -9,6 +10,7 @@ export default function Sheet({ onClose, children, label }: { onClose: () => voi
   const [dy, setDy] = useState(0);
   const start = useRef<number | null>(null);
   const body = useRef<HTMLDivElement | null>(null);
+  const ghost = useGhostGuard();
 
   // 뒤로가기(안드로이드)·Esc 로도 닫히게
   useEffect(() => {
@@ -34,7 +36,7 @@ export default function Sheet({ onClose, children, label }: { onClose: () => voi
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-end" role="dialog" aria-label={label}>
+    <div className="fixed inset-0 z-40 flex flex-col justify-end" role="dialog" aria-label={label} onClickCapture={ghost}>
       <div className="anim-fade absolute inset-0 bg-ink/65" onClick={onClose} />
       <div
         className="anim-sheet relative mx-auto flex max-h-[calc(var(--dvh)*88)] w-full max-w-[520px] flex-col bg-panel"
