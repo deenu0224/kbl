@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.14.5',
+    date: '2026-10-16',
+    title: '안드로이드 탭 고침',
+    notes: ['안드로이드에서 선수단 칸을 눌러도 아무 반응이 없던 문제를 고쳤습니다.'],
+  },
+  {
     version: '0.14.4',
     date: '2026-10-15',
     title: '한눈에 보이는 타순',
