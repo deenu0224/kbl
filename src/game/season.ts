@@ -595,6 +595,7 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
   const t = userTeam(core);
   const p = t.roster.find((x) => x.id === pid)!;
   t.roster = t.roster.filter((x) => x.id !== pid);
+  if (core.campaign.block) core.campaign.block = core.campaign.block.filter((id) => id !== pid); // 시장에 내놓은 자리도 비운다
   if (isFranchise(p, core.season)) {
     // 프랜차이즈 스타를 내보내면 팬이 등을 돌린다
     core.fans = Math.max(1000, core.fans - p.star * FRANCHISE_LEAVE_FANS);

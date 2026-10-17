@@ -303,6 +303,8 @@ export const SCREENS = [
   // 1군이 꽉 찼을 때 영입: 그 줄 아래에 내보낼 후보 3명 → [2군] → 확정 → 되돌리기
   S('desk-full-inline', 'relFull', game(...DESK, 'add-sign', { wait: 400 })),
   S('desk-full-picked', 'relFull', game(...DESK, 'add-sign', { wait: 300 }, 'cand-down', { wait: 300 })),
+  // 표 보기에서 담으면 줄 아래가 없다 → 아래 바 위에 같은 후보
+  S('desk-full-table', 'relFull', game(...DESK, 'view-toggle', { wait: 200 }, 'add-sign', { wait: 400 })),
   S('desk-undo', 'relFull', game(...DESK, 'add-sign', { wait: 300 }, 'cand-down', { wait: 300 }, 'desk-confirm', { wait: 300 })),
   // 폰은 줄 버튼이 없다: 줄을 눌러 카드에서 [트레이드 시장에 내놓기]
   S('desk-block-on', 'tradeWindow', game(...DESK, m('side-squad'), m('css:[data-testid="browser-roster"] [data-pid] button'), 'add-block', { wait: 300 })),

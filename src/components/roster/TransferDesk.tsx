@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { bonusText, faHeatLine, faSigned, farmMax } from '../../game/economy';
+import { bonusText, faHeatLine, faSigned, farmMax, farmRoster } from '../../game/economy';
 import { luxPiece } from '../../game/runway';
 import type { Player } from '../../game/types';
 import { play } from '../../audio/sfx';
@@ -39,7 +39,7 @@ export default function TransferDesk() {
 }
 
 /** 줄의 담기 버튼: 담으면 색이 차고, 다시 누르면 빠진다 */
-export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: string; big?: boolean }) {
+export function AddChip({ kind, pid, big = false, onAfter }: { kind: BasketKind; pid: string; big?: boolean; onAfter?: () => void }) {
   const on = useTransferUi((s) => s.basket[kind].includes(pid));
   const toggle = useTransferUi((s) => s.toggle);
   // 등록 마감 뒤와 포스트시즌에는 영입을 담을 수 없다 (이미 담은 것은 뺄 수 있다)
@@ -52,7 +52,7 @@ export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: str
       data-sfx="tab"
       disabled={!!closed && !on}
       title={closed ?? undefined}
-      onClick={() => toggle(kind, pid)}
+      onClick={() => (toggle(kind, pid), onAfter?.())}
       className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
       style={on ? { background: b.color, color: '#121110' } : { background: '#121110', color: b.color, boxShadow: `inset 0 0 0 1px ${b.color}88` }}
     >
@@ -62,7 +62,7 @@ export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: str
 }
 
 /** [트레이드 시장에] 토글: 내놓으면 트레이드 기간 중 원하는 구단의 제안이 온다 (trade.ts) */
-function BlockChip({ pid, big = false }: { pid: string; big?: boolean }) {
+function BlockChip({ pid, big = false, onAfter }: { pid: string; big?: boolean; onAfter?: () => void }) {
   const on = useStore((s) => (s.campaign.block ?? []).includes(pid));
   const toggle = useStore((s) => s.blockToggle);
   const closed = useStore((s) => blockClosedWhy(s));
@@ -75,12 +75,12 @@ function BlockChip({ pid, big = false }: { pid: string; big?: boolean }) {
       disabled={!!closed && !on}
       title={closed ?? '트레이드 시장에 내놓기'}
       aria-label="트레이드 시장에 내놓기"
-      onClick={() => toggle(pid)}
+      onClick={() => (toggle(pid), onAfter?.())}
       className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
       style={on ? { background: color, color: '#121110' } : { background: '#121110', color, boxShadow: `inset 0 0 0 1px ${color}88` }}
     >
       {on ? '✓' : '⇄'}
-      {big ? (on ? ' 트레이드 시장에 내놓음' : ' 트레이드 시장에 내놓기') : <span className="mob:hidden"> 시장</span>}
+      {big ? (on ? ` 시장에 내놓음 · ${TR.blockWithin[0]}~${TR.blockWithin[1]}경기 안 답` : ' 트레이드 시장에 내놓기') : <span className="mob:hidden"> 시장</span>}
     </button>
   );
 }
@@ -135,56 +135,29 @@ function ReleaseWhy({ a }: { a: Advice }) {
   );
 }
 
-/** 영입 줄 아래: 1군이 가득이면 내보낼 후보 3명(밀려나는 선수 + 방출 추천) · 정했으면 내보낼 선수와 [취소] */
-function InlineOut({ fa, pv, advice }: { fa: Player; pv: TransferPreview; advice: Advice[] }) {
+/** 1군이 가득일 때 내보낼 후보(밀려나는 선수 + 방출 추천) 최대 3명. [2군]은 2군이 가득이면 막는다 */
+function OutCands({ fa, pv, advice }: { fa: Player | undefined; pv: TransferPreview; advice: Advice[] }) {
+  const core = useCore();
   const team = useUserTeam();
   const basket = useTransferUi((s) => s.basket);
   const put = useTransferUi((s) => s.put);
-  const toggle = useTransferUi((s) => s.toggle);
-  const box = useRef<HTMLDivElement>(null);
-  const last = basket.sign[basket.sign.length - 1];
-  const over = pv.active.b > ROSTER_MAX;
-  // 펼쳐지면 보이게 (목록 맨 아래 줄을 담으면 후보가 화면 밖에 열렸다)
-  useEffect(() => {
-    box.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [over, basket.release.length, basket.down.length]);
-  if (!basket.sign.includes(fa.id) || fa.id !== last) return null;
-  const outs = [...basket.release, ...basket.down].map((id) => team.roster.find((p) => p.id === id)).filter((p): p is Player => !!p);
-  if (!over) {
-    if (!outs.length) return null;
-    return (
-      <div ref={box} className="mb-[3px] flex flex-col gap-0.5 bg-ink/60 px-2 py-1 text-[12px] mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="inline-outs">
-        {outs.map((p) => {
-          const k = basket.release.includes(p.id) ? 'release' : 'down';
-          return (
-            <div key={p.id} className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate">
-                {p.name} {p.ovr} → <span className={k === 'release' ? 'text-bad' : 'text-[#f0a35a]'}>{k === 'release' ? '방출' : '2군'}</span>
-              </span>
-              <button className="cursor-pointer px-1.5 text-white/55 mob:min-h-9" data-sfx="tab" data-testid="inline-undo" onClick={() => toggle(k, p.id)}>
-                취소
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
   const taken = new Set([...basket.release, ...basket.down]);
-  const bump = pv.bumps.find((b) => b.fa.id === fa.id);
+  const bump = fa ? pv.bumps.find((b) => b.fa.id === fa.id) : pv.bumps[pv.bumps.length - 1];
   const cands: { p: Player; why: string }[] = [];
   const add = (p: Player | undefined, why: string) => p && !p.farm && !taken.has(p.id) && !cands.some((c) => c.p.id === p.id) && cands.length < 3 && cands.push({ p, why });
   add(bump?.p, bump?.starter ? '밀려나는 주전' : '밀려나는 선수');
   for (const a of advice) add(a.p, '방출 추천');
+  const farmFull = farmRoster(team).length + basket.down.length >= farmMax(core);
+  const need = pv.active.b - ROSTER_MAX;
   return (
-    <div ref={box} className="mb-[3px] flex flex-col gap-1 bg-ink/60 px-2 py-1.5 text-[12px] mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #e8741a' }} data-testid="inline-cands">
-      <span className="text-[#f0a35a]">1군이 가득 · 한 명을 내보내야 해요</span>
+    <div className="flex flex-col gap-1 bg-ink/60 px-2 py-1.5 text-[12px] mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #e8741a' }} data-testid="inline-cands">
+      <span className="text-[#f0a35a]">1군이 가득 · {need}명을 내보내야 해요</span>
       {cands.map(({ p, why }) => (
         <div key={p.id} className="flex items-center gap-1.5" data-testid="inline-cand">
           <span className="min-w-0 flex-1 truncate">
             {p.name} {p.ovr} <span className="text-white/50">{why}</span>
           </span>
-          <button className="cursor-pointer whitespace-nowrap px-2 text-[#f0a35a] mob:min-h-9" style={{ boxShadow: 'inset 0 0 0 1px #f0a35a88' }} data-sfx="tab" data-testid="cand-down" onClick={() => put('down', p.id)}>
+          <button className="cursor-pointer whitespace-nowrap px-2 text-[#f0a35a] disabled:cursor-not-allowed disabled:opacity-35 mob:min-h-9" style={{ boxShadow: 'inset 0 0 0 1px #f0a35a88' }} data-sfx="tab" data-testid="cand-down" disabled={farmFull} title={farmFull ? '2군이 가득 찼습니다' : undefined} onClick={() => put('down', p.id)}>
             2군
           </button>
           <button className="cursor-pointer whitespace-nowrap px-2 text-bad mob:min-h-9" style={{ boxShadow: 'inset 0 0 0 1px #ff6b6b88' }} data-sfx="tab" data-testid="cand-release" onClick={() => put('release', p.id)}>
@@ -192,6 +165,53 @@ function InlineOut({ fa, pv, advice }: { fa: Player; pv: TransferPreview; advice
           </button>
         </div>
       ))}
+      {!cands.length && <span className="text-white/55">우리 선수단 탭에서 내보낼 선수를 고르세요</span>}
+    </div>
+  );
+}
+
+/** 영입 줄 아래: 가득이면 후보(OutCands) · 정했으면 내보낼 선수와 [취소]. 마지막에 담은 FA 줄에만 붙는다 — 보이는지 위에 알린다(onShown) */
+function InlineOut({ fa, pv, advice, onShown }: { fa: Player; pv: TransferPreview; advice: Advice[]; onShown: (on: boolean) => void }) {
+  const team = useUserTeam();
+  const basket = useTransferUi((s) => s.basket);
+  const toggle = useTransferUi((s) => s.toggle);
+  const box = useRef<HTMLDivElement>(null);
+  const last = basket.sign[basket.sign.length - 1];
+  const over = pv.active.b > ROSTER_MAX;
+  const mine = basket.sign.includes(fa.id) && fa.id === last;
+  // 펼쳐지면 보이게 (목록 맨 아래 줄을 담으면 후보가 화면 밖에 열렸다)
+  useEffect(() => {
+    if (mine) box.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [mine, over, basket.release.length, basket.down.length]);
+  useEffect(() => {
+    if (!mine || !over) return;
+    onShown(true);
+    return () => onShown(false);
+  }, [mine, over, onShown]);
+  if (!mine) return null;
+  if (over)
+    return (
+      <div ref={box} className="mb-[3px]">
+        <OutCands fa={fa} pv={pv} advice={advice} />
+      </div>
+    );
+  const outs = [...basket.release, ...basket.down].map((id) => team.roster.find((p) => p.id === id)).filter((p): p is Player => !!p);
+  if (!outs.length) return null;
+  return (
+    <div ref={box} className="mb-[3px] flex flex-col gap-0.5 bg-ink/60 px-2 py-1 text-[12px] mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="inline-outs">
+      {outs.map((p) => {
+        const k = basket.release.includes(p.id) ? 'release' : 'down';
+        return (
+          <div key={p.id} className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate">
+              {p.name} {p.ovr} → <span className={k === 'release' ? 'text-bad' : 'text-[#f0a35a]'}>{k === 'release' ? '방출' : '2군'}</span>
+            </span>
+            <button className="cursor-pointer px-1.5 text-white/55 mob:min-h-9" data-sfx="tab" data-testid="inline-undo" onClick={() => toggle(k, p.id)}>
+              취소
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -199,8 +219,15 @@ function InlineOut({ fa, pv, advice }: { fa: Player; pv: TransferPreview; advice
 /** 영입 시장 줄의 전력 변화 칩: 가장 크게 바뀌는 칸 하나 ("타선 +2"). 변화 없으면 흐린 ±0 */
 function GainChip({ gain }: { gain: ReturnType<typeof signImpact> | undefined }) {
   if (!gain) return null;
-  const top = (Object.entries(gain.delta) as [keyof typeof PART_KO, number][]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0];
-  if (!top || top[1] === 0) return <span className="shrink-0 whitespace-nowrap px-1 text-[10px] text-white/35 mob:text-[12px]">±0</span>;
+  const moved = (Object.entries(gain.delta) as [keyof typeof PART_KO, number][]).filter(([, v]) => v !== 0);
+  if (moved.length > 1)
+    return (
+      <span className={`shrink-0 whitespace-nowrap px-1 text-[10px] mob:text-[12px] ${gain.total > 0 ? 'bg-good/15 text-good' : 'bg-bad/15 text-bad'}`} title={moved.map(([k, v]) => `${PART_KO[k]} ${fmtDelta(v)}`).join(' · ')} data-testid="gain-chip">
+        전력 {fmtDelta(gain.total)}
+      </span>
+    );
+  const top = moved[0];
+  if (!top) return <span className="shrink-0 whitespace-nowrap px-1 text-[10px] text-white/35 mob:text-[12px]">±0</span>;
   return (
     <span className={`shrink-0 whitespace-nowrap px-1 text-[10px] mob:text-[12px] ${top[1] > 0 ? 'bg-good/15 text-good' : 'bg-bad/15 text-bad'}`} data-testid="gain-chip">
       {PART_KO[top[0]]} {fmtDelta(top[1])}
@@ -226,7 +253,8 @@ function Desk() {
     if (basket.release.length && relTodo) useUi.getState().dismissTodo(relTodo);
   }, [basket.release.length, relTodo]);
   const [card, setCard] = useState<string | null>(null);
-  const [done, setDone] = useState<{ text: string; before: ReturnType<typeof pickCore> } | null>(null);
+  const [inlineOn, setInlineOn] = useState(false); // 줄 아래 후보가 보이는가 (표 보기·필터로 그 줄이 없으면 아래 바 위에 띄운다)
+  const [done, setDone] = useState<{ text: string; before: ReturnType<typeof pickCore>; after: ReturnType<typeof pickCore> } | null>(null);
   // 영입하면 바뀌는 전력 (영입 시장 줄의 칩 · 전력순 정렬). 표 보기의 "영입 시 전력"과 같은 계산
   const gains = useMemo(() => new Map(freeAgents.map((p) => [p.id, signImpact(team, p)])), [team, freeAgents]);
   const gainSort = useMemo(() => ({ label: '전력순', val: (p: Player) => -(gains.get(p.id)?.total ?? 0) }), [gains]);
@@ -255,7 +283,7 @@ function Desk() {
     if (!transfer(basket)) return;
     play('buy');
     clear();
-    setDone({ text, before });
+    setDone({ text, before, after: pickCore(useStore.getState()) });
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setDone(null), DONE_MS);
   };
@@ -295,7 +323,7 @@ function Desk() {
       extraSort={gainSort}
       initExtra={!pos}
       badge={(p) => <GainChip gain={gains.get(p.id)} />}
-      rowExtra={(p) => <InlineOut fa={p} pv={pv} advice={advice} />}
+      rowExtra={(p) => <InlineOut fa={p} pv={pv} advice={advice} onShown={setInlineOn} />}
       rowAction={(p) => <AddChip kind="sign" pid={p.id} />}
     />
     </>
@@ -384,17 +412,29 @@ function Desk() {
           ))}
         </div>
       )}
-      <Summary pv={pv} done={done?.text ?? null} mobile={mobile} onConfirm={confirm} onUndo={done ? () => (useStore.setState(done.before), clearTimeout(timer.current), setDone(null)) : undefined} />
+      {pv.active.b > ROSTER_MAX && !inlineOn && (
+        <div className="shrink-0 px-1.5 pb-1" data-testid="cands-fallback">
+          <OutCands fa={undefined} pv={pv} advice={advice} />
+        </div>
+      )}
+      <Summary
+        pv={pv}
+        done={done?.text ?? null}
+        mobile={mobile}
+        onConfirm={confirm}
+        // 그 사이 다른 일이 있었으면(경기·시장 토글 등) 되돌리지 않는다 — 확정 직후 상태 그대로일 때만
+        onUndo={done && useStore.getState().teams === done.after.teams && useStore.getState().campaign === done.after.campaign ? () => (useStore.setState(done.before), clearTimeout(timer.current), setDone(null)) : undefined}
+      />
       {cardP && (
         <CardPop player={cardP} onClose={() => setCard(null)} extra={cardAdv ? <ReleaseWhy a={cardAdv} /> : undefined}>
-          {!cardFa && !cardP.farm && <BlockChip pid={cardP.id} big />}
+          {!cardFa && !cardP.farm && <BlockChip pid={cardP.id} big onAfter={() => setCard(null)} />}
           {cardFa && (
             <span className="mr-auto self-center text-[11px] text-white/75 mob:text-[13px]" data-testid="card-bonus">
               {bonusText(core, cardFa, cardAhead)}
             </span>
           )}
           {(cardFa ? (['sign'] as BasketKind[]) : squadKinds(cardP)).map((k) => (
-            <AddChip key={k} kind={k} pid={cardP.id} big />
+            <AddChip key={k} kind={k} pid={cardP.id} big onAfter={() => setCard(null)} />
           ))}
         </CardPop>
       )}
@@ -453,7 +493,7 @@ function Summary({ pv, done, mobile, onConfirm, onUndo }: { pv: TransferPreview;
   const winText = `${wins >= 0 ? '+' : '−'}${Math.abs(wins).toFixed(1)}승`;
   const oneOff = pv.bonus + pv.penalty;
 
-  if (done) {
+  if (done && empty) {
     return (
       <div className="flex shrink-0 items-center gap-2 bg-good/20 px-2 py-2.5 text-[14px] text-good" style={{ boxShadow: 'inset 0 2px 0 #6ee07a' }} data-testid="desk-done">
         <span className="min-w-0 flex-1">{done}</span>
@@ -645,6 +685,12 @@ function Summary({ pv, done, mobile, onConfirm, onUndo }: { pv: TransferPreview;
               <div data-testid="sum3-cash">
                 <span className="text-white/55">현금 </span>
                 {fmtMoney(pv.cash.a)} → <span className={pv.cash.b < 0 ? 'text-bad' : 'text-hi'}>{fmtMoney(pv.cash.b)}</span>
+                {pv.perGame && pv.perGame.a >= 0 && pv.perGame.b < 0 && (
+                  <span className="text-bad" data-testid="sum3-loss">
+                    {' '}
+                    · 경기당 {signed(pv.perGame.b)} 적자
+                  </span>
+                )}
               </div>
             </>
           )}
