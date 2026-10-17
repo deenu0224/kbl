@@ -45,7 +45,7 @@ function Chip({ on, onClick, children, tone = 'hi', testid }: { on: boolean; onC
       data-sfx="tab"
       data-testid={testid}
       onClick={onClick}
-      className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:min-h-10 mob:px-2.5 mob:text-[13px] ${on ? (tone === 'bad' ? 'bg-bad text-ink' : 'bg-hi text-ink') : tone === 'bad' ? 'bg-ink text-bad' : 'bg-ink text-white/60'}`}
+      className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[11px] mob:min-h-10 mob:px-2.5 mob:text-[13px] ${on ? (tone === 'bad' ? 'bg-bad text-ink' : 'bg-hi text-ink') : tone === 'bad' ? 'bg-ink text-bad' : 'bg-ink text-white/60'}`}
     >
       {children}
     </button>
@@ -207,6 +207,9 @@ export default function PlayerTable({
         );
       },
     });
+    // 영입 시장: 기본 정렬 열(영입 시 전력)을 앞으로 — 맨 오른쪽이라 화면 밖에서 정렬되고 있었다
+    const im = out.findIndex((c) => c.id === 'impact');
+    if (im > 1) out.splice(1, 0, ...out.splice(im, 1));
     return out;
   }, [mode, season, analyst, cash, impact, mine, role, core, signs]);
 
@@ -222,7 +225,7 @@ export default function PlayerTable({
   }, [players, cols, sort, kind, pos, needKeys]);
   const posList: PosKey[] = kind === 'P' ? PITCH_KEYS : kind === 'B' ? FIELD_KEYS : [...FIELD_KEYS, ...PITCH_KEYS];
   const needLabel = mode === 'draft' ? '빈 뎁스만' : '우리 약점만';
-  const th = 'cursor-pointer whitespace-nowrap bg-edge px-1.5 py-1 text-[10px] font-normal mob:py-2 mob:text-[13px]';
+  const th = 'cursor-pointer whitespace-nowrap bg-edge px-1.5 py-1 text-[11px] font-normal mob:py-2 mob:text-[13px]';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={`table-${mode}`}>

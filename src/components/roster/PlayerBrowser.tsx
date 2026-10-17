@@ -20,7 +20,7 @@ function Chip({ on, onClick, children, tone = 'hi', testid }: { on: boolean; onC
       data-sfx="tab"
       data-testid={testid}
       onClick={onClick}
-      className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-2.5 mob:text-[13px] ${on ? (tone === 'bad' ? 'bg-bad text-ink' : 'bg-hi text-ink') : tone === 'bad' ? 'bg-ink text-bad' : 'bg-ink text-white/60'}`}
+      className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 text-[11px] mob:min-h-9 mob:px-2.5 mob:text-[13px] ${on ? (tone === 'bad' ? 'bg-bad text-ink' : 'bg-hi text-ink') : tone === 'bad' ? 'bg-ink text-bad' : 'bg-ink text-white/60'}`}
     >
       {children}
     </button>
@@ -69,9 +69,9 @@ export default function PlayerBrowser({
   // 특정 포지션으로 걸러서 열렸으면 그 필터를 가진 표로 시작한다
   const [table, setTable] = useState(!!initPos && initPos !== 'weak');
   const [kind, setKind] = useState<Kind>(initPos && initPos !== 'weak' ? (PITCH_KEYS.includes(initPos as 'SP') ? 'P' : 'B') : 'all');
-  const [weak, setWeak] = useState(initPos === 'weak');
+  const [weak, setWeak] = useState(initPos === 'weak' && !weakChips);
   const [posF, setPosF] = useState<string | null>(null); // 포지션 필터 (타자·투수를 고른 뒤 둘째 줄에서)
-  const [weakKey, setWeakKey] = useState<string | null>(null); // 약점 포지션 칩 하나로 거르기 (weakChips)
+  const [weakKey, setWeakKey] = useState<string | null>(() => (weakChips && initPos === 'weak' ? (rows.find((r) => r.weak)?.key ?? null) : null)); // 약점 포지션 칩 하나로 거르기 (weakChips)
   const sorts: SortId[] = [...(mode === 'draft' ? (['ovr', 'scout', 'age'] as const) : (['ovr', 'salary', 'age'] as const)), ...(extraSort ? (['extra'] as const) : [])];
   const [sort, setSort] = useState<SortId>(initExtra && extraSort ? 'extra' : 'ovr');
   const draft = mode === 'draft';
@@ -88,7 +88,7 @@ export default function PlayerBrowser({
   // 목록에서 거르던 조건을 표로 넘긴다 (약점 칩 · 포지션 · 우리 약점만). 없으면 처음 열린 조건
   const carry: PosKey | 'weak' | null = (weakKey as PosKey | null) ?? (posF as PosKey | null) ?? (weak ? 'weak' : null) ?? initPos;
   const toggle = (
-    <button data-sfx="tab" data-testid="view-toggle" onClick={() => setTable((v) => !v)} className="shrink-0 cursor-pointer whitespace-nowrap bg-ink px-1.5 py-0.5 text-[10px] text-sky mob:min-h-9 mob:px-2.5 mob:text-[13px]">
+    <button data-sfx="tab" data-testid="view-toggle" onClick={() => setTable((v) => !v)} className="shrink-0 cursor-pointer whitespace-nowrap bg-ink px-1.5 py-0.5 text-[11px] text-sky mob:min-h-9 mob:px-2.5 mob:text-[13px]">
       {table ? '목록으로' : '표로 보기'}
     </button>
   );
@@ -110,12 +110,6 @@ export default function PlayerBrowser({
       <div className="flex shrink-0 items-center gap-1 px-1.5 py-1.5">
         {/* 필터 칩은 한 줄 (가로 스크롤), [표로 보기]는 오른쪽에 고정 */}
         <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" data-testid="list-filters">
-        {chips ??
-          ([['all', '전체'], ['B', '타자'], ['P', '투수']] as const).map(([k, label]) => (
-            <Chip key={k} on={kind === k} onClick={() => (setKind(k), setPosF(null))} testid={`lkind-${k}`}>
-              {label}
-            </Chip>
-          ))}
         {mode !== 'roster' && weakChips
           ? // 약점 포지션을 바로 칩으로: 한 번에 그 자리 FA 만
             needKeys.slice(0, 3).map((k) => (
@@ -128,6 +122,12 @@ export default function PlayerBrowser({
                 {draft ? '빈 자리만' : '우리 약점만'}
               </Chip>
             )}
+        {chips ??
+          ([['all', '전체'], ['B', '타자'], ['P', '투수']] as const).map(([k, label]) => (
+            <Chip key={k} on={kind === k} onClick={() => (setKind(k), setPosF(null))} testid={`lkind-${k}`}>
+              {label}
+            </Chip>
+          ))}
         </div>
         {/* 정렬은 스크롤 밖에 고정: 칩이 많으면 [표로 보기]에 가려 지금 정렬이 안 보였다 */}
         <Chip on={false} onClick={() => setSort(sorts[(sorts.indexOf(sort) + 1) % sorts.length])} testid="list-sort">
@@ -179,7 +179,7 @@ export default function PlayerBrowser({
                   <>
                 <span className={`min-w-0 flex-1 truncate ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
                   {p.name}
-                  {mode === 'roster' && p.farm && <span className="ml-1 text-[10px] text-sky mob:text-[13px]">2군</span>}
+                  {mode === 'roster' && p.farm && <span className="ml-1 text-[11px] text-sky mob:text-[13px]">2군</span>}
                   {note?.(p)}
                 </span>
                 {badge?.(p)}

@@ -55,12 +55,12 @@ export function signingClosedWhy(core: Cal): string | null {
   if (signingOpen(core)) return null;
   return core.phase === 'post' ? '포스트시즌 — 선수 등록 마감 (스토브리그에 다시 열립니다)' : `선수 등록 마감 (${regDeadline(core)}경기) — 스토브리그에 다시 열립니다`;
 }
-/** 트레이드 시장에 선수를 내놓을 수 없는 사유 (열려 있으면 null). 마감 전과 스토브리그에는 열려 있다 */
+/** 트레이드 시장에 선수를 내놓을 수 없는 사유 (열려 있으면 null). 시즌 중 마감 전에만 열려 있다 —
+ *  스토브리그의 제안은 [이적 시장]을 누르는 순간 한 번 뽑히므로(trade.ts drawStoveTrade) 그 뒤에 내놓으면 답이 오지 않는다 */
 export function blockClosedWhy(core: Cal & Partial<Pick<Core, 'campaign'>>): string | null {
-  if (core.phase === 'post') return '포스트시즌 — 트레이드 마감 (스토브리그에 다시 열립니다)';
-  // 스토브리그의 트레이드 제안은 한 번 뽑는다 (trade.ts drawStoveTrade · memo trStove). 그 뒤에 내놓으면 답이 오지 않는다
-  if (core.phase === 'ended' && core.campaign && memoGet(core as Core, 'trStove')) return '이번 스토브리그 트레이드 제안은 이미 왔습니다 (다음 시즌 트레이드 기간에)';
-  if (core.phase === 'season' && core.day >= tradeDeadline(core)) return `트레이드 마감 (${tradeDeadline(core)}경기) — 스토브리그에 다시 열립니다`;
+  if (core.phase === 'post') return '포스트시즌 — 트레이드 마감 (다음 시즌에 다시 열립니다)';
+  if (core.phase === 'ended' && core.campaign && memoGet(core as Core, 'trStove')) return '스토브리그 — 다음 시즌 트레이드 기간에 내놓을 수 있습니다';
+  if (core.phase === 'season' && core.day >= tradeDeadline(core)) return `트레이드 마감 (${tradeDeadline(core)}경기) — 다음 시즌에 다시 열립니다`;
   return null;
 }
 export interface Deadline {

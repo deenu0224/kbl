@@ -38,12 +38,22 @@ export default function TransferDesk() {
   return <Desk />;
 }
 
+/** 2군에 자리가 남았는가 (담은 2군행 + / 콜업 · 2군 선수 방출 −). 재활(부상자 명단)은 2군 정원에 들지 않는다 */
+function useFarmRoom(): boolean {
+  const core = useCore();
+  const team = useUserTeam();
+  const basket = useTransferUi((s) => s.basket);
+  const inFarm = team.roster.filter((p) => p.farm && !p.il && !basket.up.includes(p.id) && !basket.release.includes(p.id)).length;
+  return inFarm + basket.down.length < farmMax(core);
+}
+
 /** 줄의 담기 버튼: 담으면 색이 차고, 다시 누르면 빠진다 */
 export function AddChip({ kind, pid, big = false, onAfter }: { kind: BasketKind; pid: string; big?: boolean; onAfter?: () => void }) {
   const on = useTransferUi((s) => s.basket[kind].includes(pid));
   const toggle = useTransferUi((s) => s.toggle);
   // 등록 마감 뒤와 포스트시즌에는 영입을 담을 수 없다 (이미 담은 것은 뺄 수 있다)
-  const closed = useStore((s) => (kind === 'sign' ? signingClosedWhy(s) : null));
+  const farmRoom = useFarmRoom();
+  const closed = useStore((s) => (kind === 'sign' ? signingClosedWhy(s) : null)) ?? (kind === 'down' && !farmRoom ? '2군이 가득 찼습니다' : null);
   const b = BAND[kind];
   return (
     <button
@@ -53,7 +63,7 @@ export function AddChip({ kind, pid, big = false, onAfter }: { kind: BasketKind;
       disabled={!!closed && !on}
       title={closed ?? undefined}
       onClick={() => (toggle(kind, pid), onAfter?.())}
-      className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
+      className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[11px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
       style={on ? { background: b.color, color: '#121110' } : { background: '#121110', color: b.color, boxShadow: `inset 0 0 0 1px ${b.color}88` }}
     >
       {on ? `✓ ${b.label}` : b.add}
@@ -67,6 +77,7 @@ function BlockChip({ pid, big = false, onAfter }: { pid: string; big?: boolean; 
   const toggle = useStore((s) => s.blockToggle);
   const closed = useStore((s) => blockClosedWhy(s));
   const color = '#c9a0ff';
+  if (closed && !on) return null; // 막힌 버튼은 흐리게 두지 않고 숨긴다 (스토브리그엔 내놓을 수 없다)
   return (
     <button
       data-testid="add-block"
@@ -75,8 +86,12 @@ function BlockChip({ pid, big = false, onAfter }: { pid: string; big?: boolean; 
       disabled={!!closed && !on}
       title={closed ?? '트레이드 시장에 내놓기'}
       aria-label="트레이드 시장에 내놓기"
-      onClick={() => (toggle(pid), onAfter?.())}
-      className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
+      onClick={() => {
+        toggle(pid);
+        // 바뀌었을 때만 카드를 닫는다 (인원 초과·신인 등으로 거절되면 카드에 남아 이유를 본다)
+        if ((useStore.getState().campaign.block ?? []).includes(pid) !== on) onAfter?.();
+      }}
+      className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[11px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
       style={on ? { background: color, color: '#121110' } : { background: '#121110', color, boxShadow: `inset 0 0 0 1px ${color}88` }}
     >
       {on ? '✓' : '⇄'}
@@ -100,7 +115,9 @@ function DeskHead({ act, cash, extra }: { act: number; cash: number; extra: stri
 function heatText(core: Parameters<typeof faHeatLine>[0], inBasket: number): string | null {
   const line = faHeatLine(core, inBasket);
   // 담은 선수가 있으면 "다음"이 누구인지 헷갈린다 → "하나 더 담으면"
-  return line && inBasket > 0 ? line.replace('명 ·', `명(담은 ${inBasket}명 포함) ·`).replace('다음 영입', '하나 더 담으면') : line;
+  if (!line || inBasket === 0) return line;
+  const next = line.split(' · ')[1]; // "다음 영입 계약금 +500%"
+  return next ? next.replace('다음 영입', '하나 더 담으면') : line;
 }
 
 const squadKinds = (p: Player): BasketKind[] => ['release', p.farm ? 'up' : 'down'];
@@ -108,7 +125,7 @@ const squadKinds = (p: Player): BasketKind[] => ['release', p.farm ? 'up' : 'dow
 /** 이름 옆 "방출 추천" 칩 (빨간 테두리) */
 function ReleaseBadge() {
   return (
-    <span className="shrink-0 whitespace-nowrap px-1 text-[10px] leading-[1.5] text-bad mob:text-[12px]" style={{ boxShadow: 'inset 0 0 0 1px #ff6b6b' }} data-testid="rel-badge">
+    <span className="shrink-0 whitespace-nowrap px-1 text-[11px] leading-[1.5] text-bad mob:text-[12px]" style={{ boxShadow: 'inset 0 0 0 1px #ff6b6b' }} data-testid="rel-badge">
       방출 추천
     </span>
   );
@@ -148,7 +165,7 @@ function OutCands({ fa, pv, advice }: { fa: Player | undefined; pv: TransferPrev
   const add = (p: Player | undefined, why: string) => p && !p.farm && !taken.has(p.id) && !cands.some((c) => c.p.id === p.id) && cands.length < 3 && cands.push({ p, why });
   add(bump?.p, bump?.starter ? '밀려나는 주전' : '밀려나는 선수');
   for (const a of advice) add(a.p, '방출 추천');
-  const farmFull = farmRoster(team).length + basket.down.length >= farmMax(core);
+  const farmFull = !useFarmRoom();
   const need = pv.active.b - ROSTER_MAX;
   return (
     <div className="flex flex-col gap-1 bg-ink/60 px-2 py-1.5 text-[12px] mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #e8741a' }} data-testid="inline-cands">
@@ -190,16 +207,10 @@ function InlineOut({ fa, pv, advice, onShown }: { fa: Player; pv: TransferPrevie
     return () => onShown(false);
   }, [mine, over, onShown]);
   if (!mine) return null;
-  if (over)
-    return (
-      <div ref={box} className="mb-[3px]">
-        <OutCands fa={fa} pv={pv} advice={advice} />
-      </div>
-    );
   const outs = [...basket.release, ...basket.down].map((id) => team.roster.find((p) => p.id === id)).filter((p): p is Player => !!p);
-  if (!outs.length) return null;
-  return (
-    <div ref={box} className="mb-[3px] flex flex-col gap-0.5 bg-ink/60 px-2 py-1 text-[12px] mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="inline-outs">
+  if (!outs.length && !over) return null;
+  const picked = outs.length > 0 && (
+    <div className="flex flex-col gap-0.5 bg-ink/60 px-2 py-1 text-[12px] mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="inline-outs">
       {outs.map((p) => {
         const k = basket.release.includes(p.id) ? 'release' : 'down';
         return (
@@ -215,6 +226,12 @@ function InlineOut({ fa, pv, advice, onShown }: { fa: Player; pv: TransferPrevie
       })}
     </div>
   );
+  return (
+    <div ref={box} className="mb-[3px]">
+      {picked}
+      {over && <OutCands fa={fa} pv={pv} advice={advice} />}
+    </div>
+  );
 }
 
 /** 영입 시장 줄의 전력 변화 칩: 가장 크게 바뀌는 칸 하나 ("타선 +2"). 변화 없으면 흐린 ±0 */
@@ -223,14 +240,14 @@ function GainChip({ gain }: { gain: ReturnType<typeof signImpact> | undefined })
   const moved = (Object.entries(gain.delta) as [keyof typeof PART_KO, number][]).filter(([, v]) => v !== 0);
   if (moved.length > 1)
     return (
-      <span className={`shrink-0 whitespace-nowrap px-1 text-[10px] mob:text-[12px] ${gain.total > 0 ? 'bg-good/15 text-good' : 'bg-bad/15 text-bad'}`} title={moved.map(([k, v]) => `${PART_KO[k]} ${fmtDelta(v)}`).join(' · ')} data-testid="gain-chip">
+      <span className={`shrink-0 whitespace-nowrap px-1 text-[11px] mob:text-[12px] ${gain.total > 0 ? 'bg-good/15 text-good' : 'bg-bad/15 text-bad'}`} title={moved.map(([k, v]) => `${PART_KO[k]} ${fmtDelta(v)}`).join(' · ')} data-testid="gain-chip">
         전력 {fmtDelta(gain.total)}
       </span>
     );
   const top = moved[0];
-  if (!top) return <span className="shrink-0 whitespace-nowrap px-1 text-[10px] text-white/35 mob:text-[12px]">±0</span>;
+  if (!top) return <span className="shrink-0 whitespace-nowrap px-1 text-[11px] text-white/35 mob:text-[12px]">±0</span>;
   return (
-    <span className={`shrink-0 whitespace-nowrap px-1 text-[10px] mob:text-[12px] ${top[1] > 0 ? 'bg-good/15 text-good' : 'bg-bad/15 text-bad'}`} data-testid="gain-chip">
+    <span className={`shrink-0 whitespace-nowrap px-1 text-[11px] mob:text-[12px] ${top[1] > 0 ? 'bg-good/15 text-good' : 'bg-bad/15 text-bad'}`} data-testid="gain-chip">
       {PART_KO[top[0]]} {fmtDelta(top[1])}
     </span>
   );
@@ -322,7 +339,7 @@ function Desk() {
       band={band}
       weakChips
       extraSort={gainSort}
-      initExtra={!pos}
+      initExtra={!pos || pos === 'weak'}
       badge={(p) => <GainChip gain={gains.get(p.id)} />}
       rowExtra={(p) => <InlineOut fa={p} pv={pv} advice={advice} onShown={setInlineOn} />}
       rowAction={(p) => <AddChip kind="sign" pid={p.id} />}
@@ -339,19 +356,19 @@ function Desk() {
     const main = p.kind === 'B' ? ord >= 0 : rot >= 0 || team.closer === p.id;
     if (blockIds.includes(p.id))
       return (
-        <span className="ml-1.5 whitespace-nowrap text-[10px] text-[#c9a0ff] mob:text-[12px]" data-testid="role-note">
+        <span className="ml-1.5 whitespace-nowrap text-[11px] text-[#c9a0ff] mob:text-[12px]" data-testid="role-note">
           {text} · 시장에 내놓음
         </span>
       );
     return (
-      <span className={`ml-1.5 whitespace-nowrap text-[10px] mob:text-[12px] ${main ? 'text-hi' : 'text-white/50'}`} data-testid="role-note">
+      <span className={`ml-1.5 whitespace-nowrap text-[11px] mob:text-[12px] ${main ? 'text-hi' : 'text-white/50'}`} data-testid="role-note">
         {text}
       </span>
     );
   };
   const squad = (
     <>
-    {closedLine(blockWhy, 'block-closed')}
+    {core.phase === 'season' && closedLine(blockWhy, 'block-closed')}
     <PlayerBrowser
       key={`s${nonce}`}
       mode="roster"
@@ -467,7 +484,7 @@ function Line({ label, children, testid }: { label: string; children: ReactNode;
 function Box({ title, children, className = '', testid }: { title: string; children: ReactNode; className?: string; testid?: string }) {
   return (
     <div className={`min-w-0 bg-ink/55 px-1.5 py-1 ${className}`} data-testid={testid}>
-      <div className="mb-0.5 text-[10px] text-sky mob:text-[13px]">▸ {title}</div>
+      <div className="mb-0.5 text-[11px] text-sky mob:text-[13px]">▸ {title}</div>
       {children}
     </div>
   );
@@ -514,7 +531,7 @@ function Summary({ pv, done, mobile, onConfirm, onUndo }: { pv: TransferPreview;
         const b = pv.parts.b[k];
         return (
           <div key={k} className={`px-1 py-0.5 text-center leading-tight ${a === b ? 'bg-ink/50' : b > a ? 'bg-good/20' : 'bg-bad/20'}`} data-changed={a !== b || undefined}>
-            <div className="text-[10px] text-white/55">{PART_KO[k]}</div>
+            <div className="text-[11px] text-white/55">{PART_KO[k]}</div>
             <div className={`whitespace-nowrap text-[13px] ${a === b ? 'text-white/70' : b > a ? 'text-good' : 'text-bad'}`}>{a === b ? a : `${a}→${b}`}</div>
           </div>
         );
@@ -647,13 +664,13 @@ function Summary({ pv, done, mobile, onConfirm, onUndo }: { pv: TransferPreview;
             {money}
           </Box>
         </div>
-      ) : (
+      ) : wide ? null : (
         <div className="leading-snug" data-testid="sum-compact">
           {empty ? (
             <span className="text-white/50">담은 선수 없음</span>
           ) : over ? (
             <span className="text-bad" data-testid="sum-over">
-              1군 {pv.active.b}/{ROSTER_MAX} · {pv.active.b - ROSTER_MAX}명 더 내보내야 해요
+              1군 {pv.active.b}/{ROSTER_MAX}
             </span>
           ) : (
             <>
