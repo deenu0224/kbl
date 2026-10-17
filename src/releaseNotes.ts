@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.15.0',
+    date: '2026-10-17',
+    title: '새 옷',
+    notes: ['화면 색을 차콜과 감귤 주황으로 바꿨습니다.', '폰을 가로로 돌리면 화면이 멈추던 문제를 고쳤습니다.'],
+  },
+  {
     version: '0.14.12',
     date: '2026-10-17',
     title: '덜 누르게',
