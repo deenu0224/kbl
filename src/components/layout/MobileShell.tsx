@@ -245,6 +245,8 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
   const tab = useUi((s) => s.tab);
   const playback = useStore((s) => !!s.playback);
   const ended = useStore((s) => s.phase === 'ended' && !s.summary && !s.playback);
+  // 훅은 아래의 가로 화면 분기(early return)보다 위에서 부른다 — 폰을 돌려 세로↔가로가 바뀌면 훅 개수가 달라져 화면이 터졌다
+  const lineOn = useLineScoreOn();
   // 하이라이트 재생이 시작되면 홈(구장)으로
   useEffect(() => {
     if (playback) useUi.setState({ tab: 'home', facSheet: null });
@@ -280,7 +282,6 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
       </div>
     );
   }
-  const lineOn = useLineScoreOn();
   const home = tab === 'home';
   // 화면에 고정(fixed)한다: 보통 흐름이면 아이폰 홈 화면 앱에서 iOS 가 상태 표시줄 아래 가장자리에 흐림 띠를 덮는다 (고정 레이어인 초기 화면·도전과제에는 없다)
   return (
