@@ -86,7 +86,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-[calc(var(--dvh)*100)] flex-col gap-[6px] overflow-hidden bg-[#141a29] p-[6px] font-pixel text-[12px] select-none">
+    <div className="flex h-[calc(var(--dvh)*100)] flex-col gap-[6px] overflow-hidden bg-[#1b1a19] p-[6px] font-pixel text-[12px] select-none">
       <TopBar />
       <div className="flex min-h-0 flex-1 gap-[6px]">
         <div className="w-[300px] shrink-0 max-[1279px]:w-[clamp(256px,calc(var(--vw)*23.4),300px)]">

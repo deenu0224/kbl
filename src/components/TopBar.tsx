@@ -59,7 +59,7 @@ export default function TopBar() {
       <div className="flex items-center gap-2 pr-2">
         <TeamDot team={team} size={22} />
         <div className="leading-tight">
-          <div className="font-pixel-lg text-[15px]" style={{ color: team.color, textShadow: '1px 1px 0 #0f1420' }}>
+          <div className="font-pixel-lg text-[15px]" style={{ color: team.color, textShadow: '1px 1px 0 #121110' }}>
             {team.city} {team.name}
           </div>
           <div className="text-[10px] text-white/55">
@@ -172,7 +172,7 @@ export function MobileTopBar() {
         // 가을야구 동안: 캠페인 줄 대신 지금 라운드와 시리즈 상황
         <button
           className="flex min-w-0 cursor-pointer flex-col justify-center bg-[#f0a35a]/15 px-2 py-1 text-left leading-tight land:w-[46%] land:shrink-0"
-          style={{ boxShadow: 'inset 0 2px 0 #0f1420, inset 3px 0 0 #f0a35a' }}
+          style={{ boxShadow: 'inset 0 2px 0 #121110, inset 3px 0 0 #f0a35a' }}
           data-testid="autumn-top"
           aria-label="캠페인 열기"
           onClick={() => useUi.getState().setCampaignOpen(true)}
@@ -182,10 +182,10 @@ export function MobileTopBar() {
         </button>
       ) : (
         <>
-      <div className="hidden bg-ink/35 por:block" style={{ boxShadow: 'inset 0 2px 0 #0f1420' }}>
+      <div className="hidden bg-ink/35 por:block" style={{ boxShadow: 'inset 0 2px 0 #121110' }}>
         <CampaignChip line />
       </div>
-      <div className="hidden w-[46%] shrink-0 bg-ink/35 land:flex" style={{ boxShadow: 'inset 2px 0 0 #0f1420' }}>
+      <div className="hidden w-[46%] shrink-0 bg-ink/35 land:flex" style={{ boxShadow: 'inset 2px 0 0 #121110' }}>
         <CampaignChip className="w-full" />
       </div>
         </>

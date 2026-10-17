@@ -40,7 +40,7 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, { 
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-[#141a29] p-6 text-center font-pixel text-[14px] text-white" data-testid="crash">
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-[#1b1a19] p-6 text-center font-pixel text-[14px] text-white" data-testid="crash">
         <div className="text-[18px] text-hi">문제가 생겼습니다</div>
         <div className="text-white/70">세이브는 그대로 있습니다. 다시 시도해 주세요.</div>
         <button className="px-btn primary min-h-11 w-56" onClick={() => location.reload()}>

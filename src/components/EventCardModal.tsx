@@ -24,7 +24,7 @@ function useSpeaker(
   const freeAgents = useStore((s) => s.freeAgents);
   const userId = useStore((s) => s.userId);
   const team = teams.find((t) => t.id === userId);
-  const color = team?.color ?? "#e2572e";
+  const color = team?.color ?? "#e8741a";
   const color2 = team?.color2 ?? "#ffffff";
   if (!card.who) return null;
   if (card.who === "player") {
@@ -71,7 +71,7 @@ function CardBody({
         <span className="text-[20px] leading-none">{card.icon}</span>
         <span
           className="font-pixel-lg min-w-0 flex-1 text-[17px] leading-tight text-hi"
-          style={{ textShadow: "1px 1px 0 #0f1420" }}
+          style={{ textShadow: "1px 1px 0 #121110" }}
         >
           {card.title}
         </span>
@@ -81,7 +81,7 @@ function CardBody({
         <div className="mt-2 flex items-start gap-2">
           <div
             className="shrink-0"
-            style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${sp.color2}` }}
+            style={{ boxShadow: `0 0 0 2px #121110, 0 0 0 3px ${sp.color2}` }}
           >
             <PixelFace
               id={sp.id}

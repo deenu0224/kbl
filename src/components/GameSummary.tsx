@@ -14,7 +14,7 @@ export function TeamTag({ team, mine, size = 11 }: { team: Pick<Team, 'id' | 'co
   return (
     <span
       className="inline-flex shrink-0 items-center whitespace-nowrap align-middle font-pixel leading-none"
-      style={{ fontSize: size, gap: '0.35em', padding: '0.2em 0.4em', background: 'rgba(15,20,32,.85)', color: mine ? '#fff' : '#b9c3e0', boxShadow: mine ? '0 0 0 1px #ffffff' : '0 0 0 1px #3a4563' }}
+      style={{ fontSize: size, gap: '0.35em', padding: '0.2em 0.4em', background: 'rgba(18, 17, 16,.85)', color: mine ? '#fff' : '#d4ccc2', boxShadow: mine ? '0 0 0 1px #ffffff' : '0 0 0 1px #4a443e' }}
       data-testid="team-tag"
       data-mine={mine ? '1' : '0'}
     >
@@ -80,7 +80,7 @@ function BoxScore({ box, errs, away, home, userId }: { box: [BoxSide, BoxSide]; 
   const th = 'w-[2.7em] whitespace-nowrap font-normal';
   const num = (v: number, hot = false) => <td className={v ? (hot ? 'text-hi' : '') : 'text-white/35'}>{v}</td>;
   return (
-    <div className="mt-2 bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="box-score">
+    <div className="mt-2 bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }} data-testid="box-score">
       <div className="flex gap-1 pb-1">
         {([mineSide, 1 - mineSide] as (0 | 1)[]).map((sd) => {
           const t = sd === 0 ? away : home;
@@ -197,7 +197,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
       )}
       <div className="flex items-center justify-between">
         <div>
-          <div className={`anim-pop font-pixel-lg text-[26px] leading-none ${vColor}`} style={{ textShadow: '2px 2px 0 #0f1420' }}>
+          <div className={`anim-pop font-pixel-lg text-[26px] leading-none ${vColor}`} style={{ textShadow: '2px 2px 0 #121110' }}>
             {verdict}
           </div>
           <div className="mt-1 text-[10px] text-white/55">
@@ -218,7 +218,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
       </div>
 
       {/* 기본: 스코어 한 줄 · 득점 장면 최대 3 · 소식 최대 2 */}
-      <div className="mt-2 flex items-center justify-center gap-3 bg-ink px-2 py-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="score-line">
+      <div className="mt-2 flex items-center justify-center gap-3 bg-ink px-2 py-1.5" style={{ boxShadow: '0 0 0 1px #121110' }} data-testid="score-line">
         <span className={`flex min-w-0 flex-1 items-center justify-end gap-1 truncate text-[13px] ${away?.id === userId ? 'text-white' : 'text-white/70'}`}>
           {away?.name} <TeamDot team={away} />
         </span>
@@ -262,7 +262,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
 
       <Fold label="자세히: 이닝별 득점 · 선수 기록 · 관중 · 정산" className="mt-2" testid="fold-summary">
       {/* 라인스코어 */}
-      <div className="mt-2 shrink-0 overflow-x-auto bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+      <div className="mt-2 shrink-0 overflow-x-auto bg-ink p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }}>
         <table className="w-full border-collapse text-center text-[12px]">
           <thead>
             <tr className="text-[10px] text-white/45">
@@ -345,7 +345,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-2 por:grid-cols-1">
-        <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+        <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }}>
           <div className="mb-1 text-[11px] text-sky">▸ 관중</div>
           {r.crowd ? (
             <>
@@ -368,7 +368,7 @@ function Single({ r, teams, userId }: { r: DayReport; teams: Team[]; userId: str
             <div className="text-[10px] text-white/45">원정 경기 (매점 수입 없음)</div>
           )}
         </div>
-        <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+        <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }}>
           <div className="mb-1 text-[11px] text-sky">▸ 오늘의 정산</div>
           <MoneyBlock m={r.money} />
         </div>
@@ -400,7 +400,7 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
       <CashNotes notes={rs.flatMap((r) => r.notes)} />
       <div className="flex items-center justify-between">
         <div>
-          <div className="font-pixel-lg text-[20px] leading-none text-hi" style={{ textShadow: '2px 2px 0 #0f1420' }}>
+          <div className="font-pixel-lg text-[20px] leading-none text-hi" style={{ textShadow: '2px 2px 0 #121110' }}>
             {rs.length}경기 진행 결과
           </div>
           <div className="mt-1 text-[13px]">
@@ -443,7 +443,7 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-2 por:grid-cols-1">
-        <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+        <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }}>
           <div className="mb-1 text-[11px] text-sky">▸ 홈 관중</div>
           <div className="text-[11px]">
             홈 {homes.length}경기 · 총 <span className="text-white">{fmtInt(att)}</span>명
@@ -458,7 +458,7 @@ function Multi({ rs, teams }: { rs: DayReport[]; teams: Team[] }) {
             </div>
           ))}
         </div>
-        <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+        <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }}>
           <div className="mb-1 text-[11px] text-sky">▸ 기간 정산</div>
           <MoneyBlock m={sum} netLabel="기간 순익" />
         </div>

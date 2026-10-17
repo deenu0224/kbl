@@ -45,7 +45,7 @@ export default function AutumnIntro() {
           <div className="text-[11px] text-sky mob:text-[13px]">
             {core.season}시즌 정규시즌 종료 · {core.schedule.length}경기
           </div>
-          <div className="font-pixel-lg text-[20px] leading-tight" style={{ color: team.color, textShadow: '2px 2px 0 #0f1420' }}>
+          <div className="font-pixel-lg text-[20px] leading-tight" style={{ color: team.color, textShadow: '2px 2px 0 #121110' }}>
             {team.city} {team.name}
           </div>
           <div className="mt-0.5 text-[13px]">

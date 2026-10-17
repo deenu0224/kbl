@@ -98,7 +98,7 @@ export default function DraftScreen() {
         <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 pt-2 land:pt-1">
           <div className="flex-1 whitespace-nowrap">
             <div className="text-[11px] text-sky">{season}시즌 스토브리그</div>
-            <div className="font-pixel-lg text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+            <div className="font-pixel-lg text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #121110' }}>
               신인 드래프트 <span className="text-[13px] text-white/70">{done ? '종료' : `${round}라운드`}</span>
             </div>
           </div>
@@ -127,7 +127,7 @@ export default function DraftScreen() {
               <Fragment key={i}>
               {/* 라운드 머리: 한 라운드 = 구단 수만큼의 칸 (10구단 10칸) */}
               {head && (
-                <span className={`flex w-5 shrink-0 items-center justify-center self-stretch text-[10px] leading-none ${Math.floor(i / perRound) + 1 === round && !done ? 'text-hi' : 'text-white/45'}`} style={{ marginLeft: i > 0 ? 6 : 0, boxShadow: 'inset 2px 0 0 #47557f' }} data-testid="draft-round">
+                <span className={`flex w-5 shrink-0 items-center justify-center self-stretch text-[10px] leading-none ${Math.floor(i / perRound) + 1 === round && !done ? 'text-hi' : 'text-white/45'}`} style={{ marginLeft: i > 0 ? 6 : 0, boxShadow: 'inset 2px 0 0 #5a534c' }} data-testid="draft-round">
                   {Math.floor(i / perRound) + 1}R
                 </span>
               )}

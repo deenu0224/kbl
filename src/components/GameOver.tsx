@@ -47,14 +47,14 @@ export default function GameOver() {
     >
       <div className="px-panel px-scroll flex max-h-full w-full max-w-[720px] flex-col overflow-y-auto p-4 mob:p-3">
         <div className="text-[11px] text-bad">{season}시즌 · 연고 이전 확정</div>
-        <div className="font-pixel-lg text-[26px] leading-tight text-white mob:text-[22px]" style={{ textShadow: '2px 2px 0 #0f1420' }}>
+        <div className="font-pixel-lg text-[26px] leading-tight text-white mob:text-[22px]" style={{ textShadow: '2px 2px 0 #121110' }}>
           팀이 섬을 떠났습니다
         </div>
         <div className="mt-1 text-[12px] text-white/65 mob:text-[13px]">
           {team.city} {team.name} — 도민 지지 <span className="text-bad">{Math.round(campaign.verdict?.trustBefore ?? 0)} → 0</span>
         </div>
 
-        <div className="relative mx-auto mt-3 w-full max-w-[420px] opacity-80" style={{ aspectRatio: `${STADIUM_W} / ${STADIUM_H}`, boxShadow: '0 0 0 2px #0f1420' }}>
+        <div className="relative mx-auto mt-3 w-full max-w-[420px] opacity-80" style={{ aspectRatio: `${STADIUM_W} / ${STADIUM_H}`, boxShadow: '0 0 0 2px #121110' }}>
           <StadiumCanvas scene={scene} className="pixel absolute inset-0 block h-full w-full" />
         </div>
 

@@ -73,7 +73,7 @@ export default function OrderSheet() {
   const top = (
     <>
       <div className="flex shrink-0 items-center gap-2 px-2 pt-1.5">
-        <span className="font-pixel-lg shrink-0 text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+        <span className="font-pixel-lg shrink-0 text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #121110' }}>
           {title}
         </span>
         <span className="flex min-w-0 flex-1 items-center gap-1 text-[13px] text-white/75">
@@ -92,7 +92,7 @@ export default function OrderSheet() {
       </div>
       {order && opening && (
         <div className="flex shrink-0 items-center gap-2 px-2 pt-1.5">
-          <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
+          <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #121110, 0 0 0 3px ${team.color2}` }}>
             <PixelFace id={`char-${mgr.seed}`} color={team.color} color2={team.color2} size={36} />
           </div>
           <div className="min-w-0 flex-1 bg-ink/70 px-2 py-1 text-[13px] leading-snug text-white" style={{ boxShadow: 'inset 2px 0 0 #ffd84a' }}>

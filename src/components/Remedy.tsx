@@ -162,7 +162,7 @@ export default function RemedySheet({
                 type="button"
                 data-sfx="tab"
                 data-remedy={r.id}
-                className={`flex min-h-12 w-full cursor-pointer flex-col justify-center px-3 py-2 text-left ${quiet ? "bg-ink/40" : "bg-[#3d4c75]"}`}
+                className={`flex min-h-12 w-full cursor-pointer flex-col justify-center px-3 py-2 text-left ${quiet ? "bg-ink/40" : "bg-[#4a443e]"}`}
                 style={{
                   boxShadow: `inset 3px 0 0 ${quiet ? "rgba(255,255,255,.25)" : EDGE[r.tone ?? "good"]}`,
                 }}

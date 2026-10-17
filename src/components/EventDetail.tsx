@@ -186,7 +186,7 @@ export default function EventDetail({
           </div>
           <div
             className="font-pixel-lg text-[17px] leading-tight text-hi"
-            style={{ textShadow: "1px 1px 0 #0f1420" }}
+            style={{ textShadow: "1px 1px 0 #121110" }}
           >
             {ch.label}
           </div>

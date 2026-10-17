@@ -15,7 +15,7 @@ import { UI_SIZES, setUiSize, useUiSize } from './layout/uiScale';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-12 items-center gap-2 bg-panel-2 px-2 py-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+    <div className="flex min-h-12 items-center gap-2 bg-panel-2 px-2 py-1.5" style={{ boxShadow: '0 0 0 1px #121110' }}>
       <span className="w-[88px] shrink-0 text-[13px]">{label}</span>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2">{children}</div>
     </div>
@@ -214,7 +214,7 @@ export default function Settings() {
           </button>
         </Row>
         <Title>세이브</Title>
-        <div className="flex flex-col gap-1.5 bg-panel-2 p-2" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+        <div className="flex flex-col gap-1.5 bg-panel-2 p-2" style={{ boxShadow: '0 0 0 1px #121110' }}>
           <div className="flex flex-wrap gap-2">
             <button className="px-btn min-h-10 text-[13px]" data-testid="export" disabled={!hasSave || playback} onClick={doExport}>
               내보내기
@@ -256,7 +256,7 @@ export default function Settings() {
           </div>
         </div>
         <Title>저장 데이터 지우기</Title>
-        <div className="flex flex-wrap items-center gap-2 bg-panel-2 p-2" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+        <div className="flex flex-wrap items-center gap-2 bg-panel-2 p-2" style={{ boxShadow: '0 0 0 1px #121110' }}>
           <label className="flex min-h-10 flex-1 cursor-pointer items-center gap-2 text-[13px]">
             <input type="checkbox" className="h-5 w-5 accent-[#ffd84a]" checked={wipeHof} data-testid="wipe-hof" onChange={(e) => setWipeHof(e.target.checked)} />
             명예의 전당도 함께

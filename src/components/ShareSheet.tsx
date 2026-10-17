@@ -89,7 +89,7 @@ export default function ShareSheet({ data, scene, club = false, onClose }: { dat
           <span className="text-white/75">한 줄 소감 (선택)</span>
           <input
             className="min-h-11 w-full bg-ink px-2 text-white select-text"
-            style={{ fontSize: 16, boxShadow: '0 0 0 2px #0f1420' }}
+            style={{ fontSize: 16, boxShadow: '0 0 0 2px #121110' }}
             data-testid="share-note-input"
             value={note}
             maxLength={NOTE_MAX}
@@ -131,7 +131,7 @@ export default function ShareSheet({ data, scene, club = false, onClose }: { dat
             {text}
           </div>
         </details>
-        <div className="mx-auto w-full max-w-[260px] bg-ink short:max-w-[170px]" style={{ aspectRatio: `${CARD_W} / ${CARD_H}`, boxShadow: '0 0 0 2px #0f1420' }}>
+        <div className="mx-auto w-full max-w-[260px] bg-ink short:max-w-[170px]" style={{ aspectRatio: `${CARD_W} / ${CARD_H}`, boxShadow: '0 0 0 2px #121110' }}>
           {src ? (
             <img src={src} alt="기록 카드" className="block h-full w-full" data-testid="share-card" />
           ) : (

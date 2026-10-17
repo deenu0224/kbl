@@ -230,14 +230,14 @@ function FacilityCard({ kind }: { kind: FacilityKind }) {
   }, [core, kind]);
 
   return (
-    <div className="mb-1.5 bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+    <div className="mb-1.5 bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }}>
       <div className="flex items-center justify-between">
         <span className="text-[12px] text-hi">
           {FAC_KO[kind]} <span className="text-white">{cur?.name}</span>
         </span>
         <span className="flex gap-[2px]" title={`Lv${lv + 1} / 5`}>
           {[0, 1, 2, 3, 4].map((i) => (
-            <span key={i} style={{ width: 9, height: 9, background: i <= lv ? '#ffd84a' : '#141a29', boxShadow: '0 0 0 1px #0f1420' }} />
+            <span key={i} style={{ width: 9, height: 9, background: i <= lv ? '#ffd84a' : '#1b1a19', boxShadow: '0 0 0 1px #121110' }} />
           ))}
         </span>
       </div>
@@ -278,7 +278,7 @@ export function ProjectsSection() {
     <div data-testid="projects">
       <SectionTitle right={<Help topic="projects" />}>왕조 프로젝트</SectionTitle>
       {pvs.map((pv) => (
-        <div key={pv.id} className="mb-1.5 flex items-center gap-1.5 bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid={`project-${pv.id}`}>
+        <div key={pv.id} className="mb-1.5 flex items-center gap-1.5 bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }} data-testid={`project-${pv.id}`}>
           <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setOpen(pv.id)} aria-label={`${pv.name} 상세`}>
             <div className="flex items-baseline justify-between gap-2 text-[12px]">
               <span className="truncate text-hi">
@@ -359,7 +359,7 @@ export function StadiumTab({ part }: { part?: 'ticket' | FacilityKind } = {}) {
         </div>
       )}
       {(!part || part === 'ticket') && <SectionTitle>티켓 가격</SectionTitle>}
-      <div className={`bg-panel-2 p-1.5 ${!part || part === 'ticket' ? '' : 'hidden'}`} style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+      <div className={`bg-panel-2 p-1.5 ${!part || part === 'ticket' ? '' : 'hidden'}`} style={{ boxShadow: '0 0 0 1px #121110' }}>
         <div className="flex items-center gap-1.5">
           <button className="px-btn mob:min-h-14 mob:min-w-16 mob:text-[26px]" disabled={price <= 0.5} onClick={() => setPrice(price - 0.1)} aria-label="가격 내리기">
             −
@@ -594,18 +594,18 @@ export function FinanceTab() {
           </div>
         )}
         <LedgerBars ledger={finance.ledger} />
-        <div className="mt-1.5 flex items-center justify-between bg-panel-2 px-1.5 py-1 text-[11px] mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+        <div className="mt-1.5 flex items-center justify-between bg-panel-2 px-1.5 py-1 text-[11px] mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #121110' }}>
           <span>
             연봉 총액 <span className="text-hi">{fmtMoney(pay)}</span>
           </span>
           <span className="text-white/55">경기당 {fmtMoney(Math.round(pay / games))}</span>
         </div>
-        <div className="mt-1 bg-panel-2 px-1.5 py-1 text-[11px] text-white/75 mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="club-status">
+        <div className="mt-1 bg-panel-2 px-1.5 py-1 text-[11px] text-white/75 mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #121110' }} data-testid="club-status">
           전력 {Math.round(teamStrength(team))} · 팬 {fmtInt(Math.round(core.fans))}명 · 만족도 {Math.round(core.fanSat)}
           {core.crowd ? ` · 최근 홈 관중 ${fmtInt(core.crowd.attendance)}명` : ''}
         </div>
         {exposeRisk(core) !== null && (
-          <div className="mt-1 flex min-h-9 items-center justify-between gap-2 bg-panel-2 px-1.5 py-1 text-[11px] text-white/75 mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="secrets-finance">
+          <div className="mt-1 flex min-h-9 items-center justify-between gap-2 bg-panel-2 px-1.5 py-1 text-[11px] text-white/75 mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #121110' }} data-testid="secrets-finance">
             <span>
               🤫 말하지 않은 일 {(core.campaign.secrets ?? []).filter((x) => !x.unknown).length}건 · <span className="text-[#f0a35a]">시즌 말 적발 위험 {Math.round((exposeRisk(core) ?? 0) * 100)}%</span>
             </span>
@@ -615,7 +615,7 @@ export function FinanceTab() {
       </Fold>
 
       <SectionTitle>대출</SectionTitle>
-      <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+      <div className="bg-panel-2 p-1.5" style={{ boxShadow: '0 0 0 1px #121110' }}>
         <div className="flex justify-between text-[11px]">
           <span>
             부채 <span className={finance.debt > 0 ? 'text-bad' : 'text-white/60'}>{fmtMoney(finance.debt)}</span>
@@ -652,7 +652,7 @@ export function FinanceTab() {
       {(scandalOpen(core) || eLv > 0) && (
         <>
           <SectionTitle>선수단 관리</SectionTitle>
-          <div className="flex items-center gap-1.5 bg-panel-2 p-1.5 text-[11px] mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="ethics-line">
+          <div className="flex items-center gap-1.5 bg-panel-2 p-1.5 text-[11px] mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #121110' }} data-testid="ethics-line">
             <div className="min-w-0 flex-1 leading-snug">
               <div>
                 윤리 교육 <span className="text-hi">{eLv}/{SC.ethicsMax}단계</span> · 스캔들 확률 ×{ethicsMult(eLv)}

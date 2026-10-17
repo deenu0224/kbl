@@ -53,9 +53,9 @@ function Backdrop({ dim = 0.55 }: { dim?: number }) {
     [facilities, hasSave],
   );
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#0f1420]">
+    <div className="absolute inset-0 overflow-hidden bg-[#121110]">
       <StadiumCanvas scene={scene} className="pixel absolute top-0 left-1/2 block h-[62%] w-auto max-w-none -translate-x-1/2" />
-      <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(15,20,32,${dim * 0.8}) 0%, rgba(15,20,32,${Math.min(0.92, dim + 0.2)}) 38%, #141a29 66%)` }} />
+      <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(18, 17, 16,${dim * 0.8}) 0%, rgba(18, 17, 16,${Math.min(0.92, dim + 0.2)}) 38%, #1b1a19 66%)` }} />
     </div>
   );
 }
@@ -127,7 +127,7 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
     return hof.clubs.filter((x) => x.nick === c.nick).length > 1 && i >= 0 ? hof.clubs.slice(i).filter((x) => x.nick === c.nick).length : undefined;
   };
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-[#141a29] font-pixel text-[13px]" style={safe} data-testid="hof">
+    <div className="fixed inset-0 z-[70] flex flex-col bg-[#1b1a19] font-pixel text-[13px]" style={safe} data-testid="hof">
       <div className="flex shrink-0 items-center justify-between">
         <span className="font-pixel-lg flex items-center gap-2 text-[20px] text-hi">
           <Flag size={18} /> 명예의 전당
@@ -148,7 +148,7 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
             <H>역대 구단</H>
             {hof.clubs.length ? (
               hof.clubs.map((c, i) => (
-                <div key={c.seed} className="mb-1 min-h-12 cursor-pointer bg-panel px-2 py-1.5 active:bg-white/5" style={{ boxShadow: '0 0 0 1px #0f1420' }} onClick={() => setOpen({ club: c })} data-testid="hof-club">
+                <div key={c.seed} className="mb-1 min-h-12 cursor-pointer bg-panel px-2 py-1.5 active:bg-white/5" style={{ boxShadow: '0 0 0 1px #121110' }} onClick={() => setOpen({ club: c })} data-testid="hof-club">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-pixel-lg truncate text-[16px]" style={{ color: DEF.color }}>
                       {DEF.city} {c.nick}
@@ -199,7 +199,7 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
                 <div
                   key={k}
                   className={`mb-1 flex min-h-12 items-center justify-between gap-2 bg-panel px-2 ${club ? 'cursor-pointer active:bg-white/5' : ''}`}
-                  style={{ boxShadow: '0 0 0 1px #0f1420' }}
+                  style={{ boxShadow: '0 0 0 1px #121110' }}
                   onClick={club && r ? () => setOpen({ club, season: r.season }) : undefined}
                   data-testid="hof-record"
                 >
@@ -225,7 +225,7 @@ export function HallOfFame({ onClose }: { onClose: () => void }) {
                 <div
                   key={i}
                   className={`mb-1 flex min-h-12 items-center justify-between gap-2 bg-panel px-2 ${club ? 'cursor-pointer active:bg-white/5' : ''}`}
-                  style={{ boxShadow: '0 0 0 1px #0f1420' }}
+                  style={{ boxShadow: '0 0 0 1px #121110' }}
                   onClick={club ? () => setOpen({ club, season: p.season }) : undefined}
                   data-testid="hof-player"
                 >
@@ -282,7 +282,7 @@ function NickEntry({ onBack }: { onBack: () => void }) {
   return (
     <div className="relative mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center gap-4" data-testid="nick-entry">
       <div className="text-center text-[14px] text-white/75">구단 별칭을 정하세요</div>
-      <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${VIEW.w} / ${VIEW.h}`, boxShadow: '0 0 0 2px #0f1420' }}>
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${VIEW.w} / ${VIEW.h}`, boxShadow: '0 0 0 2px #121110' }}>
         <div className="absolute" style={{ width: `${(STADIUM_W / VIEW.w) * 100}%`, left: `${(-VIEW.x / VIEW.w) * 100}%`, top: `${(-VIEW.y / VIEW.h) * 100}%`, aspectRatio: `${STADIUM_W} / ${STADIUM_H}`, containerType: 'inline-size' }}>
           <StadiumCanvas scene={scene} className="pixel absolute inset-0 block h-full w-full" />
           <div
@@ -306,7 +306,7 @@ function NickEntry({ onBack }: { onBack: () => void }) {
           data-testid="nick-input"
           aria-label="구단 별칭"
           className="h-[52px] w-[11em] min-w-0 bg-ink px-3 text-center font-pixel-lg !text-[20px] text-white select-text"
-          style={{ boxShadow: '0 0 0 2px #0f1420, inset 0 0 0 2px #ffd84a' }}
+          style={{ boxShadow: '0 0 0 2px #121110, inset 0 0 0 2px #ffd84a' }}
           onChange={(e) => setNick(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && start()}
         />
@@ -358,7 +358,7 @@ export default function TitleScreen() {
           </div>
           {view === 'confirm' ? (
             <div className="flex flex-[6] flex-col justify-center gap-3 land:flex-1" data-testid="overwrite">
-              <div className="bg-panel p-3 text-center text-[14px] leading-relaxed" style={{ boxShadow: '0 0 0 2px #0f1420' }}>
+              <div className="bg-panel p-3 text-center text-[14px] leading-relaxed" style={{ boxShadow: '0 0 0 2px #121110' }}>
                 <div className="text-hi">지금 구단을 덮어씁니다</div>
                 <div className="mt-1 text-[13px] text-white/60">{line}</div>
                 <div className="mt-1 text-[13px] text-white/45">한 시즌 이상 치른 구단은 명예의 전당에 “진행 중 종료”로 남습니다</div>
@@ -373,7 +373,7 @@ export default function TitleScreen() {
           ) : (
             <div className="flex flex-[6] flex-col justify-center gap-3 land:flex-1 land:gap-2">
               {from && (
-                <div className="bg-panel p-2 text-center text-[14px] leading-snug text-hi" style={{ boxShadow: '0 0 0 2px #0f1420' }} data-testid="from-note">
+                <div className="bg-panel p-2 text-center text-[14px] leading-snug text-hi" style={{ boxShadow: '0 0 0 2px #121110' }} data-testid="from-note">
                   {from.who}
                   <div className="mt-0.5 text-[13px] text-white/60">{from.ask}</div>
                 </div>

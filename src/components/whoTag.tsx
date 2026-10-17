@@ -26,7 +26,7 @@ export function WhoTag({ who }: { who: { text: string; mine: boolean } }) {
   return (
     <span
       className="inline-block whitespace-nowrap px-1 text-[12px] leading-[1.4]"
-      style={who.mine ? { background: '#f08a1c', color: '#0f1420' } : { boxShadow: 'inset 0 0 0 1px #6b7694', color: '#b9c3e0' }}
+      style={who.mine ? { background: '#f08a1c', color: '#121110' } : { boxShadow: 'inset 0 0 0 1px #6b7694', color: '#d4ccc2' }}
       data-testid="who-tag"
       data-mine={who.mine ? '1' : '0'}
     >

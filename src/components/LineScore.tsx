@@ -65,7 +65,7 @@ export default function LineScore({ report, step }: { report: DayReport; step: n
     const mine = t?.id === userId;
     return (
       <tr key={side}>
-        <td className="pr-1 text-left" style={{ color: mine ? '#ffffff' : '#b9c3e0' }}>{t?.id}</td>
+        <td className="pr-1 text-left" style={{ color: mine ? '#ffffff' : '#d4ccc2' }}>{t?.id}</td>
         {Array.from({ length: n }, (_, i) => {
           const c = cell(side, i);
           const live = !done && i + 1 === cur && (side === 0 ? half === 0 : half === 1);
@@ -80,7 +80,7 @@ export default function LineScore({ report, step }: { report: DayReport; step: n
     );
   };
   return (
-    <div className="w-full bg-ink px-1.5 py-1" style={{ boxShadow: '0 0 0 1px #2b3350' }} data-testid="line-board">
+    <div className="w-full bg-ink px-1.5 py-1" style={{ boxShadow: '0 0 0 1px #3a3632' }} data-testid="line-board">
       <table className="w-full border-collapse text-center font-pixel text-[13px] leading-[1.35]">
         <thead>
           <tr className="text-[11px]" style={{ color: '#6b7694' }}>

@@ -42,7 +42,7 @@ export default function Sheet({ onClose, children, label }: { onClose: () => voi
         className="anim-sheet relative mx-auto flex max-h-[calc(var(--dvh)*88)] w-full max-w-[520px] flex-col bg-panel"
         style={{
           transform: dy ? `translateY(${dy}px)` : undefined,
-          boxShadow: '0 -2px 0 0 #0f1420, inset 0 2px 0 0 rgba(255,255,255,.08)',
+          boxShadow: '0 -2px 0 0 #121110, inset 0 2px 0 0 rgba(255,255,255,.08)',
           paddingBottom: 'env(safe-area-inset-bottom)',
           paddingLeft: 'env(safe-area-inset-left)',
           paddingRight: 'env(safe-area-inset-right)',

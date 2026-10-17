@@ -51,7 +51,7 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
               <span className={g.room > 0 ? 'text-good' : 'text-white/45'}> · 여지 +{g.room}</span>
             </span>
           </div>
-          <div className="relative mt-0.5 h-[8px]" style={{ background: '#141a29', boxShadow: 'inset 0 0 0 1px #0f1420' }}>
+          <div className="relative mt-0.5 h-[8px]" style={{ background: '#1b1a19', boxShadow: 'inset 0 0 0 1px #121110' }}>
             <div className="absolute inset-y-0 left-0 bg-good/35" style={{ width: span(p.pot) }} />
             <div className="absolute inset-y-0 left-0" style={{ width: span(p.ovr), background: ratingColor(p.ovr) }} />
           </div>

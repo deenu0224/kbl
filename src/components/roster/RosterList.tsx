@@ -35,7 +35,7 @@ export function FullScreen({ title, sub, onClose, children, testid, hold = false
       <div className="px-panel relative flex min-h-0 w-full max-w-[1180px] flex-col">
         <div className="flex shrink-0 items-center gap-2 px-2 pt-1.5">
           <div className="min-w-0 flex-1">
-            <div className="truncate font-pixel-lg text-[16px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+            <div className="truncate font-pixel-lg text-[16px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #121110' }}>
               {title}
             </div>
             {sub && <div className="text-[11px] leading-snug text-white/60">{sub}</div>}

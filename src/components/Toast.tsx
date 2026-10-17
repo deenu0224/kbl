@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 
-const BG = { good: '#2f9e4f', bad: '#c0392b', info: '#3d4c75' } as const;
+const BG = { good: '#2f9e4f', bad: '#c0392b', info: '#4a443e' } as const;
 
 /** 액션 결과/오류 알림. key 가 바뀔 때마다 다시 뜬다. 모바일에선 캠페인 줄·드래프트 순서 띠를 가리지 않게 액션 바 바로 위에 띄운다. */
 export default function Toast() {
@@ -31,7 +31,7 @@ function ToastBox() {
       <div
         key={toast.key}
         className="anim-pop px-4 py-1.5 text-center text-[13px] text-white"
-        style={{ background: BG[toast.tone], boxShadow: '0 0 0 2px #0f1420, 0 4px 0 rgba(0,0,0,.3)' }}
+        style={{ background: BG[toast.tone], boxShadow: '0 0 0 2px #121110, 0 4px 0 rgba(0,0,0,.3)' }}
       >
         {toast.tone === 'bad' ? '✕ ' : toast.tone === 'good' ? '✓ ' : ''}
         {toast.text}

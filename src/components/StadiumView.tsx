@@ -39,7 +39,7 @@ const fz = (mobile: boolean, cqw: number, minPx: number) => (mobile ? `max(${cqw
 
 const chip: CSSProperties = {
   background: 'rgba(27,34,51,.88)',
-  boxShadow: '0 0 0 0.25cqw #0f1420',
+  boxShadow: '0 0 0 0.25cqw #121110',
   fontSize: '1.7cqw',
   padding: '0.5cqw 1cqw',
   lineHeight: 1.25,
@@ -111,7 +111,7 @@ function PanZoom({ children, fixed, onTagsOff }: { children: (style: CSSProperti
       <div
         ref={ref}
         className="no-scrollbar flex h-full w-full items-center overflow-x-auto overflow-y-hidden"
-        style={{ overscrollBehavior: 'contain', background: '#0f1420' }}
+        style={{ overscrollBehavior: 'contain', background: '#121110' }}
         onScroll={(e) => {
           const el = e.currentTarget;
           const range = el.scrollWidth - el.clientWidth;
@@ -325,7 +325,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           <button
             key={kd}
             className="flex h-9 min-w-11 cursor-pointer items-center justify-center gap-1 px-1.5 text-[13px] text-white"
-            style={{ background: 'rgba(27,34,51,.9)', boxShadow: '0 0 0 2px #0f1420' }}
+            style={{ background: 'rgba(27,34,51,.9)', boxShadow: '0 0 0 2px #121110' }}
             aria-label={`${FAC_KO[kd]} Lv${facilities[kd] + 1}`}
             data-testid={`fac-fixed-${kd}`}
             data-sfx="tab"
@@ -349,7 +349,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           ...size,
           aspectRatio: `${STADIUM_W} / ${STADIUM_H}`,
           containerType: 'inline-size',
-          boxShadow: '0 0 0 2px #0f1420',
+          boxShadow: '0 0 0 2px #121110',
           background: '#7fc96b',
         }}
       >
@@ -368,7 +368,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                 {ev.type === 'final' ? '경기 종료' : ev.type === 'start' && !ev.moment ? '플레이볼' : `${ev.inning}회${ev.half === 0 ? '초' : '말'}`}
               </div>
               <div className="font-pixel-lg flex items-center" style={{ fontSize: `${2.6 * k}cqw`, gap: '0.8cqw' }}>
-                <span style={{ fontSize: '1.5cqw', color: awayTeam?.id === userId ? '#fff' : '#b9c3e0' }}>{awayTeam?.id}</span>
+                <span style={{ fontSize: '1.5cqw', color: awayTeam?.id === userId ? '#fff' : '#d4ccc2' }}>{awayTeam?.id}</span>
                 <span key={`a${ev.away}`} className={step > 0 ? 'anim-pop' : ''}>
                   {ev.away}
                 </span>
@@ -376,7 +376,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                 <span key={`h${ev.home}`} className={step > 0 ? 'anim-pop' : ''}>
                   {ev.home}
                 </span>
-                <span style={{ fontSize: '1.5cqw', color: homeTeam?.id === userId ? '#fff' : '#b9c3e0' }}>{homeTeam?.id}</span>
+                <span style={{ fontSize: '1.5cqw', color: homeTeam?.id === userId ? '#fff' : '#d4ccc2' }}>{homeTeam?.id}</span>
               </div>
             </>
           ) : next && opp ? (
@@ -415,7 +415,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
               height: `${(11 / STADIUM_H) * 100}%`,
               fontSize: `${1.25 * k}cqw`,
               lineHeight: 1,
-              color: '#1b2233',
+              color: '#1e1c1a',
               background: '#f0a35a',
               boxShadow: '0 0 0 0.25cqw #6b3a1a',
             }}
@@ -441,7 +441,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                   height: `${(8 / STADIUM_H) * 100}%`,
                   fontSize: '1.05cqw',
                   lineHeight: 1,
-                  color: '#1b2233',
+                  color: '#1e1c1a',
                   transform: `rotate(${tilt}rad)`,
                 }}
               >
@@ -485,7 +485,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                 <span
                   key={fxUp.key}
                   className="anim-float font-pixel-lg pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap"
-                  style={{ fontSize: fz(mobile, 2.2, 13), color: '#ffd84a', textShadow: '0.2cqw 0.2cqw 0 #0f1420' }}
+                  style={{ fontSize: fz(mobile, 2.2, 13), color: '#ffd84a', textShadow: '0.2cqw 0.2cqw 0 #121110' }}
                 >
                   ▲ Lv{facilities[k] + 1}!
                 </span>
@@ -516,8 +516,8 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
               key={`${report.day}-${step}`}
               className="anim-pop text-center"
               style={{
-                background: 'rgba(15,20,32,.82)',
-                boxShadow: `0 0 0 0.3cqw ${mineEv ? user.color : '#0f1420'}, 0 0.8cqw 0 rgba(0,0,0,.25)`,
+                background: 'rgba(18, 17, 16,.82)',
+                boxShadow: `0 0 0 0.3cqw ${mineEv ? user.color : '#121110'}, 0 0.8cqw 0 rgba(0,0,0,.25)`,
                 borderLeft: band,
                 padding: '1.2cqw 3cqw',
                 maxWidth: mobile ? '92%' : '80%',
@@ -529,7 +529,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
                   fontSize: ev.type === 'hr' || ev.type === 'walkoff' ? fz(mobile, 4.4, 16) : fz(mobile, 3.4, 14),
                   lineHeight: 1.15,
                   color: ev.type === 'injury' ? '#ff6b6b' : mineEv ? '#ffd84a' : '#ffffff',
-                  textShadow: '0.3cqw 0.3cqw 0 #0f1420',
+                  textShadow: '0.3cqw 0.3cqw 0 #121110',
                 }}
               >
                 {ceremony ? '한국시리즈 우승!' : tagged && (
@@ -542,7 +542,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
               {ceremony ? (
                 <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#fff', marginTop: '0.4cqw' }}>{ceremonySub(report, user)}</div>
               ) : (
-                ev.sub && <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#b9c3e0', marginTop: '0.4cqw' }}>{ev.sub}</div>
+                ev.sub && <div style={{ fontSize: fz(mobile, 1.8, 12), color: '#d4ccc2', marginTop: '0.4cqw' }}>{ev.sub}</div>
               )}
             </div>
           </div>
@@ -553,7 +553,7 @@ export default function StadiumView({ pan = false }: { pan?: boolean }) {
           <div className="absolute inset-x-0 flex items-center justify-center" style={{ bottom: '20%', gap: '1.2cqw' }}>
             <div className="flex" style={{ gap: '0.4cqw' }}>
               {report.result.events.map((_, i) => (
-                <span key={i} style={{ width: '1cqw', height: '1cqw', background: i <= step ? '#ffd84a' : 'rgba(15,20,32,.6)', boxShadow: '0 0 0 0.15cqw #0f1420' }} />
+                <span key={i} style={{ width: '1cqw', height: '1cqw', background: i <= step ? '#ffd84a' : 'rgba(18, 17, 16,.6)', boxShadow: '0 0 0 0.15cqw #121110' }} />
               ))}
             </div>
             {/* 모바일은 엄지 위치(액션 바)에 건너뛰기가 있다 */}

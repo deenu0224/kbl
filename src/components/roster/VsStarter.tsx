@@ -116,7 +116,7 @@ export default function VsStarter({ team, player: p }: { team: Team; player: Pla
               key={x.p.id}
               type="button"
               className={`flex min-h-10 cursor-pointer items-center gap-1 px-1.5 text-left leading-tight ${on ? 'bg-hi/20' : 'bg-panel-2'}`}
-              style={{ boxShadow: on ? '0 0 0 2px #ffd84a' : '0 0 0 1px #0f1420' }}
+              style={{ boxShadow: on ? '0 0 0 2px #ffd84a' : '0 0 0 1px #121110' }}
               data-testid="vs-pick"
               onClick={() => setPick(x.p.id)}
             >
@@ -132,13 +132,13 @@ export default function VsStarter({ team, player: p }: { team: Team; player: Pla
 
       <div className="grid grid-cols-[1fr_2.5rem_1fr] items-center gap-x-2 gap-y-[3px] leading-none">
         <span className="truncate text-right text-white/55">
-          <span className="mr-1 px-1 text-[12px]" style={{ background: '#f08a1c', color: '#0f1420' }}>우리</span>
+          <span className="mr-1 px-1 text-[12px]" style={{ background: '#f08a1c', color: '#121110' }}>우리</span>
           {o.name}
         </span>
         <span />
         <span className="truncate text-white/55">
           {p.name}
-          <span className="ml-1 px-1 text-[12px]" style={{ boxShadow: 'inset 0 0 0 1px #6b7694', color: '#b9c3e0' }}>FA</span>
+          <span className="ml-1 px-1 text-[12px]" style={{ boxShadow: 'inset 0 0 0 1px #6b7694', color: '#d4ccc2' }}>FA</span>
         </span>
         {stats.map(([label, f]) => {
           const a = Math.round(f(o));

@@ -111,7 +111,7 @@ function SeriesBox({ s, prev, byId, seeds, userId, live, ours = false }: { s: Po
   const wc = s.round === 'WC';
   const seedOf = (id: string | null) => (id ? seeds.indexOf(id) + 1 : 0);
   return (
-    <div className="min-w-0 flex-1" style={{ boxShadow: live ? '0 0 0 1px #7fd3ff' : ours ? '0 0 0 1px #f0a35a' : '0 0 0 1px #0f1420' }} data-testid={`series-${s.round}`} data-ours={ours ? '1' : undefined}>
+    <div className="min-w-0 flex-1" style={{ boxShadow: live ? '0 0 0 1px #7fd3ff' : ours ? '0 0 0 1px #f0a35a' : '0 0 0 1px #121110' }} data-testid={`series-${s.round}`} data-ours={ours ? '1' : undefined}>
       <div className="flex items-center justify-between gap-1 bg-panel-2 px-1.5 py-[3px] text-[11px]">
         <span className={`min-w-0 truncate ${live ? 'text-sky' : ours ? 'text-[#f0a35a]' : 'text-white/75'}`}>
           {ours && <span aria-hidden>▲ </span>}
@@ -135,7 +135,7 @@ function SeriesBox({ s, prev, byId, seeds, userId, live, ours = false }: { s: Po
             const tied = hiRuns === loRuns; // 와일드카드 결정전만
             const userWon = userIn && (s.hiId === userId ? hiRuns > loRuns : loRuns > hiRuns);
             return (
-              <span key={i} className="bg-ink px-1 text-[10px]" style={{ boxShadow: `inset 0 -2px 0 ${!userIn ? '#47557f' : tied ? '#7fd3ff' : userWon ? '#6ee07a' : '#ff6b6b'}` }}>
+              <span key={i} className="bg-ink px-1 text-[10px]" style={{ boxShadow: `inset 0 -2px 0 ${!userIn ? '#5a534c' : tied ? '#7fd3ff' : userWon ? '#6ee07a' : '#ff6b6b'}` }}>
                 {hiRuns}:{loRuns}
                 {tied ? ' 무' : ''}
               </span>
@@ -229,7 +229,7 @@ export function OppClimb({ className = '', chips = true, oneRow = false }: { cla
         <div className={`mt-0.5 flex items-center gap-x-1 gap-y-[3px] ${oneRow ? 'no-scrollbar flex-nowrap overflow-x-auto' : 'flex-wrap'}`} data-testid="opp-climb-path">
           {path.map((p) => (
             <span key={p.round} className="flex shrink-0 items-center gap-1">
-              <span className="whitespace-nowrap bg-ink/70 px-1 py-[1px]" style={{ boxShadow: 'inset 0 -2px 0 #47557f' }}>
+              <span className="whitespace-nowrap bg-ink/70 px-1 py-[1px]" style={{ boxShadow: 'inset 0 -2px 0 #5a534c' }}>
                 <span className="text-sky">{p.short}</span> {p.winner} <span className="text-hi">{p.w}:{p.l}</span>
                 {p.ties ? <span className="text-white/50">({p.ties}무)</span> : null} <span className="text-white/45">{p.loser}</span>
               </span>

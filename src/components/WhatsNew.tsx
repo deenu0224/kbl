@@ -32,7 +32,7 @@ function close() {
 
 function Note({ n }: { n: ReleaseNote }) {
   return (
-    <div className="flex flex-col gap-1 bg-panel-2 p-2" style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="release-note">
+    <div className="flex flex-col gap-1 bg-panel-2 p-2" style={{ boxShadow: '0 0 0 1px #121110' }} data-testid="release-note">
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-pixel-lg text-[15px] text-hi">
           v{n.version} · {n.title}

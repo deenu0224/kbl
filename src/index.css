@@ -13,10 +13,10 @@
   --font-pixel: 'Galmuri11', 'Galmuri9', ui-monospace, monospace;
   --font-pixel-sm: 'Galmuri9', 'Galmuri11', ui-monospace, monospace;
   --font-pixel-lg: 'Galmuri14', 'Galmuri11', ui-monospace, monospace;
-  --color-ink: #1b2233;
-  --color-panel: #232c42;
-  --color-panel-2: #2d3855;
-  --color-edge: #0f1420;
+  --color-ink: #1e1c1a;
+  --color-panel: #2b2826;
+  --color-panel-2: #3a3632;
+  --color-edge: #121110;
   --color-hi: #ffd84a;
   --color-good: #6ee07a;
   --color-bad: #ff6b6b;
@@ -44,7 +44,7 @@ body,
 
 body {
   margin: 0;
-  background: #141a29;
+  background: #1b1a19;
   color: #eef2ff;
   font-family: var(--font-pixel);
   font-size: 12px;
@@ -108,7 +108,7 @@ canvas.pixel {
 .px-btn {
   font-family: var(--font-pixel);
   padding: 4px 10px;
-  background: #3d4c75;
+  background: #4a443e;
   color: #fff;
   cursor: pointer;
   box-shadow:
@@ -132,11 +132,11 @@ canvas.pixel {
   cursor: not-allowed;
 }
 .px-btn.primary {
-  background: #e2572e;
+  background: #e8741a;
 }
 .px-btn.gold {
   background: #d9a514;
-  color: #1b2233;
+  color: #1e1c1a;
 }
 .px-btn.green {
   background: #2f9e4f;
@@ -150,10 +150,10 @@ canvas.pixel {
   width: 8px;
 }
 .px-scroll::-webkit-scrollbar-thumb {
-  background: #47557f;
+  background: #5a534c;
 }
 .px-scroll::-webkit-scrollbar-track {
-  background: #1a2133;
+  background: #1e1c1a;
 }
 
 @keyframes pop-in {
@@ -270,10 +270,10 @@ canvas.pixel {
 }
 .title-logo {
   text-shadow:
-    3px 3px 0 #0f1420,
-    -2px -2px 0 #0f1420,
-    2px -2px 0 #0f1420,
-    -2px 2px 0 #0f1420;
+    3px 3px 0 #121110,
+    -2px -2px 0 #121110,
+    2px -2px 0 #121110,
+    -2px 2px 0 #121110;
 }
 /* mob:text-[11px] 처럼 직접 지정한 작은 글자도 13px 로 올린다 (구장 오버레이는 인라인 cqw 라 해당 없음) */
 :root:is([data-layout='portrait'], [data-layout='landscape']) :is([class*='text-[9px]'], [class*='text-[10px]'], [class*='text-[11px]'], [class*='text-[12px]']) {

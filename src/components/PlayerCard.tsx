@@ -17,7 +17,7 @@ export function ScoutBadge({ grade, size = 18 }: { grade: Player['scout']; size?
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center font-pixel-lg text-ink"
-      style={{ width: size, height: size, fontSize: Math.max(13, size * 0.7), background: SCOUT_COLOR[grade ?? ''] ?? '#56607e', boxShadow: '0 0 0 1px #0f1420' }}
+      style={{ width: size, height: size, fontSize: Math.max(13, size * 0.7), background: SCOUT_COLOR[grade ?? ''] ?? '#56607e', boxShadow: '0 0 0 1px #121110' }}
     >
       {grade ?? '?'}
     </span>
@@ -79,7 +79,7 @@ export default function PlayerCard({
   return (
     <div
       className="relative shrink-0 bg-panel-2 p-2"
-      style={{ boxShadow: `0 0 0 2px #0f1420, inset 0 0 0 2px ${color}, inset 0 0 0 3px ${color2}55` }}
+      style={{ boxShadow: `0 0 0 2px #121110, inset 0 0 0 2px ${color}, inset 0 0 0 3px ${color2}55` }}
     >
       {/* 머리띠 */}
       <div className="-mx-0.5 -mt-0.5 mb-1.5 flex items-center justify-between px-1.5 py-0.5 text-[10px]" style={{ background: color, color: '#fff', textShadow: '1px 1px 0 rgba(0,0,0,.5)' }}>
@@ -90,7 +90,7 @@ export default function PlayerCard({
       </div>
 
       <div className="flex gap-2">
-        <div className="shrink-0 self-start" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${color2}` }}>
+        <div className="shrink-0 self-start" style={{ boxShadow: `0 0 0 2px #121110, 0 0 0 3px ${color2}` }}>
           <PixelFace id={p.id} color={color} color2={color2} foreign={p.foreign} size={64} />
         </div>
         <div className="min-w-0 flex-1">

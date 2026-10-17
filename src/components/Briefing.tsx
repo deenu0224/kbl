@@ -40,7 +40,7 @@ function ChairAlert({ text }: { text: string }) {
   const ch = CHARACTERS.chair;
   return (
     <div className="flex items-start gap-2 bg-bad/15 p-2" style={{ boxShadow: 'inset 3px 0 0 #ff6b6b' }} data-testid="brief-alert">
-      <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
+      <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #121110, 0 0 0 3px ${team.color2}` }}>
         <PixelFace id={`char-${ch.seed}`} color={team.color} color2={team.color2} size={44} />
       </div>
       <div className="min-w-0 flex-1">
@@ -59,7 +59,7 @@ function StaffWarn({ who, line }: { who: CharId; line: string }) {
   const ch = CHARACTERS[who];
   return (
     <div className="flex items-start gap-2 bg-[#f0a35a]/12 p-2" style={{ boxShadow: 'inset 3px 0 0 #f0a35a' }} data-testid="brief-warn">
-      <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
+      <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #121110, 0 0 0 3px ${team.color2}` }}>
         <PixelFace id={`char-${ch.seed}`} color={team.color} color2={team.color2} size={44} />
       </div>
       <div className="min-w-0 flex-1">
@@ -85,7 +85,7 @@ function OfferCard({ o, onOpen }: { o: BriefOffer; onOpen: () => void }) {
       {/* 카드를 누르면 상세 시트 */}
       <button className="block w-full cursor-pointer text-left" data-testid="brief-open" onClick={onOpen}>
         <div className="flex items-start gap-2">
-          <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #0f1420, 0 0 0 3px ${team.color2}` }}>
+          <div className="shrink-0" style={{ boxShadow: `0 0 0 2px #121110, 0 0 0 3px ${team.color2}` }}>
             <PixelFace id={`char-${ch.seed}`} color={team.color} color2={team.color2} size={44} />
           </div>
           <div className="min-w-0 flex-1">
@@ -222,7 +222,7 @@ function DetailSheet({ o, r, mobile, onClose }: { o?: BriefOffer; r?: BriefResul
         <button className="px-btn min-h-9 !px-2 text-[12px]" data-testid="detail-back" onClick={onClose}>
           ◂ 브리핑
         </button>
-        <span className="min-w-0 truncate font-pixel-lg text-[16px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+        <span className="min-w-0 truncate font-pixel-lg text-[16px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #121110' }}>
           {o && ch ? `${ch.name} ${ch.title}의 제안` : `지난주 ${r?.label ?? ''}`}
         </span>
       </div>
@@ -337,7 +337,7 @@ export default function BriefingSheet() {
   const body = (
     <>
       <div className="flex shrink-0 items-baseline gap-2 px-2 pt-1.5">
-        <span className="font-pixel-lg text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+        <span className="font-pixel-lg text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #121110' }}>
           주간 브리핑
         </span>
         <span className="text-[11px] text-white/55 mob:text-[13px]">

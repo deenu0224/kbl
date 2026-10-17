@@ -101,7 +101,7 @@ export default function ChampionHero({ core, team, rank }: { core: Core; team: T
   const people = useCountUp(att, 1600);
 
   return (
-    <div className="relative shrink-0 overflow-hidden px-3 py-3" data-testid="champion-hero" style={{ background: `linear-gradient(180deg, ${team.color}55, #141a29 85%)`, boxShadow: `0 0 0 2px #0f1420, inset 0 0 0 2px ${team.color}` }}>
+    <div className="relative shrink-0 overflow-hidden px-3 py-3" data-testid="champion-hero" style={{ background: `linear-gradient(180deg, ${team.color}55, #1b1a19 85%)`, boxShadow: `0 0 0 2px #121110, inset 0 0 0 2px ${team.color}` }}>
       <div className="text-[11px] text-sky">
         {core.season}시즌 결산 · 한국시리즈 우승
       </div>
@@ -111,7 +111,7 @@ export default function ChampionHero({ core, team, rank }: { core: Core; team: T
           <div className="font-pixel-lg truncate text-[18px] leading-tight mob:text-[16px]" style={{ color: '#fff', textShadow: `2px 2px 0 ${team.color}` }}>
             {team.city} {team.name}
           </div>
-          <div className="anim-pop mt-1 font-pixel-lg text-[34px] leading-none text-hi mob:text-[28px]" style={{ textShadow: '3px 3px 0 #0f1420' }} data-testid="champion-big">
+          <div className="anim-pop mt-1 font-pixel-lg text-[34px] leading-none text-hi mob:text-[28px]" style={{ textShadow: '3px 3px 0 #121110' }} data-testid="champion-big">
             {head.big}
           </div>
           <div className="mt-1 text-[13px] text-white/85">{head.sub}</div>

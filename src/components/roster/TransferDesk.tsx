@@ -54,7 +54,7 @@ export function AddChip({ kind, pid, big = false }: { kind: BasketKind; pid: str
       title={closed ?? undefined}
       onClick={() => toggle(kind, pid)}
       className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
-      style={on ? { background: b.color, color: '#0f1420' } : { background: '#0f1420', color: b.color, boxShadow: `inset 0 0 0 1px ${b.color}88` }}
+      style={on ? { background: b.color, color: '#121110' } : { background: '#121110', color: b.color, boxShadow: `inset 0 0 0 1px ${b.color}88` }}
     >
       {on ? `✓ ${b.label}` : b.add}
     </button>
@@ -77,7 +77,7 @@ function BlockChip({ pid, big = false }: { pid: string; big?: boolean }) {
       aria-label="트레이드 시장에 내놓기"
       onClick={() => toggle(pid)}
       className={`shrink-0 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${big ? 'min-h-9 px-3 text-[13px]' : 'px-1.5 py-0.5 text-[10px] mob:min-h-9 mob:px-1.5 mob:text-[13px]'}`}
-      style={on ? { background: color, color: '#0f1420' } : { background: '#0f1420', color, boxShadow: `inset 0 0 0 1px ${color}88` }}
+      style={on ? { background: color, color: '#121110' } : { background: '#121110', color, boxShadow: `inset 0 0 0 1px ${color}88` }}
     >
       {on ? '✓' : '⇄'}
       {big ? (on ? ' 트레이드 시장에 내놓음' : ' 트레이드 시장에 내놓기') : <span className="mob:hidden"> 시장</span>}

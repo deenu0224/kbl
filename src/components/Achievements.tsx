@@ -22,7 +22,7 @@ function Row({ d, date, prog }: { d: AchvDef; date?: string; prog: [number, numb
   const done = !!date;
   const secret = !!d.hidden && !done;
   return (
-    <div className={`flex min-h-12 items-center gap-2 px-2 py-1.5 ${done ? 'bg-panel' : 'bg-panel-2/70'}`} style={{ boxShadow: '0 0 0 1px #0f1420' }} data-testid="achv-row" data-done={done ? '1' : undefined}>
+    <div className={`flex min-h-12 items-center gap-2 px-2 py-1.5 ${done ? 'bg-panel' : 'bg-panel-2/70'}`} style={{ boxShadow: '0 0 0 1px #121110' }} data-testid="achv-row" data-done={done ? '1' : undefined}>
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center text-[20px] ${done ? '' : 'opacity-40 grayscale'}`} aria-hidden>
         {secret ? '❔' : d.icon}
       </span>
@@ -68,7 +68,7 @@ function Body({ onClose }: { onClose: () => void }) {
   const total = ACHV_LIST.length;
   const rows = ACHV_LIST.filter((d) => (cat === 'all' || d.cat === cat) && (filter === 'all' || (filter === 'done') === !!save.done[d.id]));
   const chip = (on: boolean) => `flex min-h-10 cursor-pointer items-center gap-1 px-2.5 text-[13px] ${on ? 'bg-panel text-hi' : 'bg-panel-2/60 text-white/65'}`;
-  const chipStyle = (on: boolean) => ({ boxShadow: on ? 'inset 0 2px 0 #ffd84a, 0 0 0 1px #0f1420' : '0 0 0 1px #0f1420' });
+  const chipStyle = (on: boolean) => ({ boxShadow: on ? 'inset 0 2px 0 #ffd84a, 0 0 0 1px #121110' : '0 0 0 1px #121110' });
   return (
     <FullScreen title="도전과제" sub={<span className="text-[13px]">보상은 없습니다. 자랑만 남습니다.</span>} onClose={onClose} testid="achv" top>
       <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 text-[13px]">
@@ -141,7 +141,7 @@ export function AchvToast() {
   if (!d) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[96px] z-[90] flex justify-center px-3 mob:top-[calc(var(--sat)+48px)]" data-testid="achv-toast" role="status">
-      <div className="flex max-w-full items-center gap-2 bg-[#2a2140] px-3 py-1.5 text-[13px] text-white" style={{ boxShadow: '0 0 0 2px #ffd84a, 0 0 0 4px #0f1420, 0 6px 0 rgba(0,0,0,.3)' }}>
+      <div className="flex max-w-full items-center gap-2 bg-[#2a2140] px-3 py-1.5 text-[13px] text-white" style={{ boxShadow: '0 0 0 2px #ffd84a, 0 0 0 4px #121110, 0 6px 0 rgba(0,0,0,.3)' }}>
         <span className="shrink-0 text-[16px]" aria-hidden>
           {d.icon}
         </span>

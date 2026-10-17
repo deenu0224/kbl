@@ -271,7 +271,7 @@ export function CampaignSheet() {
   return (
     <Dialog onClose={() => setOpen(false)} label="캠페인">
       <div className="flex items-center justify-between gap-2">
-        <div className="font-pixel-lg text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+        <div className="font-pixel-lg text-[18px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #121110' }}>
           {stageLabel(c.stage)}
         </div>
         <div className="flex shrink-0 items-center gap-1 text-[12px]">

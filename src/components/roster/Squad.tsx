@@ -43,8 +43,8 @@ const SPOT: Record<BatPos, [number, number]> = {
   DH: [17, 87],
 };
 // 칸 색 = 그 자리의 리그 순위 (숫자는 자리 시트에서)
-const TONE_BG = { good: '#27452f', mid: '#2e3954', bad: '#4a2630' } as const;
-const TONE_EDGE = { good: '#6ee07a', mid: '#0f1420', bad: '#ff6b6b' } as const;
+const TONE_BG = { good: '#27452f', mid: '#3a3632', bad: '#4a2630' } as const;
+const TONE_EDGE = { good: '#6ee07a', mid: '#121110', bad: '#ff6b6b' } as const;
 const TONE_TEXT = { good: 'text-good', mid: 'text-white', bad: 'text-bad' } as const;
 
 function hintSeen(): boolean {
@@ -476,7 +476,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
     const s = stateOf(pid);
     // 칸 색은 팀 안에서 가장 약한 2곳(빨강)·가장 강한 2곳(초록)만. 리그 순위는 자리 시트에서 보여 준다
     const tileTone = row ? (row.weak ? 'bad' : row.strong ? 'good' : 'mid') : 'mid';
-    const edge = row ? TONE_EDGE[tileTone] : '#0f1420';
+    const edge = row ? TONE_EDGE[tileTone] : '#121110';
     return {
       boxShadow: s.over ? '0 0 0 3px #6ee07a' : s.mine || flashPid === pid ? '0 0 0 2px #ffd84a' : s.ok ? '0 0 0 2px #6ee07a' : row?.weak ? '0 0 0 3px #ff6b6b' : `0 0 0 1px ${edge}`,
       opacity: s.mine ? 0.45 : s.dim ? 0.38 : 1,
@@ -522,7 +522,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
 
   const fieldView = (
     <>
-      <div className={`relative mx-auto ${top ? 'h-[250px] lg:h-[300px]' : 'h-[min(360px,max(250px,calc(calc(var(--dvh)*100)-350px)))]'} w-full max-w-[560px] shrink-0 overflow-hidden`} style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #0f1420' }} data-testid="squad-field">
+      <div className={`relative mx-auto ${top ? 'h-[250px] lg:h-[300px]' : 'h-[min(360px,max(250px,calc(calc(var(--dvh)*100)-350px)))]'} w-full max-w-[560px] shrink-0 overflow-hidden`} style={{ background: '#2c6a3c', boxShadow: 'inset 0 0 0 2px #121110' }} data-testid="squad-field">
         {/* 내야 흙과 잔디 */}
         <div className="absolute left-1/2 top-[62%] aspect-square w-[46%] -translate-x-1/2 -translate-y-1/2 rotate-45" style={{ background: '#a8794d' }}>
           <div className="absolute inset-[16%]" style={{ background: '#337a45' }} />
@@ -663,7 +663,7 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
               const left = farmLockLeft(core, p);
               // 재활 선수: "재활 n경기" 태그로 구분한다 (2군 정원에 들지 않는다)
               if (p.il) return <span key={p.id} className="contents" data-testid="squad-rehab">{tile(p, left > 0 ? `재활 ${left}경기` : '재활 끝', { pan, subBad: left > 0, className: 'w-[104px] shrink-0', style: { background: '#33202a' } })}</span>;
-              return tile(p, left > 0 ? `${POS_KO[p.pos]} 잠금${left}` : POS_KO[p.pos], { pan, subBad: left > 0, className: 'w-[104px] shrink-0', style: { background: '#1c2740' } });
+              return tile(p, left > 0 ? `${POS_KO[p.pos]} 잠금${left}` : POS_KO[p.pos], { pan, subBad: left > 0, className: 'w-[104px] shrink-0', style: { background: '#2b2826' } });
             })
           ) : (
             <span className="px-1 py-3 text-[13px] text-white/45">0/{farmMax(core)}</span>

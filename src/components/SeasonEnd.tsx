@@ -50,7 +50,7 @@ const Title = ({ children }: { children: ReactNode }) => <div className="mb-1 te
 
 function MvpCard({ title, p, team }: { title: string; p: Player | null; team: Team }) {
   return (
-    <div className="flex items-center gap-2 bg-panel-2 p-2" style={{ boxShadow: `0 0 0 1px #0f1420, inset 0 0 0 2px ${team.color}` }}>
+    <div className="flex items-center gap-2 bg-panel-2 p-2" style={{ boxShadow: `0 0 0 1px #121110, inset 0 0 0 2px ${team.color}` }}>
       {p ? (
         <>
           <PixelFace id={p.id} color={team.color} color2={team.color2} foreign={p.foreign} size={48} />
@@ -80,7 +80,7 @@ function AwardCard({ title, row, byId, userId }: { title: string; row: LeaderRow
   const t = row ? byId.get(row.teamId) : undefined;
   const me = row?.teamId === userId;
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 bg-panel-2 p-2" style={{ boxShadow: `0 0 0 1px #0f1420, inset 0 0 0 2px ${t?.color ?? '#47557f'}` }}>
+    <div className="flex min-w-0 flex-1 items-center gap-2 bg-panel-2 p-2" style={{ boxShadow: `0 0 0 1px #121110, inset 0 0 0 2px ${t?.color ?? '#5a534c'}` }}>
       {row && t ? (
         <>
           <PixelFace id={row.pid} color={t.color} color2={t.color2} size={44} />
@@ -136,7 +136,7 @@ function TrustMove({ before, after }: { before: number; after: number }) {
         </span>
         {d !== 0 && <span className={`text-[13px] ${d > 0 ? 'text-good' : 'text-bad'}`}>{d > 0 ? `+${d}` : d}</span>}
       </div>
-      <div className="relative mt-1 h-[10px] w-full bg-[#141a29]" style={{ boxShadow: 'inset 0 0 0 1px #0f1420' }}>
+      <div className="relative mt-1 h-[10px] w-full bg-[#1b1a19]" style={{ boxShadow: 'inset 0 0 0 1px #121110' }}>
         <div className="trust-move h-full" style={{ width: `${Math.max(0, Math.min(100, (v / TRUST_MAX) * 100))}%`, background: c, boxShadow: 'inset 0 -3px 0 rgba(0,0,0,.25)' }} />
         <div className="absolute inset-y-0 w-[2px] bg-white/70" style={{ left: `${Math.max(0, Math.min(100, (before / TRUST_MAX) * 100))}%` }} />
       </div>
@@ -227,7 +227,7 @@ function SeasonEndBody() {
             <div className="text-[11px] text-sky">
               {core.season}시즌 결산 · {stageBefore + 1}장 {stageName(stageBefore)}
             </div>
-            <div className="font-pixel-lg text-[24px] leading-tight mob:text-[20px]" style={{ color: team.color, textShadow: '2px 2px 0 #0f1420' }}>
+            <div className="font-pixel-lg text-[24px] leading-tight mob:text-[20px]" style={{ color: team.color, textShadow: '2px 2px 0 #121110' }}>
               {team.city} {team.name}
             </div>
             <div className="mt-0.5 text-[13px]">
@@ -237,7 +237,7 @@ function SeasonEndBody() {
           </div>
           <div
             className="anim-pop flex h-14 w-14 shrink-0 items-center justify-center font-pixel-lg text-[36px] text-ink"
-            style={{ background: GRADE_COLOR[grade] ?? '#fff', boxShadow: '0 0 0 3px #0f1420, inset 0 -5px 0 rgba(0,0,0,.25)' }}
+            style={{ background: GRADE_COLOR[grade] ?? '#fff', boxShadow: '0 0 0 3px #121110, inset 0 -5px 0 rgba(0,0,0,.25)' }}
           >
             {grade}
           </div>
@@ -324,7 +324,7 @@ function SeasonEndBody() {
             {seasonName && (
               <Step i={4} className="bg-ink/60 px-2 py-2">
                 <Title>{core.season}시즌의 이름</Title>
-                <div className="font-pixel-lg text-[20px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+                <div className="font-pixel-lg text-[20px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #121110' }}>
                   「{seasonName}」
                 </div>
               </Step>
@@ -394,7 +394,7 @@ function SeasonEndBody() {
         <Step i={7} className="mt-3 bg-ink/60 px-2 py-2">
           <Title>{advanced ? '다음 장' : '다음 시즌'}</Title>
           {advanced ? (
-            <div className="font-pixel-lg relative mb-1.5 text-[20px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #0f1420' }}>
+            <div className="font-pixel-lg relative mb-1.5 text-[20px] leading-tight text-hi" style={{ textShadow: '1px 1px 0 #121110' }}>
               {stageAfter + 1}장 ·{' '}
               <span className="relative inline-block">
                 <span className="anim-unveil">{stageName(stageAfter)}</span>

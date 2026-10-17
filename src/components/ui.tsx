@@ -57,7 +57,7 @@ export function Bar({
   ratio,
   color,
   h = 6,
-  bg = '#141a29',
+  bg = '#1b1a19',
   className = '',
 }: {
   ratio: number;
@@ -68,7 +68,7 @@ export function Bar({
 }) {
   const r = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
   return (
-    <div className={`w-full ${className}`} style={{ height: h, background: bg, boxShadow: 'inset 0 0 0 1px #0f1420' }}>
+    <div className={`w-full ${className}`} style={{ height: h, background: bg, boxShadow: 'inset 0 0 0 1px #121110' }}>
       <div style={{ width: `${r * 100}%`, height: '100%', background: color, boxShadow: 'inset 0 -2px 0 rgba(0,0,0,.25)' }} />
     </div>
   );
@@ -108,7 +108,7 @@ export function OvrBadge({ ovr, size = 22 }: { ovr: number; size?: number }) {
         // Galmuri14 는 14px 격자 글꼴: 13px 처럼 어중간한 크기면 1px 획이 빠져 61 이 6' 로 보인다 → 14px 또는 28px 로만
         fontSize: size >= 48 ? 28 : 14,
         background: ratingColor(ovr),
-        boxShadow: '0 0 0 1px #0f1420, inset 0 -2px 0 rgba(0,0,0,.25)',
+        boxShadow: '0 0 0 1px #121110, inset 0 -2px 0 rgba(0,0,0,.25)',
       }}
       title={`오버롤 ${ovr}`}
     >
@@ -125,7 +125,7 @@ export function TeamDot({ team, size = 10 }: { team: Pick<Team, 'color' | 'color
         width: size,
         height: size,
         background: team?.color ?? '#888',
-        boxShadow: `0 0 0 1px #0f1420, inset -${Math.ceil(size / 3)}px 0 0 ${team?.color2 ?? '#444'}`,
+        boxShadow: `0 0 0 1px #121110, inset -${Math.ceil(size / 3)}px 0 0 ${team?.color2 ?? '#444'}`,
       }}
     />
   );
@@ -165,7 +165,7 @@ export function TabBar<T extends string>({
 export function Badge({ n }: { n: number | undefined }) {
   if (!n || n <= 0) return null;
   return (
-    <span className="inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center bg-[#e2572e] px-[3px] text-[10px] leading-none text-white mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #0f1420' }}>
+    <span className="inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center bg-[#e8741a] px-[3px] text-[10px] leading-none text-white mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #121110' }}>
       {n > 9 ? '9+' : n}
     </span>
   );
@@ -232,7 +232,7 @@ export function MiniBars({
 }) {
   if (!values.length) {
     return (
-      <div className="flex items-center justify-center text-[10px] text-white/35" style={{ height, background: '#141a29', ...style }}>
+      <div className="flex items-center justify-center text-[10px] text-white/35" style={{ height, background: '#1b1a19', ...style }}>
         아직 기록이 없습니다
       </div>
     );
@@ -242,7 +242,7 @@ export function MiniBars({
   const span = hi - lo || 1;
   const zero = (hi / span) * 100; // 위에서부터 0선 위치(%)
   return (
-    <div className="relative flex items-stretch gap-px overflow-hidden" style={{ height, background: '#141a29', boxShadow: 'inset 0 0 0 1px #0f1420', ...style }}>
+    <div className="relative flex items-stretch gap-px overflow-hidden" style={{ height, background: '#1b1a19', boxShadow: 'inset 0 0 0 1px #121110', ...style }}>
       {values.map((v, i) => {
         const h = (Math.abs(v) / span) * 100;
         return (

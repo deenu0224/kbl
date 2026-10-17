@@ -284,12 +284,12 @@ export default function PlayerTable({
           <tbody>
             {list.map((p, i) => {
               const bd = band?.(p);
-              const bg = bd ? bd.bg : sel === p.id ? '#4a4a2c' : i % 2 ? '#283149' : '#232c42';
+              const bg = bd ? bd.bg : sel === p.id ? '#4a4a2c' : i % 2 ? '#33302c' : '#2b2826';
               return (
                 <tr key={p.id} data-pid={p.id} data-band={bd ? '' : undefined} className="cursor-pointer" onClick={() => onPick(p)}>
                   <td
                     className={`sticky left-0 z-[5] whitespace-nowrap px-1.5 py-1 ${rowAction ? 'max-w-[240px] mob:max-w-[150px] mob:py-1' : 'max-w-[150px] mob:py-2'}`}
-                    style={{ background: bg, boxShadow: `${bd ? `inset 4px 0 0 ${bd.color}, ` : ''}inset -1px 0 0 #0f1420` }}
+                    style={{ background: bg, boxShadow: `${bd ? `inset 4px 0 0 ${bd.color}, ` : ''}inset -1px 0 0 #121110` }}
                   >
                     <span className={rowAction ? 'flex items-center gap-1.5 mob:flex-col mob:items-start mob:gap-0.5' : undefined}>
                       <span className={`block truncate ${rowAction ? 'w-[124px] shrink-0 mob:w-auto mob:max-w-[138px]' : ''} ${p.injury > 0 ? 'text-bad' : 'text-white'}`}>
