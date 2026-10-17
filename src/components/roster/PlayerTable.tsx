@@ -89,7 +89,7 @@ export default function PlayerTable({
   const [kind, setKind] = useState<Kind>(initPos && initPos !== 'weak' ? (PITCH_KEYS.includes(initPos as 'SP') ? 'P' : 'B') : 'all');
   const [pos, setPos] = useState<PosKey | 'weak' | null>(initPos);
   const [set, setSet] = useState<Group | null>(null); // 모바일: 기본은 핵심 열만, 칩을 누르면 그 세트가 붙는다
-  const [sort, setSort] = useState<{ id: string; dir: 1 | -1 }>({ id: mode === 'draft' ? 'scout' : 'ovr', dir: -1 });
+  const [sort, setSort] = useState<{ id: string; dir: 1 | -1 }>({ id: mode === 'draft' ? 'scout' : mode === 'market' ? 'impact' : 'ovr', dir: -1 });
 
   // 약점 = 리그 순위가 가장 낮은 2곳 / 빈 뎁스 = 백업이 리그 평균보다 크게 낮은 자리
   const weakKeys = useMemo(() => rows.filter((r) => r.weak).map((r) => r.key), [rows]);
@@ -173,7 +173,7 @@ export default function PlayerTable({
           ),
         },
         {
-          id: 'impact', label: '영입 시 전력', group: 'deal', val: (p) => impact.get(p.id)?.total ?? 0, left: true,
+          id: 'impact', label: '영입 시 전력', group: 'core', val: (p) => impact.get(p.id)?.total ?? 0, left: true,
           cell: (p) => {
             const im = impact.get(p.id);
             const ds = Object.entries(im?.delta ?? {}) as [keyof typeof PART_KO, number][];

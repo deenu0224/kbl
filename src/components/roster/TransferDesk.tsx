@@ -99,7 +99,8 @@ function DeskHead({ act, cash, extra }: { act: number; cash: number; extra: stri
 /** 계약금 누진 안내 한 줄: 이미 영입한 수 + 담은 수 기준 (담은 선수가 있으면 그렇다고 적는다) */
 function heatText(core: Parameters<typeof faHeatLine>[0], inBasket: number): string | null {
   const line = faHeatLine(core, inBasket);
-  return line && inBasket > 0 ? line.replace('명 ·', `명(담은 ${inBasket}명 포함) ·`) : line;
+  // 담은 선수가 있으면 "다음"이 누구인지 헷갈린다 → "하나 더 담으면"
+  return line && inBasket > 0 ? line.replace('명 ·', `명(담은 ${inBasket}명 포함) ·`).replace('다음 영입', '하나 더 담으면') : line;
 }
 
 const squadKinds = (p: Player): BasketKind[] => ['release', p.farm ? 'up' : 'down'];

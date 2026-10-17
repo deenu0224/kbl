@@ -172,6 +172,15 @@ function SeasonEndBody() {
   const core = useCore();
   const beginDraft = useStore((s) => s.beginDraft);
   const stoveCards = useStore((s) => s.stoveCards);
+  // [이적 시장]: 재계약·트레이드 카드가 먼저 뜨면, 다 처리한 뒤 창구를 저절로 연다 (전에는 한 번 더 눌러야 열렸다)
+  const deskEvent = useStore((s) => s.campaign.event?.id ?? null);
+  const [wantDesk, setWantDesk] = useState(false);
+  useEffect(() => {
+    if (!wantDesk || deskEvent) return;
+    if (stoveCards()) return; // 다음 카드가 이어진다
+    setWantDesk(false);
+    openDesk({ side: 'market' });
+  }, [wantDesk, deskEvent, stoveCards]);
   const newGame = () => useUi.getState().setScreen('title');
   const [armNew, setArmNew] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
@@ -501,7 +510,8 @@ function SeasonEndBody() {
             className="px-btn min-h-11 whitespace-nowrap !px-4 !py-2 text-[13px] mob:!px-2.5"
             data-testid="stove-market"
             onClick={() => {
-              if (!stoveCards()) openDesk({ side: 'market' });
+              if (stoveCards()) setWantDesk(true);
+              else openDesk({ side: 'market' });
             }}
           >
             이적 시장

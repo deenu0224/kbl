@@ -85,6 +85,8 @@ export default function PlayerBrowser({
       .sort((a, b) => pin(a) - pin(b) || val(a) - val(b) || b.ovr - a.ovr);
   }, [players, kind, posF, weak, weakKey, needKeys, sort, pinned, extraSort]);
 
+  // 목록에서 거르던 조건을 표로 넘긴다 (약점 칩 · 포지션 · 우리 약점만). 없으면 처음 열린 조건
+  const carry: PosKey | 'weak' | null = (weakKey as PosKey | null) ?? (posF as PosKey | null) ?? (weak ? 'weak' : null) ?? initPos;
   const toggle = (
     <button data-sfx="tab" data-testid="view-toggle" onClick={() => setTable((v) => !v)} className="shrink-0 cursor-pointer whitespace-nowrap bg-ink px-1.5 py-0.5 text-[10px] text-sky mob:min-h-9 mob:px-2.5 mob:text-[13px]">
       {table ? '목록으로' : '표로 보기'}
@@ -95,10 +97,10 @@ export default function PlayerBrowser({
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid={`browser-${mode}`} data-view="table">
         <div className="flex shrink-0 items-center justify-between gap-2 px-1.5 pt-1.5">
-          <span className="min-w-0 truncate text-[10px] text-white/50 mob:text-[13px]">열 머리를 누르면 정렬</span>
+          <span className="min-w-0 flex-1" />
           {toggle}
         </div>
-        <PlayerTable mode={mode} players={players} rows={rows} sel={sel} onPick={onPick} initPos={initPos} rowAction={rowAction} band={band} />
+        <PlayerTable mode={mode} players={players} rows={rows} sel={sel} onPick={onPick} initPos={carry} rowAction={rowAction} band={band} />
       </div>
     );
   }
@@ -126,11 +128,11 @@ export default function PlayerBrowser({
                 {draft ? '빈 자리만' : '우리 약점만'}
               </Chip>
             )}
-        <span className="mx-0.5 h-4 w-px shrink-0 bg-white/20" />
+        </div>
+        {/* 정렬은 스크롤 밖에 고정: 칩이 많으면 [표로 보기]에 가려 지금 정렬이 안 보였다 */}
         <Chip on={false} onClick={() => setSort(sorts[(sorts.indexOf(sort) + 1) % sorts.length])} testid="list-sort">
           {sort === 'extra' && extraSort ? extraSort.label : `${SORT_KO[sort as Exclude<SortId, 'extra'>]}순`} ⇅
         </Chip>
-        </div>
         {toggle}
       </div>
       {/* 포지션 필터: 타자·투수를 고르면 그 아래에 한 줄 (좁으면 줄바꿈) */}
