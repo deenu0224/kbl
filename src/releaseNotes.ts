@@ -12,6 +12,12 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.16.1',
+    date: '2026-10-17',
+    title: '이적 창구 다듬기',
+    notes: ['스토브리그 [이적 시장]이 카드를 처리한 뒤 바로 열립니다.', '표 보기도 전력 변화순으로 보이고, 작은 글자가 또렷해졌어요.'],
+  },
+  {
     version: '0.16.0',
     date: '2026-10-17',
     title: '이적 창구 새 단장',
