@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.16.0',
+    date: '2026-10-17',
+    title: '이적 창구 새 단장',
+    notes: [
+      '1군이 꽉 찼을 때 영입을 누르면 그 자리에서 내보낼 선수를 고를 수 있어요.',
+      '영입 시장에 선수마다 전력이 얼마나 오르는지 보이고, 약점 포지션을 바로 거를 수 있어요.',
+      '확정한 뒤 [되돌리기]가 생겼습니다.',
+    ],
+  },
+  {
     version: '0.15.0',
     date: '2026-10-17',
     title: '새 옷',
