@@ -133,7 +133,7 @@ export function LeagueTab() {
               <div key={i} className="flex items-center gap-1 bg-ink/50 px-1.5 py-[3px] text-[11px]">
                 <TeamDot team={a} />
                 <span className={`flex-1 truncate ${g.away > g.home ? '' : 'text-white/50'}`}>{a?.name ?? g.awayId}</span>
-                <span className="font-pixel-lg text-[12px]">
+                <span className="font-pixel-lg text-[14px]">
                   <span className={g.away > g.home ? 'text-hi' : ''}>{g.away}</span>
                   <span className="mx-1 text-white/40">:</span>
                   <span className={g.home > g.away ? 'text-hi' : ''}>{g.home}</span>

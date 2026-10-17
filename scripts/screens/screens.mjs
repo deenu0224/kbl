@@ -300,7 +300,12 @@ export const SCREENS = [
   S('arm-detail', 'arm', game('ev-more')),
   // 이적 창구의 [트레이드 시장에] 토글 (꺼짐 · 켜짐)
   S('desk-block-off', 'tradeWindow', game(...DESK, m('side-squad'))),
-  S('desk-block-on', 'tradeWindow', game(...DESK, m('side-squad'), 'add-block', { wait: 300 })),
+  // 1군이 꽉 찼을 때 영입: 그 줄 아래에 내보낼 후보 3명 → [2군] → 확정 → 되돌리기
+  S('desk-full-inline', 'relFull', game(...DESK, 'add-sign', { wait: 400 })),
+  S('desk-full-picked', 'relFull', game(...DESK, 'add-sign', { wait: 300 }, 'cand-down', { wait: 300 })),
+  S('desk-undo', 'relFull', game(...DESK, 'add-sign', { wait: 300 }, 'cand-down', { wait: 300 }, 'desk-confirm', { wait: 300 })),
+  // 폰은 줄 버튼이 없다: 줄을 눌러 카드에서 [트레이드 시장에 내놓기]
+  S('desk-block-on', 'tradeWindow', game(...DESK, m('side-squad'), m('css:[data-testid="browser-roster"] [data-pid] button'), 'add-block', { wait: 300 })),
 
   // ── 경기 진행
   S('play-highlight', 'season3', game(...PLAY, { wait: 1000 })),

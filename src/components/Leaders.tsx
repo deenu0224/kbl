@@ -41,7 +41,7 @@ function Board({ rows, empty }: { rows: LeaderRow[]; empty: string }) {
             <span className="min-w-0 flex-1 truncate">
               {r.name} <span className="text-[10px] text-white/45">{t?.name}</span>
             </span>
-            <span className="font-pixel-lg shrink-0 text-[13px]">{r.text}</span>
+            <span className="font-pixel-lg shrink-0 text-[14px]">{r.text}</span>
           </div>
         );
       })}
