@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.16.2',
+    date: '2026-10-18',
+    title: '이적 창구 손질',
+    notes: [
+      '방출·콜업·영입을 한꺼번에 담아도 "1군 부족"으로 막히지 않아요.',
+      '이적 탭에서 선수를 누르면 바로 창구로, 확정은 한 번만.',
+      '우리 선수단 줄에서 바로 [콜업]·[2군]·[방출], 2군만 보기 칩도 생겼어요.',
+    ],
+  },
+  {
     version: '0.16.1',
     date: '2026-10-17',
     title: '이적 창구 다듬기',
