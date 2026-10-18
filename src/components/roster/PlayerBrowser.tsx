@@ -70,6 +70,7 @@ export default function PlayerBrowser({
   const [table, setTable] = useState(!!initPos && initPos !== 'weak');
   const [kind, setKind] = useState<Kind>(initPos && initPos !== 'weak' ? (PITCH_KEYS.includes(initPos as 'SP') ? 'P' : 'B') : 'all');
   const [weak, setWeak] = useState(initPos === 'weak' && !weakChips);
+  const [lvl, setLvl] = useState<'farm' | null>(null); // 우리 선수단: 2군만 (2군이 OVR순으로 맨 아래에 섞여 있었다)
   const [posF, setPosF] = useState<string | null>(null); // 포지션 필터 (타자·투수를 고른 뒤 둘째 줄에서)
   const [weakKey, setWeakKey] = useState<string | null>(() => (weakChips && initPos === 'weak' ? (rows.find((r) => r.weak && players.some((p) => fitsKey(p, r.key)))?.key ?? null) : null)); // 약점 포지션 칩 하나로 거르기 (weakChips)
   const sorts: SortId[] = [...(mode === 'draft' ? (['ovr', 'scout', 'age'] as const) : (['ovr', 'salary', 'age'] as const)), ...(extraSort ? (['extra'] as const) : [])];
@@ -81,9 +82,10 @@ export default function PlayerBrowser({
     const pin = (p: Player) => (sort === 'ovr' && pinned?.includes(p.id) ? pinned.indexOf(p.id) - 99 : 0);
     const val = (p: Player) => (sort === 'extra' && extraSort ? extraSort.val(p) : sort === 'salary' ? -p.salary : sort === 'age' ? p.age : sort === 'scout' ? -(SCOUT_ORDER[p.scout ?? ''] ?? 0) : -p.ovr);
     return players
-      .filter((p) => (kind === 'all' || p.kind === kind) && (!posF || kind === 'all' || p.pos === posF) && (!weak || needKeys.some((k) => fitsKey(p, k))) && (!weakKey || fitsKey(p, weakKey as PosKey)))
+      .filter((p) => (kind === 'all' || p.kind === kind) && (!lvl || !!p.farm) && (!posF || kind === 'all' || p.pos === posF) && (!weak || needKeys.some((k) => fitsKey(p, k))) && (!weakKey || fitsKey(p, weakKey as PosKey)))
       .sort((a, b) => pin(a) - pin(b) || val(a) - val(b) || b.ovr - a.ovr);
-  }, [players, kind, posF, weak, weakKey, needKeys, sort, pinned, extraSort]);
+  }, [players, kind, lvl, posF, weak, weakKey, needKeys, sort, pinned, extraSort]);
+  const nFarm = mode === 'roster' ? players.filter((p) => p.farm).length : 0;
 
   // 목록에서 거르던 조건을 표로 넘긴다 (약점 칩 · 포지션 · 우리 약점만). 없으면 처음 열린 조건
   const carry: PosKey | 'weak' | null = (weakKey as PosKey | null) ?? (posF as PosKey | null) ?? (weak ? 'weak' : null) ?? initPos;
@@ -129,6 +131,12 @@ export default function PlayerBrowser({
               {label}
             </Chip>
           ))}
+        {/* 2군만 하나 (1군 칩까지 두면 폰에서 칩 줄 밖으로 밀려 안 보였다) */}
+        {!chips && nFarm > 0 && (
+          <Chip on={lvl === 'farm'} onClick={() => setLvl(lvl === 'farm' ? null : 'farm')} testid="llvl-farm">
+            2군<span className="pl-1 opacity-60">{nFarm}</span>
+          </Chip>
+        )}
         </div>
         {/* 정렬은 스크롤 밖에 고정: 칩이 많으면 [표로 보기]에 가려 지금 정렬이 안 보였다 */}
         <Chip on={false} onClick={() => setSort(sorts[(sorts.indexOf(sort) + 1) % sorts.length])} testid="list-sort">

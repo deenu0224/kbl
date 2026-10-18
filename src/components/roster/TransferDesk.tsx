@@ -352,6 +352,12 @@ function Desk() {
   );
   // 우리 선수단: 주전인지 후보인지 이름 옆에 (2군 표시는 목록이 따로 붙인다)
   const blockIds = core.campaign.block ?? [];
+  const isMain = (p: Player) => (p.kind === 'B' ? team.lineup.some((l) => l.pid === p.id) : team.rotation.includes(p.id) || team.closer === p.id);
+  // 폰 줄 버튼: 2군은 콜업, 방출 추천은 방출, 나머지 후보는 2군 (이미 담았으면 담은 칸)
+  const phoneAction = (p: Player) => {
+    const k = basketKindOf(basket, p.id) ?? (p.farm ? 'up' : isMain(p) ? null : advice.some((a) => a.p.id === p.id) ? 'release' : 'down');
+    return k && k !== 'sign' ? <AddChip kind={k} pid={p.id} /> : null;
+  };
   const roleNote = (p: Player) => {
     if (p.farm) return null;
     const ord = team.lineup.findIndex((l) => l.pid === p.id);
@@ -385,8 +391,8 @@ function Desk() {
       badge={(p) => (advice.some((a) => a.p.id === p.id) ? <ReleaseBadge /> : null)}
       extraSort={relSort}
       initExtra={sort === 'release'}
-      // 폰: 줄에는 상태만 (버튼 셋이 이름을 밀어내고 주전을 한 번에 방출할 수 있었다) — 누르면 카드에서 2군·방출·시장
-      rowAction={mobile ? undefined : (p) => [...squadKinds(p).map((k) => <AddChip key={k} kind={k} pid={p.id} />), <BlockChip key="block" pid={p.id} />]}
+      // 폰: 줄에는 버튼 하나만 (셋이면 이름을 밀어낸다). 주전은 버튼 없이 카드에서 — 한 번에 주전을 방출하지 않게
+      rowAction={mobile ? phoneAction : (p) => [...squadKinds(p).map((k) => <AddChip key={k} kind={k} pid={p.id} />), <BlockChip key="block" pid={p.id} />]}
     />
     </>
   );

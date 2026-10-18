@@ -142,9 +142,8 @@ export const SCREENS = [
   S('todo-penover', 'penover', game()),
   // 방출 추천: 할 일 → 조치 시트 → 이적 창구(방출 후보순) → 추천 선수 카드
   S('rel-todo', 'relFull', game()),
-  S('rel-remedy', 'relFull', game('방출 검토')),
-  S('rel-desk', 'relFull', game('방출 검토', '이적 창구 열기', { wait: 300 })),
-  S('rel-card', 'relFull', game('방출 검토', '이적 창구 열기', { wait: 300 }, 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
+  S('rel-desk', 'relFull', game('방출 검토', { wait: 300 })),
+  S('rel-card', 'relFull', game('방출 검토', { wait: 300 }, 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
   S('rel-open', 'relOpen', game()),
   S('rel-stove', 'relStove', game(...STOVE_DESK, RSORT, RSORT, RSORT)),
   // 내년 살림 미리보기 (payforecast.ts): 결산의 블록(적자·흑자) · [이적 시장(방출 후보순)] · 시즌 후반 재무 탭 한 줄과 도움말 · 할 일과 조치 시트

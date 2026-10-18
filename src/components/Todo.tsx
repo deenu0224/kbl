@@ -1,10 +1,10 @@
 import { projectsOpen } from '../game/projects';
 import { useMemo, useState } from "react";
 import type { HintTab } from "../game/types";
-import type { RemedyGo } from "../game/remedy";
+import { remedies, type RemedyGo } from "../game/remedy";
 import { todoList, type Todo, type TodoTab } from "../game/todo";
 import RemedySheet from "./Remedy";
-import { useCore, useStore } from "../store";
+import { pickCore, useCore, useStore } from "../store";
 import { useIsMobile } from "./layout/useLayout";
 import { useUi } from "./layout/uiStore";
 import { openDesk } from "./roster/transferUi";
@@ -97,6 +97,23 @@ export function useGoScreen(): (
   };
 }
 
+const DESK_GO: RemedyGo[] = ["market", "release", "squad"];
+
+/** 할 일을 누르면: 할 수 있는 게 "이적 창구 열기" 하나뿐이면 시트 없이 바로 창구로 (시트 → [창구 열기]는 한 번 더 누르는 것뿐이었다).
+ *  창구를 열어 보면 확인한 것으로 친다. 그 밖에는 조치 시트 */
+function useTapTodo(setOpen: (t: Todo) => void) {
+  const go = useGoScreen();
+  return (t: Todo) => {
+    const acts = remedies(pickCore(useStore.getState()), t.id).filter((r) => r.run.t !== "dismiss" && r.run.t !== "none");
+    const a = acts.length === 1 ? acts[0].run : null;
+    if (a?.t === "go" && DESK_GO.includes(a.to)) {
+      if (t.dismissible) useUi.getState().dismissTodo(t.id);
+      return go(a.to, a.sub, a.pid);
+    }
+    setOpen(t);
+  };
+}
+
 /** 할 일 한 줄. 탭하면 조치 시트가 열린다 */
 function Line({
   t,
@@ -155,6 +172,7 @@ export function TodoCard({
 }) {
   const todos = useTodos();
   const [open, setOpen] = useState<Todo | null>(null);
+  const tap = useTapTodo(setOpen);
   const sheet = open && (
     <RemedySheet todo={open} onClose={() => setOpen(null)} />
   );
@@ -172,7 +190,7 @@ export function TodoCard({
             {rest > 0 && <span data-testid="todo-more">+{rest}</span>}
           </div>
           {todos.slice(0, max).map((t) => (
-            <Line key={t.id} t={t} onGo={setOpen} />
+            <Line key={t.id} t={t} onGo={tap} />
           ))}
         </div>
       )}
@@ -195,6 +213,7 @@ export function TodoLines({
     (t) => (tab ? t.tab === tab : true) && (hint ? t.hint === hint : true),
   );
   const [open, setOpen] = useState<Todo | null>(null);
+  const tap = useTapTodo(setOpen);
   const sheet = open && (
     <RemedySheet todo={open} onClose={() => setOpen(null)} />
   );
@@ -206,7 +225,7 @@ export function TodoLines({
           data-testid="todo-lines"
         >
           {todos.map((t) => (
-            <Line key={t.id} t={t} onGo={setOpen} here />
+            <Line key={t.id} t={t} onGo={tap} here />
           ))}
         </div>
       )}
