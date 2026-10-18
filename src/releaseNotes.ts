@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.16.3',
+    date: '2026-10-18',
+    title: '이적 탭이 곧 이적 창구',
+    notes: [
+      '이적 탭에서 바로 담고 확정해요. 할 일·선수 카드에서 눌러도 이적 탭으로 와요.',
+      '포지션과 정렬을 드롭다운으로 골라요.',
+      '작은 화면에서 선수 이름이 잘리던 것을 고쳤어요.',
+    ],
+  },
+  {
     version: '0.16.2',
     date: '2026-10-18',
     title: '이적 창구 손질',
