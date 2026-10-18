@@ -207,16 +207,17 @@ function InlineOut({ fa, pv, advice, onShown }: { fa: Player; pv: TransferPrevie
     return () => onShown(false);
   }, [mine, over, onShown]);
   if (!mine) return null;
-  const outs = [...basket.release, ...basket.down].map((id) => team.roster.find((p) => p.id === id)).filter((p): p is Player => !!p);
+  // 콜업도 같이 보인다: 1군 수가 왜 그런지 (방출·콜업·영입을 한꺼번에 담으면 콜업이 안 보여 29/28이 수수께끼였다)
+  const outs = [...basket.release, ...basket.down, ...basket.up].map((id) => team.roster.find((p) => p.id === id)).filter((p): p is Player => !!p);
   if (!outs.length && !over) return null;
   const picked = outs.length > 0 && (
     <div className="flex flex-col gap-0.5 bg-ink/60 px-2 py-1 text-[12px] mob:text-[13px]" style={{ boxShadow: 'inset 3px 0 0 #6ee07a' }} data-testid="inline-outs">
       {outs.map((p) => {
-        const k = basket.release.includes(p.id) ? 'release' : 'down';
+        const k = basket.release.includes(p.id) ? 'release' : basket.down.includes(p.id) ? 'down' : 'up';
         return (
           <div key={p.id} className="flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate">
-              {p.name} {p.ovr} → <span className={k === 'release' ? 'text-bad' : 'text-[#f0a35a]'}>{k === 'release' ? '방출' : '2군'}</span>
+              {p.name} {p.ovr} → <span className={k === 'release' ? 'text-bad' : k === 'down' ? 'text-[#f0a35a]' : 'text-sky'}>{k === 'release' ? '방출' : k === 'down' ? '2군' : '1군'}</span>
             </span>
             <button className="cursor-pointer px-1.5 text-white/55 mob:min-h-9" data-sfx="tab" data-testid="inline-undo" onClick={() => toggle(k, p.id)}>
               취소
@@ -259,6 +260,7 @@ function Desk() {
   const team = useUserTeam();
   const rows = usePosReport();
   const freeAgents = useStore((s) => s.freeAgents);
+  const scoutIds = useStore((s) => s.campaign.eventsSeen.find((x) => x.startsWith('~scoutList='))?.slice(11) ?? '');
   const transfer = useStore((s) => s.transfer);
   const { basket, side, pos, nonce, sort, close, clear } = useTransferUi();
   // 방출 추천 (최대 3명) · 방출 후보순 정렬 점수
@@ -318,6 +320,7 @@ function Desk() {
         ⛔ {why}
       </div>
     );
+  const scoutPicks = scoutIds ? scoutIds.split(',') : [];
   const market = (
     <>
     {closedLine(regWhy, 'reg-closed')}
@@ -340,6 +343,7 @@ function Desk() {
       weakChips
       extraSort={gainSort}
       initExtra={!pos || pos === 'weak'}
+      note={(p) => (scoutPicks.includes(p.id) ? <span className="ml-1 text-hi" title="스카우트 팀장 추천">★</span> : null)}
       badge={(p) => <GainChip gain={gains.get(p.id)} />}
       rowExtra={(p) => <InlineOut fa={p} pv={pv} advice={advice} onShown={setInlineOn} />}
       rowAction={(p) => <AddChip kind="sign" pid={p.id} />}

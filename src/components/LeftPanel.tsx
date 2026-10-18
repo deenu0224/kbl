@@ -11,9 +11,7 @@ import { FirstTip } from './Briefing';
 import { useHintTabs } from './RightPanel';
 import { useUi } from './layout/uiStore';
 import { OvrBadge, POS_KO, SectionTitle, TabBar } from './ui';
-import { CardPop } from './roster/RosterList';
 import PlayerBrowser from './roster/PlayerBrowser';
-import { AddChip } from './roster/TransferDesk';
 import { openDesk, useTransferUi } from './roster/transferUi';
 import { usePosReport } from './roster/rosterUi';
 import { callUpPreview, sendDownPreview } from '../game/analysis';
@@ -183,7 +181,8 @@ function SquadSummary() {
 
 // ───────── 이적 ─────────
 
-/** 이적 탭: 이적 창구(전체 화면)로 들어가는 문. 목록의 선수를 누르면 담은 채로 창구가 열린다 */
+/** 이적 탭: 이적 창구(전체 화면)로 들어가는 문. 목록의 선수를 누르면 그 선수를 담은 채로 창구가 열린다 —
+ *  탭에는 담기 버튼을 두지 않는다 (여기서 담고 [담은 n건 확인] → 창구에서 다시 [확정], 확인이 두 번이었다) */
 export function MarketTab() {
   const core = useCore();
   const team = useUserTeam();
@@ -191,7 +190,6 @@ export function MarketTab() {
   const cash = useStore((s) => s.finance.cash);
   const basket = useTransferUi((s) => s.basket);
   const rows = usePosReport();
-  const [card, setCard] = useState<string | null>(null);
 
   // 스카우트 팀장의 명단은 맨 위에 따로 올린다 (맨 앞이 그가 고른 선수)
   const scoutIds = useStore((s) => s.campaign.eventsSeen.find((x) => x.startsWith('~scoutList='))?.slice(11) ?? '');
@@ -199,7 +197,6 @@ export function MarketTab() {
   const nAct = activeRoster(team).length;
   const nFarm = farmRoster(team).length;
   const n = basketCount(basket);
-  const cardP = card ? freeAgents.find((p) => p.id === card) : undefined;
 
   return (
     <>
@@ -207,13 +204,13 @@ export function MarketTab() {
       <div className="flex shrink-0 flex-col gap-1 px-1.5 pt-1.5">
         <div className="flex gap-1">
           <button className="px-btn primary min-h-9 flex-[2] text-[13px] mob:min-h-11 mob:text-[15px]" data-testid="open-desk" onClick={() => openDesk()}>
-            이적 창구{n > 0 ? ` · 담은 ${n}건 확인` : ' 열기'} ⤢
+            이적 창구{n > 0 ? ` · 담은 ${n}건` : ' 열기'} ⤢
           </button>
           <button className="px-btn min-h-9 flex-1 whitespace-nowrap text-[12px] mob:min-h-11 mob:text-[13px]" data-testid="open-desk-squad" onClick={() => openDesk({ side: 'squad' })}>
             방출·2군
           </button>
         </div>
-        <div className="truncate text-[10px] text-white/60 mob:text-[13px]" data-testid="desk-head">
+        <div className="truncate text-[11px] text-white/60 mob:text-[13px]" data-testid="desk-head">
           현금 <span className="text-hi">{fmtMoney(cash)}</span> · 1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className="text-white">{nFarm}/{farmMax(core)}</span>
         </div>
       </div>
@@ -221,18 +218,11 @@ export function MarketTab() {
         mode="market"
         players={freeAgents}
         rows={rows}
-        sel={card}
-        onPick={(p) => setCard(p.id)}
+        onPick={(p) => openDesk({ add: [['sign', p.id]] })}
         pinned={pinned}
         note={(p) => (pinned.includes(p.id) ? <span className="ml-1 text-hi" title="스카우트 팀장 추천">★</span> : null)}
         band={(p) => (basket.sign.includes(p.id) ? { color: '#6ee07a', bg: '#27452f' } : undefined)}
-        rowAction={(p) => <AddChip kind="sign" pid={p.id} />}
       />
-      {cardP && (
-        <CardPop player={cardP} onClose={() => setCard(null)}>
-          <AddChip kind="sign" pid={cardP.id} big />
-        </CardPop>
-      )}
     </>
   );
 }

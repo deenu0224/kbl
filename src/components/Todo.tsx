@@ -78,7 +78,8 @@ export function useGoScreen(): (
         openDesk({ side: "squad", sort: "release" });
         break;
       case "market":
-        openDesk({ side: "market", pos: "weak" });
+        // 짚은 선수가 있으면(팀장 추천) 거르지 않는다 — 약점 칩으로 거르면 그 선수가 목록에서 빠질 수 있다
+        openDesk({ side: "market", pos: pid ? null : "weak" });
         break;
       case "finance":
         right("finance");

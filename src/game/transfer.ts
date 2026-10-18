@@ -1,7 +1,7 @@
 import type { Core, Player, Team } from './types';
 import { positionReport } from './analysis';
 import { winDelta } from './briefing';
-import { ROSTER_MAX, activeRoster, farmRoster, payroll, releaseCost, faHeatWhy, signingBonusFor, userTeam } from './economy';
+import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, activeRoster, farmMax, farmRoster, payroll, releaseCost, faHeatWhy, signingBonusFor, userTeam } from './economy';
 import { FOREIGN_MAX } from './events';
 import { isFranchise } from './franchise';
 import { slotNewcomer } from './lineup';
@@ -30,16 +30,29 @@ function nameOf(core: Core, pid: string): string {
   return userTeam(core).roster.find((p) => p.id === pid)?.name ?? core.freeAgents.find((p) => p.id === pid)?.name ?? '선수';
 }
 
-/** 방출 → 2군행 → 콜업 → 영입 순으로 기존 순수 함수를 차례로 적용한다. 하나라도 막히면 전체 취소 */
+/**
+ * 방출 → 2군행 → 콜업 → 영입 순으로 기존 순수 함수를 차례로 적용한다. 하나라도 막히면 전체 취소.
+ * 인원(1군 정원·최소 타자/투수·2군 정원)은 단계마다가 아니라 **다 적용한 최종 상태**로 검사한다 —
+ * 단계마다 보면 "투수 최소인데 투수 방출 + 투수 영입", "2군 가득인데 2군행 + 콜업"처럼 결과는 맞는 바구니가 막혔다 (scripts/transfercheck.ts)
+ */
 function run(core0: Core, basket: Basket): { core: Core; error?: string } {
   let core = core0;
   for (const k of BASKET_KINDS) {
     for (const pid of basket[k]) {
-      const r = STEP[k](core, pid);
+      const r = STEP[k](core, pid, { free: true });
       if (r.error) return { core: core0, error: `${nameOf(core, pid)}: ${r.error}` };
       core = r.core;
     }
   }
+  const t = userTeam(core);
+  const act = activeRoster(t);
+  const nb = act.filter((p) => p.kind === 'B').length;
+  const np = act.length - nb;
+  if (act.length > ROSTER_MAX) return { core: core0, error: `1군 ${act.length}/${ROSTER_MAX} — ${act.length - ROSTER_MAX}명을 더 내보내야 합니다` };
+  if (nb < MIN_BATTERS) return { core: core0, error: `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다 (${nb}명)` };
+  if (np < MIN_PITCHERS) return { core: core0, error: `1군 투수는 최소 ${MIN_PITCHERS}명이 필요합니다 (${np}명)` };
+  const nf = farmRoster(t).length;
+  if (nf > farmMax(core)) return { core: core0, error: `2군 ${nf}/${farmMax(core)} — 2군이 가득 찼습니다` };
   return { core };
 }
 

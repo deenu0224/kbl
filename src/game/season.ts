@@ -543,11 +543,16 @@ export function advanceDay(core0: Core, rng: Rng): { core: Core; report: DayRepo
 
 // ───────── 유저 액션 (error 가 있으면 core 는 원본 그대로) ─────────
 
-export function signPlayer(core0: Core, pid: string): { core: Core; error?: string } {
+/** 인원 검사(1군 정원·최소 타자/투수·2군 정원)를 건너뛰는 옵션: 이적 창구 바구니는 다 적용한 최종 상태로 한 번에 검사한다 (transfer.ts) */
+export interface StepOpts {
+  free?: boolean;
+}
+
+export function signPlayer(core0: Core, pid: string, opts: StepOpts = {}): { core: Core; error?: string } {
   const fa = core0.freeAgents.find((p) => p.id === pid);
   if (!fa) return { core: core0, error: '영입 가능한 선수가 아닙니다' };
   if (!signingOpen(core0)) return { core: core0, error: '등록 마감 — 스토브리그에 다시 열립니다' };
-  if (activeRoster(userTeam(core0)).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 먼저 한 명을 2군으로 내리거나 방출하세요` };
+  if (!opts.free && activeRoster(userTeam(core0)).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 먼저 한 명을 2군으로 내리거나 방출하세요` };
   if (fa.foreign && userTeam(core0).roster.filter((p) => p.foreign).length >= FOREIGN_MAX) {
     return { core: core0, error: `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다` };
   }
@@ -581,11 +586,11 @@ export function signPlayer(core0: Core, pid: string): { core: Core; error?: stri
   return { core };
 }
 
-export function releasePlayer(core0: Core, pid: string): { core: Core; error?: string } {
+export function releasePlayer(core0: Core, pid: string, opts: StepOpts = {}): { core: Core; error?: string } {
   const t0 = userTeam(core0);
   const p0 = t0.roster.find((p) => p.id === pid);
   if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
-  const same = p0.farm ? 99 : activeRoster(t0).filter((p) => p.kind === p0.kind).length;
+  const same = p0.farm || opts.free ? 99 : activeRoster(t0).filter((p) => p.kind === p0.kind).length;
   if (p0.kind === 'B' && same <= MIN_BATTERS) return { core: core0, error: `타자는 최소 ${MIN_BATTERS}명이 필요합니다` };
   if (p0.kind === 'P' && same <= MIN_PITCHERS) return { core: core0, error: `투수는 최소 ${MIN_PITCHERS}명이 필요합니다` };
   const cost = releaseCost(p0, core0);
@@ -632,14 +637,14 @@ export function releasePlayer(core0: Core, pid: string): { core: Core; error?: s
 }
 
 /** 1군 → 2군. 내려간 선수는 FARM_LOCK 경기 동안 다시 등록할 수 없다. 부상·징계 중이면 부상자 명단(재활)으로: 2군 정원에 들지 않고, 나을 때까지(최소 IL_MIN 경기) 복귀할 수 없다 */
-export function sendDown(core0: Core, pid: string): { core: Core; error?: string } {
+export function sendDown(core0: Core, pid: string, opts: StepOpts = {}): { core: Core; error?: string } {
   const t0 = userTeam(core0);
   const p0 = t0.roster.find((p) => p.id === pid);
   if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
   if (p0.farm) return { core: core0, error: '이미 2군에 있습니다' };
   const il = p0.injury > 0;
-  if (!il && farmRoster(t0).length >= farmMax(core0)) return { core: core0, error: `2군이 가득 찼습니다 (${farmMax(core0)}명) — 2군에서 한 명을 올리거나 방출하세요` };
-  const same = activeRoster(t0).filter((p) => p.kind === p0.kind).length;
+  if (!opts.free && !il && farmRoster(t0).length >= farmMax(core0)) return { core: core0, error: `2군이 가득 찼습니다 (${farmMax(core0)}명) — 2군에서 한 명을 올리거나 방출하세요` };
+  const same = opts.free ? 99 : activeRoster(t0).filter((p) => p.kind === p0.kind).length;
   if (p0.kind === 'B' && same <= MIN_BATTERS) return { core: core0, error: `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다` };
   if (p0.kind === 'P' && same <= MIN_PITCHERS) return { core: core0, error: `1군 투수는 최소 ${MIN_PITCHERS}명이 필요합니다` };
   const core = structuredClone(core0);
@@ -672,14 +677,14 @@ export function farmLockLeft(core: Pick<Core, 'day' | 'phase'>, p: Player): numb
 }
 
 /** 2군 → 1군. 1군이 가득이면 먼저 누군가를 내려야 한다 */
-export function callUp(core0: Core, pid: string): { core: Core; error?: string } {
+export function callUp(core0: Core, pid: string, opts: StepOpts = {}): { core: Core; error?: string } {
   const t0 = userTeam(core0);
   const p0 = t0.roster.find((p) => p.id === pid);
   if (!p0) return { core: core0, error: '우리 팀 선수가 아닙니다' };
   if (!p0.farm) return { core: core0, error: '이미 1군에 있습니다' };
   const left = farmLockLeft(core0, p0);
   if (left > 0) return { core: core0, error: p0.il ? `부상자 명단: ${left}경기 뒤 복귀할 수 있습니다` : `말소 후 ${FARM_LOCK}경기가 지나야 합니다 (${left}경기 남음)` };
-  if (activeRoster(t0).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 누구를 내릴지 먼저 고르세요` };
+  if (!opts.free && activeRoster(t0).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 누구를 내릴지 먼저 고르세요` };
   const core = structuredClone(core0);
   const t = userTeam(core);
   const p = t.roster.find((x) => x.id === pid)!;

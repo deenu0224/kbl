@@ -71,7 +71,7 @@ export default function PlayerBrowser({
   const [kind, setKind] = useState<Kind>(initPos && initPos !== 'weak' ? (PITCH_KEYS.includes(initPos as 'SP') ? 'P' : 'B') : 'all');
   const [weak, setWeak] = useState(initPos === 'weak' && !weakChips);
   const [posF, setPosF] = useState<string | null>(null); // 포지션 필터 (타자·투수를 고른 뒤 둘째 줄에서)
-  const [weakKey, setWeakKey] = useState<string | null>(() => (weakChips && initPos === 'weak' ? (rows.find((r) => r.weak)?.key ?? null) : null)); // 약점 포지션 칩 하나로 거르기 (weakChips)
+  const [weakKey, setWeakKey] = useState<string | null>(() => (weakChips && initPos === 'weak' ? (rows.find((r) => r.weak && players.some((p) => fitsKey(p, r.key)))?.key ?? null) : null)); // 약점 포지션 칩 하나로 거르기 (weakChips)
   const sorts: SortId[] = [...(mode === 'draft' ? (['ovr', 'scout', 'age'] as const) : (['ovr', 'salary', 'age'] as const)), ...(extraSort ? (['extra'] as const) : [])];
   const [sort, setSort] = useState<SortId>(initExtra && extraSort ? 'extra' : 'ovr');
   const draft = mode === 'draft';
@@ -112,7 +112,8 @@ export default function PlayerBrowser({
         <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" data-testid="list-filters">
         {mode !== 'roster' && weakChips
           ? // 약점 포지션을 바로 칩으로: 한 번에 그 자리 FA 만
-            needKeys.slice(0, 3).map((k) => (
+            // 그 자리 FA가 없는 약점은 칩을 두지 않는다 (누르면 빈 목록뿐이었다)
+            needKeys.filter((k) => players.some((p) => fitsKey(p, k as PosKey))).slice(0, 3).map((k) => (
               <Chip key={k} on={weakKey === k} tone="bad" onClick={() => (setWeakKey(weakKey === k ? null : k), setKind('all'), setPosF(null))} testid={`lweak-${k}`}>
                 {POS_KO[k] ?? rows.find((r) => r.key === k)?.label ?? k}!
               </Chip>
