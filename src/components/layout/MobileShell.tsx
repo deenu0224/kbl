@@ -3,7 +3,8 @@ import LineScore, { useLineScoreOn } from '../LineScore';
 import { useStore, userMatch, useUserTeam } from '../../store';
 import { MobileActionBar, PreGame, useMatchActions } from '../BottomBar';
 import GameSummary from '../GameSummary';
-import { MarketTab } from '../LeftPanel';
+import { InlineDesk, deskInTab } from '../roster/TransferDesk';
+import { useTransferUi } from '../roster/transferUi';
 import Squad from '../roster/Squad';
 import { fmtMoney } from '../../game/format';
 import EventCardModal from '../EventCardModal';
@@ -14,7 +15,7 @@ import StadiumView, { ceremonySub } from '../StadiumView';
 import { clinchesTitle } from '../../game/postseason';
 import { MobileTopBar, RunwayWarn } from '../TopBar';
 import { CampaignChip } from '../Campaign';
-import { TodoCard, TodoLines } from '../Todo';
+import { TodoCard, TodoLines, shownInDesk } from '../Todo';
 import { useWinChance } from '../useWinChance';
 import { TabBar, TeamDot } from '../ui';
 import MobileNav, { TAB_TODO } from './MobileNav';
@@ -69,9 +70,9 @@ function MobilePanel() {
   if (tab === 'home') return <TodayCards />;
   return (
     <div className="px-panel m-shell flex min-h-0 flex-1 flex-col" data-testid="m-panel">
-      <TodoLines tab={TAB_TODO[tab]} className="p-1 pb-0" />
+      <TodoLines tab={TAB_TODO[tab]} className="p-1 pb-0" skip={tab === 'market' ? shownInDesk : undefined} />
       {tab === 'roster' && <Squad />}
-      {tab === 'market' && <MarketTab />}
+      {tab === 'market' && <InlineDesk />}
       {tab === 'league' && <LeagueTab />}
       {tab === 'club' && (
         <>
@@ -247,6 +248,14 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
   const ended = useStore((s) => s.phase === 'ended' && !s.summary && !s.playback);
   // 훅은 아래의 가로 화면 분기(early return)보다 위에서 부른다 — 폰을 돌려 세로↔가로가 바뀌면 훅 개수가 달라져 화면이 터졌다
   const lineOn = useLineScoreOn();
+  // 이적 창구는 이적 탭 안에 있다: 할 일·카드·선수단 어디서 열든 이적 탭으로
+  useEffect(
+    () =>
+      useTransferUi.subscribe((s, prev) => {
+        if (s.open && (!prev.open || s.nonce !== prev.nonce) && deskInTab(useStore.getState().phase)) useUi.setState({ tab: 'market', facSheet: null });
+      }),
+    [],
+  );
   // 하이라이트 재생이 시작되면 홈(구장)으로
   useEffect(() => {
     if (playback) useUi.setState({ tab: 'home', facSheet: null });

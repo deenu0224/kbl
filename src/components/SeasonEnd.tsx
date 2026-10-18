@@ -157,7 +157,7 @@ export default function SeasonEnd() {
     <>
       <SeasonEndBody />
       {/* 스토브리그의 이적 창구 (결산 화면에서 연다) */}
-      <TransferDesk />
+      <TransferDesk season />
       {/* 결산 중의 사건 카드는 여기서만 그린다 (MobileShell 은 결산 중에는 그리지 않는다) */}
       {eventId && (
         <div className="fixed inset-0 z-[60] font-pixel text-[12px]" data-testid="season-event">

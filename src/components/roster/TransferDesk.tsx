@@ -17,6 +17,7 @@ import Help from '../Help';
 import { PART_KO, fmtDelta } from './labels';
 import { usePosReport } from './rosterUi';
 import { useTransferUi } from './transferUi';
+import { shownInDesk, useTodos } from '../Todo';
 import { TRADE_HINT, releaseAdvice, releaseOutcome, releaseScores, releaseTodo, releaseTradeFirst, type Advice } from '../../game/release';
 import { useUi } from '../layout/uiStore';
 
@@ -31,11 +32,31 @@ const BAND: Record<BasketKind, { color: string; bg: string; label: string; add: 
 const signed = (v: number) => `${v >= 0 ? '+' : '−'}${fmtMoney(Math.abs(v))}`;
 const outText = (n: number | null) => (n === null ? '안 빔' : `${n}경기`);
 
-/** 이적 창구 (전체 화면). 어디서든 useTransferUi.openDesk() 로 연다 */
-export default function TransferDesk() {
+/** 폰 시즌 중에는 창구가 이적 탭 안에 있다: 어디서 열든 그 탭으로 간다 (결산·스토브리그는 탭이 가려지므로 전체 화면) */
+export const deskInTab = (phase: string) => phase === 'season' || phase === 'post';
+
+/** 이적 창구 (전체 화면). 어디서든 useTransferUi.openDesk() 로 연다. tabbed: 폰 화면 — 시즌 중에는 이적 탭이 그린다 */
+export default function TransferDesk({ tabbed = false, season = false }: { tabbed?: boolean; season?: boolean }) {
   const open = useTransferUi((s) => s.open);
-  if (!open) return null;
+  const inline = useTransferUi((s) => s.inline);
+  const yield_ = useTransferUi((s) => !season && s.seasonHost);
+  const inTab = useStore((s) => tabbed && deskInTab(s.phase));
+  useEffect(() => {
+    if (!season) return;
+    useTransferUi.setState({ seasonHost: true });
+    return () => useTransferUi.setState({ seasonHost: false });
+  }, [season]);
+  if (!open || inline || inTab || yield_) return null;
   return <Desk />;
+}
+
+/** 폰 이적 탭 = 이적 창구 그 자체 (탭 목록 → [창구 열기] → 같은 목록이 두 겹이었다). 탭을 떠나면 닫힌다 */
+export function InlineDesk() {
+  useEffect(() => {
+    useTransferUi.setState({ inline: true });
+    return () => useTransferUi.setState({ inline: false, open: false });
+  }, []);
+  return <Desk inline />;
 }
 
 /** 2군에 자리가 남았는가 (담은 2군행 + / 콜업 · 2군 선수 방출 −). 재활(부상자 명단)은 2군 정원에 들지 않는다 */
@@ -254,8 +275,13 @@ function GainChip({ gain }: { gain: ReturnType<typeof signImpact> | undefined })
   );
 }
 
-function Desk() {
+function Desk({ inline = false }: { inline?: boolean }) {
   const mobile = useIsMobile();
+  // 창구를 열면 그 안에서 보이는 할 일(방출 검토 · 팀장 추천)은 확인한 것으로 친다
+  const todos = useTodos();
+  useEffect(() => {
+    for (const t of todos) if (t.dismissible && shownInDesk(t)) useUi.getState().dismissTodo(t.id);
+  }, [todos]);
   const core = useCore();
   const team = useUserTeam();
   const rows = usePosReport();
@@ -266,7 +292,7 @@ function Desk() {
   // 방출 추천 (최대 3명) · 방출 후보순 정렬 점수
   const advice = useMemo(() => releaseAdvice(core), [core]);
   const relScores = useMemo(() => releaseScores(core), [core]);
-  const relSort = useMemo(() => ({ label: '방출 후보순', val: (p: Player) => -(relScores.get(p.id)?.score ?? -999) }), [relScores]);
+  const relSort = useMemo(() => ({ label: '방출순', val: (p: Player) => -(relScores.get(p.id)?.score ?? -999) }), [relScores]);
   // 방출을 담으면 할 일 "방출 검토"는 그 상황 동안 다시 올리지 않는다
   const relTodo = useMemo(() => releaseTodo(core)?.id, [core]);
   useEffect(() => {
@@ -342,7 +368,7 @@ function Desk() {
       band={band}
       weakChips
       extraSort={gainSort}
-      initExtra={!pos || pos === 'weak'}
+      initExtra // 어느 경로로 열든 전력순 (포지션으로 열면 오버롤순이었다)
       note={(p) => (scoutPicks.includes(p.id) ? <span className="ml-1 text-hi" title="스카우트 팀장 추천">★</span> : null)}
       badge={(p) => <GainChip gain={gains.get(p.id)} />}
       rowExtra={(p) => <InlineOut fa={p} pv={pv} advice={advice} onShown={setInlineOn} />}
@@ -401,14 +427,9 @@ function Desk() {
     ['squad', '우리 선수단', team.roster.length],
   ];
 
-  return (
-    <FullScreen
-      title="이적 창구"
-      sub={<DeskHead act={pv.active.a} cash={core.finance.cash} extra={regWhy ? '영입 마감' : blockIds.length ? `시장에 내놓음 ${blockIds.length}/${TR.blockMax}` : null} />}
-      onClose={close}
-      testid="transfer-desk"
-      hold={!!cardP}
-    >
+  const head = <DeskHead act={pv.active.a} cash={core.finance.cash} extra={regWhy ? '영입 마감' : blockIds.length ? `시장에 내놓음 ${blockIds.length}/${TR.blockMax}` : null} />;
+  const body = (
+    <>
       {mobile ? (
         <>
           <div className="mt-1 flex shrink-0 gap-1 px-1.5" data-testid="desk-sides">
@@ -466,6 +487,18 @@ function Desk() {
           ))}
         </CardPop>
       )}
+    </>
+  );
+  if (inline)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col" data-testid="transfer-desk" data-inline="">
+        <div className="shrink-0 truncate px-1.5 pt-1 text-[13px] text-white/60">{head}</div>
+        {body}
+      </div>
+    );
+  return (
+    <FullScreen title="이적 창구" sub={head} onClose={close} testid="transfer-desk" hold={!!cardP}>
+      {body}
     </FullScreen>
   );
 }
@@ -521,6 +554,8 @@ function Summary({ pv, done, mobile, onConfirm, onUndo }: { pv: TransferPreview;
   const winText = `${wins >= 0 ? '+' : '−'}${Math.abs(wins).toFixed(1)}승`;
   const oneOff = pv.bonus + pv.penalty;
 
+  // 폰: 빈 바구니면 아래 줄을 두지 않는다 (목록 자리를 먹는 "담은 선수 없음 · 확정 0건")
+  if (empty && !done && mobile) return null;
   if (done && empty) {
     return (
       <div className="flex shrink-0 items-center gap-2 bg-good/20 px-2 py-2.5 text-[14px] text-good" style={{ boxShadow: 'inset 0 2px 0 #6ee07a' }} data-testid="desk-done">

@@ -2,18 +2,14 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Player, Team } from '../game/types';
 import { useCore, useStore, useUserTeam } from '../store';
 import { fmtMoney } from '../game/format';
-import { ROSTER_MAX, farmMax, activeRoster, farmRoster, releaseCost } from '../game/economy';
-import { basketCount } from '../game/transfer';
+import { releaseCost } from '../game/economy';
 import { offPos } from '../game/fixes';
 import { teamParts, type TeamParts } from '../game/ratings';
 import Help from './Help';
-import { FirstTip } from './Briefing';
 import { useHintTabs } from './RightPanel';
 import { useUi } from './layout/uiStore';
 import { OvrBadge, POS_KO, SectionTitle, TabBar } from './ui';
-import PlayerBrowser from './roster/PlayerBrowser';
-import { openDesk, useTransferUi } from './roster/transferUi';
-import { usePosReport } from './roster/rosterUi';
+import { openDesk } from './roster/transferUi';
 import { callUpPreview, sendDownPreview } from '../game/analysis';
 
 // ───────── 공용 행 ─────────
@@ -181,61 +177,13 @@ function SquadSummary() {
 
 // ───────── 이적 ─────────
 
-/** 이적 탭: 이적 창구(전체 화면)로 들어가는 문. 목록의 선수를 누르면 그 선수를 담은 채로 창구가 열린다 —
- *  탭에는 담기 버튼을 두지 않는다 (여기서 담고 [담은 n건 확인] → 창구에서 다시 [확정], 확인이 두 번이었다) */
-export function MarketTab() {
-  const core = useCore();
-  const team = useUserTeam();
-  const freeAgents = useStore((s) => s.freeAgents);
-  const cash = useStore((s) => s.finance.cash);
-  const basket = useTransferUi((s) => s.basket);
-  const rows = usePosReport();
-
-  // 스카우트 팀장의 명단은 맨 위에 따로 올린다 (맨 앞이 그가 고른 선수)
-  const scoutIds = useStore((s) => s.campaign.eventsSeen.find((x) => x.startsWith('~scoutList='))?.slice(11) ?? '');
-  const pinned = useMemo(() => (scoutIds ? scoutIds.split(',') : []), [scoutIds]);
-  const nAct = activeRoster(team).length;
-  const nFarm = farmRoster(team).length;
-  const n = basketCount(basket);
-
-  return (
-    <>
-      <FirstTip id="market" />
-      <div className="flex shrink-0 flex-col gap-1 px-1.5 pt-1.5">
-        <div className="flex gap-1">
-          <button className="px-btn primary min-h-9 flex-[2] text-[13px] mob:min-h-11 mob:text-[15px]" data-testid="open-desk" onClick={() => openDesk()}>
-            이적 창구{n > 0 ? ` · 담은 ${n}건` : ' 열기'} ⤢
-          </button>
-          <button className="px-btn min-h-9 flex-1 whitespace-nowrap text-[12px] mob:min-h-11 mob:text-[13px]" data-testid="open-desk-squad" onClick={() => openDesk({ side: 'squad' })}>
-            방출·2군
-          </button>
-        </div>
-        <div className="truncate text-[11px] text-white/60 mob:text-[13px]" data-testid="desk-head">
-          현금 <span className="text-hi">{fmtMoney(cash)}</span> · 1군 <span className={nAct >= ROSTER_MAX ? 'text-bad' : 'text-white'}>{nAct}/{ROSTER_MAX}</span> · 2군 <span className="text-white">{nFarm}/{farmMax(core)}</span>
-        </div>
-      </div>
-      <PlayerBrowser
-        mode="market"
-        players={freeAgents}
-        rows={rows}
-        onPick={(p) => openDesk({ add: [['sign', p.id]] })}
-        pinned={pinned}
-        note={(p) => (pinned.includes(p.id) ? <span className="ml-1 text-hi" title="스카우트 팀장 추천">★</span> : null)}
-        band={(p) => (basket.sign.includes(p.id) ? { color: '#6ee07a', bg: '#27452f' } : undefined)}
-      />
-    </>
-  );
-}
-
-// ───────── 패널 ─────────
-
 const TABS: { id: 'lineup' | 'market'; label: string }[] = [
   { id: 'lineup', label: '선수단' },
-  { id: 'market', label: '이적' },
+  { id: 'market', label: '이적 창구 ⤢' }, // 탭이 아니라 창구를 바로 연다
 ];
 
 export default function LeftPanel() {
-  const tab = useStore((s) => (s.leftTab === 'market' ? 'market' : 'lineup'));
+  const tab = 'lineup';
   const setTab = useStore((s) => s.setTab);
   const clearHint = useStore((s) => s.clearHint);
   const tabs = useHintTabs(TABS, tab);
@@ -244,12 +192,14 @@ export default function LeftPanel() {
       <TabBar
         tabs={tabs}
         value={tab}
+        // [이적]은 탭이 아니라 이적 창구 그 자체 (탭 목록과 창구가 같은 목록 두 겹이었다)
         onChange={(t) => {
           clearHint(t);
-          setTab('left', t);
+          if (t === 'market') openDesk();
+          else setTab('left', t);
         }}
       />
-      {tab === 'lineup' ? <SquadSummary /> : <MarketTab />}
+      <SquadSummary />
     </div>
   );
 }

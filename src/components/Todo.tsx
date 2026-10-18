@@ -99,6 +99,9 @@ export function useGoScreen(): (
 
 const DESK_GO: RemedyGo[] = ["market", "release", "squad"];
 
+/** 이적 창구 안에서 이미 보이는 할 일 (방출 추천 칩 · 팀장 추천 ★): 창구에서는 줄로 또 그리지 않고, 창구를 열면 확인한 것으로 친다 */
+export const shownInDesk = (t: Todo) => t.action === "release" || t.id.startsWith("scout-");
+
 /** 할 일을 누르면: 할 수 있는 게 "이적 창구 열기" 하나뿐이면 시트 없이 바로 창구로 (시트 → [창구 열기]는 한 번 더 누르는 것뿐이었다).
  *  창구를 열어 보면 확인한 것으로 친다. 그 밖에는 조치 시트 */
 function useTapTodo(setOpen: (t: Todo) => void) {
@@ -204,13 +207,15 @@ export function TodoLines({
   tab,
   hint,
   className = "",
+  skip,
 }: {
   tab?: TodoTab;
   hint?: HintTab;
   className?: string;
+  skip?: (t: Todo) => boolean;
 }) {
   const todos = useTodos().filter(
-    (t) => (tab ? t.tab === tab : true) && (hint ? t.hint === hint : true),
+    (t) => (tab ? t.tab === tab : true) && (hint ? t.hint === hint : true) && !skip?.(t),
   );
   const [open, setOpen] = useState<Todo | null>(null);
   const tap = useTapTodo(setOpen);

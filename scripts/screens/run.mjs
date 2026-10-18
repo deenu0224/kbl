@@ -91,6 +91,12 @@ async function runStep(page, step, vp) {
     await loc.fill(step.text ?? '');
     return void (await page.waitForTimeout(150));
   }
+  if (step.select) {
+    const loc = page.locator(step.select.startsWith('css:') ? step.select.slice(4) : `[data-testid="${step.select}"]`).first();
+    if (!(await loc.count())) throw new Error(`드롭다운 없음: ${step.select}`);
+    await loc.selectOption(step.value);
+    return void (await page.waitForTimeout(200));
+  }
   if (step.key) return void (await page.keyboard.press(step.key));
   if (step.scroll) {
     // 화면에서 가장 큰 세로 스크롤 상자를 끝(또는 처음)으로

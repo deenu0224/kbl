@@ -41,7 +41,8 @@ const st = (xs) => xs.map((x) => (typeof x === 'string' ? c(x) : x));
 const STOVE_SKIP = Array.from({ length: 5 }, () => [c('선택', { nth: 1, optional: true }), { wait: 300 }, c('stove-market', { optional: true })]).flat();
 const STOVE_DESK = [c('stove-market'), ...STOVE_SKIP, m('side-squad')];
 /** 우리 선수단 목록의 정렬 칩 (데스크톱은 영입 시장에도 있다) */
-const RSORT = 'css:[data-testid="browser-roster"] [data-testid="list-sort"]';
+/** 우리 선수단 목록을 방출순으로 (정렬 드롭다운) */
+const RSORT = { select: 'css:[data-testid="browser-roster"] [data-testid="list-sort"]', value: 'extra' };
 /** 초기 화면에서 [이어하기] 뒤의 스텝 */
 const game = (...xs) => [c('continue'), ...st(xs)];
 const S = (id, fixture, steps, o = {}) => ({ id, fixture, steps, ...o });
@@ -53,8 +54,9 @@ const WEAK = 'css:[data-testid="squad-field"] [data-weak]';
 /** 2군 서랍의 첫 칩 */
 const FARM_CHIP = 'css:[data-testid="squad-farm"] [data-item]';
 const LIST = [...SQUAD, c('open-list')];
-const MARKET = [c('이적')];
-const DESK = [...MARKET, c('open-desk')];
+/** 이적 탭 = 이적 창구 (폰: 하단 탭 · 데스크톱: 왼쪽 패널의 [이적 창구 ⤢]) */
+const MARKET = [m('이적'), d('이적 창구 ⤢')];
+const DESK = MARKET;
 const CLUB = [m('구단')];
 const PLAY = [c('▶ 경기 진행')];
 const SUMMARY = [...PLAY, { wait: 600 }, c('건너뛰기 ▶▶', { optional: true }), { wait: 500 }];
@@ -145,7 +147,7 @@ export const SCREENS = [
   S('rel-desk', 'relFull', game('방출 검토', { wait: 300 })),
   S('rel-card', 'relFull', game('방출 검토', { wait: 300 }, 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
   S('rel-open', 'relOpen', game()),
-  S('rel-stove', 'relStove', game(...STOVE_DESK, RSORT, RSORT, RSORT)),
+  S('rel-stove', 'relStove', game(...STOVE_DESK, RSORT)),
   // 내년 살림 미리보기 (payforecast.ts): 결산의 블록(적자·흑자) · [이적 시장(방출 후보순)] · 시즌 후반 재무 탭 한 줄과 도움말 · 할 일과 조치 시트
   S('ended-pay-loss', 'endedPayLoss', game('css:[data-testid="pay-forecast"] > div')),
   S('ended-pay-gain', 'endedPayGain', game('css:[data-testid="pay-forecast"] > div')),
@@ -153,7 +155,7 @@ export const SCREENS = [
   S('club-finance-pay-help', 'payLate', game(...CLUB, '재무', 'css:[data-testid="pay-forecast-line"] button')),
   S('todo-pay', 'payTodo', game()),
   S('todo-pay-remedy', 'payTodo', game('내년 적자 예상')),
-  S('rel-stove-card', 'relStove', game(...STOVE_DESK, RSORT, RSORT, RSORT, 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
+  S('rel-stove-card', 'relStove', game(...STOVE_DESK, RSORT, 'css:[data-testid="browser-roster"] [data-pid]:has([data-testid="rel-badge"]) button')),
 
   // ── 선수단 (모바일: 선수단 탭, 데스크톱: [선수단 열기] 모달)
   S('roster-field', 'farm', game(...SQUAD)),
@@ -197,7 +199,7 @@ export const SCREENS = [
   S('desk', 'season3', game(...DESK)),
   S('desk-fa-card', 'season3', game(...DESK, 'css:[data-testid="browser-market"] [data-testid="player-list"] > * button')),
   S('desk-fa-card-pick', 'season3', game(...DESK, 'css:[data-testid="browser-market"] [data-testid="player-list"] > * button', c('vs-pick', { nth: 2 }))),
-  S('desk-posfilter', 'season3', game(...DESK, 'lkind-B', 'lpos-SS')),
+  S('desk-posfilter', 'season3', game(...DESK, { select: 'pos-select', value: 'LF' })),
   S('desk-table', 'season3', game(...DESK, 'view-toggle')),
   S('desk-added', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }))),
   S('desk-summary', 'season3', game(...DESK, 'add-sign', c('add-sign', { nth: 1 }), m('sum-toggle'))),
@@ -350,7 +352,7 @@ export const SCREENS = [
   S('desk-reg-closed-squad', 'regClosed', game(...DESK, m('side-squad'))),
   S('resign', 'resign', game()),
   S('draft-list', 'draft', game()),
-  S('draft-posfilter', 'draft', game('lkind-P', 'lpos-SP')),
+  S('draft-posfilter', 'draft', game({ select: 'pos-select', value: 'SP' })),
   S('draft-table', 'draft', game('view-toggle')),
   S('draft-card', 'draft', game('player-list')),
   S('draft-done', 'draftDone', game()),

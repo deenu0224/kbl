@@ -1,5 +1,7 @@
 import type { TodoTab } from '../../game/todo';
 import { useTodos } from '../Todo';
+import { basketCount } from '../../game/transfer';
+import { useTransferUi } from '../roster/transferUi';
 import { Badge } from '../ui';
 import { useUi, type MobileTab } from './uiStore';
 
@@ -37,6 +39,8 @@ export default function MobileNav({ placement }: { placement: 'bottom' | 'top' }
   const tab = useUi((s) => s.tab);
   const setTab = useUi((s) => s.setTab);
   const todos = useTodos();
+  // 담아 두고 다른 탭으로 가면 이적 탭에 담은 수를 초록으로 (확정 안 한 바구니를 잊지 않게)
+  const nBasket = useTransferUi((s) => basketCount(s.basket));
   const bottom = placement === 'bottom';
   return (
     <nav className="flex shrink-0 gap-[2px] bg-edge p-[2px]">
@@ -53,7 +57,10 @@ export default function MobileNav({ placement }: { placement: 'bottom' | 'top' }
             style={on ? { boxShadow: bottom ? 'inset 0 -3px 0 #ffd84a' : 'inset 0 2px 0 #ffd84a' } : undefined}
           >
             <PixelIcon name={t.id} size={bottom ? 18 : 14} />
-            <span className="whitespace-nowrap">{t.label}</span>
+            <span className="whitespace-nowrap">
+              {t.label}
+              {t.id === 'market' && nBasket > 0 && !on && <span className="text-good" data-testid="nav-basket"> {nBasket}</span>}
+            </span>
             <span className={bottom ? 'absolute top-1 left-[calc(50%+8px)] short:top-0.5 short:right-0.5 short:left-auto' : 'absolute top-0.5 right-0.5'}>
               <Badge n={todos.filter((x) => x.tab === TAB_TODO[t.id]).length} />
             </span>

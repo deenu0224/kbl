@@ -7,6 +7,8 @@ export type DeskSide = 'market' | 'squad';
 
 interface TransferUi {
   open: boolean;
+  inline: boolean; // 폰 이적 탭이 창구를 그 자리에 그리고 있다 (그동안 전체 화면 창구는 띄우지 않는다)
+  seasonHost: boolean; // 결산 화면이 제 창구를 그린다 (결산 위에 떠야 해서). 그동안 앱의 창구는 그리지 않는다 — 두 겹이었다
   basket: Basket;
   side: DeskSide; // 모바일에서 보이는 목록
   pos: PosKey | 'weak' | null; // 영입 시장을 이 포지션으로 걸러서 연다
@@ -39,6 +41,8 @@ function prune(b: Basket): Basket {
 
 export const useTransferUi = create<TransferUi>()((set) => ({
   open: false,
+  inline: false,
+  seasonHost: false,
   basket: emptyBasket(),
   side: 'market',
   pos: null,
