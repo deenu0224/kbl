@@ -1110,6 +1110,7 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   core.fans = Math.max(1000, Math.round(core.fans));
   // 부상자가 팀을 떠났으면(매각·트레이드) 그 자리를 메우던 선수의 대체 표시를 지운다
   const ut = userTeam(core);
+  if (core.campaign.block) core.campaign.block = core.campaign.block.filter((id) => ut.roster.some((p) => p.id === id)); // 떠난 선수는 시장에서도
   for (const p of ut.roster) {
     if (p.subFor && !ut.roster.some((x) => x.id === p.subFor)) {
       delete p.subFor;

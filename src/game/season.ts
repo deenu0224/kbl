@@ -673,7 +673,9 @@ export const ilLock = (p: Pick<Player, 'injury'>): number => Math.max(IL_MIN, p.
 
 /** 재등록까지 남은 경기 수 (0 = 지금 올릴 수 있다) */
 export function farmLockLeft(core: Pick<Core, 'day' | 'phase'>, p: Player): number {
-  return core.phase === 'season' && p.farmUntil ? Math.max(0, p.farmUntil - core.day) : 0;
+  const lock = core.phase === 'season' && p.farmUntil ? Math.max(0, p.farmUntil - core.day) : 0;
+  // 부상자 명단은 철 밖에서도 나을 때까지 (가을야구에서 다친 채 내렸다가 바로 올릴 수 있었다)
+  return p.il && p.injury > 0 ? Math.max(lock, p.injury) : lock;
 }
 
 /** 2군 → 1군. 1군이 가득이면 먼저 누군가를 내려야 한다 */

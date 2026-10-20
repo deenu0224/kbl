@@ -44,15 +44,20 @@ function run(core0: Core, basket: Basket): { core: Core; error?: string } {
       core = r.core;
     }
   }
-  const t = userTeam(core);
-  const act = activeRoster(t);
-  const nb = act.filter((p) => p.kind === 'B').length;
-  const np = act.length - nb;
-  if (act.length > ROSTER_MAX) return { core: core0, error: `1군 ${act.length}/${ROSTER_MAX} — ${act.length - ROSTER_MAX}명을 더 내보내야 합니다` };
-  if (nb < MIN_BATTERS) return { core: core0, error: `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다 (${nb}명)` };
-  if (np < MIN_PITCHERS) return { core: core0, error: `1군 투수는 최소 ${MIN_PITCHERS}명이 필요합니다 (${np}명)` };
-  const nf = farmRoster(t).length;
-  if (nf > farmMax(core)) return { core: core0, error: `2군 ${nf}/${farmMax(core)} — 2군이 가득 찼습니다` };
+  // 이미 넘쳐 있던 칸(예: 1군·2군이 다 찼을 때 돌아온 군 복무 선수로 2군 21/20)은 바구니가 더 나쁘게 만들 때만 막는다 —
+  // 전에는 그 칸과 상관없는 영입·방출까지 전부 "2군이 가득"으로 막혔다
+  const count = (c: Core) => {
+    const t = userTeam(c);
+    const act = activeRoster(t);
+    const nb = act.filter((p) => p.kind === 'B').length;
+    return { a: act.length, b: nb, p: act.length - nb, f: farmRoster(t).length };
+  };
+  const was = count(core0);
+  const now = count(core);
+  if (now.a > ROSTER_MAX && now.a > was.a) return { core: core0, error: `1군 ${now.a}/${ROSTER_MAX} — ${now.a - ROSTER_MAX}명을 더 내보내야 합니다` };
+  if (now.b < MIN_BATTERS && now.b < was.b) return { core: core0, error: `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다 (${now.b}명)` };
+  if (now.p < MIN_PITCHERS && now.p < was.p) return { core: core0, error: `1군 투수는 최소 ${MIN_PITCHERS}명이 필요합니다 (${now.p}명)` };
+  if (now.f > farmMax(core) && now.f > was.f) return { core: core0, error: `2군 ${now.f}/${farmMax(core)} — 2군이 가득 찼습니다` };
   return { core };
 }
 

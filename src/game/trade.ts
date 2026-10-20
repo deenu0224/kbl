@@ -495,10 +495,13 @@ function put(core0: Core, of: TradeOffer): Core | null {
 }
 
 /** 매 경기 후: 트레이드 기간이면 예정된 날에 제안 1건을 campaign.event 에 둔다. 해당 없으면 원본 반환 */
+/** 시장에 내놓은 선수 중 아직 우리 팀인 선수 (재계약 이탈·입대·제명·2군 정리로 떠난 선수가 자리를 차지하고 "관심…" 소식이 떴다) */
+export const liveBlock = (core: Core): string[] => (core.campaign.block ?? []).filter((id) => userTeam(core).roster.some((p) => p.id === id));
+
 export function drawTrade(core0: Core, rng: Rng): Core {
   if (!TRADE_AUDIT.offers || !tradeOpen(core0) || core0.campaign.event) return core0;
   // 유저가 내놓은 선수: 답이 오는 날을 정해 두고, 그날 원하는 구단을 찾는다
-  const block = core0.campaign.block ?? [];
+  const block = liveBlock(core0);
   if (block.length) {
     const due = memoNum(core0, 'blkDue', -1);
     if (due < 0) {
@@ -550,10 +553,19 @@ export function drawStoveTrade(core0: Core, rng: Rng): Core {
   if (!TRADE_AUDIT.offers || core0.phase !== 'ended' || core0.campaign.event || memoGet(core0, 'trStove')) return core0;
   const core = structuredClone(core0);
   memoSet(core, 'trStove', 1);
-  for (const pid of core.campaign.block ?? []) {
+  const block = liveBlock(core);
+  for (const [i, pid] of block.entries()) {
     const of = makeOffer(core, rng, { want: pid, src: 'block' });
     const made = of && put(core, of);
-    if (made) return made;
+    if (made) {
+      // 스토브리그 답은 한 번뿐: 나머지 선수도 여기서 답한다 (전에는 둘째 선수가 답 없이 다음 시즌까지 시장에 남았다)
+      for (const rest of block.slice(i + 1)) {
+        const q = userTeam(made).roster.find((x) => x.id === rest);
+        addNews(made, `트레이드 시장: ${q?.name ?? '선수'}에게 관심을 보인 구단이 없습니다`, 'info');
+      }
+      made.campaign.block = [pid];
+      return made;
+    }
     const p = userTeam(core).roster.find((x) => x.id === pid);
     addNews(core, `트레이드 시장: ${p?.name ?? '선수'}에게 관심을 보인 구단이 없습니다`, 'info');
   }
@@ -572,7 +584,7 @@ export function tradeTickMut(core: Core): void {
 
 /** 이적 창구의 [트레이드 시장에] 토글 */
 export function toggleBlock(core0: Core, pid: string): { core: Core; error?: string } {
-  const cur = core0.campaign.block ?? [];
+  const cur = liveBlock(core0);
   const p = userTeam(core0).roster.find((x) => x.id === pid);
   if (!p) return { core: core0, error: '우리 선수가 아닙니다' };
   const on = cur.includes(pid);

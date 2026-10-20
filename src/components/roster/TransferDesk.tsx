@@ -5,7 +5,7 @@ import type { Player } from '../../game/types';
 import { play } from '../../audio/sfx';
 import { fmtInt, fmtMoney } from '../../game/format';
 import { FOREIGN_MAX, ROSTER_MAX, basketCount, basketKindOf, previewTransfer, type BasketKind, type TransferPreview } from '../../game/transfer';
-import { TR, trFrom, tradeLeft, tradeOpen } from '../../game/trade';
+import { TR, liveBlock, trFrom, tradeLeft, tradeOpen } from '../../game/trade';
 import { regDeadline, blockClosedWhy, signingClosedWhy, signingOpen } from '../../game/economy';
 import { pickCore, useCore, useStore, useUserTeam } from '../../store';
 import { signImpact } from '../../game/analysis';
@@ -375,7 +375,7 @@ function Desk({ inline = false }: { inline?: boolean }) {
     </>
   );
   // 우리 선수단: 주전인지 후보인지 이름 옆에 (2군 표시는 목록이 따로 붙인다)
-  const blockIds = core.campaign.block ?? [];
+  const blockIds = liveBlock(core); // 떠난 선수는 세지 않는다
   const isMain = (p: Player) => (p.kind === 'B' ? team.lineup.some((l) => l.pid === p.id) : team.rotation.includes(p.id) || team.closer === p.id);
   // 폰 줄 버튼: 2군은 콜업, 방출 추천은 방출, 나머지 후보는 2군 (이미 담았으면 담은 칸)
   const phoneAction = (p: Player) => {
