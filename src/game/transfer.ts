@@ -5,6 +5,7 @@ import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, activeRoster, farmMax, farmRoste
 import { FOREIGN_MAX } from './events';
 import { isFranchise } from './franchise';
 import { slotNewcomer } from './lineup';
+import { fmtMoney } from './format';
 import { teamParts, type TeamParts } from './ratings';
 import { runway, runwayAfter } from './runway';
 import { seasonGames } from './league';
@@ -61,9 +62,14 @@ function run(core0: Core, basket: Basket): { core: Core; error?: string } {
   return { core };
 }
 
+const cashShort = (cash: number, after: number) => `현금이 ${fmtMoney(-after)} 모자랍니다 (바구니 합계 ${fmtMoney(cash - after)} · 보유 ${fmtMoney(cash)})`;
+
 /** 바구니를 한 번에 실행한다 (미리보기와 같은 길). error 가 있으면 core 는 원본 그대로 */
 export function applyTransfer(core: Core, basket: Basket): { core: Core; error?: string } {
-  return run(core, basket);
+  const r = run(core, basket);
+  if (!r.error) return r;
+  const padded = run({ ...core, finance: { ...core.finance, cash: core.finance.cash + CASH_PAD } }, basket);
+  return !padded.error && padded.core.finance.cash - CASH_PAD < 0 ? { core, error: cashShort(core.finance.cash, padded.core.finance.cash - CASH_PAD) } : r;
 }
 
 export interface TransferOut {
@@ -155,11 +161,14 @@ export function previewTransfer(core: Core, basket: Basket): TransferPreview {
   const real = run(core, basket);
   // 현금만 모자란 경우: 돈을 잠깐 빌려준 복제본으로 나머지 숫자를 같은 길로 계산한다
   let after: Core | null = real.error ? null : real.core;
+  let error = real.error ?? null;
   if (real.error && n > 0) {
     const padded = run({ ...core, finance: { ...core.finance, cash: core.finance.cash + CASH_PAD } }, basket);
     if (!padded.error) {
       after = padded.core;
       after.finance.cash -= CASH_PAD;
+      // 현금만 문제면 바구니 전체로 말한다 (막힌 한 단계의 금액만 적어 "필요 3.3억 · 현금 4.7억"이 되었다)
+      if (after.finance.cash < 0) error = cashShort(core.finance.cash, after.finance.cash);
     }
   }
 
@@ -190,7 +199,7 @@ export function previewTransfer(core: Core, basket: Basket): TransferPreview {
 
   return {
     n,
-    error: n > 0 ? (real.error ?? null) : null,
+    error: n > 0 ? error : null,
     exact: !!after,
     parts: { a: pa, b: pb },
     wins: winDelta(pa, pb) * (inSeason ? core.schedule.length - core.day : len),

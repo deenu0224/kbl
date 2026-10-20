@@ -1,3 +1,4 @@
+import { signingClosedWhy } from '../../game/economy';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { secretOf } from '../../game/scandal';
 import { fixedStarters } from '../../game/campaign';
@@ -192,6 +193,7 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
   const row = rows.find((r) => r.key === key);
   const name = slot ? POS[slot.pos] : g === 'rot' ? `${team.rotation.indexOf(owner) + 1}선발` : g === 'cl' ? '마무리' : `불펜 ${team.bullpen.indexOf(owner) + 1}`;
   const nFa = useStore((s) => s.freeAgents.filter((p) => (key === 'DH' ? p.kind === 'B' : p.pos === key)).length);
+  const closedWhy = useStore((s) => signingClosedWhy(s)); // 등록 마감 뒤에는 열어 봐야 영입할 수 없다
   // 이득이 큰 후보부터. 기본은 4명만 보이고 나머지는 접는다
   const sorted = cands.filter((c) => !c.rehab).sort((x, y) => (isPlan(y.plan) ? y.plan.sum : -99) - (isPlan(x.plan) ? x.plan.sum : -99));
   const shown = more ? sorted : sorted.slice(0, 4);
@@ -260,8 +262,8 @@ function SlotSheet({ owner, rows, onClose, onSwap, onCard }: { owner: string; ro
           </div>
         )}
         {o && <div className="shrink-0 truncate text-[13px] text-white/55">교체하면 {o.name} → {slot ? '벤치' : '상대의 보직'}</div>}
-        <button className="px-btn min-h-10 shrink-0 text-[13px]" data-testid="go-fa" disabled={!nFa} onClick={() => goMarket(key)}>
-          {nFa ? `이 자리 FA 보기 ›` : '이 자리 FA 없음'}
+        <button className="px-btn min-h-10 shrink-0 text-[13px]" data-testid="go-fa" disabled={!nFa || !!closedWhy} title={closedWhy ?? undefined} onClick={() => goMarket(key)}>
+          {closedWhy ? '영입 마감' : nFa ? `이 자리 FA 보기 ›` : '이 자리 FA 없음'}
         </button>
       </div>
     </Dialog>
@@ -425,7 +427,8 @@ export default function Squad({ top, bottom, fixNote }: { top?: ReactNode; botto
       d.y = ev.clientY;
       const dx = Math.abs(d.x - d.x0);
       const dy = Math.abs(d.y - d.y0);
-      if (dx > 3 || dy > 3) d.moved = true;
+      // 움직였다 = 끌기 시작 거리(SLOP)만큼. 3px 이면 길게 누른 탭의 손떨림(안드로이드)이 "제자리에 놓은 끌기"가 되어 아무 일도 안 일어났다
+      if (Math.hypot(dx, dy) >= SLOP) d.moved = true;
       if (!d.started) {
         // 스크롤되는 방향으로 민 것은 스크롤이다 (끌기는 길게 누르거나 다른 방향으로)
         const far = !d.touch || d.pan === 'none' ? Math.hypot(dx, dy) >= SLOP : d.pan === 'x' ? dy >= SLOP && dy > dx : dx >= SLOP && dx > dy;

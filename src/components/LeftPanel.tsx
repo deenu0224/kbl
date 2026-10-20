@@ -69,7 +69,7 @@ export function ReleaseButton({ player }: { player: Player; team?: Team }) {
       <button className="px-btn" data-testid="release-to-desk" title="이적 창구에 방출로 담는다 (확정 전까지 실제 선수단은 그대로)" onClick={() => openDesk({ add: [['release', player.id]] })}>
         방출 담기 ⤢
       </button>
-      <span className="text-[10px] text-white/50 mob:text-[13px]" data-testid="release-cost" title="방출 시 잔여 연봉 지급">−{fmtMoney(cost)}</span>
+      <span className="text-[11px] text-white/50 mob:text-[13px]" data-testid="release-cost" title="방출 시 잔여 연봉 지급">{cost > 0 ? `−${fmtMoney(cost)}` : '비용 없음'}</span>
     </>
   );
 }

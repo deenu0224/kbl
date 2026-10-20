@@ -10,6 +10,7 @@ export function fmtInt(v: number): string {
 export function fmtMoney(v: number): string {
   const n = Math.round(v);
   const a = Math.abs(n);
+  if (n === 0) return '0원'; // "0만"은 읽기 이상했다 (잔여 연봉 지급 0만)
   const sign = n < 0 ? '-' : '';
   if (a >= 10000) {
     const eok = a / 10000;
