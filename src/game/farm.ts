@@ -538,7 +538,13 @@ export function farmDailyMut(core: Core, notes: string[]): void {
   let askedNow = false;
   for (const p of t.roster.filter((x) => x.subFor && !x.farm && x.subFrom !== 'bench')) {
     const orig = t.roster.find((x) => x.id === p.subFor);
-    if (orig && (orig.injury > 0 || (orig.farm && orig.il))) continue; // 아직 결장 중이거나 재활 명단에서 복귀를 기다린다
+    // 원래 선수가 팀을 떠났으면(방출·트레이드) 대체 선수는 그대로 남는다 — 전에는 "복귀"로 보고 2군에 내렸다
+    if (!orig) {
+      delete p.subFor;
+      delete p.subFrom;
+      continue;
+    }
+    if (orig.injury > 0 || (orig.farm && orig.il)) continue; // 아직 결장 중이거나 재활 명단에서 복귀를 기다린다
     if (p.injury > 0) {
       if (orig && !orig.farm && orig.injury === 0) restoreSlotMut(core, t, orig, p); // 칸은 바로 돌려준다
       continue; // 다친 대체 선수는 나은 뒤에 내린다

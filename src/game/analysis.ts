@@ -376,19 +376,30 @@ export function callUpPreview(core: Core, p: Player): { ok: boolean; text: strin
   if (left > 0) return { ok: false, text: p.il ? `${p.ban ? '징계' : '재활'} 중 · ${left}경기 뒤 복귀 가능` : `재등록 ${left}경기 뒤` };
   const n = activeRoster(t).length;
   if (n >= ROSTER_MAX) return { ok: false, text: `1군 ${n}/${ROSTER_MAX} 가득` };
-  if (p.injury > 0) return { ok: true, text: p.ban ? `징계 ${p.ban}경기 · 벤치로` : `부상 ${p.injury}경기 · 벤치로` };
+  if (p.injury > 0 || (p.ban ?? 0) > 0) return { ok: true, text: p.ban ? `징계 ${p.ban}경기 · 벤치로` : `부상 ${p.injury}경기 · 벤치로` };
+  // 실제 콜업과 같은 함수(slotNewcomer)를 팀 사본에 돌려 본다 — 같은 포지션 주전과 OVR만 비교하던 글은 실제 자리와 자주 달랐다
   const byId = new Map(t.roster.map((x) => [x.id, x]));
-  const label = POS_KO_SHORT[p.pos] ?? p.pos;
+  const t2 = structuredClone(t);
+  const p2 = t2.roster.find((x) => x.id === p.id)!;
+  delete p2.farm;
+  delete p2.il;
+  delete p2.farmUntil;
+  slotNewcomer(t2, p2);
   if (p.kind === 'B') {
-    const cur = byId.get(t.lineup.find((l) => l.pos === p.pos)?.pid ?? '');
-    return { ok: true, text: cur && cur.ovr < p.ovr ? `${label} ${cur.ovr} → ${p.ovr}` : `벤치로 (${label} 주전 ${cur?.ovr ?? '-'})` };
+    const slot = t2.lineup.find((l) => l.pid === p.id);
+    if (!slot) {
+      const cur = byId.get(t.lineup.find((l) => l.pos === p.pos)?.pid ?? '');
+      return { ok: true, text: `벤치로 (${POS_KO_SHORT[p.pos] ?? p.pos} 주전 ${cur?.ovr ?? '-'})` };
+    }
+    const was = byId.get(t.lineup.find((l) => l.pos === slot.pos)?.pid ?? '');
+    return { ok: true, text: `${POS_KO_SHORT[slot.pos] ?? slot.pos} ${was?.ovr ?? '-'} → ${p.ovr}` };
   }
-  if (p.pos === 'SP') {
-    const low = t.rotation.map((id) => byId.get(id)).filter((x): x is Player => !!x).sort((a, b) => a.ovr - b.ovr)[0];
-    return { ok: true, text: !low || t.rotation.length < 5 || low.ovr < p.ovr ? `선발 ${low?.ovr ?? '-'} → ${p.ovr}` : `불펜으로 (선발 최약 ${low.ovr})` };
+  if (t2.rotation.includes(p.id)) {
+    const out = t.rotation.find((id) => !t2.rotation.includes(id));
+    return { ok: true, text: `선발 ${(out && byId.get(out)?.ovr) ?? '-'} → ${p.ovr}` };
   }
-  const cl = t.closer ? byId.get(t.closer) : undefined;
-  return { ok: true, text: p.pos === 'CP' && (!cl || cl.ovr < p.ovr) ? `마무리 ${cl?.ovr ?? '-'} → ${p.ovr}` : '불펜으로' };
+  if (t2.closer === p.id) return { ok: true, text: `마무리 ${(t.closer && byId.get(t.closer)?.ovr) ?? '-'} → ${p.ovr}` };
+  return { ok: true, text: '불펜으로' };
 }
 
 /** [2군으로] 를 누르기 전에 보이는 결과 한 줄 */

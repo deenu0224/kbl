@@ -275,8 +275,11 @@ export function fixLineup(t: Team): void {
  */
 export function slotNewcomer(t: Team, p: Player): string {
   const byId = new Map(t.roster.map((x) => [x.id, x]));
+  // 다쳤거나 징계 중이면 주전·로테이션·마무리에 넣지 않는다 (2군에서 올리면 바로 주전이 되어 멀쩡한 주전이 밀렸다)
+  const out = p.injury > 0 || (p.ban ?? 0) > 0;
   if (p.kind === 'B') {
     const tryPos = (pos: BatPos): boolean => {
+      if (out) return false;
       const slot = t.lineup.find((s) => s.pos === pos);
       if (!slot) return false;
       const cur = byId.get(slot.pid);
@@ -301,7 +304,9 @@ export function slotNewcomer(t: Team, p: Player): string {
     return placed ? '주전 라인업' : '벤치';
   }
   let role = '불펜';
-  if (p.pos === 'SP') {
+  if (out) {
+    // 불펜 맨 뒤 (아래에서 끼워 넣지 않게)
+  } else if (p.pos === 'SP') {
     if (t.rotation.length < 5) {
       t.rotation.push(p.id);
       role = '선발 로테이션';
@@ -322,7 +327,8 @@ export function slotNewcomer(t: Team, p: Player): string {
       role = '마무리';
     }
   }
-  if (role === '불펜') {
+  if (role === '불펜' && out) t.bullpen.push(p.id);
+  else if (role === '불펜') {
     // 불펜은 좋은 투수가 앞(필승조)
     const idx = t.bullpen.findIndex((id) => (byId.get(id)?.ovr ?? 0) < p.ovr);
     if (idx < 0) t.bullpen.push(p.id);

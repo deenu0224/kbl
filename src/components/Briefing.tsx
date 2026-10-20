@@ -12,6 +12,7 @@ import { Flag } from './Campaign';
 import PixelFace from './PixelFace';
 import { useIsMobile } from './layout/useLayout';
 import { useUi, type TipId } from './layout/uiStore';
+import { useCovering } from './layout/cover';
 
 const safe = {
   paddingTop: 'max(var(--sat), 4px)',
@@ -324,6 +325,7 @@ export default function BriefingSheet() {
   const fc = flagForecast(core);
   const behind = fc.text !== '—' && !fc.ok;
   const [open0, setOpen] = useState<Open | null>(null);
+  useCovering(show); // 브리핑이 떠 있으면 [이적 창구에 담아서 보기]의 창구를 이적 탭(브리핑 밑)이 아니라 그 위에 띄운다
   useEffect(() => {
     if (show) play('event');
     else setOpen(null);

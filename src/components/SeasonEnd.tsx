@@ -163,7 +163,8 @@ export default function SeasonEnd() {
       {/* 스토브리그의 이적 창구 (결산 화면에서 연다) */}
       <TransferDesk season />
       {/* 결산 중의 사건 카드는 여기서만 그린다 (MobileShell 은 결산 중에는 그리지 않는다) */}
-      {eventId && (
+      {/* 카드를 [이적 창구 ⤢]로 비켜 둔 동안은 덮개째 그리지 않는다 (빈 덮개가 z-60 으로 창구의 모든 탭을 먹었다) */}
+      {eventId && hidden !== eventId && (
         <div className="fixed inset-0 z-[60] font-pixel text-[12px]" data-testid="season-event">
           <EventCardModal sheet={mobile} />
         </div>
