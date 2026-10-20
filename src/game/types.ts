@@ -67,6 +67,7 @@ export interface Player {
   il?: boolean; // 부상자 명단(재활): 부상·징계로 말소된 선수. farm 과 함께 선다. 2군 정원·성장·콜업 후보에서 빠지고 farmUntil 까지 복귀할 수 없다
   svc?: number; // 보유 기간(서비스 타임)의 기준: 유저 팀에 드래프트로 입단해 데뷔한 시즌. 있으면 6시즌 동안 연봉이 시장가의 일부 (contract.ts)
   ask?: number; // FA 재계약 때 합의한 배율 (시장가 × 이 값. 유저 팀에 있는 동안 유지)
+  deal?: { season: number; salary: number }; // 스토브리그에 합의한 다음 시즌 연봉 (재계약 · 포스팅 잔류 · 스토브 FA 영입). 시즌이 바뀌면 이 값으로 연다
   away?: { until: number; kind: 'army' }; // 팀을 떠나 있는 선수 (입대). until 시즌 개막에 복귀. 로스터가 아니라 campaign.away 에 있다
   from?: 'fa' | 'draft'; // 우리 구단에 온 길: FA 영입 · 우리 드래프트(은퇴 자리를 채운 신인 포함). 트레이드·창단 멤버·옛 세이브는 없다 (franchise.ts coreOrigin)
   served?: boolean; // 군 복무를 마쳤거나 입대한 선수 (입대 통지 대상에서 빠진다)

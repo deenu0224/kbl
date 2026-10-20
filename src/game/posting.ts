@@ -173,6 +173,7 @@ export function resolveMlbMut(core: Core, idx: number, card: EventCard): string 
   if (idx !== 0) {
     p.mlbAsk = (p.mlbAsk ?? 0) + 1;
     p.salary = Math.round((p.salary * MLB.keepRaise) / 100) * 100;
+    if (core.phase !== 'season' && core.phase !== 'post') p.deal = { season: core.season + 1, salary: p.salary }; // 스토브리그 약속 (시즌이 바뀌어도 이 연봉)
     return `${josa(p.name, '은', '는')} 한 해 더 섬에 남습니다 — 연봉 ${fmtMoney(p.salary)}`;
   }
   t.roster = t.roster.filter((x) => x.id !== p.id);

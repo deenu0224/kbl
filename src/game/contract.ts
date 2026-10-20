@@ -77,6 +77,7 @@ function resignMut(core: Core, pid: string, accept: boolean): string {
     delete p.lever;
     p.ask = ask.mult;
     p.salary = ask.salary;
+    p.deal = { season: core.season + 1, salary: ask.salary };
     return `${p.name} 재계약 — 연봉 ${fmtMoney(ask.salary)}`;
   }
   t.roster = t.roster.filter((x) => x.id !== pid);
@@ -88,6 +89,7 @@ function resignMut(core: Core, pid: string, accept: boolean): string {
   delete p.since;
   delete p.svc;
   delete p.ask;
+  delete p.deal;
   delete p.lever;
   delete p.tired;
   delete p.farm;

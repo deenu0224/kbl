@@ -574,6 +574,8 @@ export function signPlayer(core0: Core, pid: string, opts: StepOpts = {}): { cor
   }
   p.since = core.season;
   p.from = 'fa';
+  // 스토브리그에 영입하면 창구에 보인 연봉으로 다음 시즌을 연다 (우승 프리미엄은 우리 선수의 인상분이다 — 새로 온 FA에게 또 얹혔다)
+  if (core.phase !== 'season' && core.phase !== 'post') p.deal = { season: core.season + 1, salary: p.salary };
   t.roster.push(p);
   const role = slotNewcomer(t, p);
   if (p.star >= STAR_SIGN_MIN) {
@@ -610,6 +612,7 @@ export function releasePlayer(core0: Core, pid: string, opts: StepOpts = {}): { 
   delete p.since;
   delete p.svc;
   delete p.ask;
+  delete p.deal;
   delete p.tired;
   delete p.farm;
   delete p.il;
@@ -933,11 +936,14 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       if (t.id === core.userId) {
         // 보유 기간 안의 드래프트 출신은 시장가의 일부만 받는다. FA 자격을 얻고도 재계약 카드를 거치지 않았으면 시장가로 자동 재계약
         const yr = AUDIT.svc ? svcYearAt(p, core.season) : null;
-        if (yr !== null && yr <= SVC_YEARS) p.salary = svcSalary(p.salary, yr);
+        // 스토브리그에 합의한 연봉은 그대로 (카드에 적힌 값 — 시장가를 다시 매기고 우승 프리미엄을 또 얹어 2.6억이 4.8억이 됐다)
+        if (p.deal && p.deal.season === core.season) p.salary = p.deal.salary;
+        else if (yr !== null && yr <= SVC_YEARS) p.salary = svcSalary(p.salary, yr);
         else {
           delete p.svc;
           p.salary = Math.round((p.salary * premium * (p.ask ?? 1)) / 100) * 100;
         }
+        delete p.deal;
       }
       if (p.age < RETIRE_AGE && !(t.id === core.userId && p.id === tourPid)) return p;
       // 은퇴 → 같은 포지션 신인으로 충원. 프랜차이즈 스타는 영구결번
