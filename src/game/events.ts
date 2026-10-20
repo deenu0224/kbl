@@ -141,11 +141,12 @@ export function choiceBlocked(core: Pick<Core, 'finance'>, ch: { disabled?: stri
 // (전에는 만든 때의 사유가 굳어: 자리를 비워도 계속 막히고, 반대로 최소 인원을 깨고도 "보낸다"가 통했다)
 // 카드 id 와 선택지 이름으로 고른다 — 이미 세이브에 있는 카드에도 통한다. null = 다시 볼 규칙이 없다(만든 때 사유 그대로)
 
-const gone = '이미 팀을 떠난 선수입니다';
+// 카드의 선수가 그 사이 팀을 떠났으면(방출 등) 막지 않는다 — 처리 함수가 "없던 일"로 닫는다.
+// 막으면 모든 선택지가 막혀 카드를 끝낼 수 없었다 (재계약 카드 중 그 선수를 방출 → 스토브리그 진행 불가)
 function leaveWhy(core: Core, pid: string | undefined): string | undefined {
   const t = userTeam(core);
   const p = pid ? t.roster.find((x) => x.id === pid) : undefined;
-  if (!p) return gone;
+  if (!p) return undefined;
   if (p.farm) return undefined;
   const same = activeRoster(t).filter((x) => x.kind === p.kind).length;
   if (p.kind === 'B' && same <= MIN_BATTERS) return `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다`;
@@ -164,11 +165,8 @@ function liveRule(core: Core, card: EventCard, i: number): string | undefined | 
     if (i === 2 && of.fair === of.cash) return '더 조정할 여지가 없습니다';
     return tradeBlocked(core, of, i === 2 ? of.fair : of.cash);
   }
-  if (base === RESIGN_ID) {
-    if (!userTeam(core).roster.some((x) => x.id === sub2)) return gone;
-    return i === 1 ? leaveWhy(core, sub2) : undefined;
-  }
-  if (base === MLB_ID && sub2 === 'post') return i === 0 ? leaveWhy(core, sub3) : userTeam(core).roster.some((x) => x.id === sub3) ? undefined : gone;
+  if (base === RESIGN_ID) return i === 1 ? leaveWhy(core, sub2) : undefined;
+  if (base === MLB_ID && sub2 === 'post') return i === 0 ? leaveWhy(core, sub3) : undefined;
   if (base === MLB_ID && sub2 === 'back') {
     const t = userTeam(core);
     return i === 0 && actFull(core) && farmRoster(t).length >= farmMax(core) ? '1군·2군이 가득 찼습니다' : undefined;
