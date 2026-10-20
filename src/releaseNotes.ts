@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.16.4',
+    date: '2026-10-20',
+    title: '버그 잡기',
+    notes: [
+      '개막전 오더와 재계약 카드 중에도 이적 창구에서 방출·콜업·영입이 됩니다.',
+      '카드 선택지가 지금 선수단 상태로 다시 판단돼요. 재계약 연봉은 카드에 적힌 그대로 개막합니다.',
+      '부상 선수 콜업·대체 선수 2군행 등 선수단 버그를 여럿 고쳤어요.',
+    ],
+  },
+  {
     version: '0.16.3',
     date: '2026-10-18',
     title: '이적 탭이 곧 이적 창구',
