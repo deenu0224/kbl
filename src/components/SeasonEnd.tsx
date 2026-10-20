@@ -32,6 +32,8 @@ import { openDesk } from './roster/transferUi';
 import { LedgerBars, ledgerTotals } from './RightPanel';
 import { MiniBars, OvrBadge, POS_KO, TeamDot, fmtPct, recText } from './ui';
 import { PayForecastBlock } from './PayForecast';
+import { useCovering } from './layout/cover';
+import { useTransferUi } from './roster/transferUi';
 
 
 const GRADE_COLOR: Record<string, string> = { ...Object.fromEntries(RANKS.map((r) => [r.id, r.color])) }; // 단장 랭크 (옛 등급 S~D 도 같은 표)
@@ -150,9 +152,11 @@ export default function SeasonEnd() {
   const eventId = useStore((s) => s.campaign.event?.id ?? null);
   const hidden = useUi((s) => s.eventHidden);
   const mobile = useIsMobile();
+  // 카드를 접는 길은 [이적 창구 ⤢] 하나: 창구를 닫으면 카드가 다시 뜬다 (결산에는 접은 카드를 다시 여는 버튼이 없다)
+  const deskOpen = useTransferUi((s) => s.open);
   useEffect(() => {
-    if (eventId && hidden === eventId) useUi.getState().setEventHidden(null);
-  }, [eventId, hidden]);
+    if (eventId && hidden === eventId && !deskOpen) useUi.getState().setEventHidden(null);
+  }, [eventId, hidden, deskOpen]);
   return (
     <>
       <SeasonEndBody />
@@ -169,6 +173,7 @@ export default function SeasonEnd() {
 }
 
 function SeasonEndBody() {
+  useCovering();
   const core = useCore();
   const beginDraft = useStore((s) => s.beginDraft);
   const stoveCards = useStore((s) => s.stoveCards);

@@ -35,18 +35,16 @@ const outText = (n: number | null) => (n === null ? '안 빔' : `${n}경기`);
 /** 폰 시즌 중에는 창구가 이적 탭 안에 있다: 어디서 열든 그 탭으로 간다 (결산·스토브리그는 탭이 가려지므로 전체 화면) */
 export const deskInTab = (phase: string) => phase === 'season' || phase === 'post';
 
-/** 이적 창구 (전체 화면). 어디서든 useTransferUi.openDesk() 로 연다. tabbed: 폰 화면 — 시즌 중에는 이적 탭이 그린다 */
-export default function TransferDesk({ tabbed = false, season = false }: { tabbed?: boolean; season?: boolean }) {
+/** 이적 창구 (전체 화면). 어디서든 useTransferUi.openDesk() 로 연다. 폰 시즌 중 덮개가 없으면 MobileShell 이 이적 탭으로 돌리고 open 을 끈다 */
+export default function TransferDesk({ season = false }: { season?: boolean }) {
   const open = useTransferUi((s) => s.open);
-  const inline = useTransferUi((s) => s.inline);
   const yield_ = useTransferUi((s) => !season && s.seasonHost);
-  const inTab = useStore((s) => tabbed && deskInTab(s.phase));
   useEffect(() => {
     if (!season) return;
     useTransferUi.setState({ seasonHost: true });
     return () => useTransferUi.setState({ seasonHost: false });
   }, [season]);
-  if (!open || inline || inTab || yield_) return null;
+  if (!open || yield_) return null;
   return <Desk />;
 }
 

@@ -7,12 +7,14 @@ import Bracket from './Bracket';
 import Standings from './Standings';
 import { useUi } from './layout/uiStore';
 import { recText } from './ui';
+import { useCovering } from './layout/cover';
 
 /**
  * 정규시즌 마감 화면: 정규시즌 마지막 경기 요약을 닫은 뒤, 가을야구 첫 경기(또는 시즌 결산) 전에 한 번.
  * 최종 순위 · 우리 순위 한 줄 · 이번 장 깃발 · 첫 상대와 조건 · 대진표(우리 길). 리그 탭 대진표에서 다시 열 수 있다
  */
 export default function AutumnIntro() {
+  useCovering();
   const core = useCore();
   const close = useStore((s) => s.closeAutumnIntro);
   const reopened = useUi((s) => s.autumnOpen);

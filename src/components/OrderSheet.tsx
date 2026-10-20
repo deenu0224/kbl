@@ -8,6 +8,7 @@ import PixelFace from './PixelFace';
 import { useIsMobile } from './layout/useLayout';
 import { useUi } from './layout/uiStore';
 import { TeamDot } from './ui';
+import { useCovering } from './layout/cover';
 
 // 새 시즌·새 게임의 개막전에는 오더지가 다시 첫 화면이 된다
 useStore.subscribe((s, p) => {
@@ -44,6 +45,7 @@ export default function OrderSheet() {
   const mobile = useIsMobile();
   const order = idleNow && opener && orderOpen;
   const visible = order || (idleNow && !mobile && squadOpen);
+  useCovering(visible);
 
   useEffect(() => {
     if (order) play('event');

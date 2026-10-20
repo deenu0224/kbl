@@ -1,3 +1,4 @@
+import { openDesk } from "./roster/transferUi";
 import { useState } from "react";
 import { choiceBlocked } from '../game/events';
 import type { EventCard } from "../game/types";
@@ -57,9 +58,11 @@ function useSpeaker(
 function CardBody({
   card,
   onOpen,
+  onDesk,
 }: {
   card: EventCard;
   onOpen: (i: number) => void;
+  onDesk?: () => void;
 }) {
   const resolveEvent = useStore((s) => s.resolveEvent);
   const finance = useStore((s) => s.finance); // 막힘 여부는 지금 현금으로 다시 본다
@@ -75,6 +78,12 @@ function CardBody({
         >
           {card.title}
         </span>
+        {onDesk && (
+          // 고르기 전에 선수단을 정리할 수 있게 (재계약 카드가 떠 있으면 방출·콜업을 할 길이 없었다). 카드는 창구를 닫으면 다시 뜬다
+          <button className="px-btn shrink-0 !min-h-9 !px-2 text-[12px]" data-testid="ev-desk" onClick={onDesk}>
+            이적 창구 ⤢
+          </button>
+        )}
       </div>
 
       {sp && (
@@ -179,6 +188,7 @@ function CardBody({
 export default function EventCardModal({ sheet = false }: { sheet?: boolean }) {
   const card = useStore((s) => s.campaign.event);
   const busy = useStore((s) => !!s.playback || !!s.summary);
+  const ended = useStore((s) => s.phase === 'ended');
   const hidden = useUi((s) => s.eventHidden);
   const setHidden = useUi((s) => s.setEventHidden);
   const resolveEvent = useStore((s) => s.resolveEvent);
@@ -186,6 +196,8 @@ export default function EventCardModal({ sheet = false }: { sheet?: boolean }) {
   const [open, setOpen] = useState<{ id: string; i: number } | null>(null);
   if (!card || busy || hidden === card.id) return null;
   const hide = () => setHidden(card.id);
+  // 선수가 걸린 카드(재계약·포스팅·트레이드 등)와 결산 중 카드: 창구로 잠시 비켜 준다
+  const onDesk = card.pid || ended ? () => (setHidden(card.id), openDesk({ side: 'squad' })) : undefined;
   const idx =
     open && open.id === card.id && card.choices[open.i]?.detail ? open.i : null;
   const onOpen = (i: number) => setOpen({ id: card.id, i });
@@ -216,7 +228,7 @@ export default function EventCardModal({ sheet = false }: { sheet?: boolean }) {
     return (
       <>
         <Sheet onClose={hide} label={card.title}>
-          <CardBody card={card} onOpen={onOpen} />
+          <CardBody card={card} onOpen={onOpen} onDesk={onDesk} />
         </Sheet>
         {detail}
       </>
@@ -237,7 +249,7 @@ export default function EventCardModal({ sheet = false }: { sheet?: boolean }) {
           >
             접기 ▁
           </button>
-          <CardBody card={card} onOpen={onOpen} />
+          <CardBody card={card} onOpen={onOpen} onDesk={onDesk} />
         </div>
       </div>
       {detail}

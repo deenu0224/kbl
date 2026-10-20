@@ -7,9 +7,11 @@ import { sceneExtras } from '../game/campaign';
 import { Chronicle, Retired, StageTrail } from './Campaign';
 import { ShareButton } from './ShareSheet';
 import { SectionTitle } from './ui';
+import { useCovering } from './layout/cover';
 
 /** 도민 지지 0: 연고 이전. 구단사와 지나온 장을 보여주고 새 게임으로. */
 export default function GameOver() {
+  useCovering();
   const core = useCore();
   const { campaign, facilities } = core;
   const season = useStore((s) => s.season);

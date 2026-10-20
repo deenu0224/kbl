@@ -72,7 +72,7 @@ export default function App() {
     return (
       <>
         <MobileShell orientation={layout} />
-        <TransferDesk tabbed />
+        <TransferDesk />
         <BriefingSheet />
         <CampaignSheet />
         <PhaseScreens />

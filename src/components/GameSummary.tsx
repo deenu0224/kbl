@@ -7,6 +7,7 @@ import { fmtInt, fmtIp, fmtMoney } from '../game/format';
 import { PART_LABEL } from './LeftPanel';
 import { chanceKey, useUi } from './layout/uiStore';
 import { Bar, MoneyBar, POS_KO, TeamDot, WEATHER_ICON, WEATHER_KO, dowOf } from './ui';
+import { useCovering } from './layout/cover';
 
 /** 팀 색 점 + 구단 약칭. 우리 팀은 밝은 테두리 — 하이라이트 배너·경기 요약에서 "누구 팀 선수인지"를 붙인다 */
 export function TeamTag({ team, mine, size = 11 }: { team: Pick<Team, 'id' | 'color' | 'color2'> | undefined; mine: boolean; size?: number | string }) {
@@ -475,6 +476,7 @@ export default function GameSummary({ sheet = false }: { sheet?: boolean }) {
   const close = useStore((s) => s.closeSummary);
   const phase = useStore((s) => s.phase);
   const ended = phase === 'ended' || phase === 'over';
+  useCovering(!!summary?.length);
   if (!summary || !summary.length) return null;
   const body = summary.length === 1 ? <Single r={summary[0]} teams={teams} userId={userId} /> : <Multi rs={summary} teams={teams} />;
 

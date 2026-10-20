@@ -11,11 +11,13 @@ import { useUi } from './layout/uiStore';
 import { POS_FULL, POS_KO, SectionTitle, TeamDot } from './ui';
 import PlayerBrowser from './roster/PlayerBrowser';
 import { usePosReport } from './roster/rosterUi';
+import { useCovering } from './layout/cover';
 
 const school = (p: Player) => (p.age <= 20 ? '고졸' : '대졸');
 
 /** 신인 드래프트 전체 화면 (phase 'draft') */
 export default function DraftScreen() {
+  useCovering();
   const draft = useStore((s) => s.draft);
   const teams = useStore((s) => s.teams);
   const userId = useStore((s) => s.userId);

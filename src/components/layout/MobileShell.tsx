@@ -5,6 +5,7 @@ import { MobileActionBar, PreGame, useMatchActions } from '../BottomBar';
 import GameSummary from '../GameSummary';
 import { InlineDesk, deskInTab } from '../roster/TransferDesk';
 import { useTransferUi } from '../roster/transferUi';
+import { useCover } from './cover';
 import Squad from '../roster/Squad';
 import { fmtMoney } from '../../game/format';
 import EventCardModal from '../EventCardModal';
@@ -248,11 +249,15 @@ export default function MobileShell({ orientation }: { orientation: 'portrait' |
   const ended = useStore((s) => s.phase === 'ended' && !s.summary && !s.playback);
   // 훅은 아래의 가로 화면 분기(early return)보다 위에서 부른다 — 폰을 돌려 세로↔가로가 바뀌면 훅 개수가 달라져 화면이 터졌다
   const lineOn = useLineScoreOn();
-  // 이적 창구는 이적 탭 안에 있다: 할 일·카드·선수단 어디서 열든 이적 탭으로
+  // 이적 창구는 이적 탭 안에 있다: 할 일·카드·선수단 어디서 열든 이적 탭으로 (그러면 전체 화면 창구는 닫는다).
+  // 오더지·경기 요약·결산이 앱을 덮고 있으면 탭으로 보내지 않는다 — 덮개 밑이라 안 보였다. 그때는 전체 화면 창구가 그 위에 뜬다
   useEffect(
     () =>
       useTransferUi.subscribe((s, prev) => {
-        if (s.open && (!prev.open || s.nonce !== prev.nonce) && deskInTab(useStore.getState().phase)) useUi.setState({ tab: 'market', facSheet: null });
+        if (!s.open || (prev.open && s.nonce === prev.nonce)) return;
+        if (!deskInTab(useStore.getState().phase) || useCover.getState().n > 0) return;
+        useUi.setState({ tab: 'market', facSheet: null });
+        useTransferUi.setState({ open: false });
       }),
     [],
   );
