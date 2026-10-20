@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { choiceBlocked } from '../game/events';
+import { cardChoiceBlocked } from '../game/events';
 import { WhoTag, useWho } from './whoTag';
 import { fmtAvg, fmtEra, fmtIp } from '../game/format';
 import type { EventCard, Player } from "../game/types";
-import { findPlayer, useStore } from "../store";
+import { findPlayer, useCore, useStore } from "../store";
 import PlayerCard from "./PlayerCard";
 import Sheet from "./layout/Sheet";
 import { Bar, OvrBadge, POS_FULL, POS_KO, ratingColor } from "./ui";
@@ -146,10 +146,10 @@ export default function EventDetail({
   const teams = useStore((s) => s.teams);
   const freeAgents = useStore((s) => s.freeAgents);
   const userId = useStore((s) => s.userId);
-  const finance = useStore((s) => s.finance);
+  const core = useCore();
   const [view, setView] = useState<string | null>(null);
   const ch = card.choices[index];
-  const blocked = choiceBlocked({ finance }, ch);
+  const blocked = cardChoiceBlocked(core, card, index);
   const d = ch?.detail;
   if (!ch || !d) return null;
   const team = teams.find((t) => t.id === userId);

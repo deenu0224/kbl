@@ -8,7 +8,7 @@ import { clamp, pick, randInt, type Rng } from './rng';
 import { calcOvr } from './ratings';
 import { fixLineup, slotNewcomer, slotValue } from './lineup';
 import { PEN_OVER_KEY, PEN_OVER_SUM } from './fixes';
-import { ROSTER_MAX, TRAIN_LV, userTeam } from './economy';
+import { MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, TRAIN_LV, activeRoster, farmMax, farmRoster, userTeam } from './economy';
 import { fmtMoney } from './format';
 import { addNews } from './season';
 import { flagForecast, flagOnTrack, hintMut, MID_FAIL_TRUST, MID_UP_FAIL_TRUST, MID_UP_MULT, stageOf } from './campaign';
@@ -28,7 +28,7 @@ import { positionReport } from './analysis';
 import { SCANDAL_CARDS } from './scandal';
 import { RELIEF_CARDS } from './relief';
 import { MLB_ID, resolveMlbMut } from './posting';
-import { TRADE_ID, drawTrade, resolveTradeMut } from './trade';
+import { TRADE_ID, drawTrade, parseOffer, resolveTradeMut, tradeBlocked } from './trade';
 import { DEBT_SALE_ID, drawDebtSale, resolveDebtSaleMut } from './debt';
 
 const posKo = (pos: string): string => POS_NAME[pos] ?? pos;
@@ -135,6 +135,75 @@ export function choiceBlocked(core: Pick<Core, 'finance'>, ch: { disabled?: stri
   }
   return ch.disabled;
 }
+
+// ───────── 선택지를 지금 상태로 다시 본다 ─────────
+// 카드를 띄워 둔 채 [이적 창구 ⤢]로 선수단을 바꿀 수 있으니, 인원·현금이 걸린 막힘은 카드를 만든 때가 아니라 지금 상태로 본다.
+// (전에는 만든 때의 사유가 굳어: 자리를 비워도 계속 막히고, 반대로 최소 인원을 깨고도 "보낸다"가 통했다)
+// 카드 id 와 선택지 이름으로 고른다 — 이미 세이브에 있는 카드에도 통한다. null = 다시 볼 규칙이 없다(만든 때 사유 그대로)
+
+const gone = '이미 팀을 떠난 선수입니다';
+function leaveWhy(core: Core, pid: string | undefined): string | undefined {
+  const t = userTeam(core);
+  const p = pid ? t.roster.find((x) => x.id === pid) : undefined;
+  if (!p) return gone;
+  if (p.farm) return undefined;
+  const same = activeRoster(t).filter((x) => x.kind === p.kind).length;
+  if (p.kind === 'B' && same <= MIN_BATTERS) return `1군 타자는 최소 ${MIN_BATTERS}명이 필요합니다`;
+  if (p.kind === 'P' && same <= MIN_PITCHERS) return `1군 투수는 최소 ${MIN_PITCHERS}명이 필요합니다`;
+  return undefined;
+}
+const actFull = (core: Core) => activeRoster(userTeam(core)).length >= ROSTER_MAX;
+
+function liveRule(core: Core, card: EventCard, i: number): string | undefined | null {
+  const ch = card.choices[i];
+  const [base, sub2, sub3] = card.id.split('|');
+  if (base === TRADE_ID) {
+    if (i === 1) return undefined;
+    const of = parseOffer(card.id);
+    if (!of) return null;
+    if (i === 2 && of.fair === of.cash) return '더 조정할 여지가 없습니다';
+    return tradeBlocked(core, of, i === 2 ? of.fair : of.cash);
+  }
+  if (base === RESIGN_ID) {
+    if (!userTeam(core).roster.some((x) => x.id === sub2)) return gone;
+    return i === 1 ? leaveWhy(core, sub2) : undefined;
+  }
+  if (base === MLB_ID && sub2 === 'post') return i === 0 ? leaveWhy(core, sub3) : userTeam(core).roster.some((x) => x.id === sub3) ? undefined : gone;
+  if (base === MLB_ID && sub2 === 'back') {
+    const t = userTeam(core);
+    return i === 0 && actFull(core) && farmRoster(t).length >= farmMax(core) ? '1군·2군이 가득 찼습니다' : undefined;
+  }
+  if (base === 'oldeye' && sub2 === 'unsigned' && i === 0) {
+    const p = core.freeAgents.find((x) => x.id === card.pid);
+    if (!p) return '이미 시장을 떠난 선수입니다';
+    if (actFull(core)) return '1군이 가득 찼습니다';
+    if (p.foreign && userTeam(core).roster.filter((x) => x.foreign).length >= FOREIGN_MAX) return `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다`;
+    return undefined;
+  }
+  if (base === 'oldeye' && ch?.label === '데이터 분석원을 채용한다') return cashGate(core, N.analystCost); // 예전 세이브의 카드에는 cashNeed 가 없다
+  if (base === 'f-pain' && ch?.label === '내린다') {
+    const t = userTeam(core);
+    if (farmRoster(t).length >= farmMax(core)) return '2군이 가득 찼습니다';
+    return leaveWhy(core, card.pid);
+  }
+  if ((base === 'f-ready' || base === 'f-hype') && i === 0) {
+    const down = sub3 ? userTeam(core).roster.find((x) => x.id === sub3 && !x.farm) : undefined;
+    return actFull(core) && !down ? '1군이 가득하고 내릴 선수가 없습니다' : undefined;
+  }
+  if ((base === 'dope' && ch?.label === '조용히 내보낸다') || (base === 'fix' && ch?.label === '전면 협조한다')) return leaveWhy(core, card.pid);
+  return null;
+}
+
+/** 이 카드의 i번째 선택지가 **지금** 막혀 있는가 (화면 · 고를 때 같은 판정). 현금은 choiceBlocked 대로 */
+export function cardChoiceBlocked(core: Core, card: EventCard, i: number): string | undefined {
+  const ch = card.choices[i];
+  if (!ch) return '잘못된 선택입니다';
+  const live = liveRule(core, card, i);
+  if (live === null) return choiceBlocked(core, ch);
+  // 인원 사유는 지금 상태로 바꾸고, 현금 사유만 예전 판정(cashNeed · 문구)대로 덧붙인다
+  return live ?? choiceBlocked(core, { cashNeed: ch.cashNeed, disabled: ch.disabled?.startsWith('현금 부족') ? ch.disabled : undefined });
+}
+
 const sat = (core: Core, d: number) => (core.fanSat = satAfter(core, d));
 const spend = (core: Core, v: number) => {
   core.finance.cash -= v;
@@ -626,6 +695,7 @@ export const CARDS: CardDef[] = [
           ? {
               label: '데이터 분석원을 채용한다',
               desc: `비용 ${fmtMoney(N.analystCost)} · 드래프트 등급 정확`,
+              cashNeed: N.analystCost, // 카드를 띄워 둔 채 영입으로 현금을 쓰면 막혀야 한다 (음수 현금이 됐다)
               detail: { rows: [rowCash(c, -N.analystCost), rowInfo('드래프트 등급', '정확', '흐림', 'good'), rowAdd('다음 드래프트 풀 품질', N.coldYouth)], pids: [p.id], lasts: '분석원은 계속 · 품질은 다음 드래프트' },
             }
           : {
@@ -1030,7 +1100,7 @@ export function resolveEvent(core0: Core, choiceIdx: number, rng: Rng): { core: 
   if (!card0) return { core: core0, error: '처리할 이벤트가 없습니다', result: '' };
   const ch = card0.choices[choiceIdx];
   if (!ch) return { core: core0, error: '잘못된 선택입니다', result: '' };
-  const blocked = choiceBlocked(core0, ch);
+  const blocked = cardChoiceBlocked(core0, card0, choiceIdx);
   if (blocked) return { core: core0, error: blocked, result: '' };
   const def = all().def.get(baseId(card0.id)) ?? farmCardDef(baseId(card0.id));
   const core = structuredClone(core0);

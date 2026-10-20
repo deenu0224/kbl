@@ -1,8 +1,8 @@
 import { openDesk } from "./roster/transferUi";
 import { useState } from "react";
-import { choiceBlocked } from '../game/events';
+import { cardChoiceBlocked } from '../game/events';
 import type { EventCard } from "../game/types";
-import { findPlayer, useStore } from "../store";
+import { findPlayer, useCore, useStore } from "../store";
 import { CHARACTERS } from "../game/story";
 import PixelFace from "./PixelFace";
 import EventDetail from "./EventDetail";
@@ -65,7 +65,7 @@ function CardBody({
   onDesk?: () => void;
 }) {
   const resolveEvent = useStore((s) => s.resolveEvent);
-  const finance = useStore((s) => s.finance); // 막힘 여부는 지금 현금으로 다시 본다
+  const core = useCore(); // 막힘 여부는 지금 현금·인원으로 다시 본다 (카드를 띄운 채 창구에서 선수단을 바꿀 수 있다)
   const sp = useSpeaker(card);
   const setOpen = onOpen;
   return (
@@ -154,9 +154,9 @@ function CardBody({
                   {ch.desc}
                 </span>
               )}
-              {choiceBlocked({ finance }, ch) && (
+              {cardChoiceBlocked(core, card, i) && (
                 <span className="text-[13px] leading-snug text-[#ffb0b0]">
-                  {choiceBlocked({ finance }, ch)}
+                  {cardChoiceBlocked(core, card, i)}
                 </span>
               )}
               {ch.detail && (
@@ -169,7 +169,7 @@ function CardBody({
               className="px-btn primary !min-h-12 w-16 shrink-0 text-[14px]"
               data-sfx="none"
               data-testid="ev-select"
-              disabled={!!choiceBlocked({ finance }, ch)}
+              disabled={!!cardChoiceBlocked(core, card, i)}
               onClick={() => resolveEvent(i)}
             >
               선택
