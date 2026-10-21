@@ -12,6 +12,16 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.17.0',
+    date: '2026-10-21',
+    title: '키운 선수의 FA',
+    notes: [
+      '드래프트로 키운 선수의 연봉이 한 해에 두 배로 뛰지 않아요.',
+      'FA 재계약에 4년 고정 계약이 생겼어요. 보내면 보상금을 받아요.',
+      '재계약 카드 중 그 선수를 방출하면 진행이 멈추던 문제를 고쳤어요.',
+    ],
+  },
+  {
     version: '0.16.4',
     date: '2026-10-20',
     title: '버그 잡기',
