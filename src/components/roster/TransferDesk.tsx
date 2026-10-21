@@ -72,7 +72,8 @@ export function AddChip({ kind, pid, big = false, onAfter }: { kind: BasketKind;
   const toggle = useTransferUi((s) => s.toggle);
   // 등록 마감 뒤와 포스트시즌에는 영입을 담을 수 없다 (이미 담은 것은 뺄 수 있다)
   const farmRoom = useFarmRoom();
-  const closed = useStore((s) => (kind === 'sign' ? signingClosedWhy(s) : null)) ?? (kind === 'down' && !farmRoom ? '2군이 가득 찼습니다' : null);
+  const left = useStore((s) => kind === 'sign' && s.freeAgents.find((p) => p.id === pid)?.left === s.season);
+  const closed = useStore((s) => (kind === 'sign' ? signingClosedWhy(s) : null)) ?? (left ? '이번 시즌에 우리 팀을 떠난 선수입니다' : null) ?? (kind === 'down' && !farmRoom ? '2군이 가득 찼습니다' : null);
   const b = BAND[kind];
   return (
     <button

@@ -61,17 +61,20 @@ function nextSalary(core: Core, p: Player, premium: number): { next: number; svc
   const season = core.season + 1;
   const aged = { ...p, age: p.age + 1 };
   const m = marketSalary(aged, season);
+  const m0 = marketSalary(aged, season, false); // 보유 기간 연봉의 기준 (저연차 할인 없음)
+  // 합의한 연봉(재계약 · 다년 계약 · 스토브 영입)이 다음 시즌에 걸려 있으면 그 값
+  if (p.deal && p.deal.season <= season && season <= (p.deal.until ?? p.deal.season)) return { next: p.deal.salary, svc: 0, fa: false };
   const yr0 = AUDIT.svc ? svcYearAt(p, core.season) : null;
   const yr1 = AUDIT.svc ? svcYearAt(p, season) : null;
   if (yr1 !== null && yr1 <= SVC_YEARS) {
-    const next = svcSalary(m, yr1);
-    return { next, svc: yr0 !== null ? next - svcSalary(m, yr0) : 0, fa: false };
+    const next = svcSalary(m0, yr1);
+    return { next, svc: yr0 !== null ? next - svcSalary(m0, yr0) : 0, fa: false };
   }
   if (yr1 !== null) {
-    // FA 자격: 재계약 요구(resignAsk 의 배율 — 다음 시즌 시장가 × 1~1.15) 뒤 시즌 전환에서 재계약 프리미엄이 붙는다
+    // FA 자격: 재계약 카드의 1년 계약(다음 시즌 시장가 × 1~1.15). 합의한 값 그대로 연다 (시즌 전환에서 프리미엄을 다시 얹지 않는다)
     const mult = Math.round((1 + RESIGN_ASK_MAX * clamp((p.star - 30) / 50, 0, 1) + (p.lever ?? 0)) * 100) / 100;
-    const next = r100(m * premium * mult);
-    return { next, svc: next - (yr0 !== null && yr0 <= SVC_YEARS ? svcSalary(m, yr0) : m), fa: true };
+    const next = r100(m0 * mult); // resignAsk 와 같이 저연차 할인 없음
+    return { next, svc: next - (yr0 !== null && yr0 <= SVC_YEARS ? svcSalary(m0, yr0) : m), fa: true };
   }
   return { next: r100(m * premium * (p.ask ?? 1)), svc: 0, fa: false };
 }
@@ -120,9 +123,8 @@ export function nextSeasonForecast(core: Core): PayForecast {
   // 전역 복귀 (지금 능력 그대로의 시장가 · 보유 기간이면 할인)
   for (const p of core.campaign.away ?? []) {
     if ((p.away?.until ?? 0) > core.season + 1) continue;
-    const m = marketSalary({ ...p, age: p.age + 1 }, core.season + 1);
     const yr = svcYearAt(p, core.season + 1);
-    const v = yr !== null && yr <= SVC_YEARS ? svcSalary(m, yr) : m;
+    const v = yr !== null && yr <= SVC_YEARS ? svcSalary(marketSalary({ ...p, age: p.age + 1 }, core.season + 1, false), yr) : marketSalary({ ...p, age: p.age + 1 }, core.season + 1);
     const farm = farmN < farmMax(core);
     if (farm) farmN++;
     add(next, farm, v);

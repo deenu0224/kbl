@@ -17,7 +17,7 @@ import { POS_NAME } from './script';
 import { addNews, marketSalary } from './season';
 import { hintMut } from './campaign';
 import { dayAt } from './league';
-import { svcSalary, svcYearAt } from './contract';
+import { svcPay, svcYearAt } from './contract';
 import { batZero, pitZero } from './generate';
 import { rowCash, rowInfo, rowOvr, rowPayroll, rowSat, type Row } from './eventRows';
 
@@ -295,6 +295,8 @@ function enlistMut(core: Core, p: Player, notes: string[]): void {
   p.injury = 0;
   p.served = true;
   p.away = { until: core.season + F.armySeasons, kind: 'army' };
+  // 복무 기간은 보유 기간에 넣지 않는다 (KBO 처럼). 기준 시즌을 미뤄 두면 복귀 연봉·FA 시점·연봉 예상이 다 같이 맞는다
+  if (p.svc !== undefined) p.svc += F.armySeasons;
   (core.campaign.away ??= []).push(p);
   fixLineup(t);
   say(core, notes, `입대: ${p.name} — ${p.away.until}시즌 개막에 돌아옵니다`);
@@ -342,7 +344,7 @@ export function seasonTurnFarmMut(core: Core, rng: Rng): number {
     for (let g = 0; g < 200 && p.ovr < target; g++) grow(p, rng, 1);
     p.salary = marketSalary(p, core.season);
     const yr = svcYearAt(p, core.season);
-    if (yr !== null && yr <= SVC_YEARS) p.salary = svcSalary(p.salary, yr);
+    if (yr !== null && yr <= SVC_YEARS) p.salary = svcPay(p, core.season, yr);
     else delete p.svc;
     p.bat = batZero();
     p.pit = pitZero();

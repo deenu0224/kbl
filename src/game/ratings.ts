@@ -36,7 +36,8 @@ export function calcOvr(p: Player): number {
   return clamp(Math.round(v), 20, 99);
 }
 
-export function calcSalary(p: Player): number {
+/** young=false: 저연차 할인을 빼고 (보유 기간 선수는 보유 할인만 받는다 — 두 할인이 겹쳐 25세에 연봉이 두 배로 뛰었다) */
+export function calcSalary(p: Player, young = true): number {
   const o = p.ovr;
   let v = SALARY_CURVE[0][1];
   if (o >= SALARY_CURVE[SALARY_CURVE.length - 1][0]) {
@@ -52,8 +53,8 @@ export function calcSalary(p: Player): number {
     }
   }
   // 저연차 할인
-  if (p.age <= 22) v *= 0.55;
-  else if (p.age <= 24) v *= 0.75;
+  if (young && p.age <= 22) v *= 0.55;
+  else if (young && p.age <= 24) v *= 0.75;
   return Math.max(MIN_SALARY, Math.round(v / 100) * 100);
 }
 

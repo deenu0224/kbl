@@ -24,7 +24,7 @@ import { isDraftDone } from './draft';
 import { armTickMut, cutGoodsMut, FOREIGN_MAX } from './events';
 import { leagueMult, scandalTickMut } from './scandal';
 import { tradeTickMut } from './trade';
-import { svcSalary, svcYearAt } from './contract';
+import { svcPay, svcYearAt } from './contract';
 import { farmDailyMut, subEnqueueMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
 import { dayAt, perGame, rankUnits } from './league';
 import { HOME_GATE, awayGate } from './gate';
@@ -552,6 +552,7 @@ export function signPlayer(core0: Core, pid: string, opts: StepOpts = {}): { cor
   const fa = core0.freeAgents.find((p) => p.id === pid);
   if (!fa) return { core: core0, error: '영입 가능한 선수가 아닙니다' };
   if (!signingOpen(core0)) return { core: core0, error: '등록 마감 — 스토브리그에 다시 열립니다' };
+  if (fa.left === core0.season) return { core: core0, error: '이번 시즌에 우리 팀을 떠난 선수는 다시 데려올 수 없습니다' };
   if (!opts.free && activeRoster(userTeam(core0)).length >= ROSTER_MAX) return { core: core0, error: `1군이 가득 찼습니다 (${ROSTER_MAX}명) — 먼저 한 명을 2군으로 내리거나 방출하세요` };
   if (fa.foreign && userTeam(core0).roster.filter((p) => p.foreign).length >= FOREIGN_MAX) {
     return { core: core0, error: `외국인 선수는 최대 ${FOREIGN_MAX}명까지 보유할 수 있습니다` };
@@ -631,6 +632,9 @@ export function releasePlayer(core0: Core, pid: string, opts: StepOpts = {}): { 
     delete p.posShift;
     p.ovr = calcOvr(p);
   }
+  // 시장에는 시장가로 나가고, 이번 시즌에는 다시 데려오지 못한다 (싼 보유 기간 연봉으로 방출 → 재영입하면 재계약을 건너뛰었다)
+  p.salary = marketSalary(p, core.season);
+  p.left = core.season;
   core.freeAgents.push(p);
   core.finance.cash -= cost;
   core.finance.ledger.signing += cost;
@@ -753,9 +757,9 @@ export function repay(core0: Core): { core: Core; error?: string } {
 // ───────── 시즌 전환 ─────────
 
 /** 그 시즌의 시장 연봉: 리그 인플레는 스타급일수록 크게 붙는다 (OVR 60 이하는 1/4, OVR 80 이상은 전부) */
-export function marketSalary(p: Player, season: number): number {
+export function marketSalary(p: Player, season: number, young = true): number {
   const w = clamp((p.ovr - 60) / 20, 0.25, 1);
-  return Math.round((calcSalary(p) * (1 + (salaryInflation(season) - 1) * w)) / 100) * 100;
+  return Math.round((calcSalary(p, young) * (1 + (salaryInflation(season) - 1) * w)) / 100) * 100;
 }
 
 /** 재계약 프리미엄 배율: 최근 시즌의 가을야구 성적만큼 유저 구단 선수의 몸값이 오른다 */
@@ -937,13 +941,14 @@ export function nextSeason(core0: Core, rng: Rng): Core {
         // 보유 기간 안의 드래프트 출신은 시장가의 일부만 받는다. FA 자격을 얻고도 재계약 카드를 거치지 않았으면 시장가로 자동 재계약
         const yr = AUDIT.svc ? svcYearAt(p, core.season) : null;
         // 스토브리그에 합의한 연봉은 그대로 (카드에 적힌 값 — 시장가를 다시 매기고 우승 프리미엄을 또 얹어 2.6억이 4.8억이 됐다)
-        if (p.deal && p.deal.season === core.season) p.salary = p.deal.salary;
-        else if (yr !== null && yr <= SVC_YEARS) p.salary = svcSalary(p.salary, yr);
+        const held = p.deal && p.deal.season <= core.season && core.season <= (p.deal.until ?? p.deal.season);
+        if (held) p.salary = p.deal!.salary;
+        else if (yr !== null && yr <= SVC_YEARS) p.salary = svcPay(p, core.season, yr);
         else {
           delete p.svc;
           p.salary = Math.round((p.salary * premium * (p.ask ?? 1)) / 100) * 100;
         }
-        delete p.deal;
+        if (!p.deal || core.season >= (p.deal.until ?? p.deal.season)) delete p.deal; // 다년 계약은 끝나는 시즌까지 남긴다
       }
       if (p.age < RETIRE_AGE && !(t.id === core.userId && p.id === tourPid)) return p;
       // 은퇴 → 같은 포지션 신인으로 충원. 프랜차이즈 스타는 영구결번
@@ -974,7 +979,10 @@ export function nextSeason(core0: Core, rng: Rng): Core {
   for (const p of core.freeAgents) develop(p, rng, core.season);
   aiStoveLeague(core, rng, ctx);
   core.freeAgents = genFreeAgents(ctx, core.teams.length);
-  for (const p of core.freeAgents) p.salary = marketSalary(p, core.season);
+  for (const p of core.freeAgents) {
+    p.salary = marketSalary(p, core.season);
+    delete p.left;
+  }
   rivalSigningsMut(core, rivals, streak >= DYN.rivalMore ? 2 : 1);
   core.schedule = buildSchedule(core.teams.map((t) => t.id), rng, core.userId);
   core.crowd = null; // 관중 칩·게이트 줄은 개막 전으로

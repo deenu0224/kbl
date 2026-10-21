@@ -465,7 +465,10 @@ function verbBot(name: string, verbs: (c: Core) => Set<Verb>, drafts: (c: Core) 
         const t = userTeam(c);
         const p = t.roster.find((x) => x.id === card.pid);
         const key = new Set([...t.lineup.map((s) => s.pid), ...t.rotation, ...t.bullpen.slice(0, 4), ...(t.closer ? [t.closer] : [])]);
-        return firstEnabled(card, p && (key.has(p.id) || p.ovr >= weakest(c, p)) ? [0] : [1, 0]);
+        // 3지선다(1년 · 4년 · 보낸다): 29세 이하 핵심은 4년으로 묶고, 아니면 1년. 예전 2지선다 카드도 마지막이 보낸다
+        const last = card.choices.length - 1;
+        const keep = p && (key.has(p.id) || p.ovr >= weakest(c, p));
+        return firstEnabled(card, keep ? (last === 2 && p.age <= 29 ? [1, 0] : [0]) : [last, 0]);
       }
       // 트레이드 제안: sensible 은 예상 승수가 + 이고 연봉이 감당될 때 (유망주를 내주는 유형은 2장 이후에만), off-verb 는 거절
       if (id === 'trade') {

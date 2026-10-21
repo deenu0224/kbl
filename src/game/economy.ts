@@ -93,10 +93,13 @@ export const FARM_LOCK = 10; // 2군으로 내린 뒤 재등록까지 걸리는 
 export const FARM_UPKEEP = 12; // 2군 운영비 (만원/경기 · 선수 1명당. 20명이면 시즌 약 2억)
 // 보유 기간(서비스 타임): 유저 팀의 드래프트 출신은 입단 후 SVC_YEARS 시즌 동안 연봉 = 시장가 × SVC_RATE[n년차−1] (0 = 최저연봉). 그 뒤 FA 자격
 export const SVC_YEARS = 6;
-export const SVC_RATE = [0, 0.25, 0.4, 0.55, 0.7, 0.85];
+// 저연차 할인 없는 시장가 기준 (contract.svcPay). 예전 [0, .25, .4, .55, .7, .85] 는 저연차 할인과 겹쳐 5→6년차에 두 배씩 뛰었다
+export const SVC_RATE = [0, 0.15, 0.25, 0.4, 0.6, 0.75];
 export const RESIGN_ASK_MAX = 0.15; // FA 자격 재계약 요구: 시장가 × (1 ~ 1 + 이 값), 스타성이 높을수록 많이 부른다
 export const RESIGN_LEAVE_FANS = 8; // 프랜차이즈 스타를 FA 로 보내면 팬 − star × 이 값, 만족도 RESIGN_LEAVE_SAT
 export const RESIGN_LEAVE_SAT = -8;
+export const RESIGN_LONG = { years: 4, rate: 0.85 }; // 재계약 카드의 다년 계약: 시장가 × rate 로 years 시즌 고정 (스타 배율 없음 · 떨어져도 그대로 낸다)
+export const RESIGN_COMP = 0.5; // FA 로 보내면 받는 보상금 = 지금 연봉 × 이 값 (KBO 보상금처럼)
 // 감사용 스위치 (scripts/economy.ts 가 하나씩 끄고 재실행한다. 게임에서는 전부 켜 둔다)
 export const AUDIT = { benchHalf: true, farmBatBig: true, svc: true, penGrow: true, farmUpkeep: -1 };
 // 경쟁균형세(샐러리캡 · KBO 규정): 연봉 총액이 상한(리그 연봉 상위 3구단 평균 × capRate)을 넘으면 초과분 × rate 를 시즌 말 제재금으로 낸다.
@@ -276,7 +279,9 @@ export function faHeatLine(core: HeatCore, ahead = 0): string | null {
 export function releaseCost(p: Player, core: Core): number {
   const total = seasonGames(core);
   const remain = clamp((total - core.day) / total, 0, 1);
-  return Math.round(p.salary * remain * RELEASE_RATE);
+  // 다년 계약(재계약 4년): 남은 시즌의 위약금도 낸다 — 아니면 고정 연봉의 위험이 없었다
+  const later = p.deal?.until ? Math.max(0, p.deal.until - core.season) : 0;
+  return Math.round(p.salary * (remain + later) * RELEASE_RATE);
 }
 
 /** 버프 반영 수용 인원 */

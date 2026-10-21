@@ -165,7 +165,7 @@ function liveRule(core: Core, card: EventCard, i: number): string | undefined | 
     if (i === 2 && of.fair === of.cash) return '더 조정할 여지가 없습니다';
     return tradeBlocked(core, of, i === 2 ? of.fair : of.cash);
   }
-  if (base === RESIGN_ID) return i === 1 ? leaveWhy(core, sub2) : undefined;
+  if (base === RESIGN_ID) return ch?.label === '보낸다' ? leaveWhy(core, sub2) : undefined;
   if (base === MLB_ID && sub2 === 'post') return i === 0 ? leaveWhy(core, sub3) : undefined;
   if (base === MLB_ID && sub2 === 'back') {
     const t = userTeam(core);

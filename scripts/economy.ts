@@ -192,7 +192,7 @@ function runOne(bot: Bot, seed: number): Run {
       c = drawResign(c);
       while (c.campaign.event) {
         const i = bot.event(c, c.campaign.event);
-        snap.resign[i === 0 ? 0 : 1]++;
+        snap.resign[c.campaign.event.choices[i]?.label === '보낸다' ? 1 : 0]++; // 1년·4년 = 수락, 보낸다 = 보냄
         c = resolveEvent(c, i, rng).core;
       }
       c = drawStoveTrade(c, rng);

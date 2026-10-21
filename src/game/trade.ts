@@ -289,7 +289,7 @@ export function applyTradeMut(core: Core, of: TradeOffer, cash: number, quiet = 
       p.ovr = calcOvr(p);
     }
     // 이적하면 보유 기간의 할인은 사라진다 — 새 팀에서는 시장가
-    for (const k of ['since', 'svc', 'ask', 'lever', 'tired', 'farm', 'il', 'farmUntil', 'farmStat', 'posShift', 'apps'] as const) delete p[k];
+    for (const k of ['since', 'svc', 'ask', 'deal', 'lever', 'tired', 'farm', 'il', 'farmUntil', 'farmStat', 'posShift', 'apps'] as const) delete p[k];
     p.salary = Math.max(p.salary, marketSalary(p, core.season));
   }
   u.roster = u.roster.filter((p) => !of.give.includes(p.id));
@@ -299,7 +299,7 @@ export function applyTradeMut(core: Core, of: TradeOffer, cash: number, quiet = 
     p.since = core.season;
     delete p.from;
     // 받는 선수도 새 팀에서는 시장가 (보유 할인·약속된 요구는 따라오지 않는다)
-    for (const k of ['svc', 'ask', 'lever', 'tired'] as const) delete p[k];
+    for (const k of ['svc', 'ask', 'deal', 'lever', 'tired'] as const) delete p[k];
     p.salary = Math.max(p.salary, marketSalary(p, core.season));
     if (farmIds.has(p.id)) p.farm = true;
     u.roster.push(p);
