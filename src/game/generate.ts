@@ -1,16 +1,32 @@
-import type { BatPos, BatStats, Core, Ledger, PitchRole, PitStats, Player, Team, TeamRecord } from './types';
+import type { BatPos, BatStats, Campaign, Core, Ledger, PitchRole, PitStats, Player, Team, TeamRecord } from './types';
 import { clamp, gauss, mulberry32, pick, randInt, shuffle, type Rng } from './rng';
-import { calcOvr, calcSalary } from './ratings';
+import { MIN_SALARY, calcOvr, calcSalary } from './ratings';
 import { autoLineup } from './lineup';
 import { buildSchedule } from './schedule';
+import { premiseNews, withTeam } from './story';
 
 // ── 밸런스 상수 ──
 const ABIL_SD = 7.5; // 능력치 편차
 const STARTER_BONUS = 1.5; // 주전 타자 중심값 보정
 const BENCH_PENALTY = 6; // 벤치 타자 중심값 보정
 const SP_OFFSETS = [3, 1, 0, -1, -3]; // 1~5선발
+// 유저 팀(전임 체제의 유산): 몇몇 포지션에 "왕년의 주전"과 그 뒤에서 기회를 기다리는 더 나은 선수가 겹쳐 있다.
+// 감독의 편성(나이·이름값 가중)은 왕년의 주전을 쓰고, 실력대로 짜면 뒤의 선수가 나온다.
+const LEGACY_N = 4; // 겹치는 포지션 수
+const LEGACY_VET = -6; // 왕년의 주전 중심값 (tier 기준)
+const LEGACY_VET_AGE: [number, number] = [33, 37];
+const LEGACY_VET_STAR = 16; // 이름값
+const LEGACY_NEXT = 3; // 뒤에서 기다리는 선수 중심값
+const LEGACY_NEXT_AGE: [number, number] = [23, 27];
 const RP_OFFSET = -1;
+const RP_DEPTH_OFFSET = -12; // 불펜 5·6번째 팔(추격조): 저연봉 뎁스. 유저 초기 손익은 이 값으로 맞춘다 (scripts/economy.ts)
+const RP_DEPTH_AGE: [number, number] = [23, 29];
 const CP_OFFSET = 2;
+// 유저 팀의 초기 2군 8명 (수십 년 된 구단의 퓨처스 팀). 분포는 draft.ts 의 ORIGINS 와 같은 감각 — 순환 import 를 피해 여기에 둔다
+const FARM_START_GEMS = 2; // 고졸 원석 (타자 1 · 투수 1)
+const FARM_GEM = { age: [19, 20], ovr: [44, 50], pot: [78, 86] } as const;
+const FARM_KID = { age: [20, 23], ovr: [40, 55], pot: [55, 70] } as const;
+const FARM_LIFER = { age: [26, 28], ovr: [54, 57] } as const; // 만년 2군: 여지가 거의 없다
 const ARCH_TIER_REF = 62; // 아키타입 능력치의 기준 tier
 export const START_CASH = 150000; // 15억
 export const START_FANS = 5200;
@@ -26,18 +42,30 @@ interface TeamDef {
   tier: number;
   pop: number;
   stars: number; // 아키타입 스타 수
+  exp?: boolean; // 10구단 체제에서 합류한 구단 (8구단 리그에는 없다)
 }
 
+// tier: KBO 기준으로 시뮬 민감도를 키운 만큼 구단 간 격차가 벌어지지 않도록 AI 구단을 한두 단계 낮췄다 (유저 팀 연봉·경제 밸런스는 그대로)
 export const TEAM_DEFS: TeamDef[] = [
-  { id: 'SEL', city: '서울', name: '스카이라인즈', color: '#c2185b', color2: '#1b2233', tier: 66, pop: 0.95, stars: 4 },
-  { id: 'HAN', city: '한강', name: '그리폰즈', color: '#1a3a8f', color2: '#ffffff', tier: 64, pop: 0.85, stars: 4 },
-  { id: 'BUS', city: '부산', name: '씨호크스', color: '#0e7fb8', color2: '#f26a1b', tier: 62, pop: 0.9, stars: 3 },
-  { id: 'DGU', city: '대구', name: '썬더킹스', color: '#1e56c4', color2: '#ffd23f', tier: 61, pop: 0.7, stars: 3 },
-  { id: 'GWJ', city: '광주', name: '레드폭스', color: '#d32f2f', color2: '#111111', tier: 63, pop: 0.8, stars: 4 },
-  { id: 'ICN', city: '인천', name: '앵커스', color: '#b71c1c', color2: '#f5c518', tier: 59, pop: 0.6, stars: 3 },
-  { id: 'DJN', city: '대전', name: '팰컨스', color: '#f57c00', color2: '#212121', tier: 57, pop: 0.55, stars: 2 },
+  { id: 'SEL', city: '서울', name: '듀오스', color: '#c2185b', color2: '#1b2233', tier: 63, pop: 0.95, stars: 4 },
+  { id: 'HAN', city: '한강', name: '판다스', color: '#1a3a8f', color2: '#ffffff', tier: 61, pop: 0.85, stars: 4 },
+  { id: 'BUS', city: '부산', name: '타이탄스', color: '#2a9fd6', color2: '#f26a1b', tier: 59, pop: 0.9, stars: 3 },
+  { id: 'DGU', city: '대구', name: '라이거스', color: '#1e56c4', color2: '#ffd23f', tier: 59, pop: 0.7, stars: 3 },
+  { id: 'GWJ', city: '광주', name: '재규어스', color: '#e53935', color2: '#111111', tier: 60, pop: 0.8, stars: 4 },
+  { id: 'ICN', city: '인천', name: '앵커스', color: '#8e1b1b', color2: '#f5c518', tier: 57, pop: 0.6, stars: 3 },
+  { id: 'DJN', city: '대전', name: '호크스', color: '#6b7385', color2: '#ff9d2e', tier: 54, pop: 0.55, stars: 2 },
   { id: USER_ID, city: '제주', name: '탠저린즈', color: '#f08a1c', color2: '#1f6b3a', tier: 55, pop: 0.25, stars: 1 },
+  // 10구단 체제의 두 구단 (가상). 전력은 리그의 가운데~아래 — 유저 구단의 출발선(최하위 전력)을 지킨다. 반드시 맨 뒤에 둔다 (8구단 리그의 생성 순서 유지)
+  { id: 'SUW', city: '수원', name: '매직스', color: '#6d3fb8', color2: '#e9dcb0', tier: 58, pop: 0.6, stars: 3, exp: true },
+  { id: 'CHW', city: '창원', name: '랩터스', color: '#00897b', color2: '#ffe082', tier: 57, pop: 0.5, stars: 2, exp: true },
 ];
+/** 구단 id 로 정의를 찾는다 (옛 세이브의 id 도 지금과 같다) */
+export const teamDef = (id: string | undefined): TeamDef | undefined => TEAM_DEFS.find((d) => d.id === id);
+export const LEAGUE_TEAMS = TEAM_DEFS.length; // 새 게임의 구단 수 (10)
+// 점검용 스위치 (scripts 가 TEAMS=8 로 원년 8구단 리그를 만들어 돌린다. 게임에서는 건드리지 않는다)
+export const NEW_GAME = { teams: LEAGUE_TEAMS };
+/** 구단 수에 맞는 구단 정의 (8 = 원년 8구단, 그 밖에는 전부) */
+export const teamDefs = (teams: number = NEW_GAME.teams): TeamDef[] => (teams <= 8 ? TEAM_DEFS.filter((d) => !d.exp) : TEAM_DEFS);
 
 // ── 가명 생성 ──
 const SURNAMES =
@@ -103,7 +131,7 @@ function genName(ctx: GenCtx, foreign: boolean): string {
 }
 
 export function batZero(): BatStats {
-  return { g: 0, pa: 0, ab: 0, h: 0, d2: 0, hr: 0, rbi: 0, bb: 0, so: 0, r: 0 };
+  return { g: 0, pa: 0, ab: 0, h: 0, d2: 0, hr: 0, rbi: 0, bb: 0, so: 0, r: 0, d3: 0, sb: 0, cs: 0 };
 }
 export function pitZero(): PitStats {
   return { g: 0, gs: 0, outs: 0, er: 0, h: 0, bb: 0, so: 0, hr: 0, w: 0, l: 0, sv: 0 };
@@ -112,7 +140,7 @@ export function recZero(): TeamRecord {
   return { w: 0, l: 0, t: 0, rs: 0, ra: 0, streak: 0, last10: [] };
 }
 export function ledgerZero(): Ledger {
-  return { ticket: 0, food: 0, merch: 0, league: 0, sales: 0, salary: 0, upkeep: 0, interest: 0, signing: 0, facility: 0 };
+  return { ticket: 0, awayGate: 0, food: 0, merch: 0, league: 0, sales: 0, salary: 0, upkeep: 0, interest: 0, signing: 0, facility: 0 };
 }
 
 // ── 능력치 ──
@@ -240,23 +268,43 @@ interface Slot {
   pos: BatPos | PitchRole;
   center: number;
   starter: boolean;
+  age?: [number, number];
+  tag?: string;
+  starBonus?: number;
 }
 
-function rosterSlots(r: Rng, tier: number): Slot[] {
+function rosterSlots(r: Rng, tier: number, legacy = false): Slot[] {
   const starters: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
+  const pitchers: Slot[] = [
+    ...SP_OFFSETS.map((d): Slot => ({ pos: 'SP', center: tier + d, starter: true })),
+    ...[0, 1, 2, 3].map((): Slot => ({ pos: 'RP', center: tier + RP_OFFSET, starter: true })),
+    ...[0, 1].map((): Slot => ({ pos: 'RP', center: tier + RP_DEPTH_OFFSET, starter: false, age: RP_DEPTH_AGE })),
+    { pos: 'CP', center: tier + CP_OFFSET, starter: true },
+  ];
+  if (legacy) {
+    const dup = new Set(shuffle(r, ['1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as BatPos[]).slice(0, LEGACY_N));
+    const bat: Slot[] = [];
+    for (const pos of starters) {
+      if (!dup.has(pos)) {
+        bat.push({ pos, center: tier + STARTER_BONUS, starter: true });
+        continue;
+      }
+      bat.push({ pos, center: tier + LEGACY_VET, starter: true, age: LEGACY_VET_AGE, tag: '왕년의 주전', starBonus: LEGACY_VET_STAR });
+      bat.push({ pos, center: tier + LEGACY_NEXT, starter: false, age: LEGACY_NEXT_AGE });
+    }
+    return [...bat, ...pitchers];
+  }
   const bench: BatPos[] = ['C', pick(r, ['2B', 'SS', '3B'] as BatPos[]), pick(r, ['LF', 'CF', 'RF'] as BatPos[]), pick(r, ['1B', '3B', 'LF'] as BatPos[])];
   return [
     ...starters.map((pos): Slot => ({ pos, center: tier + STARTER_BONUS, starter: true })),
     ...bench.map((pos): Slot => ({ pos, center: tier - BENCH_PENALTY, starter: false })),
-    ...SP_OFFSETS.map((d): Slot => ({ pos: 'SP', center: tier + d, starter: true })),
-    ...[0, 1, 2, 3].map((): Slot => ({ pos: 'RP', center: tier + RP_OFFSET, starter: true })),
-    { pos: 'CP', center: tier + CP_OFFSET, starter: true },
+    ...pitchers,
   ];
 }
 
 function genTeam(ctx: GenCtx, def: TeamDef, archs: Arch[], prospect: boolean): Team {
   const r = ctx.rng;
-  const slots = rosterSlots(r, def.tier);
+  const slots = rosterSlots(r, def.tier, def.id === USER_ID);
   const roster: (Player | null)[] = slots.map(() => null);
   const shift = (def.tier - ARCH_TIER_REF) * 0.4;
 
@@ -285,7 +333,7 @@ function genTeam(ctx: GenCtx, def: TeamDef, archs: Arch[], prospect: boolean): T
     });
   }
   slots.forEach((s, i) => {
-    if (!roster[i]) roster[i] = genPlayer(ctx, s.pos, s.center);
+    if (!roster[i]) roster[i] = genPlayer(ctx, s.pos, s.center, { ...(s.age ? { age: randInt(r, s.age[0], s.age[1]) } : {}), tag: s.tag, starBonus: s.starBonus });
   });
 
   const team: Team = {
@@ -307,43 +355,92 @@ function genTeam(ctx: GenCtx, def: TeamDef, archs: Arch[], prospect: boolean): T
   return team;
 }
 
-/** FA 풀 18명: 스타 3 / 준척 6 / 저가·유망주 9 */
-export function genFreeAgents(ctx: GenCtx): Player[] {
+/** 유저 팀의 초기 2군: 타자 5(포수 1 · 내야 2 · 외야 2) + 투수 3(선발 1 · 구원 2). 원석 2 · 만년 2군 1 · 나머지 5 */
+function genStartFarm(ctx: GenCtx): Player[] {
+  const r = ctx.rng;
+  const pos: (BatPos | PitchRole)[] = [
+    'C',
+    ...shuffle(r, ['2B', 'SS', '3B'] as BatPos[]).slice(0, 2),
+    ...shuffle(r, ['LF', 'CF', 'RF'] as BatPos[]).slice(0, 2),
+    'SP', 'RP', 'RP',
+  ];
+  // 원석은 타자 1 · 투수 1, 만년 2군은 남은 자리 중 하나
+  const gems = new Set([randInt(r, 0, 4), randInt(r, 5, 7)].slice(0, FARM_START_GEMS));
+  const lifer = pick(r, pos.map((_, i) => i).filter((i) => !gems.has(i)));
+  return pos.map((ps, i) => {
+    const kind = gems.has(i) ? FARM_GEM : i === lifer ? FARM_LIFER : FARM_KID;
+    const age = randInt(r, kind.age[0], kind.age[1]);
+    const p = genPlayer(ctx, ps, 50, { age, tag: gems.has(i) ? '고졸 원석' : i === lifer ? '만년 2군' : undefined });
+    shiftToOvr(r, p, randInt(r, kind.ovr[0], kind.ovr[1]));
+    if (i === lifer) p.pot = p.ovr + randInt(r, 0, 1);
+    else {
+      const k = kind as typeof FARM_GEM;
+      p.pot = clamp(Math.max(p.ovr + 3, randInt(r, k.pot[0], k.pot[1])), p.ovr, 99);
+      // 보유 기간: 이미 2~3년차 (contract.svcYearAt = season − svc + 1). 만년 2군은 보유 기간이 끝난 일반 계약
+      p.svc = age <= 20 ? 0 : -1;
+    }
+    p.salary = MIN_SALARY;
+    p.star = clamp(Math.round((p.pot - 60) * 0.8 + gauss(r) * 6), 0, 60);
+    p.farm = true;
+    return p;
+  });
+}
+
+// 로스터 구성(타자 13 · 투수 12 = SP5·RP6·CP1)에 맞춘 FA 풀의 비중
+const FA_BAT_SHARE = 0.54;
+const FA_PIT_POS: PitchRole[] = ['SP', 'SP', 'SP', 'SP', 'SP', 'RP', 'RP', 'RP', 'RP', 'RP', 'RP', 'CP'];
+
+/**
+ * FA 풀: 8구단 기준 18명 — 스타 3 / 준척 6 / 저가·유망주 9 (저가 베테랑 중 2명은 구원 — 시즌 중 불펜 보강용).
+ * 구단 수에 비례한다 (10구단 23명: 스타 4 / 준척 8 / 저가·유망주 11).
+ */
+export function genFreeAgents(ctx: GenCtx, teams = 8): Player[] {
+  const scale = (n8: number) => Math.round((n8 * teams) / 8);
   const r = ctx.rng;
   const batPos: BatPos[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
-  const anyPos = (): BatPos | PitchRole => (r() < 0.58 ? pick(r, batPos) : pick(r, ['SP', 'SP', 'SP', 'RP', 'RP', 'CP'] as PitchRole[]));
+  const anyPos = (): BatPos | PitchRole => (r() < FA_BAT_SHARE ? pick(r, batPos) : pick(r, FA_PIT_POS));
   const out: Player[] = [];
 
   // 스타급: 타자 1 · 선발 1 · 무작위 1
   const starPos: (BatPos | PitchRole)[] = [pick(r, ['1B', '3B', 'LF', 'RF', 'CF'] as BatPos[]), 'SP', anyPos()];
+  for (let i = 3; i < scale(3); i++) starPos.push(anyPos());
   for (const pos of starPos) {
     const foreign = r() < 0.35;
-    const p = genPlayer(ctx, pos, 80, { foreign, age: randInt(r, 27, 33), tag: foreign ? 'FA 대어 · 외인 스타' : 'FA 대어' });
+    // FA 자격은 늦게 온다: 대어는 전성기의 끝자락에 시장에 나온다
+    const p = genPlayer(ctx, pos, 80, { foreign, age: randInt(r, 30, 34), tag: foreign ? 'FA 대어 · 외인 스타' : 'FA 대어' });
     shiftToOvr(r, p, randInt(r, 78, 85));
     p.star = clamp(Math.max(p.star, randInt(r, 74, 90)), 0, 100);
     out.push(p);
   }
   // 준척급
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < scale(6); i++) {
     const p = genPlayer(ctx, anyPos(), 69, { age: randInt(r, 26, 34), tag: '준척급 FA' });
     shiftToOvr(r, p, randInt(r, 65, 74));
     out.push(p);
   }
   // 저가 베테랑 + 유망주
-  for (let i = 0; i < 9; i++) {
-    const prospect = i < 4;
+  const nProspect = scale(4);
+  for (let i = 0; i < scale(9); i++) {
+    const prospect = i < nProspect;
     const o: PlayerOpts = prospect
       ? { age: randInt(r, 19, 22), tag: '미완의 유망주', potMin: randInt(r, 72, 86) }
       : { age: randInt(r, 28, 36), tag: '저가 FA' };
-    const p = genPlayer(ctx, anyPos(), 56, o);
+    const p = genPlayer(ctx, i === nProspect || i === nProspect + 1 ? 'RP' : anyPos(), 56, o);
     shiftToOvr(r, p, prospect ? randInt(r, 50, 57) : randInt(r, 54, 62), o);
     out.push(p);
   }
   return out;
 }
 
-/** 8개 구단 + 선수 + FA + 일정 생성. 유저 = 'JEJ' */
-export function newCore(seed: number): Core {
+export interface NewCoreOpts {
+  nickname?: string;
+  teams?: number; // 구단 수. 기본 10. 8 = 원년 8구단 리그(기존 세이브와 같은 생성 — 점검 스크립트용)
+}
+/** 구단(기본 10개) + 선수 + FA + 일정 생성. 유저 = 'JEJ'. 둘째 인자는 별칭 문자열 또는 옵션 */
+export function newCore(seed: number, arg?: string | NewCoreOpts): Core {
+  const opts: NewCoreOpts = typeof arg === 'string' ? { nickname: arg } : (arg ?? {});
+  const nickname = opts.nickname;
+  const defs = teamDefs(opts.teams);
   const rng = mulberry32(seed);
   const ctx = makeCtx(rng, 'p');
 
@@ -362,7 +459,9 @@ export function newCore(seed: number): Core {
     return got;
   };
 
-  const teams = TEAM_DEFS.map((def) => {
+  const teams = defs.map((def0) => {
+    // 유저 구단은 별칭만 바꿀 수 있다 (연고지·약칭·색은 고정)
+    const def = def0.id === USER_ID && nickname ? { ...def0, name: nickname } : def0;
     if (def.id === USER_ID) {
       const veteran = rng() < 0.5;
       return genTeam(ctx, def, veteran ? [ARCHETYPES[VETERAN_DH]] : [], !veteran);
@@ -370,8 +469,10 @@ export function newCore(seed: number): Core {
     return genTeam(ctx, def, draw(def.stars, []), false);
   });
 
-  const freeAgents = genFreeAgents(ctx);
-  const schedule = buildSchedule(teams.map((t) => t.id), rng);
+  const freeAgents = genFreeAgents(ctx, teams.length);
+  const schedule = buildSchedule(teams.map((t) => t.id), rng, USER_ID);
+  // 유저 팀만 2군을 갖고 시작한다. 맨 끝에서 뽑아 기존 시드의 1군·FA·일정은 그대로 둔다
+  teams.find((t) => t.id === USER_ID)!.roster.push(...genStartFarm(ctx));
 
   return {
     seed,
@@ -389,9 +490,34 @@ export function newCore(seed: number): Core {
     crowd: null,
     attHistory: [],
     cashHistory: [START_CASH],
-    news: [
-      { id: 0, season: 1, day: 0, text: '제주 탠저린즈 창단 첫 시즌 개막! 작은 구장에서 큰 꿈을 시작합니다.', tone: 'info' },
-    ],
-    newsSeq: 1,
+    // 첫 뉴스: 부임 기사 + 지난 다섯 시즌 순위 (story.ts)
+    news: premiseNews(teams.length).map((text, i, all) => ({ id: all.length - 1 - i, season: 1, day: 0, text: withTeam(text, teams.find((t) => t.id === USER_ID)?.name ?? ''), tone: 'info' as const })),
+    newsSeq: premiseNews(teams.length).length,
+    campaign: campaignZero(),
+    post: null,
+    draft: null,
+  };
+}
+
+/** 빈 캠페인 상태. 시즌 목표(objectives)는 campaign.ts 가 첫 진행 때 채운다. */
+export function campaignZero(): Campaign {
+  return {
+    stage: 0,
+    trust: 60,
+    objectives: [],
+    achievements: [],
+    titles: 0,
+    history: [],
+    event: null,
+    eventsSeen: [],
+    buffs: [],
+    sellouts: 0,
+    ending: false,
+    verdict: null,
+    hints: {},
+    retired: [],
+    managerYielded: false,
+    analyst: false,
+    dealt: false,
   };
 }

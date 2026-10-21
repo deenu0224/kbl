@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { BatPos, FacilityKind, PitchRole, Team, Weather } from '../game/types';
+import type { BatPos, Core, FacilityKind, PitchRole, Team, Weather } from '../game/types';
+import { inPost, inWildcard, postTeams } from '../game/league';
 
 export const DOW = ['화', '수', '목', '금', '토', '일'];
 export const dowOf = (day: number) => DOW[((day % 6) + 6) % 6];
@@ -14,7 +15,23 @@ export const POS_KO: Record<BatPos | PitchRole, string> = {
   LF: '좌익',
   CF: '중견',
   RF: '우익',
-  DH: '지명',
+  DH: '지타',
+  SP: '선발',
+  RP: '불펜',
+  CP: '마무리',
+};
+
+/** 넓은 곳(카드 제목·상세·문장)용 포지션 이름. 좁은 칸은 POS_KO */
+export const POS_FULL: Record<BatPos | PitchRole, string> = {
+  C: '포수',
+  '1B': '1루수',
+  '2B': '2루수',
+  '3B': '3루수',
+  SS: '유격수',
+  LF: '좌익수',
+  CF: '중견수',
+  RF: '우익수',
+  DH: '지명타자',
   SP: '선발',
   RP: '불펜',
   CP: '마무리',
@@ -40,7 +57,7 @@ export function Bar({
   ratio,
   color,
   h = 6,
-  bg = '#141a29',
+  bg = '#1b1a19',
   className = '',
 }: {
   ratio: number;
@@ -51,7 +68,7 @@ export function Bar({
 }) {
   const r = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
   return (
-    <div className={`w-full ${className}`} style={{ height: h, background: bg, boxShadow: 'inset 0 0 0 1px #0f1420' }}>
+    <div className={`w-full ${className}`} style={{ height: h, background: bg, boxShadow: 'inset 0 0 0 1px #121110' }}>
       <div style={{ width: `${r * 100}%`, height: '100%', background: color, boxShadow: 'inset 0 -2px 0 rgba(0,0,0,.25)' }} />
     </div>
   );
@@ -88,11 +105,12 @@ export function OvrBadge({ ovr, size = 22 }: { ovr: number; size?: number }) {
       style={{
         width: size,
         height: size,
-        fontSize: size * 0.55,
+        // Galmuri14 는 14px 격자 글꼴: 13px 처럼 어중간한 크기면 1px 획이 빠져 61 이 6' 로 보인다 → 14px 또는 28px 로만
+        fontSize: size >= 48 ? 28 : 14,
         background: ratingColor(ovr),
-        boxShadow: '0 0 0 1px #0f1420, inset 0 -2px 0 rgba(0,0,0,.25)',
+        boxShadow: '0 0 0 1px #121110, inset 0 -2px 0 rgba(0,0,0,.25)',
       }}
-      title={`종합 ${ovr}`}
+      title={`오버롤 ${ovr}`}
     >
       {ovr}
     </span>
@@ -107,7 +125,7 @@ export function TeamDot({ team, size = 10 }: { team: Pick<Team, 'color' | 'color
         width: size,
         height: size,
         background: team?.color ?? '#888',
-        boxShadow: `0 0 0 1px #0f1420, inset -${Math.ceil(size / 3)}px 0 0 ${team?.color2 ?? '#444'}`,
+        boxShadow: `0 0 0 1px #121110, inset -${Math.ceil(size / 3)}px 0 0 ${team?.color2 ?? '#444'}`,
       }}
     />
   );
@@ -130,7 +148,8 @@ export function TabBar<T extends string>({
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
-            className={`flex-1 cursor-pointer py-1.5 text-[12px] ${on ? 'bg-panel text-hi' : 'bg-panel-2/60 text-white/60 hover:text-white'}`}
+            data-sfx="tab"
+            className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-1.5 text-[12px] mob:min-h-10 mob:text-[13px] ${on ? 'bg-panel text-hi' : 'bg-panel-2/60 text-white/60 hover:text-white'}`}
             style={on ? { boxShadow: 'inset 0 2px 0 #ffd84a' } : undefined}
           >
             {t.label}
@@ -138,6 +157,29 @@ export function TabBar<T extends string>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** 탭 배지: 숫자만. 반짝이지 않는다. */
+export function Badge({ n }: { n: number | undefined }) {
+  if (!n || n <= 0) return null;
+  return (
+    <span className="inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center bg-[#e8741a] px-[3px] text-[10px] leading-none text-white mob:text-[13px]" style={{ boxShadow: '0 0 0 1px #121110' }}>
+      {n > 9 ? '9+' : n}
+    </span>
+  );
+}
+
+/** 작은 선택 칩 줄 (서브뷰·카테고리) */
+export function Chips<T extends string>({ items, value, onChange }: { items: readonly (readonly [T, string])[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="no-scrollbar flex shrink-0 flex-wrap gap-1 text-[10px] mob:flex-nowrap mob:overflow-x-auto">
+      {items.map(([k, label]) => (
+        <button key={k} data-sfx="tab" onClick={() => onChange(k)} className={`shrink-0 cursor-pointer whitespace-nowrap px-1.5 py-0.5 mob:min-h-10 mob:px-3 mob:text-[13px] ${value === k ? 'bg-hi text-ink' : 'bg-ink text-white/60'}`}>
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -167,7 +209,7 @@ export function MoneyBar({
     <div className="flex items-center gap-1.5 text-[11px] leading-tight">
       <span className="w-12 shrink-0 text-white/65">{label}</span>
       <Bar ratio={ratio} color={color} h={9} />
-      <span className="w-14 shrink-0 text-right">{text}</span>
+      <span className="w-14 shrink-0 whitespace-nowrap text-right mob:w-auto mob:min-w-[76px]">{text}</span>
     </div>
   );
 }
@@ -179,7 +221,9 @@ export function MiniBars({
   color,
   max,
   style,
+  ghost = [],
 }: {
+  ghost?: number[]; // 예측 구간: 실적 뒤에 점선으로 잇는다
   values: number[];
   height?: number;
   color: (v: number, i: number) => string;
@@ -188,17 +232,17 @@ export function MiniBars({
 }) {
   if (!values.length) {
     return (
-      <div className="flex items-center justify-center text-[10px] text-white/35" style={{ height, background: '#141a29', ...style }}>
+      <div className="flex items-center justify-center text-[10px] text-white/35" style={{ height, background: '#1b1a19', ...style }}>
         아직 기록이 없습니다
       </div>
     );
   }
-  const hi = Math.max(max ?? 0, ...values, 1);
-  const lo = Math.min(0, ...values);
+  const hi = Math.max(max ?? 0, ...values, ...ghost, 1);
+  const lo = Math.min(0, ...values, ...ghost);
   const span = hi - lo || 1;
   const zero = (hi / span) * 100; // 위에서부터 0선 위치(%)
   return (
-    <div className="relative flex items-stretch gap-px overflow-hidden" style={{ height, background: '#141a29', boxShadow: 'inset 0 0 0 1px #0f1420', ...style }}>
+    <div className="relative flex items-stretch gap-px overflow-hidden" style={{ height, background: '#1b1a19', boxShadow: 'inset 0 0 0 1px #121110', ...style }}>
       {values.map((v, i) => {
         const h = (Math.abs(v) / span) * 100;
         return (
@@ -214,6 +258,17 @@ export function MiniBars({
           </div>
         );
       })}
+      {ghost.map((v, i) => {
+        const h = Math.max((Math.abs(v) / span) * 100, 2);
+        const c = v < 0 ? '#ff6b6b' : '#ffd84a';
+        return (
+          <div key={`g${i}`} className="relative min-w-0 flex-1" title={`예측 ${Math.round(v)}`} data-testid="ghost-bar">
+            {/* 점선: 한 칸 걸러 한 칸만 꼭대기를 찍는다 */}
+            {i % 2 === 0 && <div className="absolute inset-x-0 h-[2px]" style={{ background: c, top: v >= 0 ? `${zero - h}%` : `calc(${zero + h}% - 2px)` }} />}
+            <div className="absolute inset-x-0" style={{ background: c, opacity: 0.12, height: `${h}%`, top: v >= 0 ? `${zero - h}%` : `${zero}%` }} />
+          </div>
+        );
+      })}
       {lo < 0 && <div className="pointer-events-none absolute inset-x-0 h-px bg-white/40" style={{ top: `${zero}%` }} />}
     </div>
   );
@@ -222,3 +277,33 @@ export function MiniBars({
 export const pctOf = (w: number, l: number) => (w + l > 0 ? w / (w + l) : 0);
 export const fmtPct = (w: number, l: number) => (w + l > 0 ? pctOf(w, l).toFixed(3).replace(/^0/, '') : '-');
 export const recText = (r: { w: number; l: number; t: number }) => `${r.w}승 ${r.l}패${r.t ? ` ${r.t}무` : ''}`;
+
+// ───────── 순위표 공통 (리그 탭 · 결산) ─────────
+
+/** 순위 숫자 색: 가을야구 직행권 초록, 와일드카드 자리(10구단 4·5위) 하늘색, 그 아래 흐리게 */
+export function rankTone(core: Pick<Core, 'teams'>, rank: number): string {
+  return inWildcard(core, rank) ? 'text-sky' : inPost(core, rank) ? 'text-good' : 'text-white/50';
+}
+/** 순위표 한 줄의 테두리: 내 구단은 왼쪽 노란 띠, 가을야구 막차 순위 아래에는 초록 선 */
+export function cutShadow(me: boolean, cut: boolean): CSSProperties | undefined {
+  const parts = [me ? 'inset 2px 0 0 #ffd84a' : '', cut ? 'inset 0 -2px 0 #6ee07a' : ''].filter(Boolean);
+  return parts.length ? { boxShadow: parts.join(', ') } : undefined;
+}
+/** 순위표 아래 한 줄: 초록 선과 하늘색 숫자의 뜻 */
+export function PostLegend({ teams }: { teams: Core['teams'] }) {
+  const n = postTeams({ teams });
+  const wc = inWildcard({ teams }, n);
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 px-1 pt-1 text-[10px] text-white/50 mob:text-[12px]" data-testid="post-legend">
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-[2px] w-3 bg-good" />
+        {n}위까지 가을야구
+      </span>
+      {wc && (
+        <span>
+          <span className="text-sky">{n - 1}·{n}위</span> 와일드카드 결정전
+        </span>
+      )}
+    </div>
+  );
+}

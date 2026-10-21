@@ -1,0 +1,384 @@
+import { ACHIEVEMENTS } from '../game/campaign';
+import { isFranchise } from '../game/franchise';
+import { SEAT_LV, SVC_YEARS } from '../game/economy';
+import { svcYear } from '../game/contract';
+import { memoNum } from '../game/memo';
+import { nickOf, seatsLabel, starName, type HofClub } from '../game/hof';
+export { seatsLabel, starName };
+import { pastRanks, TRUST_LABEL } from '../game/story';
+import { postTeamsFor } from '../game/league';
+import type { Core, GameScene, GmParts, PostFinish, SeasonMvp, SeasonRecord, VsRec } from '../game/types';
+import { careerRank, careerScore, gmScore, gmTotal, longestWin, monthsOf, RANKS, seasonRank, startRankOf } from '../game/gmscore';
+import { teamMvp } from '../game/leaders';
+import { standings } from '../game/season';
+import { capacityOf, userTeam } from '../game/economy';
+import { memoGet } from '../game/memo';
+import { percentile, type Percentile } from './bench';
+import { SHARE_BASE } from './config';
+
+/** 공유하는 순간: 시즌 결산 · 우승 엔딩 · 연고 이전 (명예의 전당의 역대 구단 한 줄도 이 셋 중 하나). 전부 순수 함수 */
+export type ShareKind = 'season' | 'champion' | 'relocated';
+
+export const SHARE_TITLE = '답답해서 내가';
+export const SHARE_CITY = '제주';
+export const STARS_MAX = ACHIEVEMENTS.length;
+
+/** 구단사 요약: 글·카드·링크가 전부 이것만 읽는다 */
+export interface ShareRecord {
+  kind: ShareKind;
+  seed: number;
+  nick: string;
+  seasons: number; // 치른 시즌 수 (1 이상)
+  ranks: number[]; // 시즌별 정규시즌 순위
+  teams?: number; // 리그 구단 수 (없으면 8 — 10구단 체제 전의 기록)
+  champs: number[]; // 우승한 시즌 (1-based)
+  champAt: number | null; // 첫 우승 시즌
+  firstPostAt: number | null; // 첫 가을야구 시즌
+  firstProfitAt: number | null; // 첫 흑자 시즌
+  bestPost: PostFinish;
+  last: Pick<SeasonRecord, 'rank' | 'post' | 'cleared'>;
+  failStreak: number; // 끝에서부터 연속으로 목표를 놓친 시즌 수
+  stage: number;
+  stars: number;
+  trust: number | null;
+  star: string | null; // 간판스타
+  retired: string[]; // 영구결번
+  seats: string | null; // "24,000석"
+  exposed: number; // 덮은 일이 드러난 횟수
+  card?: CardFacts; // 기록 카드의 야구 기록 (없으면 그 줄들을 뺀다 — 옛 명예의 전당 기록)
+  gm?: GmShown; // 카드·글의 단장 점수 한 줄 (결산 = 그 시즌 점수, 엔딩 = 경력 점수)
+}
+
+/** 카드·글에 보이는 단장 점수 */
+export interface GmShown {
+  score: number;
+  id: string; // 랭크 'A+'
+  name: string; // '우승 청부사'
+  career: boolean; // 경력 점수인가
+  parts?: GmParts; // 시즌 점수의 세 갈래 (결산 도움말)
+}
+
+/** 기록 카드의 야구 기록 (그 시즌 하나 + 엔딩이면 경력 합계) */
+export interface CardFacts {
+  nth: number; // 단장 몇 시즌째
+  name?: string; // 시즌 이름
+  w: number;
+  l: number;
+  t: number;
+  rank: number;
+  gb?: number;
+  months?: number[];
+  streak?: number;
+  mvp?: SeasonMvp;
+  scene?: GameScene;
+  foe?: VsRec;
+  prey?: VsRec;
+  ps?: [string, number, number][];
+  career?: { seasons: number; titles: number; w: number; l: number; t: number };
+}
+
+export interface ShareData {
+  rec: ShareRecord;
+  code: string; // 결과 유형 (w6 · x4 · p3-post)
+  url: string; // 결과가 담긴 주소 (도전 링크)
+  pct: Percentile;
+  lessons?: Lesson[]; // 글의 "운영하다 깨달은 것" 후보 (세이브에서 확인된 것만. 역대 구단 한 줄에는 없다)
+}
+
+/** 글의 "깨달은 것" 한 줄이 되는 경험 */
+export type Lesson = 'money' | 'raise' | 'trade' | 'pen';
+
+const int = (n: number): string => Math.round(n).toLocaleString('en-US');
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+// ───────── 결과 유형 코드 ─────────
+
+/** 진행 중 결산의 대답 6종 */
+export const ANSWERS = ['ks', 'post', 'flag', 'near', 'mid', 'last'] as const;
+export type Answer = (typeof ANSWERS)[number];
+export const W_MAX = 20;
+export const X_MIN = 2;
+export const X_MAX = 12;
+export const P_MAX = 20;
+
+/** 결산의 대답: 포스트시즌 결과 → 깃발(메인 목표) 달성 → 순위 순으로 정한다 */
+export function seasonAnswer(r: Pick<SeasonRecord, 'rank' | 'post' | 'cleared'>, teams = 8): Answer {
+  if (r.post === 'KS' || r.post === 'champion') return 'ks';
+  if (r.post !== 'none') return 'post';
+  if (r.cleared) return 'flag';
+  if (r.rank <= postTeamsFor(teams) + 1) return 'near'; // 가을야구 문턱 한 칸 아래까지
+  return r.rank >= teams ? 'last' : 'mid';
+}
+
+/** 기록의 리그 구단 수 */
+export const teamsOf = (r: Pick<ShareRecord, 'teams'>): number => r.teams ?? 8;
+
+/** 구단사 → 결과 유형 코드. 우승한 적이 있으면 w{첫 우승 시즌}, 연고 이전이면 x{시즌 수}, 아니면 p{시즌 수}-{대답} */
+export function resultCode(r: Pick<ShareRecord, 'kind' | 'seasons' | 'champAt' | 'last' | 'teams'>): string {
+  if (r.kind === 'relocated') return `x${clamp(r.seasons, X_MIN, X_MAX)}`;
+  if (r.champAt) return `w${clamp(r.champAt, 1, W_MAX)}`;
+  return `p${clamp(r.seasons, 1, P_MAX)}-${seasonAnswer(r.last, teamsOf(r))}`;
+}
+
+/** 공유 페이지를 만들 모든 유형 (약 150종) */
+export function allCodes(): string[] {
+  const out: string[] = [];
+  for (let n = 1; n <= W_MAX; n++) out.push(`w${n}`);
+  for (let n = X_MIN; n <= X_MAX; n++) out.push(`x${n}`);
+  for (let n = 1; n <= P_MAX; n++) for (const a of ANSWERS) out.push(`p${n}-${a}`);
+  return out;
+}
+
+export interface CodeInfo {
+  code: string;
+  type: 'w' | 'x' | 'p';
+  n: number;
+  answer: Answer | null;
+  lead: string; // "만년 꼴찌 제주 구단을 맡아"
+  big: string; // "6시즌"
+  tail: string; // "만에 우승했어요"
+  title: string; // og:title — 세 조각을 이은 한 문장
+  who: string; // 초기 화면: "누군가 6시즌 만에 우승한 기록입니다"
+  ask: string; // "너라면 몇 시즌 만에?"
+}
+
+const P_TAIL: Record<Answer, [string, string]> = {
+  ks: ['째에 한국시리즈에 갔어요', '째에 한국시리즈까지 간'],
+  post: ['째에 가을야구를 했어요', '째에 가을야구를 한'],
+  flag: ['째에 목표를 이뤘어요', '째에 시즌 목표를 이룬'],
+  near: ['째, 가을이 보여요', '째에 가을 문턱까지 간'],
+  mid: ['째 버티는 중이에요', '째 버티고 있는'],
+  last: ['째, 아직 꼴찌예요', '째 꼴찌와 싸우고 있는'],
+};
+export const ASK = '너라면 몇 시즌 만에?';
+export const ASK_KEEP = '너라면 지킬 수 있을까?';
+
+/** 코드 → 미리보기 그림·제목·초기 화면에 쓰는 문장. 모르는 코드면 null */
+export function codeInfo(code: string | null | undefined): CodeInfo | null {
+  const m = /^(?:([wx])(\d{1,2})|p(\d{1,2})-([a-z]+))$/.exec(code ?? '');
+  if (!m) return null;
+  const type = (m[1] ?? 'p') as CodeInfo['type'];
+  const n = Number(m[2] ?? m[3]);
+  const answer = (m[4] as Answer | undefined) ?? null;
+  if (type === 'w' && (n < 1 || n > W_MAX)) return null;
+  if (type === 'x' && (n < X_MIN || n > X_MAX)) return null;
+  if (type === 'p' && (n < 1 || n > P_MAX || !answer || !ANSWERS.includes(answer))) return null;
+  const big = `${n}시즌`;
+  const mk = (lead: string, tail: string, who: string, ask: string): CodeInfo => ({
+    code: code!,
+    type,
+    n,
+    answer,
+    lead,
+    big,
+    tail,
+    title: `${lead} ${big}${/^[째,]/.test(tail) ? '' : ' '}${tail}`,
+    who: `누군가 ${big}${/^째/.test(who) ? '' : ' '}${who} 기록입니다`,
+    ask,
+  });
+  if (type === 'w') return mk('만년 꼴찌 제주 구단을 맡아', '만에 우승했어요', '만에 우승한', ASK);
+  if (type === 'x') return mk('만년 꼴찌 제주 구단을 맡았지만', '만에 연고지를 내줬어요', '만에 연고지를 내준', ASK_KEEP);
+  return mk('만년 꼴찌 제주 구단을 맡아', P_TAIL[answer!][0], P_TAIL[answer!][1], ASK);
+}
+
+// ───────── 주소 ─────────
+
+/**
+ * 결과가 담긴 주소: /s/{code}/. 그 정적 페이지가 미리보기(OG)를 갖고, 열면 게임(?from={code})으로 넘어간다.
+ * 리그 시드·별칭·세이브는 넣지 않는다 — 받은 사람은 항상 새 리그에서 시작한다
+ */
+export const shareUrl = (_seed: number, code: string, base = SHARE_BASE): string => `${base}s/${code}/`;
+
+/** 주소의 &from= 값(공유한 사람의 결과 유형)을 읽는다 */
+export const parseFrom = (search: string): CodeInfo | null => codeInfo(new URLSearchParams(search).get('from'));
+
+// ───────── 구단사 요약 ─────────
+
+const POST_ORDER: PostFinish[] = ['none', 'WC', 'SPO', 'PO', 'KS', 'champion'];
+const firstAt = <T,>(xs: T[], f: (x: T) => boolean): number | null => {
+  const i = xs.findIndex(f);
+  return i < 0 ? null : i + 1;
+};
+const trailing = <T,>(xs: T[], f: (x: T) => boolean): number => {
+  let k = 0;
+  for (let i = xs.length - 1; i >= 0 && f(xs[i]); i--) k++;
+  return k;
+};
+
+/** 지금 세이브의 구단사 (결산·엔딩·연고 이전) */
+export function recordFromCore(core: Core, kind: ShareKind): ShareRecord {
+  const c = core.campaign;
+  const h = c.history ?? [];
+  const teams = core.teams.length;
+  const last = h[h.length - 1] ?? { rank: teams, post: 'none' as PostFinish, cleared: false };
+  const champs = h.flatMap((x, i) => (x.post === 'champion' ? [i + 1] : []));
+  return {
+    kind,
+    seed: core.seed,
+    nick: nickOf(core),
+    seasons: Math.max(1, h.length),
+    ranks: h.map((x) => x.rank),
+    teams,
+    champs,
+    champAt: champs[0] ?? (kind === 'champion' ? Math.max(1, h.length) : null),
+    firstPostAt: firstAt(h, (x) => x.post !== 'none'),
+    firstProfitAt: firstAt(h, (x) => x.profit > 0),
+    bestPost: h.reduce<PostFinish>((b, x) => (POST_ORDER.indexOf(x.post) > POST_ORDER.indexOf(b) ? x.post : b), 'none'),
+    last: { rank: last.rank, post: last.post, cleared: last.cleared },
+    failStreak: trailing(h, (x) => !x.cleared),
+    stage: c.stage,
+    stars: c.achievements?.length ?? 0,
+    trust: Math.round(c.trust),
+    star: starName(core),
+    retired: (c.retired ?? []).map((r) => r.name),
+    seats: seatsLabel(core),
+    exposed: c.exposed ?? 0,
+    ...cardOf(core, kind),
+  };
+}
+
+const wlResults = (core: Core): number[] => (memoGet(core, 'wl') ?? '').split('').map((ch) => (ch === 'W' ? 1 : ch === 'L' ? 0 : 0.5));
+
+/**
+ * 지금 세이브 → 카드의 기록과 단장 점수. 마지막 시즌 기록을 쓰고, 기록 장치가 생기기 전에 결산한 시즌이면
+ * (결산 직후라 선수 기록·순위표가 아직 그 시즌 것일 때만) 지금 세이브에서 다시 계산해 채운다
+ */
+export function cardOf(core: Core, kind: ShareKind): Pick<ShareRecord, 'card' | 'gm'> {
+  const h = core.campaign.history ?? [];
+  const last = h[h.length - 1];
+  if (!last) return {};
+  const teams = core.teams.length;
+  const live = last.season === core.season && (core.phase === 'ended' || core.phase === 'over');
+  const r: SeasonRecord = { ...last };
+  if (live) {
+    const results = wlResults(core);
+    const me = userTeam(core).rec;
+    const top = standings(core.teams)[0].rec;
+    if (!r.months && results.length) Object.assign(r, { months: monthsOf(results), streak: longestWin(results) });
+    if (r.gb === undefined) r.gb = Math.max(0, (top.w - top.l - (me.w - me.l)) / 2);
+    if (!r.mvp) r.mvp = teamMvp(core) ?? undefined;
+    if (!r.gm) {
+      const v = core.campaign.verdict;
+      r.gm = gmScore(r, {
+        teams,
+        startRank: startRankOf(h.slice(0, -1), teams),
+        fill: r.avgAtt / Math.max(1, capacityOf(core)),
+        sellouts: core.campaign.sellouts,
+        homeGames: core.attHistory.length,
+        luxTax: !!v?.luxTax,
+        debtBad: !!v?.debtOver || !!v?.debtMood,
+        trust: core.campaign.trust,
+        stars: v?.newAchievements.length ?? 0,
+      });
+    }
+  }
+  const sum = (k: 'w' | 'l' | 't') => h.reduce((a, x) => a + x[k], 0);
+  const ending = kind !== 'season';
+  const card: CardFacts = {
+    nth: h.length,
+    ...(r.name ? { name: r.name } : {}),
+    w: r.w,
+    l: r.l,
+    t: r.t,
+    rank: r.rank,
+    ...(r.gb !== undefined ? { gb: r.gb } : {}),
+    ...(r.months ? { months: r.months, streak: r.streak } : {}),
+    ...(r.mvp ? { mvp: r.mvp } : {}),
+    ...(r.scene ? { scene: r.scene } : {}),
+    ...(r.foe ? { foe: r.foe } : {}),
+    ...(r.prey ? { prey: r.prey } : {}),
+    ...(r.ps ? { ps: r.ps } : {}),
+    ...(ending ? { career: { seasons: h.length, titles: core.campaign.titles, w: sum('w'), l: sum('l'), t: sum('t') } } : {}),
+  };
+  const hh = h.map((x, i) => (i === h.length - 1 ? r : x));
+  let gm: GmShown | undefined;
+  if (ending) {
+    const sc = careerScore(hh);
+    if (sc !== null) gm = { score: sc, ...pickRank(careerRank(sc, teams)), career: true };
+  } else if (r.gm) {
+    const sc = gmTotal(r.gm);
+    gm = { score: sc, ...pickRank(seasonRank(sc, h.length, teams)), career: false, parts: r.gm };
+  }
+  return { card, ...(gm ? { gm } : {}) };
+}
+const pickRank = (r: (typeof RANKS)[number]) => ({ id: r.id, name: r.name });
+
+/** "단장 A · 명단장 · 742점" */
+export const gmLineOf = (g: GmShown): string => `${g.career ? '단장 경력 ' : '단장 '}${g.id} · ${g.name} · ${g.score}점`;
+
+/** 명예의 전당의 역대 구단 한 줄 (순위·우승 횟수·별만 남아 있다) */
+export function recordFromClub(club: HofClub): ShareRecord {
+  const kind: ShareKind = club.end === 'champion' ? 'champion' : club.end === 'relocated' ? 'relocated' : 'season';
+  const seasons = Math.max(1, club.seasons);
+  const champAt = club.end === 'champion' ? seasons : null;
+  return {
+    kind,
+    seed: club.seed,
+    nick: club.nick,
+    seasons,
+    ranks: club.ranks,
+    teams: club.teams ?? 8,
+    champs: champAt ? [champAt] : [],
+    champAt,
+    firstPostAt: null,
+    firstProfitAt: null,
+    bestPost: club.titles > 0 ? 'champion' : 'none',
+    last: { rank: club.ranks[club.ranks.length - 1] ?? club.teams ?? 8, post: champAt ? 'champion' : 'none', cleared: !!champAt },
+    failStreak: 0,
+    stage: club.stage,
+    stars: club.stars,
+    trust: club.trust ?? null,
+    star: club.star ?? null,
+    retired: club.retired ?? [],
+    seats: club.seats ?? null,
+    exposed: club.tainted ? 1 : 0,
+    ...(club.card ? { card: club.card } : {}),
+    ...(club.gm ? { gm: club.gm } : {}),
+  };
+}
+
+export function shareOf(rec: ShareRecord): ShareData {
+  const code = resultCode(rec);
+  const pct = percentile({ seasons: rec.seasons, champAt: rec.champAt, relocated: rec.kind === 'relocated', stage: rec.stage, best: Math.min(teamsOf(rec), ...rec.ranks), teams: teamsOf(rec) });
+  return { rec, code, url: shareUrl(rec.seed, code), pct };
+}
+/**
+ * 세이브에 흔적이 남은 경험만 고른다.
+ * money = 부채가 있거나 소식에 긴급 대출·강제 매각이 남아 있다 · raise = 드래프트 출신과 재계약했거나(ask) 보유 기간이 끝난 선수가 있다
+ * trade = 이번 시즌 트레이드 성사(시즌 메모 trDone) · pen = 불펜 혹사 카드(arm)가 나온 적 있다
+ */
+export function lessonsOf(core: Core): Lesson[] {
+  const team = core.teams.find((t) => t.id === core.userId);
+  const out: Lesson[] = [];
+  if (core.finance.debt > 0 || core.news.some((x) => /긴급 대출|강제 매각/.test(x.text))) out.push('money');
+  if (team?.roster.some((p) => p.ask !== undefined || (svcYear(core, p) ?? 0) >= SVC_YEARS)) out.push('raise');
+  if (memoNum(core, 'trDone') > 0) out.push('trade');
+  // 혹사 카드를 이번 시즌에 본 구단만 (한 번이라도 본 구단으로 하면 거의 전부 해당한다)
+  if (core.campaign.cardSeen?.arm === core.season) out.push('pen');
+  return out;
+}
+export const shareFromCore = (core: Core, kind: ShareKind): ShareData => ({ ...shareOf(recordFromCore(core, kind)), lessons: lessonsOf(core) });
+export const shareFromClub = (club: HofClub): ShareData => shareOf(recordFromClub(club));
+
+// ───────── 카드에 적는 말 ─────────
+
+const seed36 = (seed: number) => Math.floor(seed).toString(36);
+
+/** 일련번호: JEJ-{시즌 수}-{시드 base36 끝 4자} */
+export const serialOf = (r: Pick<ShareRecord, 'seasons' | 'seed'>): string => `JEJ-${r.seasons}-${seed36(r.seed).toUpperCase().padStart(4, '0').slice(-4)}`;
+
+/** 한 줄 결말 */
+export function endingLine(r: ShareRecord): string {
+  if (r.kind === 'relocated') return '연고 이전으로 임기를 마침';
+  if (r.kind === 'champion') return '한국시리즈 우승으로 꿈을 이룸';
+  return r.champAt ? `우승 뒤 ${r.seasons}시즌째 진행 중` : `${r.seasons}시즌째 진행 중`;
+}
+
+const BEST_KO: Record<PostFinish, string> = { none: '', WC: '와일드카드 결정전', SPO: '준플레이오프', PO: '플레이오프', KS: '한국시리즈 준우승', champion: '한국시리즈 우승' };
+export function bestLine(r: ShareRecord): string {
+  if (r.champs.length > 1) return `한국시리즈 우승 ${r.champs.length}회`;
+  return BEST_KO[r.bestPost] || `정규시즌 ${Math.min(teamsOf(r), ...r.ranks)}위`;
+}
+
+/** 공유 화면의 제목 */
+export const sheetTitle = (kind: ShareKind, club = false): string => (club ? '구단 기록 공유하기' : kind === 'champion' ? '우승 기록 공유하기' : kind === 'relocated' ? '구단 기록 공유하기' : '이번 시즌 공유하기');

@@ -1,32 +1,92 @@
 @import 'tailwindcss';
 
+/* 모바일 레이아웃 전용 변형: App 이 <html data-layout="portrait|landscape|desktop"> 을 단다 */
+@custom-variant mob (&:is([data-layout='portrait'] *, [data-layout='landscape'] *));
+/* 세로 전용 (mob 뒤에 선언해야 mob 보다 우선) */
+@custom-variant por (&:is([data-layout='portrait'] *));
+/* 가로 전용 */
+@custom-variant land (&:is([data-layout='landscape'] *));
+/* 키가 작은 폰(360×640 등) */
+@custom-variant short (@media (max-height: 700px));
+
 @theme {
   --font-pixel: 'Galmuri11', 'Galmuri9', ui-monospace, monospace;
   --font-pixel-sm: 'Galmuri9', 'Galmuri11', ui-monospace, monospace;
   --font-pixel-lg: 'Galmuri14', 'Galmuri11', ui-monospace, monospace;
-  --color-ink: #1b2233;
-  --color-panel: #232c42;
-  --color-panel-2: #2d3855;
-  --color-edge: #0f1420;
+  --color-ink: #1e1c1a;
+  --color-panel: #2b2826;
+  --color-panel-2: #3a3632;
+  --color-edge: #121110;
   --color-hi: #ffd84a;
   --color-good: #6ee07a;
   --color-bad: #ff6b6b;
   --color-sky: #7fd3ff;
 }
 
+:root {
+  /* 글자 크기 설정(uiScale.ts)이 <html> 에 zoom 을 걸면 viewport 단위는 따라 줄지 않는다. 그래서 이 변수로만 쓴다 */
+  --z: 1;
+  --dvh: calc(1dvh / var(--z));
+  --vh: calc(1vh / var(--z));
+  --vw: calc(1vw / var(--z));
+}
+
+/* 위쪽 안전 영역 (한곳에서 바꿀 수 있게 변수로 둔다) */
+:root {
+  --sat: env(safe-area-inset-top);
+}
+
 html,
 body,
 #root {
-  height: 100%;
+  height: calc(var(--dvh) * 100);
 }
 
 body {
   margin: 0;
-  background: #141a29;
+  background: #1b1a19;
   color: #eef2ff;
   font-family: var(--font-pixel);
   font-size: 12px;
   -webkit-font-smoothing: none;
+}
+
+html,
+body {
+  /* 당겨서 새로고침·바운스 스크롤 방지, 더블탭 줌 방지 */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ───────── 모바일 ───────── */
+
+:root:is([data-layout='portrait'], [data-layout='landscape']) body {
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 본문 글자 하한 11px (mob:text-* 로 직접 지정한 곳은 제외) */
+:root:is([data-layout='portrait'], [data-layout='landscape']) :is(.text-\[9px\], .text-\[10px\]):not([class*='mob:text']) {
+  font-size: 11px;
+}
+
+/* 터치 타깃 최소 40px */
+:root:is([data-layout='portrait'], [data-layout='landscape']) .px-btn {
+  min-height: 40px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* iOS 는 16px 미만 입력에 포커스하면 확대한다 */
+input,
+select,
+textarea {
+  font-size: 16px;
 }
 
 canvas.pixel {
@@ -48,7 +108,7 @@ canvas.pixel {
 .px-btn {
   font-family: var(--font-pixel);
   padding: 4px 10px;
-  background: #3d4c75;
+  background: #4a443e;
   color: #fff;
   cursor: pointer;
   box-shadow:
@@ -59,8 +119,10 @@ canvas.pixel {
     inset 0 -3px 0 0 rgba(0, 0, 0, 0.3),
     inset 0 2px 0 0 rgba(255, 255, 255, 0.18);
 }
-.px-btn:hover:not(:disabled) {
-  filter: brightness(1.15);
+@media (hover: hover) {
+  .px-btn:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
 }
 .px-btn:active:not(:disabled) {
   transform: translateY(1px);
@@ -70,24 +132,28 @@ canvas.pixel {
   cursor: not-allowed;
 }
 .px-btn.primary {
-  background: #e2572e;
+  background: #e8741a;
 }
 .px-btn.gold {
   background: #d9a514;
-  color: #1b2233;
+  color: #1e1c1a;
 }
 .px-btn.green {
   background: #2f9e4f;
 }
 
+.px-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
 .px-scroll::-webkit-scrollbar {
   width: 8px;
 }
 .px-scroll::-webkit-scrollbar-thumb {
-  background: #47557f;
+  background: #5a534c;
 }
 .px-scroll::-webkit-scrollbar-track {
-  background: #1a2133;
+  background: #1e1c1a;
 }
 
 @keyframes pop-in {
@@ -104,7 +170,7 @@ canvas.pixel {
   }
 }
 .anim-pop {
-  animation: pop-in 0.35s steps(6) both;
+  animation: pop-in 0.35s steps(6) backwards; /* 끝난 뒤엔 transform 을 남기지 않는다 (안쪽 fixed 요소의 기준이 틀어진다) */
 }
 
 @keyframes float-up {
@@ -128,4 +194,108 @@ canvas.pixel {
 }
 .anim-blink {
   animation: blink 0.8s steps(2) infinite;
+}
+
+@keyframes sheet-up {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.anim-sheet {
+  animation: sheet-up 0.18s steps(5) backwards; /* 끝난 뒤엔 끌기(transform)를 막지 않게 */
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+}
+.anim-fade {
+  /* 어두운 배경에만 쓴다. 내용이 있는 창에 쓰면, 일부 인앱 브라우저에서 애니메이션이 중간에 멈춰 창이 반투명으로 남는다 */
+  animation: fade-in 0.15s steps(3) backwards;
+}
+/* 앱이 뒤로 갔다 돌아오면 멈춰 있던 등장 애니메이션을 끊고 제 모습으로 둔다 (main.tsx) */
+:root[data-noanim] [class*='anim-']:not(.anim-blink):not(.anim-marquee) {
+  animation: none !important;
+}
+
+/* 결산·엔딩의 차례로 드러나는 연출 */
+@keyframes fade-slow {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.anim-fade-slow {
+  animation: fade-slow 0.7s steps(7) backwards;
+}
+/* 실루엣이 걷힌다: 가림막은 사라지고 이름은 나타난다 */
+@keyframes veil-out {
+  100% {
+    opacity: 0;
+  }
+}
+.anim-veil {
+  animation: veil-out 0.6s steps(6) 1.2s both;
+}
+.anim-unveil {
+  animation: fade-in 0.6s steps(6) 1.2s both;
+}
+/* 도민 지지 막대가 before → after 로 움직인다 */
+.trust-move {
+  transition: width 1.1s steps(11) 0.5s;
+}
+
+/* ───────── 모바일 글자·줄 기준 (본문 13px+, 목록 한 줄 48px+, 칩·버튼 40px+) ───────── */
+:root:is([data-layout='portrait'], [data-layout='landscape']) :is(.text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[12px\]):not([class*='mob:text']) {
+  font-size: 13px;
+}
+:root:is([data-layout='portrait'], [data-layout='landscape']) .m-shell {
+  font-size: 13px;
+}
+:root:is([data-layout='portrait'], [data-layout='landscape']) .m-shell tbody tr {
+  height: 48px;
+}
+:root:is([data-layout='portrait'], [data-layout='landscape']) .m-shell :is(th, td) {
+  font-size: 13px;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.title-logo {
+  text-shadow:
+    3px 3px 0 #121110,
+    -2px -2px 0 #121110,
+    2px -2px 0 #121110,
+    -2px 2px 0 #121110;
+}
+/* mob:text-[11px] 처럼 직접 지정한 작은 글자도 13px 로 올린다 (구장 오버레이는 인라인 cqw 라 해당 없음) */
+:root:is([data-layout='portrait'], [data-layout='landscape']) :is([class*='text-[9px]'], [class*='text-[10px]'], [class*='text-[11px]'], [class*='text-[12px]']) {
+  font-size: 13px;
+}
+
+/* 할 일에서 이동해 온 선수의 줄 강조 (Todo.tsx spotlight) */
+.spot {
+  background: rgba(255, 216, 74, 0.3) !important;
+  box-shadow: inset 0 0 0 2px #ffd84a !important;
+}
+
+/* 우승 전광판: 긴 글자가 오른쪽에서 왼쪽으로 흐른다 (부모 폭 기준으로 들어와 글자 폭만큼 빠져나간다) */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+.anim-marquee {
+  padding-left: 100%;
+  animation: marquee 3.2s linear infinite;
 }

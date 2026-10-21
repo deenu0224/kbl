@@ -68,12 +68,18 @@ export const DECK_GAP = 6;
 export const ROW_STEP = 5;
 export const SEAT_STEP = 4.5;
 export const ROW0_D = 6;
+/** 좌석 간격. Lv0 의 낡은 구장은 등받이 없는 긴 의자라 촘촘히 앉는다(매진이면 빈틈없이 찬다) */
+export function seatStep(lv: number): number {
+  return lv === 0 ? 3.3 : SEAT_STEP;
+}
 export const AISLE_EVERY = 40;
 
 /** 줄 r 의 벽으로부터의 거리 */
 export function rowD(lv: number, r: number): number {
   return ROW0_D + ROW_STEP * r + (lv === 4 && r >= DECK_ROW ? DECK_GAP : 0);
 }
+/** roof 1(홈 뒤만) 지붕이 직선 구간을 덮는 길이 */
+export const ROOF1_T = 72;
 /** 관중석 바깥 테두리 거리 */
 export function standOuter(lv: number): number {
   return rowD(lv, SEAT_SPEC[lv].rows - 1) + 4;
@@ -160,6 +166,8 @@ export interface Seat {
   ci: number; // 색 인덱스: 0 홈, 1 홈 보조, 2 원정, 3~7 기타
   ph: number; // 0~255 애니메이션 위상
   sec: 0 | 1 | 2; // 0 내야 1층, 1 내야 2층, 2 외야
+  cov: boolean; // 지붕 아래 자리(비를 안 맞는다)
+  u: number; // 0~1 구장을 한 바퀴 도는 위치(중견수 뒤 0 → 3루 쪽 → 홈 뒤 0.5 → 1루 쪽 → 1). 응원 물결용
 }
 
 function isAisleT(t: number): boolean {
@@ -170,9 +178,9 @@ function isAisleT(t: number): boolean {
 export function buildSeats(lvIn: number): Seat[] {
   const lv = clampLv(lvIn);
   const spec = SEAT_SPEC[lv];
-  const raw: { x: number; y: number; score: number; sec: 0 | 1 | 2; id: number }[] = [];
+  const raw: { x: number; y: number; score: number; sec: 0 | 1 | 2; id: number; cov: boolean }[] = [];
   let id = 0;
-  const push = (wx: number, wy: number, z: number, score: number, sec: 0 | 1 | 2) => {
+  const push = (wx: number, wy: number, z: number, score: number, sec: 0 | 1 | 2, cov = false) => {
     id++;
     raw.push({
       x: Math.round(sxOf(wx)) - 1,
@@ -180,6 +188,7 @@ export function buildSeats(lvIn: number): Seat[] {
       score: score + hash2(id, 7 + lv * 31) * 0.5,
       sec,
       id,
+      cov,
     });
   };
 
@@ -189,21 +198,23 @@ export function buildSeats(lvIn: number): Seat[] {
     const sec: 0 | 1 = upper ? 1 : 0;
     const rowScore = r * 0.045 + (upper ? 0.12 : 0);
     // 직선 구간
-    for (let t = 2.6; t <= spec.len; t += SEAT_STEP) {
+    const step = seatStep(lv);
+    for (let t = 2.6; t <= spec.len; t += step) {
       if (isAisleT(t)) continue;
       if (d < DUG_D + 2 && t > DUG_T0 - 2.5 && t < DUG_T1 + 2.5) continue;
       const sc2 = rowScore + (t / 235) * 0.35;
       const l = standToWorld(-1, d, t);
       const rr = standToWorld(1, d, t);
-      push(l.x, l.y, 0, sc2, sec);
-      push(rr.x, rr.y, 0, sc2, sec);
+      const cov = spec.roof >= 2 || (spec.roof === 1 && t <= ROOF1_T);
+      push(l.x, l.y, 0, sc2, sec, cov);
+      push(rr.x, rr.y, 0, sc2, sec, cov);
     }
     // 홈 뒤 호
-    const n = Math.floor((d * Math.PI * 0.5) / SEAT_STEP);
+    const n = Math.floor((d * Math.PI * 0.5) / step);
     for (let i = 0; i < n; i++) {
       const th = Math.PI / 4 + ((i + 0.5) / n) * (Math.PI / 2);
       if (d >= 16 && Math.abs(th - Math.PI / 2) * d < 2.2) continue;
-      push(d * Math.cos(th), APEX_Y + d * Math.sin(th), 0, rowScore, sec);
+      push(d * Math.cos(th), APEX_Y + d * Math.sin(th), 0, rowScore, sec, spec.roof >= 1);
     }
   }
 
@@ -238,9 +249,39 @@ export function buildSeats(lvIn: number): Seat[] {
       ci,
       ph: Math.floor(hash2(s.id, 211) * 256),
       sec: s.sec,
+      cov: s.cov,
+      u: (Math.atan2(s.x + 1 - HX, s.y + 1 - HY) + Math.PI) / (Math.PI * 2),
     };
   });
   return seats;
+}
+
+/**
+ * 입석 자리: 매진된 날 스탠드 뒷벽을 따라, 그리고 스탠드 양 끝에 서서 보는 관중 (화면 좌표, 발 위치).
+ * 지붕이 없는 작은 구장(Lv0·1)에서만 쓴다.
+ */
+export function standingSpots(lvIn: number): { x: number; y: number; ph: number }[] {
+  const lv = clampLv(lvIn);
+  const spec = SEAT_SPEC[lv];
+  const out: { x: number; y: number; ph: number }[] = [];
+  const push = (wx: number, wy: number) => out.push({ x: Math.round(sxOf(wx)) - 1, y: Math.round(syOf(wy)), ph: Math.floor(hash2(out.length + 1, 313 + lv) * 256) });
+  const d = standOuter(lv) + 2.5;
+  // 뒷벽을 따라 한 줄
+  for (let t = 3; t <= spec.len; t += 3.6) for (const s of [-1, 1] as const) {
+    const p = standToWorld(s, d, t);
+    push(p.x, p.y);
+  }
+  const n = Math.floor((d * Math.PI * 0.5) / 3.6);
+  for (let i = 0; i < n; i++) {
+    const th = Math.PI / 4 + ((i + 0.5) / n) * (Math.PI / 2);
+    push(d * Math.cos(th), APEX_Y + d * Math.sin(th));
+  }
+  // 스탠드 양 끝(외야 쪽)에 두 줄
+  for (let k = 0; k < 2; k++) for (let dd = ROW0_D; dd <= d; dd += 3.4) for (const s of [-1, 1] as const) {
+    const p = standToWorld(s, dd, spec.len + 3.5 + k * 3.5);
+    push(p.x, p.y);
+  }
+  return out;
 }
 
 // ───────── 고정 배치 ─────────
@@ -268,6 +309,31 @@ export const TOWERS: { x: number; y: number; h: number }[] = [
 /** 배너 깃대 x (전광판 양옆) — banners 수만큼 앞에서부터 사용 */
 export const BANNER_X = [240, 399, 228];
 export const BANNER_Y = 60;
+/** 바랜 옛 우승 깃발 자리. 이 깃발이 걸리면 새 깃발은 그 옆(BANNER_X_NEW)부터 채운다 */
+export const OLD_BANNER_X = 240;
+export const BANNER_X_NEW = [225, 399, 414];
+
+/** 외야 펜스 윗변의 화면 y */
+export function fenceTopY(sx: number): number {
+  const x = sx - HX + 0.5;
+  return Math.round(HY - YK * Math.sqrt(Math.max(0, FENCE_R * FENCE_R - x * x))) - FENCE_H;
+}
+
+/** 게이트: 3루 쪽 관중석 바깥벽이 바닥 y = GATE_Y 와 만나는 곳. 대기 줄은 여기서 왼쪽(주차장 쪽)으로 늘어선다 */
+export const GATE_Y = 347;
+export function gateX(lvIn: number): number {
+  const lv = clampLv(lvIn);
+  const dOut = standOuter(lv);
+  const t = dOut + (APEX_Y - (GATE_Y - HY - SEAT_SPEC[lv].wallH) / YK) / SQ;
+  return Math.round(HX - (dOut + t) * SQ);
+}
+
+/** 영구결번 표식 중심(백스크린, 전광판 아래) */
+export const RETIRED_Y = 138;
+export const RETIRED_X = [293, 311, 329, 347];
+
+/** 오랜 팬의 자리(좌중간 외야, 방위각) */
+export const OLD_FAN_PHI = 20 * DEG;
 
 /** 주차 칸 좌상단 (7×12 차량 기준) */
 export const PARK_SLOTS: Pt[] = (() => {

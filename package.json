@@ -1,14 +1,27 @@
 {
   "name": "kbl",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.17.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "balance": "tsx scripts/balance.ts"
+    "balance": "tsx scripts/balance.ts",
+    "campaign": "tsx scripts/campaign.ts",
+    "economy": "tsx scripts/economy.ts",
+    "scandal": "tsx scripts/scandal.ts",
+    "bullpen": "tsx scripts/bullpen.ts",
+    "verify": "tsx scripts/verify.ts",
+    "achv": "tsx scripts/achv.ts",
+    "oldsave": "tsx scripts/oldsave.ts",
+    "deploy": "sh scripts/deploy.sh",
+    "screens": "node scripts/screens/run.mjs",
+    "bench": "tsx scripts/share/bench.ts",
+    "bench:rank": "tsx scripts/share/rank.ts",
+    "share:pages": "node scripts/share/pages.mjs",
+    "share:texts": "tsx scripts/share/texts.ts"
   },
   "dependencies": {
     "galmuri": "^2.40.3",
@@ -22,6 +35,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "playwright-core": "^1.64.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

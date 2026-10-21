@@ -1,49 +1,99 @@
+import { fmtMoney } from './game/format';
+import { buyProject, projectPreview, type ProjectId } from './game/projects';
 import { create } from 'zustand';
+import { changePenStyle } from './game/briefing';
+import type { PenStyle, RunStyle } from './game/sim';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
-import type { Core, DayReport, FacilityKind, Player, Team } from './game/types';
-import { newCore } from './game/generate';
+import type { HintTab, Core, DayReport, FacilityKind, Player, PostRound, Team } from './game/types';
+import { campaignZero, newCore } from './game/generate';
 import {
   advanceDay,
   signPlayer,
   releasePlayer,
+  sendDown,
+  callUp,
   upgradeFacility,
   setTicketPrice,
   borrow as borrowLoan,
   repay as repayLoan,
   nextSeason,
 } from './game/season';
-import { autoLineup, fixLineup } from './game/lineup';
+import { autoLineup, fixLineup, managerLineup } from './game/lineup';
+import { ensureObjectives, fillObjectivesMut, stopReason } from './game/campaign';
+import { CHARACTERS, OVER_LABEL } from './game/story';
+import { maybeDrawEvent, resolveEvent as resolveEventFn } from './game/events';
+import { buyEthics as buyEthicsFn } from './game/scandal';
+import { closeBriefing, drawBriefing, refreshBriefing, runOffer, skipOffer } from './game/briefing';
+import { beginDraft as beginDraftFn, draftPick as draftPickFn, draftSkip as draftSkipFn, isDraftDone } from './game/draft';
+import { postMatch } from './game/postseason';
+import { drawResign } from './game/contract';
+import { drawStoveTrade, toggleBlock } from './game/trade';
+import { memoGet, memoSet } from './game/memo';
+import { RUNWAY_STOP, runway } from './game/runway';
+import { applyTransfer, basketCount, type Basket } from './game/transfer';
+import { postViewOf, useUi } from './components/layout/uiStore';
+import { slowEvents } from './game/autumn';
+import { applySnap, replaceIn, type LineupSnap } from './components/roster/editorOps';
+import { ROSTER_MAX, activeRoster } from './game/economy';
+import { applyRemedy, type Remedy } from './game/remedy';
 
-export type LeftTab = 'lineup' | 'pitchers' | 'market';
+export type LeftTab = 'lineup' | 'pitchers' | 'farm' | 'market';
 export type RightTab = 'league' | 'stadium' | 'finance' | 'news';
 export type Tone = 'good' | 'bad' | 'info';
 
 export interface Store extends Core {
-  playback: { report: DayReport; next: Core; step: number } | null;
+  playback: { report: DayReport; next: Core; step: number; cleared: HintTab[] } | null;
   summary: DayReport[] | null;
   fx: { kind: FacilityKind; key: number } | null;
   toast: { text: string; tone: Tone; key: number } | null;
+  flash: { pid: string; at: number } | null; // 방금 영입한 선수 (타선·투수 탭에서 그 자리를 잠깐 강조, 저장 안 함)
   lastReport: DayReport | null; // 마지막으로 커밋된 경기 (리그 탭 "타구장 결과"용, 저장 안 함)
   leftTab: LeftTab;
   rightTab: RightTab;
   playNext(): void;
   stepPlayback(): void;
-  skipPlayback(): void;
+  skipPlayback(toEnd?: boolean): void;
   simDays(n: number): void;
   closeSummary(): void;
+  closeAutumnIntro(): void; // 정규시즌 마감 화면을 닫는다 (post.intro 를 지운다)
   sign(pid: string): void;
   release(pid: string): void;
+  sendDown(pid: string): void;
+  callUp(pid: string): void;
+  blockToggle(pid: string): void; // 이적 창구: 트레이드 시장에 내놓기 / 거두기
+  transfer(basket: Basket): boolean; // 이적 창구: 바구니를 한 번에 실행 (하나라도 막히면 전체 취소)
   upgrade(kind: FacilityKind): void;
+  project(id: ProjectId): boolean;
   setPrice(v: number): void;
   borrow(): void;
+  buyEthics(): void; // 선수단 윤리 교육 (scandal.ts)
   repay(): void;
   swapLineup(i: number, j: number): void;
   substitute(slot: number, benchPid: string): void;
+  swapPos(i: number, j: number): void; // 주전 둘의 수비 위치만 맞바꾼다 (타순은 그대로)
   swapPitchers(pidA: string, pidB: string): void;
   auto(): void;
-  startNextSeason(): void;
-  newGame(): void;
+  restoreLineup(snap: LineupSnap): void; // 오더 편집기: 편성(타순·수비·보직·1군/2군)을 통째로 놓는다 (편집 반영·되돌리기)
+  callUpInto(farmPid: string, targetPid: string): void; // 오더 편집기: 2군 선수를 올려 target 의 자리에 넣는다 (1군이 가득이면 target 이 2군으로)
+  startNextSeason(): void; // 'ended' → 드래프트 시작, 드래프트 종료 후 → 다음 시즌
+  resolveEvent(i: number): void; // 대기 중인 이벤트 카드 선택
+  briefRun(id: string): void; // 주간 브리핑: 제안 실행
+  briefSkip(id: string): void; // 주간 브리핑: 제안 넘기기
+  briefClose(): void; // 주간 브리핑 닫기 (다음 경기 진행 가능)
+  stoveCards(): boolean; // 스토브리그의 카드(재계약 → 트레이드 제안)를 꺼낸다. 처리할 카드가 떠 있으면 true
+  beginDraft(): void;
+  draftPick(pid: string): void;
+  draftSkip(): void;
+  finishDraft(): void; // 드래프트가 끝났으면 다음 시즌 개막 (= startNextSeason)
+  clearHint(tab: HintTab): void; // 탭을 열었을 때 배지를 지운다
+  newGame(nickname?: string, seed?: number): void;
+  loadSave(core: Core, version: number): void; // 가져온 세이브로 덮어쓴다
+  setPenStyle(style: PenStyle): void; // 불펜 운영 방침 (campaign.penStyle)
+  setRunStyle(style: RunStyle): void; // 주루 방침 (campaign.runStyle)
+  setFarmAuto(v: boolean): void; // 2군 자동 운영 (campaign.farmAuto)
+  setSubAuto(v: boolean): void; // 부상 대체: true = 감독에게 맡기기 (campaign.subAuto)
+  remedy(r: Remedy): string | null; // 할 일의 조치 실행. 막히면 사유를 돌려준다 (조치 시트가 결과를 보여 주므로 토스트는 없다)
   setTab(side: 'left', tab: LeftTab): void;
   setTab(side: 'right', tab: RightTab): void;
   notify(text: string, tone?: Tone): void;
@@ -69,10 +119,32 @@ export function pickCore(s: Core): Core {
     cashHistory: s.cashHistory,
     news: s.news,
     newsSeq: s.newsSeq,
+    campaign: s.campaign,
+    post: s.post,
+    draft: s.draft,
   };
 }
 
 const rng = Math.random;
+/** 새 리그의 시드: 32비트 난수 (시각으로 만들면 공유 링크에서 시작 시각을 되짚을 수 있다) */
+const freshSeed = (): number => crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+const freshCore = (nickname?: string, seed?: number): Core => ensureObjectives(newCore(seed ?? freshSeed(), nickname), rng);
+/** 경기 진행이 가능한 상태인지 (불가하면 사유) */
+function playBlock(s: Core): string | null {
+  if (s.campaign?.event) return '이벤트 카드를 먼저 처리하세요';
+  if (s.campaign?.briefing) return '주간 브리핑을 먼저 닫으세요';
+  if (s.phase === 'season') return s.day < s.schedule.length ? null : '정규시즌이 끝났습니다';
+  if (s.phase === 'post') return s.post && postMatch(s) ? null : '진행할 포스트시즌 경기가 없습니다';
+  return '지금은 경기를 진행할 수 없습니다';
+}
+/** 일괄 진행 정지 사유: 금고가 6경기 안에 비게 된 첫날 한 번 (시즌 메모에 적어 다시 멈추지 않는다 — core 는 방금 만든 복제본) */
+function cashStop(core: Core): string | null {
+  if (core.phase !== 'season' || memoGet(core, 'rwStop') !== undefined) return null;
+  const n = runway(core).cashOut;
+  if (n === null || n > RUNWAY_STOP) return null;
+  memoSet(core, 'rwStop', core.day);
+  return `이대로면 ${n}경기 뒤에 금고가 빕니다`;
+}
 let seq = 100000;
 const mkToast = (text: string, tone: Tone) => ({ text, tone, key: ++seq });
 
@@ -88,7 +160,7 @@ function withUserTeam(s: Core, fn: (t: Team) => void): Team[] {
 }
 
 type Loc = { k: 'rot'; i: number } | { k: 'pen'; i: number } | { k: 'cl' } | null;
-function pitcherLoc(t: Team, pid: string): Loc {
+export function pitcherLoc(t: Team, pid: string): Loc {
   const ri = t.rotation.indexOf(pid);
   if (ri >= 0) return { k: 'rot', i: ri };
   if (t.closer === pid) return { k: 'cl' };
@@ -96,7 +168,7 @@ function pitcherLoc(t: Team, pid: string): Loc {
   if (bi >= 0) return { k: 'pen', i: bi };
   return null;
 }
-function putPitcher(t: Team, l: Loc, pid: string) {
+export function putPitcher(t: Team, l: Loc, pid: string) {
   if (!l) return;
   if (l.k === 'rot') t.rotation[l.i] = pid;
   else if (l.k === 'pen') t.bullpen[l.i] = pid;
@@ -125,29 +197,46 @@ export const useStore = create<Store>()(
       const commitPlayback = () => {
         const pb = get().playback;
         if (!pb) return;
-        set({ ...pickCore(pb.next), playback: null, summary: [pb.report], lastReport: pb.report });
+        // 재생 중에 지운 탭 배지는 커밋 때 되살리지 않는다 (pb.next 는 재생 시작 시점의 스냅샷)
+        const next = pickCore(pb.next);
+        if (pb.cleared.length && next.campaign.hints) {
+          const hints = { ...next.campaign.hints };
+          for (const t of pb.cleared) delete hints[t];
+          next.campaign = { ...next.campaign, hints };
+        }
+        set({ ...next, playback: null, summary: [pb.report], lastReport: pb.report });
       };
 
       return {
-        ...newCore(Date.now()),
+        ...freshCore(),
         playback: null,
         summary: null,
         fx: null,
         toast: null,
         lastReport: null,
+        flash: null,
         leftTab: 'lineup',
         rightTab: 'league',
 
         playNext() {
+          if (get().playback) return;
+          // 경기 요약이 떠 있으면 닫고 바로 다음 경기로 ([확인]을 한 번 더 누르지 않아도 된다)
+          if (get().summary) set({ summary: null });
           const s = get();
-          if (s.playback || s.summary) return;
-          if (s.phase === 'ended' || s.day >= s.schedule.length) return;
-          const { core: next, report } = advanceDay(pickCore(s), rng);
+          const block = playBlock(s);
+          if (block) {
+            if (s.campaign?.event) set({ toast: mkToast(block, 'info') });
+            return;
+          }
+          const r = advanceDay(pickCore(s), rng);
+          // 가을야구 천천히 보기: 시뮬이 기록해 둔 장면을 하이라이트 사이에 끼워 넣는다 (결과는 그대로, 보여 주는 장면만)
+          const report = r.report.post && postViewOf(useUi.getState(), s) === 'slow' ? { ...r.report, result: { ...r.report.result, events: slowEvents(r.report.result) } } : r.report;
+          const next = drawBriefing(maybeDrawEvent(r.core, rng));
           if (!report.result.events.length) {
             set({ ...pickCore(next), playback: null, summary: [report], lastReport: report, fx: null });
             return;
           }
-          set({ playback: { report, next, step: 0 }, fx: null });
+          set({ playback: { report, next, step: 0, cleared: [] }, fx: null });
         },
         stepPlayback() {
           const pb = get().playback;
@@ -155,32 +244,60 @@ export const useStore = create<Store>()(
           if (pb.step + 1 >= pb.report.result.events.length) commitPlayback();
           else set({ playback: { ...pb, step: pb.step + 1 } });
         },
-        skipPlayback() {
+        skipPlayback(toEnd = false) {
+          // toEnd: 마지막 장면(우승 세리머니)으로만 건너뛴다 — 판단은 화면 쪽(skipOrCeremony)에서 (여기서 postseason 을 import 하면 순환 참조)
+          const pb = get().playback;
+          const last = pb ? pb.report.result.events.length - 1 : -1;
+          if (toEnd && pb && pb.step < last) {
+            set({ playback: { ...pb, step: last } });
+            return;
+          }
           commitPlayback();
         },
         simDays(n) {
+          if (get().playback) return;
+          if (get().summary) set({ summary: null });
           const s = get();
-          if (s.playback || s.summary) return;
           let core = pickCore(s);
           const reports: DayReport[] = [];
+          let stopped: string | null = null;
           for (let i = 0; i < n; i++) {
-            if (core.phase === 'ended' || core.day >= core.schedule.length) break;
+            if (playBlock(core)) break;
             const r = advanceDay(core, rng);
-            core = r.core;
+            core = drawBriefing(maybeDrawEvent(r.core, rng));
             reports.push(r.report);
+            // 이벤트 카드 · 전/결 구간의 시작 · 중간 점검 · 주전 부상 · 주간 브리핑에서 멈춘다
+            stopped = stopReason(core, r.report) ?? cashStop(core) ?? (core.campaign.briefing ? '주간 브리핑' : null);
+            if (stopped) break;
           }
           if (!reports.length) return;
-          set({ ...pickCore(core), summary: reports, lastReport: reports[reports.length - 1], fx: null });
+          const early = stopped && reports.length < n && !playBlock({ ...core, campaign: { ...core.campaign, event: null, briefing: null } });
+          set({
+            ...pickCore(core),
+            summary: reports,
+            lastReport: reports[reports.length - 1],
+            fx: null,
+            ...(early ? { toast: mkToast(`진행 정지 — ${stopped}`, 'info') } : {}),
+          });
         },
         closeSummary() {
           set({ summary: null });
+        },
+        closeAutumnIntro() {
+          const post = get().post;
+          if (!post?.intro) return;
+          const { intro: _i, ...rest } = post;
+          set({ post: rest });
         },
 
         sign(pid) {
           if (locked()) return;
           const s = get();
           const p = s.freeAgents.find((x) => x.id === pid);
-          applyResult(signPlayer(pickCore(s), pid), p ? `${p.name} 영입 완료!` : '영입 완료!');
+          if (!applyResult(signPlayer(pickCore(s), pid), p ? `${p.name} 영입 완료!` : '영입 완료!') || !p) return;
+          // 들어간 자리를 바로 보여 준다
+          set({ flash: { pid, at: Date.now() }, leftTab: 'lineup' });
+          useUi.getState().openSquad(p.kind === 'B' ? 'field' : 'arms');
         },
         release(pid) {
           if (locked()) return;
@@ -188,10 +305,37 @@ export const useStore = create<Store>()(
           const p = findPlayer(s, pid);
           applyResult(releasePlayer(pickCore(s), pid), p ? `${p.name} 방출` : '방출 완료');
         },
+        sendDown(pid) {
+          if (locked()) return;
+          const s = get();
+          const p = findPlayer(s, pid);
+          applyResult(sendDown(pickCore(s), pid), p ? `${p.name} ${p.injury > 0 ? '부상자 명단으로 — 1군 자리 +1' : '2군으로'}` : '2군으로 내렸습니다');
+        },
+        callUp(pid) {
+          if (locked()) return;
+          const s = get();
+          const p = findPlayer(s, pid);
+          if (applyResult(callUp(pickCore(s), pid), p ? `${p.name} 1군 등록!` : '콜업 완료!')) set({ flash: { pid, at: Date.now() } });
+        },
+        blockToggle(pid) {
+          if (locked()) return;
+          applyResult(toggleBlock(pickCore(get()), pid));
+        },
+        transfer(basket) {
+          if (locked() || !basketCount(basket)) return false;
+          const r = applyTransfer(pickCore(get()), basket);
+          // 열려 있는 주간 브리핑의 제안은 바뀐 선수단에 맞춰 다시 만든다
+          return applyResult(r.error ? r : { core: refreshBriefing(r.core) });
+        },
         upgrade(kind) {
           if (locked()) return;
           const ok = applyResult(upgradeFacility(pickCore(get()), kind), `${FAC_NAME[kind]} 업그레이드 완료!`);
           if (ok) set({ fx: { kind, key: ++seq } });
+        },
+        project(id) {
+          if (locked()) return false;
+          const pv = projectPreview(pickCore(get()), id);
+          return applyResult(buyProject(pickCore(get()), id), `${pv.name}${pv.step && id === 'dome' ? ` ${pv.step}` : ''} — ${fmtMoney(pv.cost)}`);
         },
         setPrice(v) {
           if (locked()) return;
@@ -201,6 +345,10 @@ export const useStore = create<Store>()(
         borrow() {
           if (locked()) return;
           applyResult(borrowLoan(pickCore(get())), '대출 실행');
+        },
+        buyEthics() {
+          if (locked()) return;
+          applyResult(buyEthicsFn(pickCore(get())), '윤리 교육 실시');
         },
         repay() {
           if (locked()) return;
@@ -218,6 +366,19 @@ export const useStore = create<Store>()(
               // 타순만 맞바꾼다 (수비 위치는 선수를 따라감)
               t.lineup[i] = b;
               t.lineup[j] = a;
+            }),
+          });
+        },
+        swapPos(i, j) {
+          if (locked()) return;
+          if (i === j) return;
+          set({
+            teams: withUserTeam(get(), (t) => {
+              const a = t.lineup[i];
+              const b = t.lineup[j];
+              if (!a || !b) return;
+              t.lineup[i] = { ...a, pos: b.pos };
+              t.lineup[j] = { ...b, pos: a.pos };
             }),
           });
         },
@@ -256,26 +417,173 @@ export const useStore = create<Store>()(
         },
         auto() {
           if (locked()) return;
-          set({ teams: withUserTeam(get(), (t) => autoLineup(t)), toast: mkToast('자동 편성 완료', 'info') });
+          // 0장을 넘기기 전(감독이 승복하기 전)의 자동 편성은 "감독에게 맡기기"다
+          const yielded = !!get().campaign.managerYielded;
+          set({
+            teams: withUserTeam(get(), (t) => (yielded ? autoLineup(t) : managerLineup(t))),
+            toast: mkToast(yielded ? '자동 편성 완료' : `${CHARACTERS.manager.name} 감독에게 편성을 맡겼습니다`, 'info'),
+          });
+        },
+
+        restoreLineup(snap) {
+          if (locked()) return;
+          set({ teams: withUserTeam(get(), (t) => void applySnap(t, snap)) });
+        },
+        callUpInto(farmPid, targetPid) {
+          if (locked()) return;
+          const s = get();
+          const t0 = s.teams.find((t) => t.id === s.userId);
+          if (!t0) return;
+          const full = activeRoster(t0).length >= ROSTER_MAX;
+          const hadRole = !!pitcherLoc(t0, targetPid);
+          let core = pickCore(s);
+          if (full) {
+            const r = sendDown(core, targetPid);
+            if (r.error) return void set({ toast: mkToast(r.error, 'bad') });
+            core = r.core;
+          }
+          const r = callUp(core, farmPid);
+          if (r.error) return void set({ toast: mkToast(r.error, 'bad') });
+          // 자동 배치 대신, 놓은 자리를 그대로 물려받는다
+          const t = r.core.teams.find((x) => x.id === r.core.userId)!;
+          t.lineup = t0.lineup.map((l) => ({ ...l }));
+          t.rotation = [...t0.rotation];
+          t.bullpen = [...t0.bullpen];
+          t.closer = t0.closer;
+          replaceIn(t, targetPid, farmPid);
+          if (!full && hadRole) t.bullpen.push(targetPid);
+          set({ ...pickCore(r.core) });
         },
 
         startNextSeason() {
           const s = get();
           if (s.playback) return;
+          if (s.phase === 'ended') {
+            get().beginDraft();
+            return;
+          }
+          if (s.phase === 'over') {
+            set({ toast: mkToast(`${OVER_LABEL}이 확정되었습니다 — 새 게임을 시작하세요`, 'bad') });
+            return;
+          }
+          if (s.phase !== 'draft') return;
+          if (!isDraftDone(s)) {
+            set({ toast: mkToast('드래프트를 먼저 마치세요', 'info') });
+            return;
+          }
           const core = nextSeason(pickCore(s), rng);
           set({ ...pickCore(core), summary: null, playback: null, fx: null, lastReport: null, toast: mkToast(`${core.season}시즌 개막!`, 'good') });
         },
-        newGame() {
+        resolveEvent(i) {
+          const s = get();
+          if (s.playback || !s.campaign.event) return;
+          const r = resolveEventFn(pickCore(s), i, rng);
+          if (r.error) {
+            set({ toast: mkToast(r.error, 'bad') });
+            return;
+          }
+          // 대기 중인 주간 브리핑은 카드 처리로 바뀐 상태에 맞춰 다시 만든다
+          set({ ...pickCore(refreshBriefing(r.core)), toast: mkToast(r.result, 'info') });
+        },
+        briefRun(id) {
+          if (locked()) return;
+          const r = runOffer(pickCore(get()), id);
+          // 브리핑이 열려 있는 동안에는 카드가 "✓ 실행됨"으로 바뀌는 것이 완료 표시다 — 연달아 실행해도 토스트가 겹치지 않게 생략
+          if (applyResult(r)) {
+            const a = r.core.campaign.briefing?.offers.find((o) => o.id === id)?.action;
+            if (a?.t === 'upgrade') set({ fx: { kind: a.kind, key: ++seq } });
+          }
+        },
+        briefSkip(id) {
+          if (locked()) return;
+          set(pickCore(skipOffer(pickCore(get()), id)));
+        },
+        briefClose() {
+          if (locked()) return;
+          set(pickCore(closeBriefing(pickCore(get()))));
+        },
+        stoveCards() {
+          const s = get();
+          if (s.playback || s.phase !== 'ended') return false;
+          // 스토브리그: FA 자격을 얻은 선수의 재계약 카드를 먼저 처리한다
+          if (s.campaign.event) return true;
+          const q = drawResign(pickCore(s));
+          if (q.campaign.event) {
+            set({ ...pickCore(q), summary: null });
+            return true;
+          }
+          // 그다음 스토브리그의 트레이드 제안 1건 (AI 스토브리그 보강보다 먼저)
+          const tr = drawStoveTrade(pickCore(q), rng);
+          if (tr !== q) {
+            set({ ...pickCore(tr), summary: null });
+            if (tr.campaign.event) return true;
+          }
+          return false;
+        },
+        beginDraft() {
+          if (get().playback || get().stoveCards()) return;
+          const r = beginDraftFn(pickCore(get()), rng);
+          if (applyResult(r)) set({ summary: null, toast: mkToast('신인 드래프트 개막!', 'good') });
+        },
+        draftPick(pid) {
+          const s = get();
+          const p = s.draft?.pool.find((x) => x.id === pid);
+          applyResult(draftPickFn(pickCore(s), pid, rng), p ? `${p.name} 지명!` : undefined);
+        },
+        draftSkip() {
+          applyResult(draftSkipFn(pickCore(get()), rng), '지명권 패스');
+        },
+        finishDraft() {
+          get().startNextSeason();
+        },
+        loadSave(core, version) {
+          set({ ...pickCore(migrateSave(structuredClone(core), version)), playback: null, summary: null, fx: null, lastReport: null, toast: mkToast('세이브를 불러왔습니다', 'good') });
+        },
+        setPenStyle(style) {
+          set({ campaign: changePenStyle(pickCore(get()), style).campaign });
+        },
+        setRunStyle(style) {
+          set({ campaign: { ...get().campaign, runStyle: style } as Core['campaign'] });
+        },
+        setFarmAuto(v) {
+          set({ campaign: { ...get().campaign, farmAuto: v } as Core['campaign'] });
+        },
+        setSubAuto(v) {
+          set({ campaign: { ...get().campaign, subAuto: v } as Core['campaign'] });
+        },
+        remedy(r) {
+          if (get().playback) return '경기 중에는 변경할 수 없습니다';
+          if (r.run.t === 'penStyle') {
+            get().setPenStyle('balance');
+            set({ ...pickCore(refreshBriefing(pickCore(get()))) });
+            return null;
+          }
+          const res = applyRemedy(pickCore(get()), r);
+          if (res.error) return res.error;
+          // 열려 있는 주간 브리핑의 제안은 바뀐 상태에 맞춰 다시 만든다
+          set({ ...pickCore(refreshBriefing(res.core)), ...(r.run.t === 'seats' ? { fx: { kind: 'seats' as const, key: ++seq } } : {}) });
+          return null;
+        },
+        newGame(nickname, seed) {
           set({
-            ...newCore(Date.now()),
+            ...freshCore(nickname, seed),
             playback: null,
             summary: null,
             fx: null,
             lastReport: null,
             leftTab: 'lineup',
             rightTab: 'league',
-            toast: mkToast('새 구단으로 시작합니다', 'info'),
+            toast: mkToast('단장으로 부임했습니다', 'info'),
           });
+        },
+        clearHint(tab) {
+          const c = get().campaign;
+          const pb = get().playback;
+          if (pb && pb.next.campaign.hints?.[tab] && !pb.cleared.includes(tab)) set({ playback: { ...pb, cleared: [...pb.cleared, tab] } });
+          if (!c.hints || !c.hints[tab]) return;
+          const hints = { ...c.hints };
+          delete hints[tab];
+          set({ campaign: { ...c, hints } });
         },
         setTab(side: 'left' | 'right', tab: LeftTab | RightTab) {
           if (side === 'left') set({ leftTab: tab as LeftTab });
@@ -288,8 +596,9 @@ export const useStore = create<Store>()(
     },
     {
       name: 'kbl-save-v1',
-      version: 1,
+      version: 3,
       partialize: (s) => pickCore(s),
+      migrate: (persisted, version) => migrateSave(persisted, version) as unknown as Store,
     },
   ),
 );
@@ -310,10 +619,50 @@ export function findPlayer(s: Pick<Core, 'teams' | 'freeAgents'>, pid: string | 
   return s.freeAgents.find((x) => x.id === pid);
 }
 
-/** 해당 경기일의 유저 팀 대진. */
-export function userMatch(s: Pick<Core, 'schedule' | 'userId'>, day: number): { oppId: string; isHome: boolean } | null {
+/** 해당 경기일의 유저 팀 대진. phase/post 를 함께 넘기면 포스트시즌에는 다음 시리즈 경기를 돌려준다. */
+export function userMatch(
+  s: Pick<Core, 'schedule' | 'userId'> & Partial<Pick<Core, 'phase' | 'post'>>,
+  day: number,
+): { oppId: string; isHome: boolean; round?: PostRound; name?: string; gameNo?: number } | null {
+  if (s.phase === 'post' && s.post) return postMatch(s as Core);
   const m = s.schedule[day]?.find((x) => x.homeId === s.userId || x.awayId === s.userId);
   if (!m) return null;
   const isHome = m.homeId === s.userId;
   return { oppId: isHome ? m.awayId : m.homeId, isHome };
+}
+
+// ───────── 세이브 마이그레이션 ─────────
+
+/** v1 → v2: campaign/post/draft 필드와 타격 스탯 d3/sb/cs 기본값 채우기. v2 → v3: 캠페인 v3 재편 */
+export function migrateSave(persisted: unknown, version: number): Core {
+  const st = (persisted ?? {}) as Partial<Core> & Record<string, unknown>;
+  if (version < 2) {
+    st.campaign = st.campaign ?? campaignZero();
+    st.post = st.post ?? null;
+    st.draft = st.draft ?? null;
+    if (!st.phase || !['season', 'post', 'ended', 'draft', 'over'].includes(st.phase)) st.phase = 'season';
+    const fix = (p: Player) => {
+      p.bat = { ...p.bat, d3: p.bat?.d3 ?? 0, sb: p.bat?.sb ?? 0, cs: p.bat?.cs ?? 0 };
+    };
+    for (const t of st.teams ?? []) t.roster.forEach(fix);
+    (st.freeAgents ?? []).forEach(fix);
+  }
+  const core = st as Core;
+  if (version < 3 && core.campaign) {
+    // v2 → v3: 장 테이블·목표·업적 체계가 바뀌었다. 장은 유지하고 목표·별·대본은 새로 깐다.
+    const c = core.campaign;
+    c.objectives = [];
+    c.achievements = [];
+    c.eventsSeen = [];
+    c.event = null;
+    c.buffs = (c.buffs ?? []).filter((b) => b.kind !== 'pledge');
+    c.beats = undefined;
+    c.hints = {};
+    c.retired = c.retired ?? [];
+    c.managerYielded = c.managerYielded ?? c.stage > 0;
+  }
+  if (core.teams?.length && core.campaign && (core.phase === 'season' || core.phase === 'post') && (!core.campaign.objectives.length || !core.campaign.beats)) {
+    fillObjectivesMut(core, rng);
+  }
+  return core;
 }
