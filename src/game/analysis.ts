@@ -4,9 +4,10 @@ import type { BatPos, Core, Player, Team } from './types';
 import { batValue, effDef, teamParts, type TeamParts } from './ratings';
 import { slotNewcomer } from './lineup';
 import { BENCH_GROW, FARM_CAP, FARM_LOCK, farmMax, MIN_BATTERS, MIN_PITCHERS, ROSTER_MAX, TRAIN_LV, activeRoster, farmGrow, farmRoster, payroll, userTeam } from './economy';
-import { DECLINE_AGE, DECLINE_RATE, PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, WEEK, farmLockLeft, growChance, ilLock, marketSalary } from './season';
+import { PLAY_GROW, PLAY_GROW_AGE, TRAIN_MAX_AGE, WEEK, farmLockLeft, growChance, ilLock, marketSalary } from './season';
 import { ANALYST_NOISE, SCOUT_CUT, SCOUT_NOISE } from './draft';
 import { isFranchise } from './franchise';
+import { DECAY } from './decay';
 
 // ───────── 포지션 점수 ─────────
 
@@ -267,8 +268,10 @@ export function signImpact(team: Team, fa: Player): SignImpact {
 export const DEVELOP_BANDS: { label: string; min: number; max: number; lo: number; hi: number; note?: string }[] = [
   { label: '25세 이하', min: 0, max: 25, lo: 0, hi: 3, note: '잠재력에 닿으면 −1~+1' },
   { label: '26~30세', min: 26, max: 30, lo: -1, hi: 1 },
-  { label: '31~33세', min: 31, max: 33, lo: -2, hi: 1, note: '주력·체력은 −1 더' },
-  { label: '34세 이상', min: 34, max: 99, lo: -3, hi: 0, note: '주력·체력은 −1 더' },
+  { label: '31~32세', min: 31, max: 32, lo: DECAY.a31[0], hi: DECAY.a31[1], note: '주력·체력은 −1 더' },
+  { label: '33~34세', min: 33, max: 34, lo: DECAY.a33[0], hi: DECAY.a33[1], note: '주력·체력은 −1 더' },
+  { label: '35~36세', min: 35, max: 36, lo: DECAY.a35[0], hi: DECAY.a35[1], note: '주력·체력은 −1 더' },
+  { label: '37세 이상', min: 37, max: 99, lo: DECAY.a37[0], hi: DECAY.a37[1], note: '주력·체력은 −1 더' },
 ];
 // 훈련 성과 1회: 능력치 하나 +1~2(평균 1.5) 와 다른 하나 +1. OVR 로는 능력치 가중치 평균만큼 오른다
 const GAIN_PER_HIT: Record<'B' | 'P', number> = { B: (1.5 + 1) / 5, P: (1.5 + 1) / 3 };
@@ -291,7 +294,7 @@ export interface GrowthInfo {
   capped: boolean; // 2군 상한에 닿았다 (1군에서만 더 자란다)
   left: number; // 이번 시즌 남은 훈련 횟수
   expect: number; // 남은 시즌 기대 OVR 성장 (여지를 넘지 않는다)
-  decline: { age: number; rate: number } | null; // 시즌 중 노쇠 대상이면
+  decline: { age: number; rate: number; drop: readonly [number, number] } | null; // 다음 시즌 전환에 급락 대상이면 (확률 · 능력치 폭)
   nextBand: (typeof DEVELOP_BANDS)[number]; // 다음 시즌 나이대
 }
 
@@ -330,7 +333,7 @@ export function growthInfo(core: Core, p: Player): GrowthInfo {
     capped,
     left,
     expect,
-    decline: p.age >= DECLINE_AGE ? { age: DECLINE_AGE, rate: DECLINE_RATE } : null,
+    decline: nextAge >= DECAY.cliffAge ? { age: DECAY.cliffAge, rate: DECAY.cliff, drop: DECAY.cliffDrop } : null,
     nextBand: DEVELOP_BANDS.find((b) => nextAge >= b.min && nextAge <= b.max) ?? DEVELOP_BANDS[DEVELOP_BANDS.length - 1],
   };
 }

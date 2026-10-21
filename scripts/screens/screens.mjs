@@ -55,7 +55,7 @@ const WEAK = 'css:[data-testid="squad-field"] [data-weak]';
 const FARM_CHIP = 'css:[data-testid="squad-farm"] [data-item]';
 const LIST = [...SQUAD, c('open-list')];
 /** 이적 탭 = 이적 창구 (폰: 하단 탭 · 데스크톱: 왼쪽 패널의 [이적 창구 ⤢]) */
-const MARKET = [m('이적'), d('이적 창구 ⤢')];
+const MARKET = [m('css:nav [data-tab="market"]'), d('이적 창구 ⤢')]; // 글자 '이적'은 할 일 줄(팀장 추천)과 겹친다
 const DESK = MARKET;
 const CLUB = [m('구단')];
 const PLAY = [c('▶ 경기 진행')];

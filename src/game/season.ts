@@ -9,7 +9,7 @@ import { projectFx, projectSeasonOpenMut } from './projects';
 import {
   FOOD_LV, SEAT_LV, TRAIN_LV, LOAN_STEP, OVER_LIMIT_ERR, loanInterest, loanLimit, overLimit, farmMax, ROSTER_MAX, MIN_BATTERS, MIN_PITCHERS,
   MERCH_K, leagueShare, RENEW_PREMIUM, RENEW_SEASONS,
-  BENCH_GROW, FARM_CAP, FARM_LOCK, IL_MIN, SVC_YEARS, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
+  BENCH_GROW, FARM_CAP, FARM_GROW, FARM_GROW_MIN, FARM_LOCK, IL_MIN, SVC_YEARS, AUDIT, activeRoster, farmGrow, farmRoster, farmUpkeep,
   awaySupport, calcDemand, capacityOf, opProfit, opsCost, payroll, rainFood, refPrice, releaseCost, salaryInflation, signingBonus, signingBonusFor, faHeatOn, faHeatWhy, faSigned, faSeason, FA_HEAT, signingOpen, starPower, upgradeCost, userTeam,
 } from './economy';
 import { baseStar, batZero, genFreeAgents, genPlayer, ledgerZero, makeCtx, pitZero, recZero } from './generate';
@@ -28,6 +28,7 @@ import { svcPay, svcYearAt } from './contract';
 import { farmDailyMut, subEnqueueMut, growBonus, ilAutoMut, markUpMut, seasonTurnFarmMut } from './farm';
 import { dayAt, perGame, rankUnits } from './league';
 import { HOME_GATE, awayGate } from './gate';
+import { DECAY } from './decay';
 
 // ── 밸런스 상수 ──
 const FAN_WIN = 25;
@@ -45,7 +46,8 @@ export const ALUMNI_STAR = 50; // 이 스타성 이상으로 35세 넘어 은퇴
 export const ALUMNI_AGE = 35;
 export const TRAIN_MAX_AGE = 28;
 export const DECLINE_AGE = 33;
-export const DECLINE_RATE = 0.06;
+export const DECLINE_RATE = 0.06; // (예전 주간 노쇠 — 지금은 쓰지 않는다. 시즌 전환의 DECAY 로 옮겼다)
+export { DECAY } from './decay';
 const NEWS_MAX = 80;
 const RETIRE_AGE = 40;
 const FRANCHISE_LEAVE_FANS = 8; // 프랜차이즈 스타 방출·트레이드 시 팬 감소 = star × 이 값
@@ -154,6 +156,22 @@ export function growChance(core: Pick<Core, 'facilities'> & Partial<Pick<Core, '
   return Math.min(1, grow * (playing ? PLAY_GROW : BENCH_GROW));
 }
 
+/** AI 구단의 주간 성장 확률: 우리와 같은 규칙(주전 ×PLAY_GROW · 비주전 유망주는 2군처럼)에 **투자 없는 훈련장(공터)**.
+ *  훈련장에 투자하지 않은 우리 팀과 똑같이 자라고, 차이는 우리의 훈련장 투자에서만 난다.
+ *  (AI 도 실내 훈련장(3단계)급으로 키우면 리그 전체가 해마다 강해져 sensible 봇도 절반이 연고 이전됐다 — economy.ts 16시드) */
+export const AI_TRAIN_LV = 0;
+export function aiGrowChance(t: Team, p: Player): number {
+  if (p.age > TRAIN_MAX_AGE || p.ovr >= p.pot) return 0;
+  const grow = TRAIN_LV[AI_TRAIN_LV].grow;
+  if (p.age > PLAY_GROW_AGE) return grow;
+  const playing = t.lineup.some((x) => x.pid === p.id) || t.rotation.includes(p.id) || t.closer === p.id;
+  if (playing) return Math.min(1, grow * PLAY_GROW);
+  // AI 는 2군이 없다: 25세 이하 비주전은 우리 2군처럼 자란다 (2군 상한까지) — 벤치 배율을 걸면 우리 2군 유망주보다 훨씬 느렸다
+  if (p.ovr < FARM_CAP) return Math.min(1, Math.max(FARM_GROW_MIN, grow * FARM_GROW));
+  if ((p.kind === 'P' && AUDIT.penGrow) || !AUDIT.benchHalf) return grow;
+  return Math.min(1, grow * BENCH_GROW);
+}
+
 /** 퓨처스 성적 한 줄 (".338 5홈런" / "평균자책 3.21 · 24이닝"). 기록이 없으면 '' */
 export function farmStatText(p: Player): string {
   const s = p.farmStat;
@@ -195,7 +213,7 @@ function farmWeekMut(p: Player, rng: Rng): void {
   }
 }
 
-/** 주간 훈련: 젊은 선수 성장, 노장 소폭 노쇠 */
+/** 주간 훈련: 젊은 선수 성장 (우리 팀 + AI 구단 같은 규칙). 노쇠는 시즌 전환(develop)에서 모두 같이 */
 function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
   const t = userTeam(core);
   // 2장 기: 지난 드래프트 신인은 첫 2주 안에 훈련 성과가 한 번은 난다
@@ -226,11 +244,19 @@ function weeklyTraining(core: Core, rng: Rng, notes: string[]): void {
       const msg = `${p.farm ? '퓨처스 성과' : '훈련 성과'}: ${p.name} ${ABIL_KO[k]}+${d} · ${ABIL_KO[k2]}+1`;
       if (p.farm && p.ovr >= FARM_CAP && p.ovr < p.pot) addNews(core, `${p.name}: 2군에서 배울 건 다 배웠습니다 (오버롤 ${p.ovr})`, 'info');
       notes.push(msg); // 소식 탭에는 올리지 않는다 (주간 브리핑의 "훈련 성과 n회"가 모아 보여 준다)
-    } else if (p.age >= DECLINE_AGE && rng() < DECLINE_RATE) {
-      const k = p.kind === 'B' ? pick(rng, ['spd', 'spd', 'def', 'con'] as AbilKey[]) : pick(rng, ['sta', 'stf'] as AbilKey[]);
-      p[k] = clamp(p[k] - 1, 20, 99);
+    }
+  }
+  // AI 구단도 같은 규칙으로 자란다 (전에는 시즌 전환의 +0~3 뿐이라 젊은 선수가 우리 팀의 3분의 1 속도로 컸다)
+  for (const at of core.teams) {
+    if (at.id === core.userId) continue;
+    for (const p of at.roster) {
+      if (p.age > TRAIN_MAX_AGE || p.ovr >= p.pot || rng() >= aiGrowChance(at, p)) continue;
+      const keys = p.kind === 'B' ? BAT_KEYS : PIT_KEYS;
+      const k = pick(rng, keys);
+      p[k] = clamp(p[k] + randInt(rng, 1, 2), 20, 99);
+      const k2 = pick(rng, keys.filter((x) => x !== k));
+      p[k2] = clamp(p[k2] + 1, 20, 99);
       p.ovr = calcOvr(p);
-      notes.push(`세월의 무게: ${p.name} ${ABIL_KO[k]}-1`);
     }
   }
 }
@@ -835,12 +861,17 @@ function develop(p: Player, rng: Rng, season: number): void {
   const keys = p.kind === 'B' ? BAT_KEYS : PIT_KEYS;
   for (const k of keys) {
     let d: number;
+    // 노쇠는 나이가 들수록 빨라진다 (전에는 33~38세가 해마다 −2 로 평평해 38세에도 1군이었다). 우리 팀 · AI 구단 · FA 모두 같다
+    const [lo, hi] = p.age <= 30 ? [-1, 1] : p.age <= 32 ? DECAY.a31 : p.age <= 34 ? DECAY.a33 : p.age <= 36 ? DECAY.a35 : DECAY.a37;
     if (p.age <= 25) d = p.ovr < p.pot ? randInt(rng, 0, 3) : randInt(rng, -1, 1);
-    else if (p.age <= 30) d = randInt(rng, -1, 1);
-    else if (p.age <= 33) d = randInt(rng, -2, 1);
-    else d = randInt(rng, -3, 0);
+    else d = randInt(rng, lo, hi);
     if (p.age >= 31 && (k === 'spd' || k === 'sta')) d -= 1;
     p[k] = clamp(p[k] + d, 20, 99);
+  }
+  // 급락: 33세 이상은 해마다 일정 확률로 한 번에 크게 떨어진다 (FA·다년 계약에 운이 섞인다)
+  if (p.age >= DECAY.cliffAge && rng() < DECAY.cliff) {
+    for (const k of keys) p[k] = clamp(p[k] - randInt(rng, DECAY.cliffDrop[0], DECAY.cliffDrop[1]), 20, 99);
+    p.cliff = season;
   }
   p.ovr = calcOvr(p);
   p.pot = Math.max(p.pot, p.ovr);
@@ -927,7 +958,9 @@ export function nextSeason(core0: Core, rng: Rng): Core {
       const franchise = t.id === core.userId && isFranchise(p, endedSeason);
       const alumnus = t.id === core.userId && p.star >= ALUMNI_STAR && p.age >= ALUMNI_AGE - 1;
       const ban = p.ban;
+      const ovrBefore = p.ovr;
       develop(p, rng, core.season);
+      if (t.id === core.userId && p.cliff === core.season) addNews(core, `급격한 노쇠: ${p.name}(${p.age}세) 오버롤 ${ovrBefore} → ${p.ovr}`, 'bad');
       // 우승 후유증: 2연패부터 30대 1군 선수의 노쇠가 조금 빠르다
       if (t.id === core.userId && streak >= DYN.ageStreak && p.age >= DYN.ageFrom && !p.farm) {
         for (let n = 0; n < Math.min(DYN.ageMax, streak - 1); n++) {

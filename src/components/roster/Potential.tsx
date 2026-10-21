@@ -92,7 +92,7 @@ export default function Potential({ player: p, prospect = false }: { player: Pla
         {g.decline && (
           <div className={line} data-testid="pot-decline">
             <span className={key}>노쇠</span>
-            <span className="text-bad">{g.decline.age}세 이상 · {g.week}경기마다 {pct(g.decline.rate)} 확률로 능력치 −1</span>
+            <span className="text-bad">{g.decline.age}세 이상 · 시즌 교체 때 {pct(g.decline.rate)} 확률로 급락 (능력치마다 −{g.decline.drop[0]}~{g.decline.drop[1]})</span>
           </div>
         )}
         {g.mine && g.trains && g.left > 0 && (

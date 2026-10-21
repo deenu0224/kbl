@@ -69,6 +69,7 @@ export interface Player {
   ask?: number; // FA 재계약 때 합의한 배율 (시장가 × 이 값. 유저 팀에 있는 동안 유지)
   deal?: { season: number; salary: number; until?: number }; // 합의한 연봉: season ~ until(없으면 season) 시즌 동안 이 값 (재계약 1년·4년 · 포스팅 잔류 · 스토브 FA 영입). 시즌 전환이 재산정하지 않는다
   left?: number; // 우리 팀을 떠나 FA 시장에 나간 시즌 (그 시즌에는 다시 데려올 수 없다)
+  cliff?: number; // 급격한 노쇠가 온 시즌 (그 시즌 개막 소식용)
   away?: { until: number; kind: 'army' }; // 팀을 떠나 있는 선수 (입대). until 시즌 개막에 복귀. 로스터가 아니라 campaign.away 에 있다
   from?: 'fa' | 'draft'; // 우리 구단에 온 길: FA 영입 · 우리 드래프트(은퇴 자리를 채운 신인 포함). 트레이드·창단 멤버·옛 세이브는 없다 (franchise.ts coreOrigin)
   served?: boolean; // 군 복무를 마쳤거나 입대한 선수 (입대 통지 대상에서 빠진다)
