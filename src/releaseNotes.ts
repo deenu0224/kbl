@@ -12,6 +12,15 @@ export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_V
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.17.1',
+    date: '2026-10-21',
+    title: '세월은 공평하게',
+    notes: [
+      '30대 중반부터 노쇠가 빨라지고, 가끔 한 번에 크게 떨어져요.',
+      '다른 구단 선수도 우리 선수와 같은 속도로 늙고, 유망주도 같은 규칙으로 자라요.',
+    ],
+  },
+  {
     version: '0.17.0',
     date: '2026-10-21',
     title: '키운 선수의 FA',
